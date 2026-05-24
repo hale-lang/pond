@@ -1,0 +1,49 @@
+// pond/tower — Banner free fns.
+//
+// Convenience helpers for printing a startup line
+// listing the registered towers. Pure print — no
+// hidden behavior, no log subscription, no metrics
+// emission. The app chooses when (if ever) to call.
+
+// startup_banner — prints a multi-line banner showing
+// what's running. Typical use:
+//
+//   let reg = tower::Registry { };
+//   let r   = router::Router    { name: "public",  ... };
+//   let m   = metrics::Registry { name: "metrics", ... };
+//   tower::add(reg, r);
+//   tower::add(reg, m);
+//   tower::startup_banner(reg);
+//
+// Output:
+//   === starting 2 tower(s) ===
+//     - public
+//     - metrics
+fn startup_banner(r: Registry) {
+    let n = count(r);
+    println("=== starting " + n + " tower(s) ===");
+    let mut i = 0;
+    while i < n {
+        println("  - " + name_at(r, i));
+        i = i + 1;
+    }
+}
+
+// names — comma-joined string of every tower name,
+// in registration order. Useful for log lines and
+// audit trails.
+//
+//   let line = tower::names(reg);   // "public, metrics, jobs"
+fn names(r: Registry) -> String {
+    let n = count(r);
+    let mut out = "";
+    let mut i = 0;
+    while i < n {
+        if i > 0 {
+            out = out + ", ";
+        }
+        out = out + name_at(r, i);
+        i = i + 1;
+    }
+    return out;
+}

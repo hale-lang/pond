@@ -1,0 +1,61 @@
+// pond/supervisor — types
+//
+// Shape records for the supervisor surface. Per CONTRACTS.md the
+// public surface is:
+//
+//   type SupStrategy { kind: String; }
+//     kind: "one_for_one" | "rest_for_one" | "one_for_all" | "escalate"
+//   type ChildSpec   { name: String; restart: String; }
+//     restart: "permanent" | "transient" | "temporary"
+//
+// Both are pure data — returnable by value, no flow. They configure
+// the Supervisor's `on_failure` routing without participating in the
+// runtime lifecycle themselves.
+//
+// String-tagged kinds rather than enums because Hale v1 enum-as-
+// param/field surface is uneven across stdlib (no parametric enum
+// matching in struct field positions in every codegen path yet);
+// strings + comparison-on-equality work uniformly under both
+// `hale run` and `hale build`.
+
+// SupStrategy — the policy the supervisor applies when a child
+// fails. Map (per spec/runtime.md § Recovery primitives):
+//
+//   "one_for_one"   restart just the failed child.
+//   "rest_for_one"  restart the failed child and every later sibling
+//                   (instantiated after it).
+//   "one_for_all"   restart every child of the supervisor.
+//   "escalate"      bubble() the failure to the supervisor's parent.
+//
+// See README.md "Strategies" for the per-kind handler shape.
+type SupStrategy {
+    kind: String;
+}
+
+// ChildSpec — per-child restart policy a Supervisor consults when
+// the child fails.
+//
+//   name     human-readable id; used in log messages and to look
+//            up the policy in the supervisor's spec table.
+//   policy   one of:
+//              "permanent" — always restart.
+//              "transient" — restart only on abnormal exit
+//                            (closure violation). Clean dissolves
+//                            are absorbed.
+//              "temporary" — never restart; absorb on every failure.
+//
+// "transient" maps cleanly to Hale: ClosureViolation in on_failure
+// is the substrate's "abnormal exit" signal, and clean collapse never
+// invokes on_failure at all.
+//
+// **Field-name deviation:** CONTRACTS.md spells this field `restart`.
+// `restart` is a reserved keyword at the Hale lexer level (see
+// spec/tokens.md § Recovery primitives — restart, restart_in_place,
+// quarantine, reorganize, bubble) and is rejected in field-name
+// position by the parser. The lib spells the field `policy` and
+// the FRICTION.md notes the deviation; the type-shape (one String
+// field carrying one of three values) is otherwise contract-faithful.
+type ChildSpec {
+    name:   String = "";
+    policy: String = "permanent";
+}

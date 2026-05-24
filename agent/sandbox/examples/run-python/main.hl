@@ -1,0 +1,77 @@
+// pond/agent/sandbox/examples/run-python — minimal consumer demo.
+//
+// Demonstrates the shape consumers will use against the
+// `pond/agent/sandbox` (alias `sandbox`) surface. Vendored
+// normally the import looks like:
+//
+//     import "vendor/pond/agent/sandbox" as sandbox;
+//
+// In-tree the example reaches the lib via a relative path.
+//
+// Status (2026-05-16): the lib is BLOCKED on pond/subprocess
+// which is itself BLOCKED on a stdlib spawn primitive (see
+// ../../FRICTION.md). Every fallible call below resolves to
+// `SandboxError { kind: "spawn_failed", detail: "...stdlib
+// spawn primitive not yet available..." }`. The shape is
+// exactly what consumer code will look like the day both
+// lower libs unblock; only the printed values flip from
+// "BLOCKED" to "hello\n".
+
+import "../.." as sandbox;
+
+locus RunPython {
+    params {
+        code: String = "print('hello')";
+    }
+
+    run() {
+        // Construct a Sandbox once; reuse across runs.
+        let sb = sandbox::Sandbox {
+            runtime:         "python3",
+            timeout_ms:      5000,
+            memory_limit_mb: 256,
+        };
+
+        // Inline-snippet path. Method form (canonical surface):
+        // surfaces failure on sb.last_error per the two-channel
+        // rule deviation (FRICTION.md § 2.1).
+        let r = sb.run_code(self.code);
+        if sb.last_error.kind != "" {
+            println("run-python: BLOCKED — ", sb.last_error.kind);
+            println("run-python: detail: ", sb.last_error.detail);
+        } else {
+            // The happy path. Today unreachable; tomorrow this
+            // prints "exit 0: hello".
+            println("run-python: exit ", r.exit_code);
+            println("run-python: stdout: ", r.stdout);
+            if len(r.stderr) > 0 {
+                println("run-python: stderr: ", r.stderr);
+            }
+        }
+
+        // Value-channel path (free-fn wrapper). Demonstrates
+        // the alternative surface for consumers that prefer
+        // `or raise` / `or default` / `or self.report(err)`.
+        let r2 = sandbox::run_code_at(sb, self.code) or self.report(err);
+        if r2.exit_code >= 0 {
+            println("run-python: (value-channel) exit ", r2.exit_code);
+        }
+    }
+
+    // Error-check fn — converts the value-channel SandboxError
+    // into a recoverable substitute. The substitute carries
+    // exit_code = -1 so the caller can detect "we recovered
+    // from an error" without re-inspecting err.
+    fn report(e: sandbox::SandboxError) -> sandbox::SandboxResult {
+        println("run-python: (value-channel) ", e.kind, ": ", e.detail);
+        return sandbox::SandboxResult {
+            exit_code: -1,
+            stdout:    "",
+            stderr:    "",
+        };
+    }
+}
+
+fn main() {
+    RunPython { };
+}

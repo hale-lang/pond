@@ -1,0 +1,172 @@
+// pond/router — pattern matching free fns.
+//
+// Pattern 6 (free fns). Pattern segments and request path
+// segments split on `/`; the matcher walks them in lockstep:
+// a literal segment must equal-match, a `:name` segment binds
+// the corresponding request segment into the path_kv capture
+// string. Trailing-slash tolerance is asymmetric — `"/users"`
+// and `"/users/"` both match the same path pattern, but the
+// pattern itself is taken as-written (no implicit `/*` suffix).
+//
+// Capture encoding follows the CONTRACTS.md `RouteParams`
+// shape: `path_kv` is "name\tvalue\tname\tvalue" with tab
+// separators (no leading / trailing tab). The free fn
+// `path_param` (in params.hl) walks this back out at lookup
+// time. We chose tab over newline so the encoding survives
+// URL-decoded values that may contain newlines (URL-decoding
+// itself is a v1.x follow-up — see FRICTION.md "url-decoding").
+
+// `split_path_query(p)` returns the path component (before any
+// `?`) of the request target. Output values are the path
+// substring and the query substring (without the leading `?`).
+// Both returned via mutation of a helper type because v1 has
+// no tuple returns from fns the path-call lowering routes
+// through.
+//
+// We sidestep the tuple-return question by exposing two paired
+// free fns, mirroring the std::io::fs::list_dir_count + _at
+// idiom (spec/styleguide.md § "Current language gaps"). Both
+// O(N) in the request target; in practice both fire once per
+// request so a single combined scan would be the optimization
+// — left for a perf-driven follow-up.
+
+fn __router_path_only(target: String) -> String {
+    let n = len(target);
+    if n == 0 {
+        return "";
+    }
+    let q = std::str::index_of(target, "?");
+    if q < 0 {
+        return target;
+    }
+    return target[0..q];
+}
+
+fn __router_query_only(target: String) -> String {
+    let n = len(target);
+    if n == 0 {
+        return "";
+    }
+    let q = std::str::index_of(target, "?");
+    if q < 0 {
+        return "";
+    }
+    let start = q + 1;
+    if start >= n {
+        return "";
+    }
+    return target[start..n];
+}
+
+// `__router_seg_count(p)` — count `/`-separated segments in a
+// path. Leading `/` is conventional and produces an empty
+// first segment which we elide (so "/users/42" has 2
+// non-empty segments, not 3). Trailing `/` also elides so
+// "/users/42/" still reads as 2.
+fn __router_seg_count(p: String) -> Int {
+    let n = len(p);
+    if n == 0 {
+        return 0;
+    }
+    let mut count = 0;
+    let mut i = 0;
+    let mut in_seg = false;
+    while i < n {
+        let ch = p[i..(i + 1)];
+        if ch == "/" {
+            if in_seg {
+                count = count + 1;
+                in_seg = false;
+            }
+        } else {
+            in_seg = true;
+        }
+        i = i + 1;
+    }
+    if in_seg {
+        count = count + 1;
+    }
+    return count;
+}
+
+// `__router_seg_at(p, idx)` — return the idx-th non-empty
+// segment (0-based) from a `/`-separated path. Returns ""
+// when idx is out of range. Pairs with __router_seg_count for
+// the index-API walk (no Vec<String> at v1).
+fn __router_seg_at(p: String, idx: Int) -> String {
+    let n = len(p);
+    if n == 0 {
+        return "";
+    }
+    let mut seen = 0;
+    let mut i = 0;
+    let mut start = -1;
+    while i < n {
+        let ch = p[i..(i + 1)];
+        if ch == "/" {
+            if start >= 0 {
+                if seen == idx {
+                    return p[start..i];
+                }
+                seen = seen + 1;
+                start = -1;
+            }
+        } else {
+            if start < 0 {
+                start = i;
+            }
+        }
+        i = i + 1;
+    }
+    if start >= 0 {
+        if seen == idx {
+            return p[start..n];
+        }
+    }
+    return "";
+}
+
+// `match_pattern(pattern, path)` — try to bind `path` against
+// `pattern`. Returns a `path_kv`-formatted String of captures
+// on success, or the sentinel "__nomatch" on failure. Empty
+// capture string ("") is a successful match with no captures
+// (a pattern of only literal segments).
+//
+// We use a sentinel rather than fallible because match-failure
+// is the common path (one pattern fires per request, dozens
+// may be tried) and fallible's per-call addressing would force
+// the dispatch loop to write `or ""` everywhere, conflating
+// "matched with no captures" and "didn't match". The sentinel
+// is private to the dispatcher; consumers never see it.
+fn match_pattern(pattern: String, path: String) -> String {
+    let pn = __router_seg_count(pattern);
+    let rn = __router_seg_count(path);
+    if pn != rn {
+        return "__nomatch";
+    }
+    let mut kv = std::str::builder_new();
+    let mut first = true;
+    let mut i = 0;
+    while i < pn {
+        let ps = __router_seg_at(pattern, i);
+        let rs = __router_seg_at(path, i);
+        let psl = len(ps);
+        if psl > 0 && ps[0..1] == ":" {
+            // Capture segment. Name is ps[1..] ; value is rs.
+            let name = ps[1..psl];
+            if !first {
+                kv = std::str::builder_append(kv, "\t");
+            }
+            kv = std::str::builder_append(kv, name);
+            kv = std::str::builder_append(kv, "\t");
+            kv = std::str::builder_append(kv, rs);
+            first = false;
+        } else {
+            if ps != rs {
+                return "__nomatch";
+            }
+        }
+        i = i + 1;
+    }
+    return std::str::builder_finish(kv);
+}

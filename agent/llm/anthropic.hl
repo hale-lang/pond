@@ -1,0 +1,575 @@
+// pond/agent/llm — AnthropicClient locus.
+//
+// Catalog mapping: pattern 3 (service locus). Carries
+// per-client mutable scratch state (`last_error_*` fields for
+// the two-channel-rule workaround on the streaming method) +
+// participates in the bus via `publish LlmChunk` /
+// `publish LlmDone`. No birth/dissolve work — the underlying
+// TCP connections are per-call, not per-client.
+//
+// Public surface (per CONTRACTS.md):
+//   locus AnthropicClient {
+//       params { api_key, base_url, default_model }
+//       fn complete(req) -> LlmResponse fallible(LlmError);
+//       fn stream(req) -> ();
+//       bus { publish LlmChunk; publish LlmDone; }
+//   }
+//
+// Two-channel rule (spec/semantics.md § Fallible call
+// semantics): user-declared locus methods may NOT declare
+// `fallible(E)`. The contract surface lists
+// `complete(req) -> LlmResponse fallible(LlmError)` as a
+// method — that's type-illegal under v1. We deviate:
+//   - `complete()` is a method, declared non-fallible. It
+//     wraps the fallible free fn `__anthropic_complete` and
+//     captures any error onto `last_error` so the caller
+//     reads error state via `last_error_kind()` /
+//     `last_error_detail()`. On success the LlmResponse is
+//     returned directly; on failure the returned LlmResponse
+//     is the empty-defaults sentinel.
+//   - For callers that *do* want hard `fallible` semantics,
+//     the free fn `anthropic_complete(api_key, base_url, req)`
+//     in the same lib offers the same surface as a fallible
+//     free fn. Same body, same error type — just a different
+//     channel.
+// Logged in FRICTION.md.
+
+// FRICTION: nearly every CONTRACTS.md "locus method ->
+// T fallible(E)" entry across pond/ trips this rule; the
+// pattern of "method wraps fallible free fn + caches err in
+// last_*" recurs in pond/sqlite/Db, pond/http/client/Client,
+// pond/subprocess/Process, and now this lib. Strong signal
+// the contract needs a sweep — either flip every such method
+// to a free fn or accept the wrapper pattern as the v1 idiom
+// and lift it into a helper macro. Logged in FRICTION.md.
+
+locus AnthropicClient {
+    params {
+        api_key:       String = "";
+        base_url:      String = "https://api.anthropic.com";
+        default_model: String = "claude-opus-4-7";
+        max_body:      Int    = 16777216;  // 16 MiB response cap
+
+        // Last-error scratch (see two-channel deviation above).
+        last_kind:   String = "";
+        last_status: Int    = 0;
+        last_detail: String = "";
+    }
+    bus {
+        // Topic-ident publish (canonical form per spec §
+        // Topic declarations). The seed-rename pass now
+        // rewrites publish-side topic refs alongside the
+        // topic decls themselves, so the workaround that
+        // forced literal-subject publishes (`"agent.llm.
+        // chunk" of type LlmChunk`) is gone. Subscribers
+        // wire up symmetrically via `subscribe llm::LlmChunk
+        // as h;` — no `of type T`, the topic carries the
+        // payload type.
+        publish LlmChunk;
+        publish LlmDone;
+    }
+
+    // ===== error inspection ============================================
+
+    fn last_error_kind()   -> String { return self.last_kind;   }
+    fn last_error_status() -> Int    { return self.last_status; }
+    fn last_error_detail() -> String { return self.last_detail; }
+
+    // Error-check fn for the value channel (the substitute-and-record
+    // half of the spec/styleguide.md § 7 pattern). The structural
+    // channel half (violate fatal) isn't wired here because a single
+    // bad request shouldn't drain the whole client locus.
+    fn __record(e: LlmError) -> LlmResponse {
+        self.last_kind   = e.kind;
+        self.last_status = e.status;
+        self.last_detail = e.detail;
+        return LlmResponse { };
+    }
+
+    // ===== complete() — non-streaming, one-shot ========================
+
+    fn complete(req: LlmRequest) -> LlmResponse {
+        self.last_kind = "";
+        self.last_status = 0;
+        self.last_detail = "";
+
+        let model = req.model;
+        let mut filled = req;
+        if len(model) == 0 {
+            filled = LlmRequest {
+                model:       self.default_model,
+                system:      req.system,
+                messages:    req.messages,
+                max_tokens:  req.max_tokens,
+                temperature: req.temperature
+            };
+        }
+        return anthropic_complete(
+            self.api_key,
+            self.base_url,
+            filled,
+            self.max_body
+        ) or self.__record(err);
+    }
+
+    // ===== stream() — SSE, fires LlmChunk per delta, LlmDone at end ===
+
+    // Per the two-channel rule, stream() is non-fallible. Errors
+    // surface on self.last_* (same as complete), and on a failed
+    // stream the locus emits an `LlmDone` carrying the partial
+    // text that was assembled before the failure plus an empty
+    // stop_reason. Consumers that need hard error semantics check
+    // `last_error_kind() != ""` after the call.
+    //
+    // Implementation note: the connect+send+drain phase lives
+    // in a fallible free fn (`__anthropic_fetch_sse`) so the
+    // error channel composes the usual way. The SSE-line walk
+    // is INLINE here because `publish LlmChunk` / `LlmDone`
+    // is only legal inside a locus body with the matching
+    // `bus { publish ... }` declaration (spec/semantics.md §
+    // bus). Calling a free-fn kernel that does the publish
+    // would fail typecheck with "bus send only valid inside
+    // a locus body" — verified during initial build.
+    fn stream(req: LlmRequest) {
+        self.last_kind = "";
+        self.last_status = 0;
+        self.last_detail = "";
+
+        let model = req.model;
+        let mut filled = req;
+        if len(model) == 0 {
+            filled = LlmRequest {
+                model:       self.default_model,
+                system:      req.system,
+                messages:    req.messages,
+                max_tokens:  req.max_tokens,
+                temperature: req.temperature
+            };
+        }
+
+        let body = __anthropic_fetch_sse(
+            self.api_key,
+            self.base_url,
+            filled,
+            self.max_body
+        ) or self.__sse_recover(err);
+        if self.last_kind != "" {
+            // Connect/HTTP/vendor failure — publish a sentinel
+            // LlmDone so subscribers learn the stream finished
+            // (the body of last_* carries the diagnosis).
+            LlmDone <- LlmDoneMsg { payload: LlmResponse { } };
+        } else {
+            // Walk the SSE body inline (bus publish must be
+            // lexically inside the locus). Same loop the
+            // free-fn kernel uses for non-bus consumers.
+            let mut buf = SseBuffer { buf: body, done: false };
+            let text_buf = std::str::builder_new();
+            let mut stop_reason = "";
+            while !buf.done {
+                let step = next_data_line(buf);
+                buf = step.remaining;
+                if !step.has_line {
+                    if !buf.done { break; }
+                    continue;
+                }
+                let delta = extract_anthropic_delta(step.line);
+                if len(delta) > 0 {
+                    LlmChunk <- LlmChunkMsg { payload: delta };
+                    std::str::builder_append(text_buf, delta);
+                }
+                let sr = extract_anthropic_stop_reason(step.line);
+                if len(sr) > 0 {
+                    stop_reason = sr;
+                }
+            }
+            let resp = LlmResponse {
+                text:          std::str::builder_finish(text_buf),
+                stop_reason:   stop_reason,
+                input_tokens:  0,
+                output_tokens: 0
+            };
+            LlmDone <- LlmDoneMsg { payload: resp };
+        }
+    }
+
+    // Error-check fn for the streaming path. Behaves like
+    // __record but returns an empty String (the success type
+    // of the connect-fetch kernel) rather than an LlmResponse.
+    fn __sse_recover(e: LlmError) -> String {
+        self.last_kind   = e.kind;
+        self.last_status = e.status;
+        self.last_detail = e.detail;
+        return "";
+    }
+}
+
+// ===== free fn surface — the fallible kernel ==========================
+//
+// `anthropic_complete` is the fallible free-fn entry point.
+// AnthropicClient's complete() method wraps it; consumers who
+// want the value-channel error path directly can call it.
+
+// HTTP/1.1 boilerplate shared between complete + stream.
+// Returns the assembled wire-format request bytes for an
+// already-parsed Url. Streams are differentiated by the
+// `stream` flag inside the JSON body (we pass it through to
+// __build_anthropic_body) plus an `Accept: text/event-stream`
+// header.
+fn __anthropic_build_http(
+    api_key: String,
+    host: String,
+    port: Int,
+    path: String,
+    body_json: String,
+    streaming: Bool
+) -> String {
+    let body_len = len(body_json);
+    let mut accept_header = "Accept: application/json\r\n";
+    if streaming {
+        accept_header = "Accept: text/event-stream\r\n";
+    }
+    let header =
+        "POST " + path + " HTTP/1.1\r\n"
+        + "Host: " + host + ":" + to_string(port) + "\r\n"
+        + "User-Agent: pond/agent-llm 0.1\r\n"
+        + "Content-Type: application/json\r\n"
+        + "Content-Length: " + to_string(body_len) + "\r\n"
+        + "Connection: close\r\n"
+        + "x-api-key: " + api_key + "\r\n"
+        + "anthropic-version: 2023-06-01\r\n"
+        + accept_header
+        + "\r\n"
+        + body_json;
+    return header;
+}
+
+// Parse out the HTTP status line + body offset from a recv'd
+// response blob. Returns -1 status on parse failure.
+type __HttpSplit {
+    status:     Int    = 0;
+    body_start: Int    = 0;
+    headers:    String = "";
+    body:       String = "";
+}
+
+fn __split_http(raw: String) -> __HttpSplit {
+    let total = len(raw);
+    if total <= 0 {
+        return __HttpSplit { status: 0 };
+    }
+    let hdr_end = std::str::index_of(raw, "\r\n\r\n");
+    if hdr_end < 0 {
+        return __HttpSplit { status: 0 };
+    }
+    let line_end = std::str::index_of(raw, "\r\n");
+    if line_end < 0 || line_end > hdr_end {
+        return __HttpSplit { status: 0 };
+    }
+    let status_line = raw[0..line_end];
+    // "HTTP/1.1 NNN ..."
+    let line_len = len(status_line);
+    let sp1 = std::str::index_of(status_line, " ");
+    if sp1 < 0 {
+        return __HttpSplit { status: 0 };
+    }
+    let after = status_line[(sp1 + 1)..line_len];
+    let after_len = len(after);
+    let sp2 = std::str::index_of(after, " ");
+    let mut code_str = after;
+    if sp2 >= 0 {
+        code_str = after[0..sp2];
+    }
+    let code = std::str::parse_int(code_str) or 0;
+
+    let mut headers = "";
+    let h_start = line_end + 2;
+    if h_start < hdr_end {
+        headers = raw[h_start..hdr_end];
+    }
+    let body_start = hdr_end + 4;
+    let mut body = "";
+    if body_start < total {
+        body = raw[body_start..total];
+    }
+    return __HttpSplit {
+        status:     code,
+        body_start: body_start,
+        headers:    headers,
+        body:       body
+    };
+}
+
+// __LlmStream — transport-agnostic stream wrapper. Mode 0 is
+// plain TCP (`fd` is a connected socket); mode 1 is TLS over
+// system OpenSSL (`handle` is a `std::io::tls::connect`
+// handle, which wraps its own TCP fd internally). The helper
+// fns below route `send` / `recv_bytes` / `close` through the
+// right substrate per mode.
+//
+// FRICTION (TLS shipped 2026-05-18): pre-TLS this lib only
+// dialed plaintext HTTP; the `unsupported_scheme` branches
+// rejected `https://` at parse time. With `std::io::tls::*`
+// live, the URL parser routes `https` → TLS connect and the
+// rest of the code stays the same shape. Logged as closed in
+// FRICTION.md.
+type __LlmStream {
+    kind:   Int = 0;    // 0 = plain TCP, 1 = TLS (`mode` is a reserved
+                        //    keyword in Hale, so `kind` here)
+    fd:     Int = -1;   // plain-mode connection fd
+    handle: Int = -1;   // TLS-mode handle (from std::io::tls::connect)
+}
+
+fn __stream_send(s: __LlmStream, wire: String) -> Int {
+    if s.kind == 1 {
+        return std::io::tls::send_bytes(s.handle, std::bytes::from_string(wire));
+    }
+    let tcp = std::io::tcp::Stream { conn_fd: s.fd };
+    return tcp.send(wire);
+}
+
+fn __stream_recv_bytes(s: __LlmStream, max_bytes: Int) -> Bytes {
+    if s.kind == 1 {
+        return std::io::tls::recv_bytes(s.handle, max_bytes);
+    }
+    let tcp = std::io::tcp::Stream { conn_fd: s.fd };
+    return tcp.recv_bytes(max_bytes);
+}
+
+fn __stream_close(s: __LlmStream) -> Int {
+    if s.kind == 1 {
+        return std::io::tls::close(s.handle);
+    }
+    // Plain TCP: bind a Stream locus literal so its dissolve
+    // closes the fd at scope exit. (The Stream locus owns the
+    // fd-close path; constructing one here is the path-of-
+    // least-resistance close-by-scope-exit.)
+    let tcp = std::io::tcp::Stream { conn_fd: s.fd };
+    return 0;
+}
+
+// Drain a stream into one String. SSE responses are ASCII
+// (the body is JSON-in-text/event-stream), so the String view
+// is fine — embedded NULs would only matter for binary bodies
+// which neither Anthropic nor OpenAI streams.
+fn __drain_stream(s: __LlmStream, max_total: Int) -> String {
+    let chunk_size = 8192;
+    let mut total = 0;
+    let buf = std::str::builder_new();
+    while total < max_total {
+        let want = max_total - total;
+        let mut take = chunk_size;
+        if want < take { take = want; }
+        let piece = __stream_recv_bytes(s, take);
+        let n = len(piece);
+        if n <= 0 {
+            return std::str::builder_finish(buf);
+        }
+        std::str::builder_append(buf, std::str::from_bytes(piece));
+        total = total + n;
+    }
+    return std::str::builder_finish(buf);
+}
+
+// __connect_or_llm_err — wrap std::io::tcp::connect /
+// std::io::tls::connect so the IoError fallible surface
+// becomes an LlmError on failure. Routes by scheme — `https`
+// picks TLS (mode 1), anything else picks plain TCP (mode 0).
+//
+// Reason for the separate helper: `or fail FooError { ... }`
+// is not a valid disposition (see spec/semantics.md § `or`
+// disposition); the only legal `or` fallbacks are `or raise`,
+// `or <value>`, or `or handler(err)`. We use the `or <value>`
+// form + re-fail inside the outer fn body based on a
+// sentinel.
+fn __connect_or_llm_err(
+    scheme: String,
+    host: String,
+    port: Int
+) -> __LlmStream fallible(LlmError) {
+    if scheme == "https" {
+        let h = std::io::tls::connect(host, port) or -1;
+        if h < 0 {
+            fail LlmError {
+                kind:   "http",
+                status: 0,
+                detail: "TLS connect failed: " + host + ":" + to_string(port)
+            };
+        }
+        return __LlmStream { kind: 1, fd: -1, handle: h };
+    }
+    let fd = std::io::tcp::connect(host, port) or -1;
+    if fd < 0 {
+        fail LlmError {
+            kind:   "http",
+            status: 0,
+            detail: "connect failed: " + host + ":" + to_string(port)
+        };
+    }
+    return __LlmStream { kind: 0, fd: fd, handle: -1 };
+}
+
+// A minimal URL parser for the base_url field. Same shape as
+// pond/http/client/url.hl's parse_url but standalone so this
+// lib type-checks independently. FRICTION: third copy of the
+// same algorithm (stdlib has none) — logged.
+type __ParsedUrl {
+    scheme: String = "http";
+    host:   String = "";
+    port:   Int    = 80;
+    path:   String = "/";
+}
+
+fn __parse_base_url(s: String) -> __ParsedUrl fallible(LlmError) {
+    let total = len(s);
+    if total <= 0 {
+        fail LlmError { kind: "bad_url", status: 0, detail: "empty base_url" };
+    }
+    let sep = std::str::index_of(s, "://");
+    if sep < 0 {
+        fail LlmError { kind: "bad_url", status: 0, detail: "missing scheme://" };
+    }
+    let scheme = s[0..sep];
+    if scheme != "http" && scheme != "https" {
+        fail LlmError {
+            kind:   "bad_url",
+            status: 0,
+            detail: "unsupported scheme: " + scheme + " (need http or https)"
+        };
+    }
+    let after = sep + 3;
+    if after >= total {
+        fail LlmError { kind: "bad_url", status: 0, detail: "missing host" };
+    }
+    let tail = s[after..total];
+    let tail_len = len(tail);
+    let path_sep = std::str::index_of(tail, "/");
+    let mut authority = tail;
+    let mut path = "/";
+    if path_sep >= 0 {
+        authority = tail[0..path_sep];
+        path = tail[path_sep..tail_len];
+    }
+    let auth_len = len(authority);
+    let port_sep = std::str::index_of(authority, ":");
+    let mut host = authority;
+    let mut port = 80;
+    if scheme == "https" {
+        port = 443;
+    }
+    if port_sep >= 0 {
+        host = authority[0..port_sep];
+        let port_str = authority[(port_sep + 1)..auth_len];
+        port = std::str::parse_int(port_str) or 0;
+        if port <= 0 {
+            fail LlmError { kind: "bad_url", status: 0, detail: "bad port" };
+        }
+    }
+    if len(host) <= 0 {
+        fail LlmError { kind: "bad_url", status: 0, detail: "empty host" };
+    }
+    return __ParsedUrl { scheme: scheme, host: host, port: port, path: path };
+}
+
+// anthropic_complete — non-streaming completion. Fallible
+// free fn; this is the bottom-of-stack call AnthropicClient
+// wraps. Same surface for callers that want the value-channel
+// error path directly.
+fn anthropic_complete(
+    api_key: String,
+    base_url: String,
+    req: LlmRequest,
+    max_body: Int
+) -> LlmResponse fallible(LlmError) {
+    if len(api_key) == 0 {
+        fail LlmError {
+            kind:   "missing_api_key",
+            status: 0,
+            detail: "AnthropicClient: api_key must be non-empty"
+        };
+    }
+    let u = __parse_base_url(base_url) or raise;
+    let s = __connect_or_llm_err(u.scheme, u.host, u.port) or raise;
+
+    let body_json = __build_anthropic_body(req, false);
+    let wire = __anthropic_build_http(
+        api_key, u.host, u.port, "/v1/messages", body_json, false
+    );
+    let _ = __stream_send(s, wire);
+
+    let raw = __drain_stream(s, max_body);
+    let _close = __stream_close(s);
+    let split = __split_http(raw);
+    if split.status <= 0 {
+        fail LlmError {
+            kind:   "http",
+            status: 0,
+            detail: "unparseable response"
+        };
+    }
+    if split.status >= 400 {
+        let detail = __extract_error_detail(split.body);
+        fail LlmError {
+            kind:   "vendor_error",
+            status: split.status,
+            detail: detail
+        };
+    }
+    return __parse_anthropic_response(split.body);
+}
+
+// __anthropic_fetch_sse — fallible streaming-kernel HALF #1.
+// Connects, sends the streaming request, drains the response
+// (with `stream: true` body + Accept: text/event-stream), and
+// returns the raw SSE body as a String. The locus method
+// then walks the lines + publishes chunks/done inline (see
+// the implementation note on `AnthropicClient.stream`).
+//
+// FRICTION ("eager-buffering deviation"): a real low-latency
+// streaming impl would feed each recv_bytes chunk into the
+// SseBuffer and publish chunks as they arrive. v1 drains
+// the entire response first, then walks the SSE body in
+// one pass — small typical-prompt streams (a few KiB) are
+// fine; long generations sit behind one large blocking
+// drain. Logged in FRICTION.md.
+fn __anthropic_fetch_sse(
+    api_key: String,
+    base_url: String,
+    req: LlmRequest,
+    max_body: Int
+) -> String fallible(LlmError) {
+    if len(api_key) == 0 {
+        fail LlmError {
+            kind:   "missing_api_key",
+            status: 0,
+            detail: "AnthropicClient: api_key must be non-empty"
+        };
+    }
+    let u = __parse_base_url(base_url) or raise;
+    let s = __connect_or_llm_err(u.scheme, u.host, u.port) or raise;
+
+    let body_json = __build_anthropic_body(req, true);
+    let wire = __anthropic_build_http(
+        api_key, u.host, u.port, "/v1/messages", body_json, true
+    );
+    let _ = __stream_send(s, wire);
+
+    let raw = __drain_stream(s, max_body);
+    let _close = __stream_close(s);
+    let split = __split_http(raw);
+    if split.status <= 0 {
+        fail LlmError {
+            kind:   "http",
+            status: 0,
+            detail: "unparseable response"
+        };
+    }
+    if split.status >= 400 {
+        let detail = __extract_error_detail(split.body);
+        fail LlmError {
+            kind:   "vendor_error",
+            status: split.status,
+            detail: detail
+        };
+    }
+    return split.body;
+}

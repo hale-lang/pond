@@ -1,0 +1,121 @@
+// blog-schema — minimal pond/migrations consumer demo.
+//
+// Demonstrates the shape consumers will use against the
+// `pond/migrations` (alias `migs`) surface. Vendored normally the
+// import looks like:
+//
+//     import "vendor/pond/migrations" as migs;
+//     import "vendor/pond/sqlite"     as db;
+//
+// In-tree the example reaches the libs via relative paths.
+//
+// The demo:
+//   1. constructs a `migs::Runner` against an in-memory SQLite
+//      DB and this directory as the migrations source;
+//   2. runs `migs::migrate_up(r, -1)` to apply every pending
+//      migration (`001_create_posts.sql`, `002_add_comments.sql`);
+//   3. queries SQLite's `sqlite_master` to verify that `posts`
+//      and `comments` exist as tables;
+//   4. prints `migrate: blog-schema OK` on success or the
+//      diagnostic kind on failure.
+//
+// Status (2026-05-16): pond/sqlite is BLOCKED on a stdlib sqlite
+// primitive, so every db::exec call routes through the
+// `fail DbError { kind: "unsupported" }` stub. The demo's error-
+// check fn `report` catches every failure and prints the kind;
+// the verification step at the bottom therefore prints a
+// "BLOCKED" notice rather than "OK" until sqlite unblocks. The
+// source itself does not need to change — only the runtime
+// behavior of the underlying db::* calls.
+
+import "../.." as migs;
+import "../../../sqlite" as db;
+
+locus BlogSchemaDemo {
+    params {
+        // ":memory:" so the demo is self-contained / hermetic.
+        // Override on the command line for a persistent DB.
+        db_path: String = ":memory:";
+
+        // The directory holding 001_..., 002_..., etc. Default "."
+        // assumes the binary is invoked from the example dir
+        // (`cd examples/blog-schema && ./blog-schema`). Override
+        // positionally to point elsewhere.
+        dir: String = ".";
+
+        // Sentinel captured by `report`: empty = no error seen.
+        last_kind: String = "";
+    }
+
+    run() {
+        println("[blog-schema] target db: ", self.db_path);
+        println("[blog-schema] migrations dir: ", self.dir);
+
+        // 1. Construct the Runner. Its `birth()` runs CREATE TABLE
+        //    IF NOT EXISTS for the tracking table and flips `ready`.
+        let r = migs::Runner { db_path: self.db_path, dir: self.dir };
+
+        // 2. Apply every pending migration. The `or report_int(err)`
+        //    arm catches the value-channel MigrationError, prints
+        //    it, and substitutes 0 (zero migrations applied) so
+        //    the demo continues to the verification step.
+        let n_up = migs::migrate_up(r, -1) or self.report_int(err);
+        println("[blog-schema] migrate_up: ", to_string(n_up), " applied");
+
+        // 3. Verify both tables exist via a direct SELECT against
+        //    sqlite_master. The query_one stub today returns
+        //    DbError { kind: "unsupported" }; we surface that the
+        //    same way the migrate_up error arm does.
+        let conn = db::Db { path: self.db_path };
+        let posts_row = db::query_one(
+            conn,
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='posts'"
+        ) or self.report_row(err);
+        let comments_row = db::query_one(
+            conn,
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='comments'"
+        ) or self.report_row(err);
+
+        println("[blog-schema] posts table check:    '", posts_row.data, "'");
+        println("[blog-schema] comments table check: '", comments_row.data, "'");
+
+        // 4. Banner the overall outcome.
+        if self.last_kind == "" {
+            if posts_row.data == "posts" && comments_row.data == "comments" {
+                println("[blog-schema] OK — both tables created");
+            } else {
+                println("[blog-schema] FAIL — tables missing after migrate_up");
+            }
+        } else {
+            println("[blog-schema] BLOCKED on '", self.last_kind,
+                    "' — pond/sqlite stdlib primitive not yet shipped");
+            println("[blog-schema]   (see ../../FRICTION.md and pond/sqlite/FRICTION.md)");
+        }
+    }
+
+    // Error-check fns. Per spec/styleguide.md § 7 these convert
+    // value-channel errors into substituted success values, with
+    // a self-field write so the run() body can branch on
+    // success-vs-failure without re-inspecting err.
+
+    fn report_int(e: migs::MigrationError) -> Int {
+        self.last_kind = e.kind;
+        println("[blog-schema] migs error: ", e.kind, " (v",
+                to_string(e.version), "): ", e.detail);
+        return 0;
+    }
+
+    fn report_row(e: db::DbError) -> db::Row {
+        if self.last_kind == "" { self.last_kind = e.kind; }
+        println("[blog-schema] db error: ", e.kind, ": ", e.detail);
+        return db::Row { data: "" };
+    }
+}
+
+fn main() {
+    let mut db_path = ":memory:";
+    let mut dir     = ".";
+    if std::env::args_count() > 1 { db_path = std::env::arg(1); }
+    if std::env::args_count() > 2 { dir = std::env::arg(2); }
+    BlogSchemaDemo { db_path: db_path, dir: dir };
+}

@@ -1,0 +1,86 @@
+// pond/_util/decimal_float -- Decimal <-> Float representation
+// bridge.
+//
+// Consolidates the `decimal_to_float` / `float_to_decimal`
+// helpers that duplicate across downstream-consumer,
+// downstream-consumer, downstream-consumer, downstream-consumer.
+// See pond/KNOWN_GOTCHAS.md G26 for the gap and each of those
+// FRICTION.md files for the duplicate-suspected flag.
+//
+// Caveats (inherited from the originals):
+//   - `to_float` now routes through the substrate primitive
+//     `std::decimal::to_float` (compiler-session 2026-05-21
+//     `10f51b0`) — direct i128 → f64 at scale 9, no String
+//     allocation. The ASCII round-trip path it replaces was
+//     surfacing in allocation profilers as
+//     `lotus_str_from_decimal` chunks at ~2/sec from a
+//     downstream consumer's high-frequency gauge dispatch.
+//   - `from_float` uses a coarse 0.001-step staircase for the
+//     fractional part (3 decimal places). Acceptable for the
+//     wire-format payloads the original sites used; for tighter
+//     precision callers should multiply through Int math first.
+//
+// All callable surface lives on the `DecimalFloat` namespace
+// lotus (per pond/KNOWN_GOTCHAS.md G11 -- cross-seed non-fallible
+// free fns don't lower in expression position).
+//
+// Consumers:
+//
+//     import "vendor/pond/_util/decimal_float" as decf;
+//     let df = decf::DecimalFloat { };
+//     let f  = df.to_float(170.25d);
+//     let d  = df.from_float(170.25);
+
+// DecimalFloat -- namespace lotus.
+locus DecimalFloat {
+    params { }
+
+    // to_float(d) -- Decimal -> Float via the substrate's
+    // `std::decimal::to_float` primitive (direct i128 → f64
+    // conversion at scale 9; no String allocation). Compiler
+    // commit `10f51b0` (runtime+codegen: LOTUS_CHUNK_POOL_STATS
+    // + std::decimal::to_float). Same precision profile as the
+    // old ASCII path at scale 9; faster + alloc-free.
+    fn to_float(d: Decimal) -> Float {
+        return std::decimal::to_float(d);
+    }
+
+    // from_float(f) -- Float -> Decimal via staircase summation.
+    // Whole part is added 1.0d at a time; fractional part is
+    // summed in 0.001d increments (3-decimal precision).
+    fn from_float(f: Float) -> Decimal {
+        let neg = f < 0.0;
+        let mut g = f;
+        if neg { g = 0.0 - g; }
+        let whole          = Int(g);
+        let whole_f: Float = whole;
+        let frac_thousands = Int((g - whole_f) * 1000.0);
+
+        let mut d_whole: Decimal = 0.0d;
+        let mut i = 0;
+        while i < whole {
+            d_whole = d_whole + 1.0d;
+            i = i + 1;
+        }
+        let mut d_frac: Decimal = 0.0d;
+        let mut j = 0;
+        while j < frac_thousands {
+            d_frac = d_frac + 0.001d;
+            j = j + 1;
+        }
+        let mag = d_whole + d_frac;
+        if neg {
+            return 0.0d - mag;
+        }
+        return mag;
+    }
+
+    // abs(d) -- |d| via subtract-from-zero (no std::math::abs for
+    // Decimal in v1).
+    fn abs(d: Decimal) -> Decimal {
+        if d < 0.0d {
+            return 0.0d - d;
+        }
+        return d;
+    }
+}

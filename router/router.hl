@@ -1,0 +1,246 @@
+// pond/router — Router locus + 404 default + dispatch loop.
+//
+// Pattern 3 in spirit (service locus with implicit lifecycle —
+// no birth/run/dissolve declared because the Router has no
+// resources of its own; the route + middleware vec children
+// are owned via params with default locus literals, so they
+// birth at instantiation and dissolve on the Router's scope
+// exit). Router itself is meant to be consumed by
+// `std::http::Server { handler: my_router }` — its `handle`
+// method satisfies std::http::Handler structurally
+// (spec/types.md § F.20 Phase B fat-pointer dispatch).
+//
+// Public surface per CONTRACTS.md (post-G20, 2026-05-18):
+//
+//   locus Router { params { not_found: Handler = NotFound404 { }; } }
+//   fn add(r: Router, method: String, pattern: String, h: Handler);
+//   fn use_mw(r: Router, m: Middleware);
+//   fn use_before(r: Router, m: Middleware);   // alias for use_mw
+//   fn use_after(r: Router, m: Middleware);    // alias for use_mw
+//   Router.dispatch(req: std::http::Request) -> std::http::Response;
+//   Router.handle(req: std::http::Request) -> std::http::Response;
+//
+// Two carry-over deviations remain (logged in FRICTION.md):
+//
+//   - `Context` flattens std::http::Request's user-readable
+//     fields (method/path/headers/body) directly rather than
+//     carrying a nested `req: std::http::Request`. v1 codegen
+//     pass A0 order forces this — see "context-req-field".
+//
+//   - `Response` is the local router::Response, not
+//     std::http::Response. Same codegen pass A0 ordering gap;
+//     Router converts to std::http::Response at the
+//     std::http::Server boundary. See "response-in-fn-ptr-
+//     field".
+//
+// One naming change: `use(m)` is `use_mw(m)`. `use` is on the
+// reserved-keyword shortlist and naming a method/free-fn `use`
+// fights the parser. `use_mw` reads naturally — "use a
+// middleware" — and the rename is local to this lib.
+//
+// Why the registry-shape ops are free fns over Router rather
+// than Router methods: v1 codegen doesn't apply the
+// LocusRef → Interface coercion at user-declared locus method
+// arg sites; the synthesized @form(vec).push DOES coerce, and
+// free-fn arg sites DO coerce. Routing every interface-arg
+// entry point through a free fn that forwards to the vec's
+// push is the pond house style (pond/tower::add uses the same
+// shape).
+
+// Default 404 handler — Handler-shaped locus that returns a
+// plain "not found" body. Used as the default value for
+// Router.not_found when a consumer doesn't override it. The
+// Handler interface satisfaction is structural: NotFound404
+// has a `handle(ctx: Context) -> Response` method whose
+// signature matches `router::Handler.handle`.
+locus NotFound404 {
+    fn handle(ctx: Context) -> Response {
+        return Response {
+            status:       404,
+            content_type: "text/plain",
+            body:         "not found"
+        };
+    }
+}
+
+// `__router_run_chain(handlers, methods, patterns, mws, ctx,
+// not_found)` — walk the middleware chain forward (each
+// before() transforms the Context), find the first matching
+// route, dispatch its handler, then walk the middleware chain
+// backward (each after() transforms the Response). Onion-shape
+// — the same order other frameworks use, but the
+// implementation is straight-line because we have indexed
+// access to every vec.
+//
+// Free fn (not a Router method) because lifecycle methods
+// reject `return` per spec/styleguide.md § "Current language
+// gaps", and dispatch is naturally a return-bearing helper
+// (it returns the Response). Mirrors the Onboard.run / drive
+// split in the styleguide canonical example.
+fn __router_run_chain(
+    handlers: HandlerList,
+    methods:  MethodList,
+    patterns: PatternList,
+    mws:      MwList,
+    ctx:      Context,
+    not_found: Handler
+) -> Response {
+    // Forward middleware sweep.
+    let mut cur = ctx;
+    let mlen = mws.len();
+    let mut i = 0;
+    while i < mlen {
+        let m = mws.get(i) or raise;
+        cur = m.before(cur);
+        i = i + 1;
+    }
+
+    // Route lookup. First match wins — consumers order more-
+    // specific patterns before more-general ones.
+    let mut resp = not_found.handle(cur);
+    let rlen = handlers.len();
+    let mut j = 0;
+    while j < rlen {
+        let rmethod  = methods.get(j)  or raise;
+        let rpattern = patterns.get(j) or raise;
+        if rmethod == cur.method {
+            let captures = match_pattern(rpattern, cur.path);
+            if captures != "__nomatch" {
+                cur = Context {
+                    method:  cur.method,
+                    path:    cur.path,
+                    headers: cur.headers,
+                    body:    cur.body,
+                    params:  RouteParams {
+                        qs:      cur.params.qs,
+                        path_kv: captures
+                    }
+                };
+                let h = handlers.get(j) or raise;
+                resp = h.handle(cur);
+                break;
+            }
+        }
+        j = j + 1;
+    }
+
+    // Reverse middleware sweep.
+    let mut k = mlen - 1;
+    while k >= 0 {
+        let m = mws.get(k) or raise;
+        resp = m.after(cur, resp);
+        k = k - 1;
+    }
+    return resp;
+}
+
+// `__router_to_http(r)` — boundary conversion from the local
+// Response shape to std::http::Response. Field-equal copy;
+// the Server consumes std::http::Response on the wire side.
+// Free fn because it crosses the local/stdlib type boundary
+// and locus methods reject fallible-call addressing
+// patterns we don't need here anyway.
+fn __router_to_http(r: Response) -> std::http::Response {
+    return std::http::Response {
+        status:       r.status,
+        content_type: r.content_type,
+        body:         r.body
+    };
+}
+
+locus Router {
+    params {
+        // Consumer-overridable 404 handler. Default is a
+        // Handler-shaped NotFound404 locus that returns plain
+        // "not found" with status 404.
+        not_found: Handler = NotFound404 { };
+        // Route + middleware storage. Child loci default-
+        // initialized at Router birth; their dissolves fire
+        // when the Router's enclosing scope exits. Three
+        // parallel vecs for routes (methods / patterns /
+        // handlers) because v1 doesn't coerce LocusRef → Interface
+        // at struct-field-init sites (see FRICTION.md "interface-
+        // in-struct-field"); a single @form(vec) of a
+        // (method, pattern, handler) struct can't be filled
+        // by the consumer passing a concrete handler locus.
+        methods:  MethodList  = MethodList  { };
+        patterns: PatternList = PatternList { };
+        handlers: HandlerList = HandlerList { };
+        mws:      MwList      = MwList      { };
+    }
+
+    // `dispatch(req)` — public-API entry point for the route
+    // lookup. Splits the request target into path + query,
+    // builds the initial Context, runs the middleware-route-
+    // middleware chain, returns the std::http::Response (after
+    // boundary conversion from the local Response shape).
+    fn dispatch(req: std::http::Request) -> std::http::Response {
+        let path_only = __router_path_only(req.path);
+        let qs = __router_query_only(req.path);
+        let ctx = Context {
+            method:  req.method,
+            path:    path_only,
+            headers: req.headers,
+            body:    req.body,
+            params:  RouteParams {
+                qs:      qs,
+                path_kv: ""
+            }
+        };
+        let r = __router_run_chain(
+            self.handlers, self.methods, self.patterns,
+            self.mws, ctx, self.not_found
+        );
+        return __router_to_http(r);
+    }
+
+    // `handle(req)` — std::http::Handler satisfaction. Allows
+    // `std::http::Server { handler: my_router }` to pass the
+    // Router through the Server's interface vtable. Body is a
+    // direct delegate to dispatch — the indirection is here
+    // so the interface signature matches without callers
+    // having to know about the dispatch name.
+    fn handle(req: std::http::Request) -> std::http::Response {
+        return self.dispatch(req);
+    }
+}
+
+// `add(r, method, pattern, h)` — register a route. Method is
+// uppercased on register so consumers can write either case at
+// the call site without affecting match. Pattern is stored
+// as-written. Handler is coerced from LocusRef → Handler at
+// this free-fn arg site (the standard F.20 Phase B path); the
+// internal `.push(h)` then stores the fat-pointer as-is.
+//
+// Free fn (not a Router method) because user-declared locus
+// method args don't yet apply LocusRef → Interface coerce at
+// the call site; routing through a free fn is the v1 shape
+// that compiles (see file header).
+fn add(r: Router, method: String, pattern: String, h: Handler) {
+    r.methods.push(std::str::upper(method));
+    r.patterns.push(pattern);
+    r.handlers.push(h);
+}
+
+// `use_mw(r, m)` — register a middleware. Locus → Interface
+// coercion fires at this free-fn arg site for `m: Middleware`;
+// the inner `.push(m)` stores the Middleware fat-pointer as-is.
+fn use_mw(r: Router, m: Middleware) {
+    r.mws.push(m);
+}
+
+// `use_before(r, m)` — register a middleware whose `before`
+// half carries the logic. Post-G20 this is just a use_mw
+// alias — Middleware is a single value, so there's no "before-
+// only" shape distinct from "full middleware" at the storage
+// layer. Kept because the convenience-name reads naturally and
+// the public surface from the pre-G20 era used it.
+fn use_before(r: Router, m: Middleware) {
+    r.mws.push(m);
+}
+
+// `use_after(r, m)` — register a middleware whose `after`
+// half carries the logic. Same alias rationale as use_before.
+fn use_after(r: Router, m: Middleware) {
+    r.mws.push(m);
+}

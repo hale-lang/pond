@@ -1,0 +1,25 @@
+// pond/agent/tools — public Tool interface.
+//
+// Per CONTRACTS.md the public surface declares one structural
+// interface:
+//
+//   interface Tool {
+//       fn spec() -> ToolSpec;
+//       fn invoke(call: ToolCall) -> ToolResult;
+//   }
+//
+// Per spec/types.md § F.20, satisfaction is implicit — any
+// locus whose method set covers these two signatures
+// structurally satisfies the interface. There is no
+// `impl Tool for Calculator` form; a Calculator locus with
+// matching `spec()` / `invoke()` methods Just Works at every
+// fn parameter that types its argument as `Tool`.
+//
+// Since F.20 Phase B + G20 (interface values in @form(vec)
+// cells), the Registry stores `Tool` values directly — the
+// previous `Entry` fn-pointer wrapper has been retired.
+
+interface Tool {
+    fn spec() -> ToolSpec;
+    fn invoke(call: ToolCall) -> ToolResult;
+}

@@ -1,0 +1,40 @@
+// pond/_util/intfloat — Int <-> Float ASCII roundtrip bridge.
+//
+// Consolidates the `int_to_float(n: Int) -> Float` helper that
+// every numeric pond lib has had to write locally because v1
+// spec/design-rationale.md F.23 (Int -> Float widening) is
+// under-implemented in many positions: `let f: Float = i;`
+// rejects in many positions, `0.0 + n` (binary-op promotion)
+// rejects, and `Int(g)` only goes Float -> Int.
+//
+// See pond/KNOWN_GOTCHAS.md G30 for the gap, and
+// pond/ml/neural/FRICTION.md for the original surfacing.
+//
+// All callable surface lives on the `IntFloat` namespace lotus
+// (per pond/KNOWN_GOTCHAS.md G11 — cross-seed non-fallible free
+// fns don't lower in expression position; namespace-lotus
+// methods do).
+//
+// Consumers:
+//
+//     import "vendor/pond/_util/intfloat" as intf;
+//     let ifx = intf::IntFloat { };
+//     let f   = ifx.to_float(42);
+
+// IntFloat — namespace lotus.
+locus IntFloat {
+    params { }
+
+    // to_float(n) -- Int -> Float via ASCII roundtrip. Returns
+    // 0.0 if the ASCII representation ever fails to parse (it
+    // shouldn't for any in-range Int).
+    fn to_float(n: Int) -> Float {
+        return std::str::parse_float(to_string(n)) or 0.0;
+    }
+
+    // from_float(f) -- Float -> Int (truncating toward zero). Uses
+    // the `Int(...)` cast which v1 lowers correctly for Float->Int.
+    fn from_float(f: Float) -> Int {
+        return Int(f);
+    }
+}

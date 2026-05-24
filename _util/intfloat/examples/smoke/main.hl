@@ -1,0 +1,12 @@
+// pond/_util/intfloat/examples/smoke -- minimal demo verifying
+// cross-seed import + namespace-lotus method dispatch.
+
+import "../.." as intf;
+
+fn main() {
+    let ifx = intf::IntFloat { };
+    let f   = ifx.to_float(42);
+    let n   = ifx.from_float(3.7);
+    println("intfloat: to_float(42) = ", to_string(f));
+    println("intfloat: from_float(3.7) = ", n);
+}

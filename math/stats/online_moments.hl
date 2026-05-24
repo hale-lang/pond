@@ -1,0 +1,52 @@
+// online_moments.hl — running mean + variance via Welford's
+// algorithm.
+//
+// Pattern 3 (service-style state-bearing locus, no lifecycle
+// methods needed). One observation at a time updates `n`, `mean`,
+// and `m2` in O(1); `current_var()` reads off the population
+// variance as `m2 / n`. Numerically stable single-pass alternative
+// to the two-pass `variance()` free fn over a Matrix.
+//
+// Methods are infallible per AGENTS.md's two-channel rule (locus
+// methods cannot declare fallible(E)). The empty-state read of
+// `current_mean()` / `current_var()` returns 0.0 rather than
+// failing — same empty-as-zero convention as the free fns in
+// stats.hl.
+
+locus OnlineMoments {
+    params {
+        n:    Int   = 0;     // observation count
+        mean: Float = 0.0;   // running mean
+        m2:   Float = 0.0;   // running sum of squared deviations
+    }
+
+    // `observe(x)` — fold one new sample into the running stats.
+    // Welford's update:
+    //     n     <- n + 1
+    //     delta <- x - mean
+    //     mean  <- mean + delta / n
+    //     m2    <- m2 + delta * (x - mean_new)
+    fn observe(x: Float) {
+        self.n = self.n + 1;
+        let delta = x - self.mean;
+        self.mean = self.mean + delta / (0.0 + self.n);
+        let delta2 = x - self.mean;
+        self.m2 = self.m2 + delta * delta2;
+    }
+
+    // `current_mean()` — current running mean. 0.0 on empty.
+    fn current_mean() -> Float {
+        return self.mean;
+    }
+
+    // `current_var()` — current population variance (m2 / n).
+    // 0.0 on empty. Sample variance (m2 / (n-1)) is one division
+    // away if a workload surfaces the need; not in CONTRACTS.md
+    // yet.
+    fn current_var() -> Float {
+        if self.n == 0 {
+            return 0.0;
+        }
+        return self.m2 / (0.0 + self.n);
+    }
+}

@@ -1,0 +1,218 @@
+// pond/agent/sandbox — Sandbox locus
+//
+// CONTRACTS.md § pond/agent/sandbox/ declares:
+//
+//   locus Sandbox {
+//       params { runtime: String = "python3"; timeout_ms: Int = 30000;
+//                memory_limit_mb: Int = 512; }
+//       fn run_code(code: String) -> SandboxResult fallible(SandboxError);
+//       fn run_file(path: String) -> SandboxResult fallible(SandboxError);
+//   }
+//
+// Contract deviation (FRICTION.md, duplicate-suspected: every
+// CONTRACTS.md "locus method -> T fallible(E)" entry trips the
+// same wall — see KNOWN_GOTCHAS.md G4). Per spec/semantics.md
+// § Fallible call semantics + spec/styleguide.md § Two-channel
+// rule, user-declared locus methods may not declare fallible(E).
+// The methods below match the contract's argument shape and
+// return type but drop the `fallible(SandboxError)` marker;
+// failures surface via:
+//
+//   - `self.last_error: SandboxError` — readable after every
+//     call; `kind == ""` means success.
+//   - `violate fatal_sandbox;` — the error-check-fn pattern
+//     from spec/styleguide.md § 7 routed through `handle_err`
+//     for failures the host wants to escalate to its on_failure.
+//
+// Callers needing the value channel use the free-fn helpers
+// `run_code_at(sb, code)` / `run_file_at(sb, path)` in
+// helpers.hl; they take the locus as first arg and surface
+// SandboxError via the fallible(E) machinery so `or raise` /
+// `or default` / `or self.handler(err)` work at the call site.
+//
+// Status (2026-05-18): UNBLOCKED. The body now drives the
+// underlying pond/subprocess surface, which itself routes
+// through the upstream `std::process::run` primitive. For
+// `run_code(code)` we use the freshly-shipped
+// `std::io::fs::mktemp` (C9) to land a scratch file under
+// `/tmp/`, write the snippet via `std::io::fs::write_file`,
+// invoke `run_file`, and clean up via `std::io::fs::unlink`
+// on a best-effort basis. `memory_limit_mb` is still a
+// documented no-op (no rlimit hook on the upstream surface
+// yet); `timeout_ms` likewise isn't enforced because
+// std::process::run has no wall-clock cutoff — see
+// FRICTION.md.
+
+import "../../subprocess" as sub;
+
+// Sandbox — Service locus (pattern 3 in the six-pattern catalog).
+//
+// Holds the runtime command + resource limits across a series
+// of `run_code` / `run_file` calls. One Sandbox instance is
+// typically reused for the lifetime of an agent session; per-
+// run state lives on the SandboxResult return value, not on
+// self.
+//
+// `runtime` is the interpreter / runtime binary (e.g. "python3",
+// "node", "ruby"). It must resolve via the inherited PATH; an
+// absolute path is recommended in production.
+// `timeout_ms` is RESERVED — no upstream wall-clock cutoff yet,
+// so the field is plumbed for forward compat but currently a
+// no-op (FRICTION.md).
+// `memory_limit_mb` is RESERVED — no rlimit hook on the upstream
+// surface yet, so it's a documented no-op at v1.
+locus Sandbox {
+    params {
+        runtime:         String      = "python3";
+        timeout_ms:      Int         = 30000;
+        memory_limit_mb: Int         = 512;
+        last_error:      SandboxError = SandboxError { };
+    }
+
+    // Captures last_error into the violation payload so the
+    // parent's on_failure handler can read .kind / .detail
+    // off the violation directly.
+    closure fatal_sandbox { captures: last_error; epoch inline; }
+
+    birth() {
+        // No resources to acquire — the runtime binary is
+        // resolved lazily on each run via pond/subprocess.
+        // Placeholder so the body isn't empty (empty lifecycle
+        // bodies parse-fail per spec/styleguide.md § Current
+        // language gaps).
+        let _ = self.timeout_ms;
+    }
+
+    dissolve() {
+        // No resources to release — child processes are owned
+        // by the per-call sub::spawn invocation which already
+        // reaps before returning.
+        let _ = self.timeout_ms;
+    }
+
+    // run_code — write `code` to a temp file, invoke the runtime
+    // on it, capture stdout/stderr. Returns the sentinel
+    // SandboxResult { exit_code: -1, stdout: "", stderr: "" } on
+    // failure; inspect `self.last_error.kind` for the failure
+    // reason. Per the two-channel rule this method itself can't
+    // be fallible — use `run_code_at(sb, code)` if you want the
+    // value channel.
+    fn run_code(code: String) -> SandboxResult {
+        // Land the snippet in a /tmp/hale_sb_*.txt path. C9's
+        // mktemp returns a unique path string; if the mktemp
+        // call itself fails we surface that as "io" and bail
+        // before we ever touch the runtime.
+        let path = std::io::fs::mktemp("/tmp/hale_sb_", ".script")
+            or self.bridge_io_str(err);
+        if self.last_error.kind != "" {
+            return SandboxResult { exit_code: -1, stdout: "", stderr: "" };
+        }
+        std::io::fs::write_file(path, code) or self.bridge_io_unit(err);
+        if self.last_error.kind != "" {
+            // Best-effort cleanup of the (possibly empty) temp
+            // file — discard any unlink error since the write
+            // failure is the one that matters.
+            std::io::fs::unlink(path) or discard;
+            return SandboxResult { exit_code: -1, stdout: "", stderr: "" };
+        }
+        let r = self.run_file(path);
+        // Best-effort cleanup; ignore unlink errors so we don't
+        // mask a real run failure on last_error.
+        std::io::fs::unlink(path) or discard;
+        return r;
+    }
+
+    // run_file — invoke the runtime on an existing file at
+    // `path`, capture stdout/stderr. Returns the sentinel
+    // SandboxResult on failure (same shape as run_code); inspect
+    // `self.last_error.kind` for the failure reason.
+    fn run_file(path: String) -> SandboxResult {
+        let out = sub::run_cmd(self.runtime, path) or self.bridge_spawn(err);
+        if self.last_error.kind != "" {
+            return SandboxResult { exit_code: -1, stdout: "", stderr: "" };
+        }
+        return SandboxResult {
+            exit_code: out.status.code,
+            stdout:    std::str::from_bytes(out.stdout),
+            stderr:    std::str::from_bytes(out.stderr),
+        };
+    }
+
+    // handle_err — escalates an unrecoverable failure through
+    // the structural channel. Currently unreachable from
+    // run_code / run_file (those use the sentinel-on-self path),
+    // but declared so callers can wire `violate fatal_sandbox`
+    // paths around future fallible internals.
+    fn handle_err(e: SandboxError) -> Int {
+        self.last_error = e;
+        if e.kind == "spawn_failed" || e.kind == "oom" {
+            violate fatal_sandbox;
+        }
+        return -1;
+    }
+
+    // bridge_spawn — error-check fn for the sub::run_cmd call.
+    // Maps a subprocess SpawnError back into a SandboxError
+    // using `map_kind`; returns a sentinel Output so the call
+    // site's `let out = ...; if last_error.kind != "" { ... }`
+    // pattern still gets a well-typed value to discard.
+    fn bridge_spawn(e: sub::SpawnError) -> sub::Output {
+        self.last_error = SandboxError {
+            kind:   map_kind(e.kind),
+            detail: e.detail,
+        };
+        return sub::Output {
+            status: sub::ExitStatus { code: -1, signaled: false, signal: 0 },
+            stdout: std::bytes::from_string(""),
+            stderr: std::bytes::from_string(""),
+        };
+    }
+
+    // bridge_io_str — error-check fn for std::io::fs::mktemp.
+    // Returns the empty string as the path substitute (the
+    // caller checks last_error.kind to decide whether to use
+    // it; a "" path with non-empty last_error means "skip").
+    fn bridge_io_str(e: IoError) -> String {
+        self.last_error = SandboxError {
+            kind:   "io",
+            detail: e.kind + ": " + e.path,
+        };
+        return "";
+    }
+
+    // bridge_io_unit — error-check fn for std::io::fs::write_file.
+    // Returns Int 0 (a non-unit placeholder — codegen-v0 has a
+    // sharp edge with unit-returning locus methods); the call
+    // site discards via `or` so the value never propagates.
+    fn bridge_io_unit(e: IoError) -> Int {
+        self.last_error = SandboxError {
+            kind:   "io",
+            detail: e.kind + ": " + e.path,
+        };
+        return 0;
+    }
+}
+
+// map_kind — translate a subprocess SpawnError kind tag into a
+// SandboxError kind tag. Free fn (pattern 6) used by the
+// run_file body to keep the inner / outer error vocabularies
+// in sync.
+//
+// duplicate-suspected: every pond lib that wraps another pond
+// lib's fallible surface needs the same "translate inner kind
+// to outer kind" mapping table. Worth a helper or doc anchor
+// once two more wrappers land.
+fn map_kind(inner: String) -> String {
+    if inner == "timeout" {
+        return "timeout";
+    }
+    if inner == "io" {
+        return "io";
+    }
+    if inner == "unsupported" {
+        return "spawn_failed";
+    }
+    // "spawn_failed", "killed", and anything else collapse to
+    // the catch-all bucket.
+    return "spawn_failed";
+}

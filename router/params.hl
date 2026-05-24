@@ -1,0 +1,97 @@
+// pond/router — path / query param extraction.
+//
+// CONTRACTS.md surface (now back to bare free fns post-A3 /
+// hale `f9068fa`):
+//
+//   fn path_param(p: RouteParams, name: String) -> String;
+//   fn query_param(p: RouteParams, name: String) -> String;
+//
+// Consumers write `router::path_param(ctx.params, "name")` and
+// `router::query_param(ctx.params, "q")` directly. The pre-A3
+// `Params` namespace lotus has been deleted.
+//
+// Both surfaces return "" when the named param isn't present
+// (sentinel shape from spec/styleguide.md § "Current language
+// gaps"). Comparisons are case-sensitive.
+
+// Internal: alternating-pair scan over a separator-joined
+// "k<sep>v<sep>k<sep>v" String. Path-kv (tab-separated) and
+// query-string (& between pairs, = between key/value) both
+// reduce to this shape once the surrounding split is done.
+fn __router_kv_lookup(blob: String, name: String, sep: String) -> String {
+    let total = len(blob);
+    if total == 0 {
+        return "";
+    }
+    let sep_len = len(sep);
+    let mut cursor = 0;
+    let mut is_key = true;
+    let mut current_key = "";
+    while cursor < total {
+        let rel = std::str::index_of(blob[cursor..total], sep);
+        let field_end = if rel < 0 { total } else { cursor + rel };
+        let field = blob[cursor..field_end];
+        if is_key {
+            current_key = field;
+            is_key = false;
+        } else {
+            if current_key == name {
+                return field;
+            }
+            is_key = true;
+        }
+        if rel < 0 {
+            return "";
+        }
+        cursor = field_end + sep_len;
+    }
+    return "";
+}
+
+// Internal: lookup against an `&`-separated `=`-paired query
+// string. Walks pair-by-pair so a long qs with the lookup-
+// target early returns without scanning the rest. URL-
+// decoding is NOT performed at v1 — see FRICTION.md
+// "url-decoding".
+fn __router_query_lookup(qs: String, name: String) -> String {
+    let total = len(qs);
+    if total == 0 {
+        return "";
+    }
+    let needle = name + "=";
+    let needle_len = len(needle);
+    let mut cursor = 0;
+    while cursor < total {
+        let rel = std::str::index_of(qs[cursor..total], "&");
+        let pair_end = if rel < 0 { total } else { cursor + rel };
+        let pair = qs[cursor..pair_end];
+        let plen = len(pair);
+        if plen >= needle_len {
+            if pair[0..needle_len] == needle {
+                if needle_len >= plen {
+                    return "";
+                }
+                return pair[needle_len..plen];
+            }
+        }
+        if rel < 0 {
+            return "";
+        }
+        cursor = pair_end + 1;
+    }
+    return "";
+}
+
+// Free fns — the CONTRACTS.md surface. Callable by bare name
+// inside this lib's own seed (the dispatcher in router.hl, the
+// matcher in match.hl); consumers across the import boundary
+// reach them via `router::path_param(...)` / `router::query_param(...)`
+// (cross-seed non-fallible free-fn calls lower post-A3 /
+// hale `f9068fa`).
+fn path_param(p: RouteParams, name: String) -> String {
+    return __router_kv_lookup(p.path_kv, name, "\t");
+}
+
+fn query_param(p: RouteParams, name: String) -> String {
+    return __router_query_lookup(p.qs, name);
+}

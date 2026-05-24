@@ -1,0 +1,16 @@
+// pond/_util/duration_int/examples/smoke -- minimal demo.
+
+import "../.." as durint;
+
+fn main() {
+    let di = durint::DurationInt { };
+    let d  = std::time::monotonic();
+    let ns = di.to_ns(d);
+    let s  = di.to_seconds(d);
+    let ns2 = di.now_ns();
+    let s2  = di.now_seconds();
+    println("duration_int: to_ns(now) > 0   = ", ns > 0);
+    println("duration_int: to_seconds(now)  = ", s);
+    println("duration_int: now_ns() > 0     = ", ns2 > 0);
+    println("duration_int: now_seconds()    = ", s2);
+}

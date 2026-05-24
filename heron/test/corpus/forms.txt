@@ -1,0 +1,76 @@
+==================
+Form vec
+==================
+
+@form(vec)
+locus ItemList<T> {
+    capacity {
+        heap items of T;
+    }
+}
+
+---
+
+(source_file
+  (locus_decl
+    (form_annotation form_name: (identifier))
+    name: (identifier)
+    (generic_params (generic_param name: (identifier)))
+    (capacity_block
+      (capacity_slot
+        name: (identifier)
+        cell_type: (named_type (qualified_name (identifier)))))))
+
+==================
+Form hashmap with indexed_by
+==================
+
+type CmdEntry {
+    name: String;
+    handler: Int;
+}
+
+@form(hashmap)
+locus CmdRegistry {
+    capacity {
+        pool entries of CmdEntry indexed_by name;
+    }
+}
+
+---
+
+(source_file
+  (type_decl
+    name: (identifier)
+    (struct_field name: (identifier) type: (primitive_type))
+    (struct_field name: (identifier) type: (primitive_type)))
+  (locus_decl
+    (form_annotation form_name: (identifier))
+    name: (identifier)
+    (capacity_block
+      (capacity_slot
+        name: (identifier)
+        cell_type: (named_type (qualified_name (identifier)))
+        indexed_by: (identifier)))))
+
+==================
+Form ring_buffer with cap arg
+==================
+
+@form(ring_buffer, cap = 64)
+locus RecentCmds {
+    capacity { pool history of CmdEntry; }
+}
+
+---
+
+(source_file
+  (locus_decl
+    (form_annotation
+      form_name: (identifier)
+      (form_arg key: (identifier) value: (integer_literal)))
+    name: (identifier)
+    (capacity_block
+      (capacity_slot
+        name: (identifier)
+        cell_type: (named_type (qualified_name (identifier)))))))

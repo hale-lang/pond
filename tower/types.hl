@@ -1,0 +1,33 @@
+// pond/tower — Shape types.
+//
+// Pure-data shapes used across the tower surface.
+
+// Status — uniform shape a tower may self-report.
+//
+// The Tower interface does NOT require a `status()`
+// method (not every tower has reportable status). This
+// type is here as the agreed-upon shape for cases that
+// do — admin endpoints, health aggregators, audit
+// dumps — so consumers don't each invent their own.
+//
+// states:
+//   "running" — birth complete; not draining; no failure
+//   "draining" — drain has been requested or fired
+//   "failed" — closure violation observed; restart pending
+//   "dissolved" — dissolve complete (set rarely; usually
+//                 the tower is gone by the time you'd
+//                 observe this)
+type Status {
+    state:         String = "running";
+    uptime_s:      Int    = 0;
+    last_error:    String = "";
+    restart_count: Int    = 0;
+}
+
+// (RegistryError elided from v1: cross-seed mangling
+// of bare struct literals and fn-call exprs under
+// `fail` / `or fail` keywords hits a v1 codegen gap.
+// pond/tower v1 ships only the non-fallible surface;
+// see FRICTION.md. A fallible `lookup` shape will
+// land once the cross-seed mangler walks `or fail`
+// expression positions.)

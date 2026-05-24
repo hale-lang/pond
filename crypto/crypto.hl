@@ -1,0 +1,33 @@
+// crypto.hl — public free-fn surface.
+//
+// Pre-A3, Hale v1's codegen rejected `alias::name(args)` in
+// expression position for non-fallible imported free fns
+// (`path call alias::name in expression position`). That gap
+// forced this lib's public surface onto a `Crypto` namespace
+// lotus so consumers wrote `let c = crypto::Crypto { };
+// c.sha256(b);`.
+//
+// Upstream `f9068fa` (A3) closed the gap: cross-seed non-
+// fallible free-fn calls now lower. The lib's public surface
+// is back to bare free fns matching CONTRACTS.md:
+//
+//     let d = crypto::sha256(b);
+//     let m = crypto::hmac_sha256(key, msg);
+//     let r = crypto::random_bytes(16);
+//     let eq = crypto::constant_time_eq(a, b);
+//     let h = crypto::hex_encode(d);
+//     let bs = crypto::hex_decode(s) or raise;
+//
+// `sha256` and `hmac_sha256` delegate to the C-backed
+// `std::crypto::{sha256, hmac_sha256}` primitives (hale
+// `83f87ff`); `random_bytes` delegates to `std::os::getrandom`
+// (`ef85ed5`). The constant-time compare, hex encode, and hex
+// decode kernels live in `util.hl` / `hex.hl`.
+
+fn sha256(input: Bytes) -> Bytes {
+    return std::crypto::sha256(input);
+}
+
+fn hmac_sha256(key: Bytes, message: Bytes) -> Bytes {
+    return std::crypto::hmac_sha256(key, message);
+}

@@ -1,0 +1,45 @@
+// pond/agent/conversation — eviction helper (pattern 6 free fn).
+//
+// Pure-data helper for the history-string representation. Used by
+// `Conversation.append` to drop the front `k` messages when
+// `max_messages` is exceeded. Lives at file scope so the
+// eviction algorithm is testable in isolation and the
+// lifecycle body stays straight-line.
+
+// drop_front_messages — drop the front `k` messages from a tab-
+// separated history string, returning the tail. Each message is
+// two fields (role + content); dropping k messages means
+// scanning past 2*k tab boundaries from the start.
+//
+// If k <= 0, returns s unchanged. If k exceeds the total
+// message count, returns "" (full clear).
+fn drop_front_messages(s: String, k: Int) -> String {
+    if k <= 0 {
+        return s;
+    }
+    let total = len(s);
+    if total == 0 {
+        return "";
+    }
+    let fields_to_skip = 2 * k;
+    let b = std::bytes::from_string(s);
+    let blen = len(b);
+    let mut i = 0;
+    let mut tabs_seen = 0;
+    while i < blen {
+        let c = std::bytes::at(b, i) or 0;
+        if c == 9 {
+            tabs_seen = tabs_seen + 1;
+            if tabs_seen == fields_to_skip {
+                let start = i + 1;
+                if start >= total {
+                    return "";
+                }
+                return s[start..total];
+            }
+        }
+        i = i + 1;
+    }
+    // Fewer fields than fields_to_skip — drop everything.
+    return "";
+}

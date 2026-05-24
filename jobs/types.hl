@@ -1,0 +1,69 @@
+// pond/jobs — shape types.
+//
+// Pattern 5 (shape types, pure data, no flow). Per CONTRACTS.md
+// the public data surface is:
+//
+//   type Job       { kind, payload, attempt, max_attempts }
+//   type JobResult { ok, detail }
+//   type JobError  { kind, detail }
+//
+// All three are pure-data records returnable from fns by value.
+// `JobError` is the synthesized `fallible(JobError)` payload for
+// every fallible free fn in the lib (enqueue / dequeue / ack /
+// fail — see query.hl). `JobResult` is what a JobHandler returns
+// per invocation; the runtime branches on `.ok` to choose
+// ack-vs-fail. `Job` is the row shape stored in the SQLite-backed
+// queue table.
+//
+// Status (2026-05-16): this lib is BLOCKED on pond/sqlite, which
+// is itself BLOCKED on a stdlib sqlite primitive. The shapes
+// below are the contract; the wire (queue table I/O) stubs out
+// in queue.hl / query.hl. See FRICTION.md.
+
+// Job — one queued unit of work as it lives on the wire / in
+// the queue table.
+//
+// `kind` is a free-text discriminator the handler dispatches on
+// (e.g. "send_email", "rebuild_index"). `payload` carries the
+// per-job arguments as an opaque String (consumers serialize their
+// own per-kind payload format — JSON, tab-separated, whatever).
+// `attempt` starts at 0 on enqueue and increments on every retry;
+// `max_attempts` caps the retry count (after which a failing job
+// goes to the dead-letter row state). Both `attempt` and
+// `max_attempts` are stored on the row so the worker can compute
+// the retry/dead-letter decision without re-reading the queue
+// schema.
+type Job {
+    kind:         String = "";
+    payload:      String = "";
+    attempt:      Int    = 0;
+    max_attempts: Int    = 3;
+}
+
+// JobResult — what a JobHandler returns per invocation.
+//
+// `ok = true` → the runtime acks the row (deletes / marks done).
+// `ok = false` → the runtime calls `fail(job_id, retry: ...)`
+// where `retry` is `attempt + 1 < max_attempts`. `detail` is a
+// short human-readable diagnostic the runtime stamps onto the
+// retry/dead-letter audit fields.
+type JobResult {
+    ok:     Bool   = false;
+    detail: String = "";
+}
+
+// JobError — fallible(JobError) payload across the queue surface.
+//
+// `kind` is one of:
+//   "unsupported"  — stub return; pond/sqlite isn't wired yet.
+//   "empty"        — `dequeue()` found no row to claim (idle).
+//   "db"           — the underlying `db::*` call failed; `detail`
+//                    carries the wrapped DbError.detail string.
+//   "not_found"    — `ack(id)` / `fail(id)` couldn't find the row
+//                    (already acked, or never enqueued).
+// `detail` is the human-readable explanation suitable for log
+// emission. Wraps DbError.detail when `kind == "db"`.
+type JobError {
+    kind:   String = "";
+    detail: String = "";
+}

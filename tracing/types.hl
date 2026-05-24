@@ -1,0 +1,65 @@
+// pond/tracing — public type surface.
+//
+// Pure-data records (`type`, pattern 5): no lifecycle, no flow.
+// Construction via struct literal; returned by value through the
+// m49 calling convention.
+//
+// Surface contract: CONTRACTS.md § pond/tracing/. Field shapes
+// match the contract verbatim:
+//
+//   type SpanId { id: String; }
+//   type Span   { id: SpanId; parent: SpanId; name: String;
+//                 start_ns: Int; end_ns: Int; attrs: String; }
+//
+// The locus tower's nesting maps directly onto Span.parent —
+// every span declares the SpanId of the enclosing scope. An
+// empty `parent.id` ("") flags a root span. See the recursive-
+// principle note in README.md.
+//
+// `attrs` rides as a packed tab-separated `key=value\t...` block
+// for the same reason CONTRACTS.md packs HTTP headers as a
+// String: v1 has no parametric Map<K, V> surface, and routing
+// through @form(hashmap) on a per-span record would bloat the
+// Tracer's storage shape. `add_attr(id, k, v)` appends one entry
+// at the Tracer; sinks parse on the way out.
+
+// SpanId — opaque identifier for one open or completed span.
+//
+// Wrapping a bare String in a single-field record keeps the
+// contract honest: SpanId is a *distinct* type from "any
+// String", so a caller can't accidentally pass a name or path
+// where an id was wanted. Cost is one extra struct allocation
+// per id; spans are coarse compared to that allocation.
+//
+// `id` is a monotonically increasing decimal-string counter
+// assigned by the Tracer (`"1"`, `"2"`, ...). Empty `id` ("")
+// is the root sentinel — a span with `parent.id == ""` has no
+// parent.
+type SpanId {
+    id: String = "";
+}
+
+// Span — one completed (or about-to-be-completed) trace span.
+//
+// Published as the `SpanCompleted` topic payload at `end_span`.
+// Sinks (OTLP exporter, JSON logger, in-process tree printer)
+// consume the topic and project the Span however they need.
+//
+// `start_ns` / `end_ns` are nanoseconds-since-an-unspecified-
+// reference per std::time::monotonic's contract — meaningful
+// for elapsed-time differences only. Duration is i64 ns at the
+// codegen layer; stored here as Int so the consumer doesn't
+// have to thread Duration around (Span is a wire-ish record
+// crossing topic boundaries; Int is the simpler shape).
+//
+// `attrs` carries zero or more `key=value\t` entries plus a
+// trailing tab. Empty string means no attributes. Parsers
+// tokenize on `\t` and split each entry on the first `=`.
+type Span {
+    id:       SpanId;
+    parent:   SpanId;
+    name:     String = "";
+    start_ns: Int    = 0;
+    end_ns:   Int    = 0;
+    attrs:    String = "";
+}

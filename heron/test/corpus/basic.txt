@@ -1,0 +1,135 @@
+==================
+Empty source file
+==================
+
+
+
+---
+
+(source_file)
+
+==================
+Hello locus
+==================
+
+locus Hello {
+    params {
+        greeting: String = "hi";
+    }
+    birth() {
+        println(self.greeting);
+    }
+}
+
+fn main() {
+    Hello { };
+}
+
+---
+
+(source_file
+  (locus_decl
+    name: (identifier)
+    (params_block
+      (param_decl
+        name: (identifier)
+        type: (primitive_type)
+        default: (string_literal)))
+    (lifecycle_decl
+      (block
+        (expr_stmt
+          (call_expr
+            callee: (identifier)
+            (field_expr
+              object: (self_expr)
+              member: (identifier)))))))
+  (function_decl
+    name: (identifier)
+    (block
+      (expr_stmt
+        (struct_literal
+          name: (qualified_name (identifier)))))))
+
+==================
+Imports
+==================
+
+import "lib/raylib" as ray;
+import "../shared/helpers" as h;
+
+fn main() { }
+
+---
+
+(source_file
+  (import_decl path: (string_literal) alias: (identifier))
+  (import_decl path: (string_literal) alias: (identifier))
+  (function_decl
+    name: (identifier)
+    (block)))
+
+==================
+Type with fields
+==================
+
+type Point {
+    x: Float = 0.0;
+    y: Float = 0.0;
+}
+
+---
+
+(source_file
+  (type_decl
+    name: (identifier)
+    (struct_field
+      name: (identifier)
+      type: (primitive_type)
+      default: (float_literal))
+    (struct_field
+      name: (identifier)
+      type: (primitive_type)
+      default: (float_literal))))
+
+==================
+Interface
+==================
+
+interface Sink {
+    fn write(s: String);
+    fn line(s: String);
+}
+
+---
+
+(source_file
+  (interface_decl
+    name: (identifier)
+    (interface_method_sig
+      name: (identifier)
+      (parameter
+        name: (identifier)
+        type: (primitive_type)))
+    (interface_method_sig
+      name: (identifier)
+      (parameter
+        name: (identifier)
+        type: (primitive_type)))))
+
+==================
+Locus with annotations
+==================
+
+locus Fitter : tier 4, projection chunked {
+    params { }
+}
+
+---
+
+(source_file
+  (locus_decl
+    name: (identifier)
+    (locus_annotations
+      (locus_annotation (integer_literal))
+      (locus_annotation (projection_class)))
+    (params_block)))

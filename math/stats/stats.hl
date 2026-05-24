@@ -1,0 +1,136 @@
+// stats.hl — basic descriptive statistics on a Matrix input.
+//
+// Pattern 6 free fns; they take a row-vec Matrix (or any Matrix —
+// the elements are read in storage order via the synthesized
+// @form(vec) `get(i)` accessor, so shape is irrelevant for these
+// reductions). Float-typed throughout; Matrix's cell type is Float
+// per pond/math/matrix's contract.
+//
+// Dependence: pond/math/matrix — the Matrix locus + its `at` /
+// `set_at` / `len` / `get` surface (synthesized + user-added).
+// We import it under the local alias `mat` so the bare `Matrix`
+// type name resolves at every signature site below.
+
+import "../matrix" as mat;
+
+// `mean(xs)` — arithmetic mean of every element in storage order.
+// Empty matrix returns 0.0 — the contract is infallible (matches
+// CONTRACTS.md). For a fallible variant, callers can guard with
+// `mat::Matrix.len()` themselves; the empty-as-zero sentinel keeps
+// the common path branch-free.
+fn mean(xs: mat::Matrix) -> Float {
+    let n = xs.len();
+    if n == 0 {
+        return 0.0;
+    }
+    let mut acc = 0.0;
+    let mut i = 0;
+    while i < n {
+        let v = xs.get(i) or 0.0;
+        acc = acc + v;
+        i = i + 1;
+    }
+    return acc / (0.0 + n);
+}
+
+// `variance(xs)` — population variance (divides by N, not N-1).
+// Two-pass: first compute the mean, then sum of squared deviations.
+// Single-pass numerical-stability variants live on OnlineMoments
+// via Welford. Empty matrix returns 0.0 (infallible per contract).
+fn variance(xs: mat::Matrix) -> Float {
+    let n = xs.len();
+    if n == 0 {
+        return 0.0;
+    }
+    let mu = mean(xs);
+    let mut acc = 0.0;
+    let mut i = 0;
+    while i < n {
+        let v = xs.get(i) or 0.0;
+        let d = v - mu;
+        acc = acc + d * d;
+        i = i + 1;
+    }
+    return acc / (0.0 + n);
+}
+
+// `stddev(xs)` — population standard deviation. sqrt of variance.
+// Uses std::math::sqrt per AGENTS.md "use stdlib, don't reinvent."
+fn stddev(xs: mat::Matrix) -> Float {
+    return std::math::sqrt(variance(xs));
+}
+
+// `quantile(xs, q)` — q-th quantile in [0,1]. Linear-interpolated
+// between order-statistics (the "type 7" / R-default convention).
+//
+// Fallible per CONTRACTS.md — fails with StatsError on empty input
+// or q outside [0, 1]. Quantile is the one stats free fn that has
+// a meaningful failure mode (the others have a sensible identity
+// at empty); fallible is the right channel here.
+//
+// v1 implementation copies the elements into a fresh Matrix via
+// mat::zeros + set_at, then `sort()`s the underlying @form(vec).
+// O(N log N) average; N copy upfront. Does NOT mutate the input.
+fn quantile(xs: mat::Matrix, q: Float) -> Float fallible(StatsError) {
+    let n = xs.len();
+    if n == 0 {
+        fail StatsError { kind: "empty" };
+    }
+    if q < 0.0 || q > 1.0 {
+        fail StatsError { kind: "out_of_range" };
+    }
+    // Copy into a 1xN scratch and sort in-place.
+    // `mat::zeros` lives on the `Mat` namespace lotus (G3 — free
+    // fns can't return Matrix locus refs); instantiate once and
+    // dispatch.
+    let mx = mat::Mat { };
+    let scratch = mx.zeros(1, n);
+    let mut i = 0;
+    while i < n {
+        let v = xs.get(i) or 0.0;
+        scratch.set_at(0, i, v);
+        i = i + 1;
+    }
+    scratch.sort();
+    // Linear interpolation between the two surrounding order
+    // statistics. h = q*(N-1) is the fractional rank.
+    let h = q * (0.0 + (n - 1));
+    let lo_idx = Int(std::math::floor(h));
+    let hi_idx = Int(std::math::ceil(h));
+    let lo_v = scratch.get(lo_idx) or 0.0;
+    if lo_idx == hi_idx {
+        return lo_v;
+    }
+    let hi_v = scratch.get(hi_idx) or 0.0;
+    let frac = h - (0.0 + lo_idx);
+    return lo_v + frac * (hi_v - lo_v);
+}
+
+// `min_max(xs)` — 1x2 Matrix [min, max]. Empty input collapses to
+// [0.0, 0.0] (infallible per contract; same empty-as-zero
+// convention as mean/variance/stddev).
+fn min_max(xs: mat::Matrix) -> mat::Matrix {
+    let n = xs.len();
+    let mx = mat::Mat { };
+    let out = mx.zeros(1, 2);
+    if n == 0 {
+        return out;
+    }
+    let first = xs.get(0) or 0.0;
+    let mut lo = first;
+    let mut hi = first;
+    let mut i = 1;
+    while i < n {
+        let v = xs.get(i) or 0.0;
+        if v < lo {
+            lo = v;
+        }
+        if v > hi {
+            hi = v;
+        }
+        i = i + 1;
+    }
+    out.set_at(0, 0, lo);
+    out.set_at(0, 1, hi);
+    return out;
+}

@@ -1,0 +1,104 @@
+// echo-completion — minimal consumer demo for pond/agent/llm.
+//
+// Demonstrates the shape consumers will use against the
+// `pond/agent/llm` (alias `llm`) surface:
+//
+//   1. Construct AnthropicClient (or OpenAiClient — symmetric).
+//   2. Build an LlmRequest with a small prompt.
+//   3. Call client.complete(req); inspect the LlmResponse.
+//   4. Check last_error_kind() to distinguish success vs the
+//      common v1 failure modes (missing api_key, unsupported
+//      scheme, http error envelope).
+//
+// Vendored normally the import looks like:
+//
+//     import "vendor/pond/agent/llm" as llm;
+//
+// In-tree the example reaches the lib via a relative path.
+//
+// Status (2026-05-18): TLS shipped upstream (e9a99df) and the
+// lib's wire-up landed in the same sweep. `base_url` accepts
+// both `http://` and `https://` schemes — point at
+// `https://api.anthropic.com` with a real `ANTHROPIC_API_KEY`
+// for a live round-trip, or keep the default
+// `http://localhost:1234` for the local-proxy workflow (LM
+// Studio's OpenAI-compatible server, llama.cpp's HTTP server,
+// Ollama with `--openai-host`, etc.). With no proxy and no
+// `PROXY_BASE_URL` override the demo reports `connect_failed`
+// and exits — which is the contract.
+
+import "../.." as llm;
+
+locus EchoCompletion {
+    params {
+        // Use env vars if present so a real key + a real
+        // (TLS-terminated) proxy upstream can be wired without
+        // changing source. Defaults fall back to the local-
+        // proxy shape documented in the README.
+        api_key:   String = "";
+        base_url:  String = "http://localhost:1234";
+        model:     String = "claude-opus-4-7";
+        prompt:    String = "Say hello in 3 words.";
+    }
+
+    run() {
+        // Resolve overrides from env. Empty env values keep
+        // the param defaults.
+        let mut key   = self.api_key;
+        let mut url   = self.base_url;
+        let mut model = self.model;
+        if std::env::var_exists("ANTHROPIC_API_KEY") {
+            key = std::env::var("ANTHROPIC_API_KEY");
+        }
+        if std::env::var_exists("PROXY_BASE_URL") {
+            url = std::env::var("PROXY_BASE_URL");
+        }
+        if std::env::var_exists("LLM_MODEL") {
+            model = std::env::var("LLM_MODEL");
+        }
+        if len(key) == 0 {
+            // Fallback "key" the local-proxy will accept. Real
+            // Anthropic API needs a real key + real TLS.
+            key = "demo-key";
+        }
+
+        println("echo-completion: dialing ", url);
+        println("echo-completion: model    ", model);
+        println("echo-completion: prompt   ", self.prompt);
+
+        let client = llm::AnthropicClient {
+            api_key:       key,
+            base_url:      url,
+            default_model: model
+        };
+
+        // Build the LlmRequest. `messages` is tab-separated
+        // "role\tcontent" pairs (no parametric List<T> at v1).
+        let req = llm::LlmRequest {
+            model:       model,
+            system:      "You are terse.",
+            messages:    "user\t" + self.prompt,
+            max_tokens:  64,
+            temperature: 0.7
+        };
+
+        let resp = client.complete(req);
+
+        let kind = client.last_error_kind();
+        if len(kind) > 0 {
+            println("echo-completion: error kind   = ", kind);
+            println("echo-completion: error status = ", client.last_error_status());
+            println("echo-completion: error detail = ", client.last_error_detail());
+            println("echo-completion: (see README for the local-proxy / HTTPS workaround)");
+        } else {
+            println("echo-completion: response text   = ", resp.text);
+            println("echo-completion: stop_reason     = ", resp.stop_reason);
+            println("echo-completion: input_tokens    = ", resp.input_tokens);
+            println("echo-completion: output_tokens   = ", resp.output_tokens);
+        }
+    }
+}
+
+fn main() {
+    EchoCompletion { };
+}

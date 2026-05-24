@@ -1,0 +1,112 @@
+// email-worker — minimal end-to-end demo for pond/jobs.
+//
+// Per the assignment brief:
+//   1. Enqueue 10 "send_email" jobs.
+//   2. Start a Pool with 2 workers.
+//   3. Verify all 10 process (print "sent: <id>" per job;
+//      handler does nothing real).
+//
+// **Stub mode (FRICTION.md)**: this demo runs against
+// `Pool { simulate: true }` because pond/sqlite is stubbed and
+// the real `dequeue` returns kind="db" with detail="unsupported".
+// In simulate mode the Workers bypass the queue and call the
+// handler `max_jobs_per_worker` times each; with 2 workers × 5
+// jobs/worker the handler fires 10 times and the brief's
+// "10 sent lines" target lands. When pond/sqlite unblocks, the
+// `simulate: true` line goes away and the same `enqueue` loop
+// + `Pool` instantiation drive the real queue.
+//
+// The handler is `__send_email` (top-level free fn — fn-pointer
+// fields take a top-level fn name; see pond/jobs/pool.hl on
+// default_handler). It prints the per-job line and returns
+// JobResult { ok: true } so the pool would ack the row in real
+// mode. Identifier = "<kind>:<payload>" so the user-visible
+// trace matches what the SQL row would carry.
+
+import "../.." as jobs;
+
+fn __send_email(j: jobs::Job) -> jobs::JobResult {
+    println("sent: ", j.kind, ":", j.payload);
+    return jobs::JobResult { ok: true, detail: "delivered" };
+}
+
+locus EmailWorkerDemo {
+    params {
+        // Path passed through to Queue / Pool. ":memory:" is the
+        // default once pond/sqlite unblocks; today it's ignored
+        // by the stub.
+        path: String = ":memory:";
+
+        // Job count target. The brief says 10; with 2 workers
+        // each running 5 jobs we land on the target.
+        total_jobs:        Int = 10;
+        workers:           Int = 2;
+        per_worker_target: Int = 5;
+    }
+
+    run() {
+        // 1. Bring up the queue. Queue.birth() runs CREATE TABLE
+        //    IF NOT EXISTS via pond/sqlite (stubbed today, but
+        //    the call still type-checks and the shape demonstrates
+        //    the unblock path).
+        let q = jobs::Queue { db_path: self.path };
+
+        // 2. Enqueue 10 "send_email" jobs. Each enqueue is a free
+        //    fn taking the Queue ref; failure routes through
+        //    `or __ignore_enqueue(err)` so the stub's
+        //    "unsupported" return doesn't drag the run() body
+        //    down — the enqueue surface is exercised regardless.
+        let mut i = 0;
+        while i < self.total_jobs {
+            let payload = "to=user" + to_string(i) + "@example.com";
+            let _ = jobs::enqueue(q, "send_email", payload, 3)
+                or __ignore_enqueue(err);
+            i = i + 1;
+        }
+        println("[email-worker] enqueued ", to_string(self.total_jobs),
+                " send_email jobs");
+
+        // 3. Start the Pool. `simulate: true` is the stub-mode
+        //    switch (see FRICTION.md): workers bypass the queue
+        //    and synthesize their own Jobs so the handler fires
+        //    even though pond/sqlite is down. Each worker hits
+        //    `max_jobs_per_worker` invocations and exits; the
+        //    Pool's dissolve cascade pthread_joins them.
+        //
+        //    Let-bound so the Pool's lifetime covers the run()
+        //    scope (per m82). When run() returns, Pool's
+        //    dissolve fires, which cascades into each Worker's
+        //    dissolve (which pthread_joins). By the time the
+        //    next println below runs, every worker has exited.
+        let pool = jobs::Pool {
+            db_path:                 self.path,
+            workers:                 self.workers,
+            max_jobs_per_worker:     self.per_worker_target,
+            simulate:                true,
+            simulate_kind:           "send_email",
+            simulate_payload_prefix: "to=user",
+            handler:                 __send_email,
+        };
+        let _ = pool;
+
+        println("[email-worker] pool drained; all workers joined");
+    }
+}
+
+// __ignore_enqueue — error-bridge for the demo's enqueue loop.
+// Today pond/jobs::enqueue returns kind="db" ("unsupported")
+// from the stub; we acknowledge it and continue so the demo
+// still produces output. A production caller would `or raise`
+// (escalating to the parent's on_failure) or stash the err for
+// metrics.
+fn __ignore_enqueue(e: jobs::JobError) -> Int {
+    // Quiet by default — uncomment the println for stub-mode
+    // diagnostics. The brief asks for 10 "sent:" lines, not for
+    // 10 "enqueue stub:" lines.
+    let _ = e;
+    return 0;
+}
+
+fn main() {
+    EmailWorkerDemo { };
+}

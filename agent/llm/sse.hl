@@ -1,0 +1,257 @@
+// pond/agent/llm — Server-Sent Events parsing.
+//
+// SSE wire format (W3C / IANA text/event-stream):
+//   - Frames are separated by `\n\n` (blank line).
+//   - Each frame is a series of `field: value` lines.
+//   - The `data:` prefix carries the JSON payload (per
+//     Anthropic + OpenAI's streaming convention); other
+//     prefixes (`event:`, `id:`, `retry:`) are ignored at v1.
+//   - A literal `data: [DONE]` line on the OpenAI side marks
+//     end-of-stream; Anthropic emits a typed
+//     `event: message_stop` instead.
+//
+// This module is a stateful frame buffer + a free-fn extractor.
+// The vendor adapters (`anthropic.hl` / `openai.hl`) feed each
+// `Stream.recv_bytes` chunk into the buffer via `feed_chunk`,
+// then call `next_data_line` in a loop until it returns the
+// empty string. Each non-empty data line is JSON the vendor
+// adapter parses and turns into an LlmChunk on the bus.
+//
+// FRICTION: SSE framing is duplicate-suspected — any pond lib
+// that wraps a streaming-LLM-style API will reinvent the same
+// `\n\n` split + `data:` prefix walk. Candidate for lifting
+// into `pond/sse/` once a second consumer materializes.
+// Logged in FRICTION.md.
+
+// SseBuffer — accumulating String of bytes already received
+// over the SSE channel. `feed_chunk` appends; `next_data_line`
+// extracts one `data:` line at a time from completed frames.
+//
+// Pattern 5 (shape type) — pure data, mutated through the free
+// fns below. Modeling it as a type rather than a locus keeps
+// the streaming loop allocation-free per-iter: callers re-
+// assign `let buf = sse::feed_chunk(buf, chunk);` rather than
+// mutating a locus field.
+//
+// FRICTION: "type with mutating-via-reassignment helpers" is
+// a v1 idiom whenever the surface wants amortized O(N) string
+// growth without a full locus tower. The pattern shows up in
+// `pond/http/client`'s `__recv_response_bytes` builder usage
+// and would benefit from a shared `std::iter::ChunkBuffer`.
+// Logged in FRICTION.md.
+type SseBuffer {
+    buf:    String = "";   // accumulated bytes (not yet consumed)
+    done:   Bool   = false; // sticky — true once an end-of-stream
+                             // sentinel was observed
+}
+
+// feed_chunk — append `chunk` (the raw bytes pulled off the
+// TCP stream) to the buffer. Use std::str::from_bytes for the
+// Bytes → String view; SSE is ASCII-only by spec so no NUL
+// truncation risk.
+//
+// Returns a fresh SseBuffer with the chunk appended. Pure
+// (no shared state) so callers can re-bind:
+//   `buf = sse::feed_chunk(buf, chunk);`
+fn feed_chunk(buf: SseBuffer, chunk: Bytes) -> SseBuffer {
+    if buf.done {
+        return buf;
+    }
+    let n = len(chunk);
+    if n <= 0 {
+        return buf;
+    }
+    return SseBuffer {
+        buf:  buf.buf + std::str::from_bytes(chunk),
+        done: buf.done
+    };
+}
+
+// __NextResult — pair of (line, remaining-buffer). next_data_line
+// returns one of these so the caller knows how much of `buf` to
+// discard for the next iteration.
+type __NextResult {
+    line:      String;
+    remaining: SseBuffer;
+    has_line:  Bool   = false;
+}
+
+// next_data_line — pop the first complete SSE frame from `buf`
+// and return its `data:` payload (empty string if the frame
+// had no `data:` line). When no complete frame is yet
+// available (i.e. the buffer doesn't contain `\n\n`), returns
+// has_line=false; the caller waits for more bytes and tries
+// again.
+//
+// End-of-stream sentinels:
+//   - OpenAI: `data: [DONE]` — we strip it and set done=true
+//     on the returned remaining buffer, so the caller's outer
+//     loop terminates.
+//   - Anthropic: `event: message_stop` — same treatment.
+//
+// FRICTION: the OpenAI [DONE] convention deviates from W3C
+// SSE; flagging the per-vendor logic here rather than in the
+// vendor adapters because both end-up running through the
+// same line splitter. Logged in FRICTION.md.
+fn next_data_line(buf: SseBuffer) -> __NextResult {
+    if buf.done {
+        return __NextResult {
+            line:      "",
+            remaining: buf,
+            has_line:  false
+        };
+    }
+    let total = len(buf.buf);
+    let sep = std::str::index_of(buf.buf, "\n\n");
+    if sep < 0 {
+        return __NextResult {
+            line:      "",
+            remaining: buf,
+            has_line:  false
+        };
+    }
+    let frame = buf.buf[0..sep];
+    let rest_start = sep + 2;
+    let mut rest = "";
+    if rest_start < total {
+        rest = buf.buf[rest_start..total];
+    }
+
+    // Walk lines inside the frame. Take the first `data:`
+    // payload; record `event:` for end-of-stream detection.
+    let mut data_line = "";
+    let mut has_data = false;
+    let mut event_kind = "";
+    let mut cursor = 0;
+    let frame_len = len(frame);
+    while cursor < frame_len {
+        let rel = std::str::index_of(frame[cursor..frame_len], "\n");
+        let mut line_end = frame_len;
+        if rel >= 0 { line_end = cursor + rel; }
+        let line = frame[cursor..line_end];
+        let line_len = len(line);
+        if line_len >= 5 && line[0..5] == "data:" {
+            // Trim leading space after the colon (SSE spec
+            // says: "if the value starts with a U+0020 SPACE
+            // character, that character must be ignored").
+            let mut vstart = 5;
+            if vstart < line_len && line[vstart..(vstart + 1)] == " " {
+                vstart = vstart + 1;
+            }
+            data_line = line[vstart..line_len];
+            has_data = true;
+        }
+        if line_len >= 6 && line[0..6] == "event:" {
+            let mut vstart = 6;
+            if vstart < line_len && line[vstart..(vstart + 1)] == " " {
+                vstart = vstart + 1;
+            }
+            event_kind = line[vstart..line_len];
+        }
+        if rel < 0 { break; }
+        cursor = line_end + 1;
+    }
+
+    // Apply end-of-stream sentinels.
+    let mut done = false;
+    if data_line == "[DONE]" {
+        done = true;
+        has_data = false;   // sentinel itself is not a delta
+    }
+    if event_kind == "message_stop" {
+        done = true;
+    }
+
+    return __NextResult {
+        line:      data_line,
+        remaining: SseBuffer { buf: rest, done: done },
+        has_line:  has_data
+    };
+}
+
+// extract_anthropic_delta — read the `delta.text` field out of
+// an Anthropic SSE event payload. Anthropic streams as a
+// sequence of typed events whose JSON payload looks like:
+//
+//   {"type":"content_block_delta","index":0,
+//    "delta":{"type":"text_delta","text":"Hello"}}
+//
+// We only care about `content_block_delta`. Other event types
+// (`message_start`, `content_block_start`, `message_delta`,
+// `ping`) are filtered out by returning the empty string.
+//
+// Used by anthropic.hl's stream loop.
+fn extract_anthropic_delta(json_payload: String) -> String {
+    let kind = std::json::find_string_field(json_payload, "type");
+    if kind != "content_block_delta" {
+        return "";
+    }
+    let delta = __extract_field_raw(json_payload, "delta");
+    if len(delta) == 0 {
+        return "";
+    }
+    return std::json::find_string_field(delta, "text");
+}
+
+// extract_openai_delta — read the `choices[0].delta.content`
+// field out of an OpenAI SSE event payload. OpenAI streams
+// as a sequence of chat-completion chunks whose JSON payload
+// looks like:
+//
+//   {"id":"...","object":"chat.completion.chunk",
+//    "choices":[{"index":0,"delta":{"content":"Hello"},
+//                "finish_reason":null}]}
+//
+// We pull choices[0].delta.content. Empty content (the role
+// announcement event has `delta:{role:"assistant"}` only) is
+// filtered out as the empty string.
+fn extract_openai_delta(json_payload: String) -> String {
+    let choices = __extract_field_raw(json_payload, "choices");
+    if len(choices) == 0 {
+        return "";
+    }
+    let it = std::json::array_first(choices);
+    if it.done {
+        return "";
+    }
+    let first = it.element;
+    let delta = __extract_field_raw(first, "delta");
+    if len(delta) == 0 {
+        return "";
+    }
+    return std::json::find_string_field(delta, "content");
+}
+
+// extract_anthropic_stop_reason — Anthropic sends a final
+// message_delta event with the stop_reason; we read it out so
+// the LlmDone payload can carry the vendor's reason tag.
+//
+//   {"type":"message_delta",
+//    "delta":{"stop_reason":"end_turn","stop_sequence":null},
+//    "usage":{"output_tokens":15}}
+fn extract_anthropic_stop_reason(json_payload: String) -> String {
+    let kind = std::json::find_string_field(json_payload, "type");
+    if kind != "message_delta" {
+        return "";
+    }
+    let delta = __extract_field_raw(json_payload, "delta");
+    if len(delta) == 0 {
+        return "";
+    }
+    return std::json::find_string_field(delta, "stop_reason");
+}
+
+// extract_openai_stop_reason — OpenAI puts finish_reason on
+// the final chunk's choices[0]. We read it alongside delta in
+// the stream loop.
+fn extract_openai_stop_reason(json_payload: String) -> String {
+    let choices = __extract_field_raw(json_payload, "choices");
+    if len(choices) == 0 {
+        return "";
+    }
+    let it = std::json::array_first(choices);
+    if it.done {
+        return "";
+    }
+    return std::json::find_string_field(it.element, "finish_reason");
+}

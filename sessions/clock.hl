@@ -1,0 +1,18 @@
+// pond/sessions — wall-clock helper.
+
+// `now_seconds()` returns wall-clock seconds since the Unix
+// epoch (`CLOCK_REALTIME`). Used by `sign_cookie` to stamp the
+// expiry deadline and by `verify_cookie` to compare it against
+// "now."
+//
+// Backed by `std::time::now()` (C7, hale `ede2786`).
+// Wall-clock is the right shape for session expiries: cookies
+// stay valid across a process restart (the monotonic shim that
+// preceded this would invalidate every issued cookie on reboot).
+// NTP slewing and leap seconds can warp the value — fine for
+// session TTL granularity (seconds), wrong for fine-grained
+// scheduling (use `std::time::monotonic()` there).
+
+fn now_seconds() -> Int {
+    return std::time::now();
+}

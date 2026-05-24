@@ -1,0 +1,21 @@
+// pond/agent/conversation — bus topics.
+//
+// One typed pub/sub channel: `ConversationUpdated` fires once
+// per successful `append()` on a Conversation. The payload is
+// the Message that was just appended — subscribers reconstruct
+// the post-append history by composing the incoming message onto
+// their mirror of the prior state.
+//
+// Per CONTRACTS.md this is a topic-decl (not a literal-string
+// bus subject) so subscribers reference it as
+// `conv::ConversationUpdated` under the suggested `conv` alias.
+//
+// **Per-conversation subject derivation gap.** Two distinct
+// Conversation instances that both publish on `ConversationUpdated`
+// share a single wire subject in v1 — every subscriber sees
+// every conversation's traffic. The intended end-state is one
+// hierarchical-topic per conversation
+// (`topic SessionA : ConversationUpdated { subject: "session_a"; }`)
+// so consumers filter at the bus level. See FRICTION.md.
+
+topic ConversationUpdated { payload: Message; }

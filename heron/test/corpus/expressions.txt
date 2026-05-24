@@ -1,0 +1,114 @@
+==================
+Arithmetic precedence
+==================
+
+fn main() {
+    let x = 1 + 2 * 3;
+    let y = (1 + 2) * 3;
+}
+
+---
+
+(source_file
+  (function_decl
+    name: (identifier)
+    (block
+      (let_stmt
+        name: (identifier)
+        value: (binary_expr
+          left: (integer_literal)
+          right: (binary_expr
+            left: (integer_literal)
+            right: (integer_literal))))
+      (let_stmt
+        name: (identifier)
+        value: (binary_expr
+          left: (parenthesized
+            (binary_expr
+              left: (integer_literal)
+              right: (integer_literal)))
+          right: (integer_literal))))))
+
+==================
+Field access chain
+==================
+
+fn main() {
+    let v = self.foo.bar;
+}
+
+---
+
+(source_file
+  (function_decl
+    name: (identifier)
+    (block
+      (let_stmt
+        name: (identifier)
+        value: (field_expr
+          object: (field_expr
+            object: (self_expr)
+            member: (identifier))
+          member: (identifier))))))
+
+==================
+Fallible or-disposition
+==================
+
+fn parse(s: String) -> Int {
+    let n = std::str::parse_int(s) or 0;
+    let m = std::str::parse_int(s) or raise;
+}
+
+---
+
+(source_file
+  (function_decl
+    name: (identifier)
+    (parameter name: (identifier) type: (primitive_type))
+    return_type: (primitive_type)
+    (block
+      (let_stmt
+        name: (identifier)
+        value: (or_disposition_expr
+          expr: (call_expr
+            callee: (path_expr
+              object: (path_expr
+                object: (identifier)
+                member: (identifier))
+              member: (identifier))
+            (identifier))
+          disposition: (integer_literal)))
+      (let_stmt
+        name: (identifier)
+        value: (or_disposition_expr
+          expr: (call_expr
+            callee: (path_expr
+              object: (path_expr
+                object: (identifier)
+                member: (identifier))
+              member: (identifier))
+            (identifier))
+          disposition: (raise_disposition))))))
+
+==================
+Bus send
+==================
+
+fn handle() {
+    "log.app" <- LogEvent { msg: "hi" };
+}
+
+---
+
+(source_file
+  (function_decl
+    name: (identifier)
+    (block
+      (send_stmt
+        subject: (string_literal)
+        payload: (struct_literal
+          name: (qualified_name (identifier))
+          (struct_init
+            field: (identifier)
+            value: (string_literal)))))))

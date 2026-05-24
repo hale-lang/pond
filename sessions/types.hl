@@ -1,0 +1,45 @@
+// pond/sessions — public types.
+//
+// Pure-data records (`type`, not `locus`): no lifecycle, no
+// flow. Constructed via struct literal at use sites; returnable
+// by value through the standard calling convention.
+//
+// Surface contract: CONTRACTS.md § pond/sessions/. Field shapes
+// match the contract verbatim.
+
+// One signed session. `id` is an opaque identifier (caller
+// chooses the scheme — UUID, monotonic counter, user-id, ...);
+// `data` is a tab-separated key=value pack (k1=v1\tk2=v2\t...).
+// Read individual fields with `get_value(s, key)`; write via the
+// pure `set_value(s, key, val) -> Session` free fn.
+//
+// Two reasons data is a packed String instead of a map:
+//   1. v1 has no parametric Map<K,V>; @form(hashmap) on a locus
+//      would force `data` into being a sub-locus instead of a
+//      value-returnable field. Sessions are values that flow
+//      through HMAC payloads, so the locus-shape doesn't fit.
+//   2. The packed shape matches `RouteParams { path_kv: String }`
+//      in pond/router and `Labels { kv: String }` in pond/metrics
+//      — the lib family converged on tab-separated for the same
+//      reason. (Logged as a duplicate-suspected candidate in
+//      FRICTION.md.)
+type Session {
+    id:   String = "";
+    data: String = "";
+}
+
+// SessionError — the single fallible(SessionError) payload for
+// every fallible surface in this lib.
+//
+// kind values:
+//   "missing"   — no `session=...` cookie in the Cookie header
+//   "malformed" — cookie present but not `<b64>.<b64>` shape
+//                 (truncation, wrong delimiter, empty halves)
+//   "tampered"  — HMAC mismatch (constant-time compare fails),
+//                 OR base64 decode produced garbage that the
+//                 verification path couldn't reconcile
+//   "expired"   — payload's TTL deadline is in the past relative
+//                 to the SessionStore's monotonic clock
+type SessionError {
+    kind: String = "";
+}

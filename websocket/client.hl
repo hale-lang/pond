@@ -1,0 +1,685 @@
+// pond/websocket — WsClient locus (RFC 6455 client)
+//
+// **Synchronous, owner-driven.** The library is a passive wrapper
+// around the socket; the consumer's run() loop drives `read_msg()`
+// and inspects `last_message` via the exposed contract. No auto-
+// loop, no background thread, no bus publish on the inbound path.
+//
+// This matches The Design's I3/H4/H10 for blocking I/O:
+//
+//   - The locus that owns the connection lives on its own scheduler
+//     (typically `: schedule pinned`).
+//   - Frames are recv'd into the locus's own arena (rx_buf, reused
+//     per recv).
+//   - Parsed messages land in `self.last_message`, exposed via the
+//     `contract { expose ... }` surface.
+//   - The owner reads `self.conn.last_message` via the F.14 typed
+//     contract — zero copy (same arena, single-pointer view).
+//   - The owner decides what (if anything) hits the bus — typically
+//     normalized domain events, never raw frames.
+//
+// Configuration surface (apic-style options) is preserved: url,
+// extra_headers, auto_reconnect, max_retries, backoff schedule,
+// ping/pong timeouts. The library state-machine internals (URL
+// parse, TLS dial, WS handshake, RFC 6455 framing, fragment
+// reassembly, ping reply) are reused — only the driver is inverted.
+//
+// ## Surface
+//
+//   birth()        — parse url; no I/O yet
+//   open()         — explicit dial + TLS + WS handshake (Bool)
+//   read_msg()     — block until one data message lands in
+//                    last_message; handles peer pings, pongs, close
+//                    transparently; auto-reconnects on transient
+//                    failure if `auto_reconnect = true` (Bool)
+//   send_text(s)   — emit a text frame (Bool)
+//   send_bytes(b)  — emit a binary frame (Bool)
+//   close()        — send close frame + tear down socket
+//   dissolve()     — calls close()
+//
+// ## URL parsing
+//
+// `url` accepts `ws://host[:port]/path` or `wss://host[:port]/path`.
+// Default ports: 80 for ws, 443 for wss. wss routes through
+// `std::io::tls::connect`; ws through `std::io::tcp::connect`.
+// IPv6 literal hosts (`[::1]`) are not parsed at v1 — see FRICTION.
+
+locus WsClient {
+    params {
+        // ---- caller-facing config (apic-style options) ----
+
+        url: String = "";
+        extra_headers: String = "";
+
+        // If true, read_msg / open transparently reconnect on
+        // transient failures with the configured backoff schedule.
+        auto_reconnect: Bool = true;
+        max_retries: Int = -1;        // -1 = unlimited
+        reconnect_initial: Duration = 1s;
+        reconnect_max: Duration = 30s;
+
+        // Keepalive / stale-detect cadences. Reactive only at v1:
+        // peer pings get auto-replied with pong; proactive pings +
+        // pong-deadline live-tracking are FRICTION items.
+        ping_interval: Duration = 30s;
+        pong_timeout: Duration = 10s;
+
+        // recv-syscall chunk size. Larger = fewer syscalls; smaller
+        // = lower latency on partial frames.
+        recv_chunk: Int = 4096;
+
+        // ---- internal connection state ----
+
+        host: String = "";
+        port: Int = 0;
+        path: String = "";
+        scheme: String = "";
+
+        sock: Int = -1;
+        tls: Int = -1;
+        connected: Bool = false;
+
+        // Recv accumulator (rx_buf) and fragment-reassembly buffer
+        // (frag_buf) are held as BytesBuilder child loci on
+        // WsClient via F.29 (locus-typed param fields with
+        // lifecycle cascade — 2026-05-19). They birth with the
+        // parent, dissolve with it, and recycle their underlying
+        // malloc'd buffer across every frame.
+        //
+        // Combined with std::io::*::recv_into (Phase 1) writing
+        // directly into rx_buf's tail and b.view() (Phase 2 (1))
+        // returning a non-owning Bytes for parse_frame to read,
+        // the recv hot path makes zero per-frame allocations
+        // against g_bus_payload_arena. The frag_buf's contents
+        // ARE the last delivered message's bytes — consumer
+        // reads `self.last_message.bytes` (a view) until the
+        // next data frame arrives, at which point frag_buf is
+        // cleared and re-filled in place.
+        rx_buf:   std::bytes::BytesBuilder
+                = std::bytes::BytesBuilder { initial_cap: 8192 };
+
+        frag_kind: String = "";
+        frag_buf: std::bytes::BytesBuilder
+                = std::bytes::BytesBuilder { initial_cap: 1024 };
+
+        // Scratch buffer for control-frame payloads (ping replies,
+        // close-frame echo). Held as a child so its allocation
+        // recycles across pings — no per-ping allocation churn.
+        // Capped small per RFC 6455 § 5.5 (control frames ≤ 125 B).
+        scratch_buf: std::bytes::BytesBuilder
+                   = std::bytes::BytesBuilder { initial_cap: 128 };
+
+        // Outbound mask seed. CSPRNG-seeded mask is a FRICTION item.
+        mask_seed: Int = 0xCAFEBABE;
+
+        // ---- exposed surface (read by owner via contract) ----
+
+        last_message: WsMessage;
+        last_error: WsError;
+
+        frames_received: Int = 0;
+        frames_sent: Int = 0;
+        reconnects: Int = 0;
+
+        // ---- diagnostic logger (injectable) ----
+        //
+        // Default emits one line per I/O event to stderr. Caller
+        // overrides with `logger: ws::NoopWsLogger { }` to silence,
+        // or any locus satisfying the WsLogger interface to route
+        // events elsewhere (bus topic, metrics, ring buffer, ...).
+        // Events fire at every meaningful phase: dial, tls,
+        // handshake, recv, send, frame, close, error. See
+        // pond/websocket/types.hl § WsLogEvent.
+        logger: WsLogger = StderrWsLogger { };
+    }
+
+    contract {
+        expose connected: Bool;
+        expose last_message: WsMessage;
+        expose last_error: WsError;
+        expose frames_received: Int;
+        expose frames_sent: Int;
+        expose reconnects: Int;
+    }
+
+    birth() {
+        let parts = parse_url(self.url);
+        self.scheme = parts.scheme;
+        self.host = parts.host;
+        self.port = parts.port;
+        self.path = parts.path;
+        if parts.error_kind != "" {
+            self.last_error = WsError {
+                kind: parts.error_kind,
+                detail: parts.error_detail,
+            };
+        }
+    }
+
+    dissolve() {
+        self.close_sock();
+        // rx_buf / frag_buf dissolve automatically as our children.
+    }
+
+    // ===== driver surface =====
+
+    // open — explicit dial + TLS + WS handshake. Idempotent if
+    // already connected. If `auto_reconnect` is true, internally
+    // retries up to `max_retries` with `reconnect_initial` backoff
+    // between attempts.
+    //
+    // Returns true on success; false with `last_error` set on
+    // failure.
+    fn open() -> Bool {
+        if self.connected { return true; }
+        if self.scheme == "" {
+            // birth's parse_url failed; nothing to dial.
+            return false;
+        }
+        let mut attempt = 0;
+        let mut result = false;
+        let mut keep_trying = true;
+        while keep_trying {
+            let ok = self.connect_once();
+            if ok {
+                self.connected = true;
+                if attempt > 0 {
+                    self.reconnects = self.reconnects + 1;
+                }
+                result = true;
+                keep_trying = false;
+            } else {
+                if !self.auto_reconnect {
+                    keep_trying = false;
+                } else {
+                    if self.max_retries >= 0 && attempt >= self.max_retries {
+                        self.last_error = WsError {
+                            kind: "max_retries",
+                            detail: "exceeded max_retries",
+                        };
+                        keep_trying = false;
+                    } else {
+                        // v1 doesn't have Duration arithmetic in
+                        // expression position; fixed reconnect_initial
+                        // delay per attempt. FRICTION: exponential
+                        // schedule.
+                        std::time::sleep(self.reconnect_initial);
+                        attempt = attempt + 1;
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    // read_msg — block until one complete data message is received
+    // and parked in `self.last_message`, OR until a fatal error
+    // (returns false with `self.last_error` set).
+    //
+    // Handles transparently on the way:
+    //   - peer pings → reply with pong, keep looping
+    //   - peer pongs → ignore, keep looping
+    //   - peer close → if auto_reconnect, reconnect + keep looping;
+    //                  else return false with kind="close"
+    //   - transient I/O drop → if auto_reconnect, reconnect + keep
+    //                          looping; else return false with kind="io"
+    //
+    // The owner's run loop typically:
+    //
+    //   while !self.draining {
+    //       if conn.read_msg() {
+    //           self.handle(conn.last_message);   // zero-copy contract read
+    //       } else {
+    //           // last_error has details; decide quarantine/bubble/etc.
+    //       }
+    //   }
+    fn read_msg() -> Bool {
+        let mut got_message = false;
+        let mut bail = false;
+        while !got_message && !bail {
+            if !self.connected {
+                if !self.auto_reconnect {
+                    self.last_error = WsError {
+                        kind: "io",
+                        detail: "not connected",
+                    };
+                    bail = true;
+                } else {
+                    if !self.open() {
+                        bail = true;
+                    }
+                }
+            } else {
+                let r = self.try_peel_one();
+                if r == 0 {
+                    // Need more bytes — recv directly into rx_buf
+                    // via the syscall-layer caller-provided
+                    // destination primitive (Phase 1). Zero
+                    // allocation in g_bus_payload_arena per frame.
+                    let got = self.recv_into_rx();
+                    if got <= 0 {
+                        // EOF (got==0) or read error (got<0).
+                        self.close_sock();
+                        self.connected = false;
+                        if !self.auto_reconnect {
+                            self.last_error = WsError {
+                                kind: "io",
+                                detail: "connection lost",
+                            };
+                            bail = true;
+                        }
+                        // else: loop tries to reopen
+                    }
+                } else if r == 3 {
+                    // DataComplete — self.last_message set
+                    got_message = true;
+                } else if r == 4 {
+                    // Peer close
+                    self.close_sock();
+                    self.connected = false;
+                    if !self.auto_reconnect {
+                        self.last_error = WsError {
+                            kind: "close",
+                            detail: "peer initiated close",
+                        };
+                        bail = true;
+                    }
+                    // else: loop tries to reopen
+                } else if r == 5 {
+                    // Framing error — fatal; last_error already set
+                    bail = true;
+                }
+                // r == 1 (control consumed) or r == 2 (data partial):
+                // loop to peel next frame
+            }
+        }
+        return got_message;
+    }
+
+    // try_peel_one — attempt to peel a single frame from rx_buf and
+    // dispatch it. Returns a discriminator:
+    //
+    //   0 — need more bytes (no complete frame yet)
+    //   1 — control frame consumed (ping replied; pong ignored)
+    //   2 — data frame consumed; fragment reassembly continues
+    //   3 — data message complete (self.last_message populated)
+    //   4 — peer close frame received
+    //   5 — framing error (self.last_error.kind == "framing")
+    fn try_peel_one() -> Int {
+        // Clear any stale "framing" error from a prior peel so we
+        // can detect a fresh one. Other kinds (io/close/max_retries)
+        // are set elsewhere by the read_msg outer loop.
+        if self.last_error.kind == "framing" {
+            self.last_error = WsError { kind: "", detail: "" };
+        }
+
+        // Zero-copy view of rx_buf for peek_header — F.30 5a
+        // wired the coercion at user-fallible-fn arg sites
+        // (commit a86aed6, 2026-05-20). View stays valid
+        // until the shift_front below mutates rx_buf, by which
+        // point we've already done unmask_into for the routed
+        // branch.
+        let view = self.rx_buf.view();
+        let hdr = peek_header(view, 0)
+            or self.framing_fail_hdr(err);
+        if self.last_error.kind == "framing" {
+            return 5;
+        }
+        if hdr.total == 0 {
+            return 0;
+        }
+
+        self.frames_received = self.frames_received + 1;
+        self.logger.on_event(WsLogEvent {
+            phase: "frame", detail: "inbound",
+            bytes: hdr.payload_len, op: hdr.opcode });
+
+        // Route by opcode. unmask_into reads `view` and writes
+        // into a caller-owned destination builder — no per-frame
+        // bldr.finish() / from_int(byte) churn against
+        // g_bus_payload_arena.
+        if hdr.opcode == 8 {
+            // Close — discard the payload, signal close to caller.
+            self.rx_buf.shift_front(hdr.total);
+            return 4;
+        }
+        if hdr.opcode == 9 {
+            // Ping — unmask into scratch_buf, echo as pong, clear.
+            unmask_into(self.scratch_buf, view,
+                        hdr.payload_off, hdr.payload_len,
+                        hdr.masked, hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
+            self.rx_buf.shift_front(hdr.total);
+            // F.30 5a wired method-call arg-site coercion too.
+            let _ = self.send_frame_internal(10, self.scratch_buf.view());
+            self.scratch_buf.clear();
+            return 1;
+        }
+        if hdr.opcode == 10 {
+            // Pong — discard. No need to materialize the payload.
+            self.rx_buf.shift_front(hdr.total);
+            return 1;
+        }
+
+        // Data frame: continuation (opcode 0) or new (1 text / 2 binary).
+        //
+        // **Deferred clear.** A previous FIN parked
+        // last_message.bytes as a view into frag_buf — we delayed
+        // clearing the builder so the consumer's read window
+        // survives any non-data frames (heartbeats, pings) between
+        // FIN and the next data start. The clear happens here, on
+        // the first data frame after the previous FIN; from this
+        // point forward the old view is invalidated (caller has
+        // had a full read_msg return to consume).
+        if hdr.opcode == 0 {
+            unmask_into(self.frag_buf, view,
+                        hdr.payload_off, hdr.payload_len,
+                        hdr.masked, hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
+        } else {
+            self.frag_kind = opcode_to_kind(hdr.opcode);
+            self.frag_buf.clear();
+            unmask_into(self.frag_buf, view,
+                        hdr.payload_off, hdr.payload_len,
+                        hdr.masked, hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
+        }
+        self.rx_buf.shift_front(hdr.total);
+
+        if hdr.fin {
+            // Materialize last_message as zero-copy views into
+            // frag_buf. F.30 5b (commit a86aed6) wired view-
+            // typed storage defaults on struct fields, so
+            // WsMessage.text / .bytes are now StringView /
+            // BytesView (see types.hl). Deferred-clear discipline
+            // (frag_buf only mutated on the next new-data frame,
+            // above) preserves the view across heartbeats / pings
+            // between FIN and the next data start.
+            self.last_message = WsMessage {
+                kind:  self.frag_kind,
+                text:  self.frag_buf.text_view(),
+                bytes: self.frag_buf.view(),
+            };
+            self.frag_kind = "";
+            return 3;
+        }
+        return 2;
+    }
+
+    // ===== outbound send surface =====
+
+    fn send_text(s: String) -> Bool {
+        if !self.connected {
+            self.last_error = WsError {
+                kind: "io",
+                detail: "not connected",
+            };
+            return false;
+        }
+        let payload = std::bytes::from_string(s);
+        return self.send_frame_internal(1, payload);
+    }
+
+    fn send_bytes(b: Bytes) -> Bool {
+        if !self.connected {
+            self.last_error = WsError {
+                kind: "io",
+                detail: "not connected",
+            };
+            return false;
+        }
+        return self.send_frame_internal(2, b);
+    }
+
+    // close — send a graceful close frame and tear down the socket.
+    // After this, `connected` is false and read_msg / send_* will
+    // return false unless open() is called again.
+    fn close() {
+        let empty = std::bytes::from_string("");
+        if self.connected {
+            let _ = self.send_frame_internal(8, empty);
+        }
+        self.close_sock();
+        self.connected = false;
+    }
+
+    // ===== internal helpers =====
+
+    fn send_frame_internal(opcode: Int, payload: Bytes) -> Bool {
+        self.mask_seed = self.mask_seed * 1664525 + 1013904223;
+        let frame = emit_frame(true, opcode, payload, self.mask_seed);
+        let n = self.write_all(frame);
+        if n < 0 {
+            self.last_error = WsError { kind: "io", detail: "send failed" };
+            self.logger.on_event(WsLogEvent {
+                phase: "error", detail: "send failed", op: opcode });
+            return false;
+        }
+        self.frames_sent = self.frames_sent + 1;
+        self.logger.on_event(WsLogEvent {
+            phase: "send", detail: "frame written",
+            bytes: len(payload), op: opcode });
+        return true;
+    }
+
+    fn write_all(b: Bytes) -> Int {
+        if self.tls >= 0 {
+            return std::io::tls::send_bytes(self.tls, b);
+        }
+        return std::io::tcp::__send_bytes(self.sock, b);
+    }
+
+    // recv_into_rx — pulls up to recv_chunk bytes from the active
+    // socket directly into rx_buf's tail (zero alloc in
+    // g_bus_payload_arena). Returns POSIX read(2) semantics:
+    // > 0 bytes appended, 0 peer closed, < 0 fatal.
+    fn recv_into_rx() -> Int {
+        let got = if self.tls >= 0 {
+            std::io::tls::recv_into(self.tls, self.rx_buf, self.recv_chunk)
+        } else {
+            std::io::tcp::recv_into(self.sock, self.rx_buf, self.recv_chunk)
+        };
+        if got > 0 {
+            self.logger.on_event(WsLogEvent {
+                phase: "recv", detail: "bytes from socket", bytes: got });
+        } else if got == 0 {
+            self.logger.on_event(WsLogEvent {
+                phase: "recv", detail: "eof or empty" });
+        } else {
+            self.logger.on_event(WsLogEvent {
+                phase: "error", detail: "recv_into negative" });
+        }
+        return got;
+    }
+
+    fn connect_once() -> Bool {
+        self.logger.on_event(WsLogEvent {
+            phase: "dial", detail: self.host });
+        if self.scheme == "wss" {
+            let h = std::io::tls::connect(self.host, self.port)
+                or self.io_substitute_int(err);
+            if h < 0 {
+                self.logger.on_event(WsLogEvent {
+                    phase: "error", detail: "tls connect failed" });
+                return false;
+            }
+            self.tls = h;
+            self.logger.on_event(WsLogEvent {
+                phase: "tls", detail: "handshake ok" });
+        } else {
+            let h = std::io::tcp::connect(self.host, self.port)
+                or self.io_substitute_int(err);
+            if h < 0 {
+                self.logger.on_event(WsLogEvent {
+                    phase: "error", detail: "tcp connect failed" });
+                return false;
+            }
+            self.sock = h;
+            self.logger.on_event(WsLogEvent {
+                phase: "dial", detail: "tcp connect ok" });
+        }
+
+        let req = build_request(self.host, self.path, self.extra_headers);
+        let wrote = self.write_all(req);
+        if wrote < 0 {
+            self.last_error = WsError { kind: "io", detail: "handshake send failed" };
+            self.logger.on_event(WsLogEvent {
+                phase: "error", detail: "handshake send failed" });
+            return false;
+        }
+        self.logger.on_event(WsLogEvent {
+            phase: "handshake", detail: "request sent", bytes: wrote });
+
+        // One-time handshake recv: accumulate into rx_buf directly
+        // (any leftover post-parse becomes the first bytes of the
+        // inbound stream anyway). Zero-allocation per recv + view-
+        // based parse_response (F.30 5a, 2026-05-20).
+        self.rx_buf.clear();
+        let mut tries = 0;
+        while tries < 100 {
+            let got = self.recv_into_rx();
+            if got <= 0 {
+                tries = tries + 1;
+            } else {
+                let view = self.rx_buf.view();
+                let consumed = parse_response(view) or self.handshake_fail(err);
+                if self.last_error.kind == "handshake" {
+                    self.logger.on_event(WsLogEvent {
+                        phase: "error", detail: self.last_error.detail });
+                    return false;
+                }
+                if consumed > 0 {
+                    self.logger.on_event(WsLogEvent {
+                        phase: "handshake", detail: "response ok",
+                        bytes: consumed });
+                    // Drop the consumed handshake bytes off the
+                    // front; remaining bytes are the first inbound
+                    // frame data.
+                    self.rx_buf.shift_front(consumed);
+                    return true;
+                }
+            }
+        }
+        self.last_error = WsError { kind: "handshake", detail: "response truncated" };
+        self.logger.on_event(WsLogEvent {
+            phase: "error", detail: "handshake response truncated" });
+        return false;
+    }
+
+    fn close_sock() {
+        let was_open = self.tls >= 0 || self.sock >= 0;
+        if self.tls >= 0 {
+            std::io::tls::close(self.tls);
+            self.tls = -1;
+        }
+        if self.sock >= 0 {
+            std::io::tcp::close_fd(self.sock);
+            self.sock = -1;
+        }
+        if was_open {
+            self.logger.on_event(WsLogEvent {
+                phase: "close", detail: "socket closed" });
+        }
+    }
+
+    // ===== error-check fns (styleguide § 7) =====
+
+    fn io_substitute_int(_e: IoError) -> Int {
+        self.last_error = WsError { kind: "io", detail: "io failure" };
+        return -1;
+    }
+
+    fn io_substitute_bytes(_e: IoError) -> Bytes {
+        self.last_error = WsError { kind: "io", detail: "io failure" };
+        return std::bytes::from_string("");
+    }
+
+    fn handshake_fail(e: WsError) -> Int {
+        self.last_error = WsError { kind: "handshake", detail: e.detail };
+        return -1;
+    }
+
+    fn framing_fail_hdr(e: WsError) -> FrameHeader {
+        self.last_error = WsError { kind: "framing", detail: e.detail };
+        return FrameHeader { };
+    }
+}
+
+// ===== free fns (pattern 6) =====
+
+// UrlParts — what `parse_url` returns. `error_kind` is non-empty
+// when the URL was malformed.
+type UrlParts {
+    scheme: String = "";
+    host: String = "";
+    port: Int = 0;
+    path: String = "/";
+    error_kind: String = "";
+    error_detail: String = "";
+}
+
+// parse_url — split `url` into scheme/host/port/path. Recognized
+// schemes: "ws" (port 80 default), "wss" (port 443).
+fn parse_url(u: String) -> UrlParts {
+    let total = len(u);
+    if total < 6 {
+        return UrlParts {
+            error_kind: "handshake",
+            error_detail: "url too short",
+        };
+    }
+
+    let mut scheme = "";
+    let mut port = 0;
+    let mut after_scheme = 0;
+    if total >= 5 && u[0..5] == "ws://" {
+        scheme = "ws";
+        port = 80;
+        after_scheme = 5;
+    } else {
+        if total >= 6 && u[0..6] == "wss://" {
+            scheme = "wss";
+            port = 443;
+            after_scheme = 6;
+        } else {
+            return UrlParts {
+                error_kind: "handshake",
+                error_detail: "url scheme must be ws:// or wss://",
+            };
+        }
+    }
+
+    let rel_slash = std::str::index_of(u[after_scheme..total], "/");
+    let mut host_end = total;
+    let mut path = "/";
+    if rel_slash >= 0 {
+        host_end = after_scheme + rel_slash;
+        path = u[host_end..total];
+    }
+    let hostport = u[after_scheme..host_end];
+
+    let mut host = hostport;
+    let colon = std::str::index_of(hostport, ":");
+    if colon >= 0 {
+        host = hostport[0..colon];
+        let portstr = hostport[colon+1..len(hostport)];
+        let p = std::str::parse_int(portstr) or 0;
+        if p > 0 {
+            port = p;
+        }
+    }
+
+    return UrlParts {
+        scheme: scheme,
+        host: host,
+        port: port,
+        path: path,
+    };
+}
+
+// bytes_as_text — render bytes as a String when the message kind
+// is text; return "" for binary so consumers don't pay the
+// from_bytes copy for non-text payloads.
+fn bytes_as_text(kind: String, b: Bytes) -> String {
+    if kind == "text" {
+        return std::str::from_bytes(b);
+    }
+    return "";
+}

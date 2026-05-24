@@ -1,0 +1,494 @@
+// pond/agent/embeddings — local embedding vector store with
+// cosine top-k search.
+//
+// Storage:
+//   `Store` is a user-declared locus holding three child @form(vec)
+//   loci: `ids` (String), `metas` (String), `flat` (Float). The
+//   flat buffer holds row-major `count * dim` floats — vectors are
+//   stored end-to-end. Row `r` occupies indices `[r*dim, (r+1)*dim)`.
+//
+//   The CONTRACTS.md surface declares
+//       capacity { heap items of Embedding; }
+//   but `@form(vec)` cells must be primitives or value-typed structs
+//   (`spec/forms.md` § "Required capacity shape"): "the cell type MAY
+//   NOT be a locus reference." `Embedding.vector` is a Matrix locus
+//   ref, so a single heap-slot vec of Embedding is rejected at
+//   typecheck. The parallel-arrays-by-row shape is the v1 substitute
+//   and matches the agent-brief's suggested workaround.
+//
+//   The CONTRACTS.md `type Embedding { id; vector: Matrix; metadata }`
+//   itself doesn't survive cross-seed: declaring a `type` with a
+//   `mat::Matrix` field crashes codegen pass A0 with
+//       qualified type `mat::Matrix` ... not registered in user_loci ...
+//       sequencing issue: type_expr_to_codegen_ty called before
+//       pass A0/A1 populated this name
+//   (See FRICTION.md.) Locus *method* params CAN hold cross-seed
+//   locus refs (the same diagnostic doesn't fire there), so `add` /
+//   `search` take the Matrix directly.
+//
+// Failure shapes:
+//   `Store` is a user-declared locus → its methods CAN'T declare
+//   fallible(E) (two-channel rule, KNOWN_GOTCHAS G4). The methods
+//   substitute sentinels on bad input (empty / wrong-dim); paired
+//   free fns (`add_checked`, `search_checked`, `remove_checked`)
+//   carry the fallible surface for callers that want typed errors.
+//
+// Six-pattern catalog placement:
+//   - `Store`                — pattern 3 (service-shaped; no explicit
+//                              birth/run/dissolve, child vecs default-
+//                              instantiated as params — same shape as
+//                              pond/router/Router).
+//   - `IdBuf` / `MetaBuf` /  — pattern 3 sub-loci (internal storage
+//     `FloatBuf`               for the parallel-arrays shape).
+//   - `Embedding` / `SearchHit`
+//                            — pattern 5 (shape types).
+//   - `add_checked`, `search_checked`, `remove_checked`, `cosine`,
+//     `format_hit_row`        — pattern 6 (free fns).
+//   - The `Mat` namespace lotus from pond/math/matrix supplies all
+//     matrix factory ops.
+
+import "../../math/matrix" as mat;
+
+// ----- shape types (pattern 5) -----
+
+// Public-facing record. v0 codegen can't store a cross-seed locus
+// ref in a type field, so the `vector` field is the row-major flat
+// representation as a CSV-encoded String. Callers building an
+// Embedding from a Matrix go via `embedding_from_matrix`. The Store
+// surface itself doesn't consume the Embedding type — callers
+// invoke `add(id, vector, metadata)` with the Matrix directly.
+type Embedding {
+    id: String;
+    vector_csv: String;
+    metadata: String;
+}
+
+// One search result. Score is the cosine similarity in [-1, 1].
+type SearchHit {
+    id: String;
+    score: Float;
+    metadata: String;
+}
+
+// Returned as a row-record from `Rows.csv` (newline-separated).
+// Each row is `id\tscore\tmetadata`. Consumers split on '\n' then
+// '\t' (same convention as stdlib's `Rows` shape).
+type Rows {
+    csv: String;
+}
+
+type EmbError {
+    kind: String;
+}
+
+// ----- internal storage sub-loci (pattern 3) -----
+//
+// Three parallel @form(vec) children. `ids[r]` and `metas[r]`
+// pair with the dim Floats at `flat[r*dim .. (r+1)*dim]`. All
+// three are kept in lockstep; the Store's add/remove are the
+// only mutators.
+
+@form(vec)
+locus IdBuf {
+    capacity { heap data of String; }
+}
+
+@form(vec)
+locus MetaBuf {
+    capacity { heap data of String; }
+}
+
+@form(vec)
+locus FloatBuf {
+    capacity { heap data of Float; }
+}
+
+// ----- Store locus -----
+
+locus Store {
+    params {
+        dim: Int;
+        ids:   IdBuf    = IdBuf    { };
+        metas: MetaBuf  = MetaBuf  { };
+        flat:  FloatBuf = FloatBuf { };
+    }
+
+    // Number of stored embeddings.
+    fn count() -> Int {
+        return self.ids.len();
+    }
+
+    // Insert (id, vector, metadata). Silent no-op if `vector.len()
+    // != self.dim` — use `add_checked` for the fallible surface.
+    fn add(id: String, vector: mat::Matrix, metadata: String) {
+        let n = vector.len();
+        if n != self.dim {
+            return;
+        }
+        self.ids.push(id);
+        self.metas.push(metadata);
+        let mut i = 0;
+        while i < n {
+            let v = vector.get(i) or 0.0;
+            self.flat.push(v);
+            i = i + 1;
+        }
+    }
+
+    // Top-k cosine search. Returns Rows whose `csv` is newline-
+    // separated; each row is `id\tscore\tmetadata`. The result is
+    // sorted descending by score. Empty input or `k <= 0` returns
+    // an empty `Rows { csv: "" }`. If the query's length doesn't
+    // match `self.dim` the result is empty. Use `search_checked`
+    // for typed failure.
+    fn search(query: mat::Matrix, k: Int) -> Rows {
+        if k <= 0 {
+            return Rows { csv: "" };
+        }
+        let cnt = self.count();
+        if cnt == 0 {
+            return Rows { csv: "" };
+        }
+        let qn = query.len();
+        if qn != self.dim {
+            return Rows { csv: "" };
+        }
+        let q_mag = vector_magnitude_from_matrix(query);
+        if q_mag == 0.0 {
+            return Rows { csv: "" };
+        }
+        // Compute per-row scores into a parallel Float vec. The
+        // loop sits inline rather than in a free helper because
+        // codegen v0 rejects passing the receiver locus by name
+        // (`Expr::KwSelf` in value position) into a free fn arg —
+        // self-method calls work, free-fn-with-self-arg does not.
+        let scores = FloatBuf { };
+        let mut sr = 0;
+        while sr < cnt {
+            let dot = self.row_dot(sr, query);
+            let rmag = self.row_magnitude(sr);
+            scores.push(cosine_from_parts(dot, rmag, q_mag));
+            sr = sr + 1;
+        }
+        // Select top-k by repeated argmax. k is expected small;
+        // O(cnt * k) is fine. Builds the output csv as we go and
+        // marks chosen rows by writing NaN into the scores buf so
+        // they're skipped on subsequent passes.
+        let mut taken = k;
+        if taken > cnt {
+            taken = cnt;
+        }
+        let mut out = "";
+        let mut picks = 0;
+        while picks < taken {
+            let best = argmax_skipping_nan(scores);
+            if best < 0 {
+                picks = taken;
+            } else {
+                let s = scores.get(best) or 0.0;
+                let id = self.ids.get(best) or "";
+                let meta = self.metas.get(best) or "";
+                if picks > 0 {
+                    out = out + "\n";
+                }
+                out = out + format_hit_row(id, s, meta);
+                scores.set(best, mat_nan()) or discard;
+                picks = picks + 1;
+            }
+        }
+        return Rows { csv: out };
+    }
+
+    // Remove the first row whose id equals `id`. No-op if not
+    // found. Removal preserves order of the remaining rows
+    // (O(N) shift on each of the three parallel buffers). Use
+    // `remove_checked` for typed not-found.
+    fn remove(id: String) {
+        let idx = self.find_id(id);
+        if idx < 0 {
+            return;
+        }
+        self.remove_at(idx);
+    }
+
+    // ----- internal helpers (locus methods, infallible) -----
+
+    fn find_id(id: String) -> Int {
+        let n = self.ids.len();
+        let mut i = 0;
+        let mut found = -1;
+        while i < n {
+            let s = self.ids.get(i) or "";
+            if s == id {
+                if found < 0 {
+                    found = i;
+                }
+            }
+            i = i + 1;
+        }
+        return found;
+    }
+
+    // Remove row `idx` from all three parallel buffers, shifting
+    // subsequent rows down. Caller must ensure 0 <= idx < count.
+    fn remove_at(idx: Int) {
+        let n = self.ids.len();
+        if idx < 0 {
+            return;
+        }
+        if idx >= n {
+            return;
+        }
+        // Shift ids and metas left by one starting at idx.
+        let mut i = idx;
+        while i < n - 1 {
+            let next_id = self.ids.get(i + 1) or "";
+            let next_meta = self.metas.get(i + 1) or "";
+            self.ids.set(i, next_id) or discard;
+            self.metas.set(i, next_meta) or discard;
+            i = i + 1;
+        }
+        let _drop_id = self.ids.pop() or "";
+        let _drop_meta = self.metas.pop() or "";
+        // Shift the flat float buffer by one row (dim floats).
+        let d = self.dim;
+        let total = self.flat.len();
+        let start = idx * d;
+        let mut j = start;
+        while j + d < total {
+            let v = self.flat.get(j + d) or 0.0;
+            self.flat.set(j, v) or discard;
+            j = j + 1;
+        }
+        // Pop the trailing dim floats.
+        let mut p = 0;
+        while p < d {
+            let _drop_v = self.flat.pop() or 0.0;
+            p = p + 1;
+        }
+    }
+
+    // Compute the row's magnitude from the flat buffer at row r.
+    fn row_magnitude(r: Int) -> Float {
+        let d = self.dim;
+        let base = r * d;
+        let mut acc = 0.0;
+        let mut i = 0;
+        while i < d {
+            let v = self.flat.get(base + i) or 0.0;
+            acc = acc + v * v;
+            i = i + 1;
+        }
+        return std::math::sqrt(acc);
+    }
+
+    // Dot product of row r in the flat buffer with `query`.
+    fn row_dot(r: Int, query: mat::Matrix) -> Float {
+        let d = self.dim;
+        let base = r * d;
+        let mut acc = 0.0;
+        let mut i = 0;
+        while i < d {
+            let rv = self.flat.get(base + i) or 0.0;
+            let qv = query.get(i) or 0.0;
+            acc = acc + rv * qv;
+            i = i + 1;
+        }
+        return acc;
+    }
+}
+
+// ----- free fns (pattern 6) -----
+
+// IEEE 754 NaN sentinel via Mat namespace lotus. Free fn wrapper
+// so we don't instantiate Mat at every call site.
+fn mat_nan() -> Float {
+    let mx = mat::Mat { };
+    return mx.nan_sentinel();
+}
+
+fn mat_is_nan(f: Float) -> Bool {
+    let mx = mat::Mat { };
+    return mx.is_nan(f);
+}
+
+// Magnitude of a Matrix interpreted as a flat vector (storage
+// order; same shape used by pond/math/matrix's `dot`). Returns
+// 0.0 on empty.
+//
+// Duplicate-suspected (FRICTION.md): a "magnitude / norm" helper
+// is a natural extension of pond/math/matrix's `dot`.
+fn vector_magnitude_from_matrix(m: mat::Matrix) -> Float {
+    let mx = mat::Mat { };
+    let d = mx.dot(m, m);
+    if d <= 0.0 {
+        return 0.0;
+    }
+    return std::math::sqrt(d);
+}
+
+// Cosine similarity from a precomputed dot and the two magnitudes.
+// Returns 0.0 if either magnitude is zero (avoid NaN-flood in the
+// top-k output).
+fn cosine_from_parts(dot: Float, mag_a: Float, mag_b: Float) -> Float {
+    if mag_a == 0.0 {
+        return 0.0;
+    }
+    if mag_b == 0.0 {
+        return 0.0;
+    }
+    return dot / (mag_a * mag_b);
+}
+
+// Find the index of the largest element in `scores`, skipping any
+// entry that equals NaN (NaN compares unequal to itself). Returns
+// -1 if every entry is NaN (everything picked) or the buf is empty.
+fn argmax_skipping_nan(scores: FloatBuf) -> Int {
+    let n = scores.len();
+    let mut best = -1;
+    let mut best_v = 0.0;
+    let mut i = 0;
+    while i < n {
+        let v = scores.get(i) or 0.0;
+        if !mat_is_nan(v) {
+            if best < 0 {
+                best = i;
+                best_v = v;
+            } else {
+                if v > best_v {
+                    best = i;
+                    best_v = v;
+                }
+            }
+        }
+        i = i + 1;
+    }
+    return best;
+}
+
+// One row of the search output: `id\tscore\tmetadata`. Score is
+// formatted via to_string; consumers parse_float to round-trip.
+fn format_hit_row(id: String, score: Float, metadata: String) -> String {
+    return id + "\t" + to_string(score) + "\t" + metadata;
+}
+
+// Build an Embedding shape-record from a Matrix vector. The Matrix
+// is serialized into a CSV-encoded string in storage order so the
+// type stays cross-seed-typeable (a Matrix field in a type record
+// crashes codegen pass A0 at v1). The Store doesn't consume
+// Embedding records directly — callers use `add(id, vector, meta)`
+// — but the type round-trips here for any consumer that wants a
+// portable record.
+fn embedding_from_matrix(id: String, vector: mat::Matrix, metadata: String) -> Embedding {
+    let n = vector.len();
+    let mut csv = "";
+    let mut i = 0;
+    while i < n {
+        let v = vector.get(i) or 0.0;
+        if i > 0 {
+            csv = csv + ",";
+        }
+        csv = csv + to_string(v);
+        i = i + 1;
+    }
+    return Embedding {
+        id: id,
+        vector_csv: csv,
+        metadata: metadata
+    };
+}
+
+// Inverse of `embedding_from_matrix` lives on a namespace lotus
+// (`EmbeddingOps`) because free fns can't return a Matrix locus
+// ref (KNOWN_GOTCHAS G3 — `free-fn return of LocusRef`). Same
+// pattern as pond/math/matrix's `Mat` namespace lotus.
+
+// Count comma-separated fields in `s`. An empty string is zero
+// fields; "1.0" is one field; "1.0,2.0,3.0" is three. Used by
+// `matrix_from_embedding` to size the Matrix; mirrors the inline
+// scan in `Mat.from_rows`.
+fn csv_field_count(s: String) -> Int {
+    let n = len(s);
+    if n == 0 {
+        return 0;
+    }
+    let mut count = 1;
+    let mut i = 0;
+    while i < n {
+        let ch = std::str::substring(s, i, i + 1);
+        if ch == "," {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+// ----- fallible free fns (the typed-error surface) -----
+
+// `add_checked(s, id, vector, metadata)` — typed-error version of
+// `Store.add`. Returns 1 on success (non-Unit per v1's "fallible
+// fns need a return type" rule). Fails with EmbError on dim
+// mismatch.
+fn add_checked(s: Store, id: String, vector: mat::Matrix, metadata: String)
+    -> Int fallible(EmbError)
+{
+    let n = vector.len();
+    if n != s.dim {
+        fail EmbError { kind: "dim_mismatch" };
+    }
+    s.add(id, vector, metadata);
+    return 1;
+}
+
+// `search_checked(s, query, k)` — typed-error version of
+// `Store.search`. Fails with EmbError on bad k, dim mismatch, or
+// zero-magnitude query.
+fn search_checked(s: Store, query: mat::Matrix, k: Int)
+    -> Rows fallible(EmbError)
+{
+    if k <= 0 {
+        fail EmbError { kind: "bad_k" };
+    }
+    let qn = query.len();
+    if qn != s.dim {
+        fail EmbError { kind: "dim_mismatch" };
+    }
+    let q_mag = vector_magnitude_from_matrix(query);
+    if q_mag == 0.0 {
+        fail EmbError { kind: "zero_magnitude" };
+    }
+    return s.search(query, k);
+}
+
+// `remove_checked(s, id)` — typed-error version of `Store.remove`.
+// Fails with EmbError { kind: "not_found" } when no row matches.
+fn remove_checked(s: Store, id: String) -> Int fallible(EmbError) {
+    let idx = s.find_id(id);
+    if idx < 0 {
+        fail EmbError { kind: "not_found" };
+    }
+    s.remove_at(idx);
+    return 1;
+}
+
+// ----- EmbeddingOps namespace lotus (pattern 2) -----
+//
+// Methods that return Matrix locus refs live here per
+// KNOWN_GOTCHAS G3 — free fns can't return loci, only locus
+// methods get the m90 heap-alloc return path. Consumers
+// instantiate once: `let eo = emb::EmbeddingOps { };` then
+// dispatch.
+locus EmbeddingOps {
+    params { }
+
+    // Reconstruct a 1xN Matrix from an Embedding's CSV vector.
+    // Inverse of `embedding_from_matrix`. Empty `vector_csv`
+    // produces a 1x0 Matrix; bad cells substitute 0.0 (per
+    // `Mat.from_rows`).
+    fn to_matrix(e: Embedding) -> mat::Matrix {
+        let mx = mat::Mat { };
+        let n = csv_field_count(e.vector_csv);
+        return mx.from_rows(1, n, e.vector_csv);
+    }
+}

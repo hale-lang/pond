@@ -1,0 +1,345 @@
+// pond/websocket — RFC 6455 frame parse + emit
+//
+// All free fns (pattern 6 in the six-pattern catalog). The
+// `WsClient` locus calls these from its recv / send loops.
+//
+// Wire layout (RFC 6455 § 5.2):
+//
+//   0                   1                   2                   3
+//   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//   +-+-+-+-+-------+-+-------------+-------------------------------+
+//   |F|R|R|R| opcode|M| Payload len |    Extended payload length    |
+//   |I|S|S|S|  (4)  |A|     (7)     |             (16/64)           |
+//   |N|V|V|V|       |S|             |   (if payload len==126/127)   |
+//   | |1|2|3|       |K|             |                               |
+//   +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
+//   |     Extended payload length continued, if payload len == 127  |
+//   + - - - - - - - - - - - - - - - +-------------------------------+
+//   |                               |Masking-key, if MASK set to 1  |
+//   +-------------------------------+-------------------------------+
+//   | Masking-key (continued)       |          Payload Data         |
+//   +-------------------------------- - - - - - - - - - - - - - - - +
+//
+// **Masking direction.** Per § 5.3 the client MUST mask every
+// frame it sends; the server MUST NOT mask. So `emit_frame` for
+// a WsClient masks unconditionally; `parse_frame` unmasks only
+// when MASK bit is set (which a well-formed server frame won't
+// set, but a buggy peer might).
+//
+// **Opcodes** (§ 5.2):
+//   0x0  continuation
+//   0x1  text
+//   0x2  binary
+//   0x8  close
+//   0x9  ping
+//   0xA  pong
+//
+// **Fragmentation** (§ 5.4). A message may arrive as multiple
+// frames: opcode set on the first (text/binary), 0x0 on the
+// continuations, FIN bit set on the last. `WsClient` handles
+// reassembly above this layer.
+
+// FrameHeader — what `peek_header` returns. Carries every
+// decode artifact except the payload bytes themselves; the
+// caller pairs it with `unmask_into(dest, b, hdr...)` to
+// materialize the payload into a destination builder of its
+// choice (no per-frame allocation against
+// g_bus_payload_arena).
+//
+//   fin           — FIN bit; true ends a multi-frame message.
+//   opcode        — the 4-bit opcode value.
+//   total         — total bytes consumed from the input buffer
+//                   (header + extended length + mask + payload).
+//                   Caller advances its read cursor by this.
+//                   `total == 0` ⇒ incomplete frame, try again
+//                   when more bytes arrive (NOT a fault).
+//   masked        — MASK bit; per RFC 6455 § 5.3 a well-formed
+//                   server-bound frame is unmasked, but the
+//                   field is honored if a buggy peer sets it.
+//   payload_off   — offset of the first payload byte in `b`.
+//   payload_len   — payload byte count.
+//   mk0..mk3      — the 4-byte mask key (zero if !masked).
+//
+// On parse failure (frame too large, bad framing), the
+// `fallible(WsError)` substitute populates last_error and
+// returns a header with `total == 0` — same shape as
+// "incomplete"; callers gate on `last_error.kind == "framing"`
+// to distinguish.
+type FrameHeader {
+    fin:         Bool = false;
+    opcode:      Int  = 0;
+    total:       Int  = 0;
+    masked:      Bool = false;
+    payload_off: Int  = 0;
+    payload_len: Int  = 0;
+    mk0:         Int  = 0;
+    mk1:         Int  = 0;
+    mk2:         Int  = 0;
+    mk3:         Int  = 0;
+}
+
+// peek_header — parse one frame's header without materializing
+// the payload. Returns a `FrameHeader` describing where the
+// payload lives in `b`; pair with `unmask_into` (below) to
+// copy unmasked bytes into a caller-provided destination
+// builder. Zero allocation against `g_bus_payload_arena` on
+// the success path AND the incomplete path.
+fn peek_header(b: Bytes, off: Int) -> FrameHeader fallible(WsError) {
+    let total_bytes = len(b);
+    if off + 2 > total_bytes {
+        return FrameHeader { };
+    }
+
+    let b0 = byte_at(b, off);
+    let b1 = byte_at(b, off + 1);
+
+    let fin    = (b0 / 128) == 1;
+    let opcode = b0 - (b0 / 16) * 16;
+    let masked = (b1 / 128) == 1;
+    let len7   = b1 - (b1 / 128) * 128;
+
+    let mut payload_len = len7;
+    let mut key_off = off + 2;
+    if len7 == 126 {
+        if off + 4 > total_bytes {
+            return FrameHeader { };
+        }
+        let e0 = byte_at(b, off + 2);
+        let e1 = byte_at(b, off + 3);
+        payload_len = e0 * 256 + e1;
+        key_off = off + 4;
+    }
+    if len7 == 127 {
+        // 64-bit length. v1 caps at 32-bit; high 4 bytes must be zero.
+        if off + 10 > total_bytes {
+            return FrameHeader { };
+        }
+        let h0 = byte_at(b, off + 2);
+        let h1 = byte_at(b, off + 3);
+        let h2 = byte_at(b, off + 4);
+        let h3 = byte_at(b, off + 5);
+        if h0 != 0 || h1 != 0 || h2 != 0 || h3 != 0 {
+            fail WsError {
+                kind:   "framing",
+                detail: "frame larger than 2^31 bytes not supported",
+            };
+        }
+        let e0 = byte_at(b, off + 6);
+        let e1 = byte_at(b, off + 7);
+        let e2 = byte_at(b, off + 8);
+        let e3 = byte_at(b, off + 9);
+        payload_len = e0 * 16777216 + e1 * 65536 + e2 * 256 + e3;
+        key_off = off + 10;
+    }
+
+    let mut payload_off = key_off;
+    let mut mk0 = 0;
+    let mut mk1 = 0;
+    let mut mk2 = 0;
+    let mut mk3 = 0;
+    if masked {
+        if key_off + 4 > total_bytes {
+            return FrameHeader { };
+        }
+        mk0 = byte_at(b, key_off);
+        mk1 = byte_at(b, key_off + 1);
+        mk2 = byte_at(b, key_off + 2);
+        mk3 = byte_at(b, key_off + 3);
+        payload_off = key_off + 4;
+    }
+
+    if payload_off + payload_len > total_bytes {
+        return FrameHeader { };
+    }
+
+    return FrameHeader {
+        fin:         fin,
+        opcode:      opcode,
+        total:       (payload_off + payload_len) - off,
+        masked:      masked,
+        payload_off: payload_off,
+        payload_len: payload_len,
+        mk0:         mk0,
+        mk1:         mk1,
+        mk2:         mk2,
+        mk3:         mk3,
+    };
+}
+
+// unmask_into — copy the payload bytes described by a
+// `FrameHeader` from `b` into `dest`, XOR-unmasking if the
+// MASK bit was set.
+//
+// Fast path (unmasked, the RFC-conformant server→client case):
+// `dest.append_slice(b, off, off+len)` — copies directly into
+// the builder's tail. Zero allocation against
+// `g_bus_payload_arena` (Phase-3 substrate, 2026-05-20).
+//
+// Slow path (masked, buggy or unusual peer): byte-by-byte
+// XOR + `from_int` append. RFC 6455 § 5.3 forbids server-side
+// masking, so this path is cold in practice.
+fn unmask_into(dest: std::bytes::BytesBuilder,
+               b: Bytes,
+               payload_off: Int,
+               payload_len: Int,
+               masked: Bool,
+               mk0: Int, mk1: Int, mk2: Int, mk3: Int) {
+    if payload_len == 0 {
+        return;
+    }
+    if !masked {
+        dest.append_slice(b, payload_off, payload_off + payload_len);
+        return;
+    }
+    let mut i = 0;
+    while i < payload_len {
+        let raw = byte_at(b, payload_off + i);
+        let key_byte = pick_mask_byte(mk0, mk1, mk2, mk3, i);
+        dest.append(std::bytes::from_int(xor8(raw, key_byte)));
+        i = i + 1;
+    }
+}
+
+// emit_frame — serialize one frame for outbound send. Client-
+// side, so the MASK bit is always 1 and a fresh 4-byte mask
+// applies. `mask_seed` should advance per call (PRNG state) so
+// the per-frame keys vary; RFC 6455 § 5.3 requires unpredictable
+// keys to defeat cache-poisoning intermediaries.
+//
+//   fin    — usually true (we don't fragment outbound).
+//   opcode — 0x1 (text) / 0x2 (binary) / 0x8 (close) / 0x9 (ping)
+//            / 0xA (pong).
+//   payload — bytes to send. For text frames, encode via
+//             `std::bytes::from_string(s)` before passing.
+fn emit_frame(fin: Bool, opcode: Int, payload: Bytes, mask_seed: Int) -> Bytes {
+    let n = len(payload);
+    let bldr = std::bytes::BytesBuilder { initial_cap: n + 14 };
+
+    // Byte 0: FIN bit (high) | RSV1/2/3 (0) | opcode (low 4).
+    let mut b0 = opcode;
+    if fin { b0 = b0 + 128; }
+    bldr.append(std::bytes::from_int(b0));
+
+    // Byte 1: MASK bit (high, always 1 for client) | length code.
+    if n < 126 {
+        bldr.append(std::bytes::from_int(128 + n));
+    } else {
+        if n < 65536 {
+            bldr.append(std::bytes::from_int(128 + 126));
+            bldr.append(std::bytes::from_int(n / 256));
+            bldr.append(std::bytes::from_int(n - (n / 256) * 256));
+        } else {
+            // 64-bit length; v1 caps at 31-bit positive Int so
+            // the high 4 bytes are zero.
+            bldr.append(std::bytes::from_int(128 + 127));
+            bldr.append(std::bytes::from_int(0));
+            bldr.append(std::bytes::from_int(0));
+            bldr.append(std::bytes::from_int(0));
+            bldr.append(std::bytes::from_int(0));
+            let a = (n / 16777216) - ((n / 16777216) / 256) * 256;
+            let b1 = (n / 65536)   - ((n / 65536)   / 256) * 256;
+            let c = (n / 256)      - ((n / 256)      / 256) * 256;
+            let d = n - (n / 256) * 256;
+            bldr.append(std::bytes::from_int(a));
+            bldr.append(std::bytes::from_int(b1));
+            bldr.append(std::bytes::from_int(c));
+            bldr.append(std::bytes::from_int(d));
+        }
+    }
+
+    // 4-byte masking key. v1 has no bitwise; we derive four
+    // bytes from `mask_seed` via the same arithmetic-shift
+    // shape `downstream-consumer::SyntheticFeed` uses for
+    // its LCG. Production code should reseed from
+    // `std::os::getrandom` per connection; see FRICTION.md.
+    let mut s = mask_seed;
+    if s < 0 { s = 0 - s; }
+    let mk0 = s - (s / 256) * 256;
+    let mk1 = (s / 256)   - ((s / 256)   / 256) * 256;
+    let mk2 = (s / 65536) - ((s / 65536) / 256) * 256;
+    let mk3 = (s / 16777216) - ((s / 16777216) / 256) * 256;
+    bldr.append(std::bytes::from_int(mk0));
+    bldr.append(std::bytes::from_int(mk1));
+    bldr.append(std::bytes::from_int(mk2));
+    bldr.append(std::bytes::from_int(mk3));
+
+    // Masked payload.
+    let mut i = 0;
+    while i < n {
+        let raw = std::bytes::at(payload, i) or 0;
+        let key_byte = pick_mask_byte(mk0, mk1, mk2, mk3, i);
+        bldr.append(std::bytes::from_int(xor8(raw, key_byte)));
+        i = i + 1;
+    }
+
+    return bldr.finish();
+}
+
+// byte_at — wrapper around std::bytes::at that surfaces a 0 on
+// out-of-bounds (all real fault detection happens in the
+// explicit guards above). Same shape every binary parser in
+// pond uses.
+fn byte_at(b: Bytes, i: Int) -> Int {
+    return std::bytes::at(b, i) or 0;
+}
+
+// pick_mask_byte — RFC 6455 § 5.3 modulo-4 mask byte selection.
+// Hale v1 has Int `%` but the standard idiom in pond is the
+// arithmetic-mod form `i - (i / 4) * 4`.
+fn pick_mask_byte(mk0: Int, mk1: Int, mk2: Int, mk3: Int, i: Int) -> Int {
+    let r = i - (i / 4) * 4;
+    if r == 0 { return mk0; }
+    if r == 1 { return mk1; }
+    if r == 2 { return mk2; }
+    return mk3;
+}
+
+// opcode_to_kind — map an RFC 6455 opcode value onto the
+// WsMessage.kind discriminator string. Continuation frames
+// (0x0) are reassembled before emission; consumers never see
+// kind="continuation".
+fn opcode_to_kind(op: Int) -> String {
+    if op == 1 { return "text"; }
+    if op == 2 { return "binary"; }
+    if op == 8 { return "close"; }
+    if op == 9 { return "ping"; }
+    if op == 10 { return "pong"; }
+    return "unknown";
+}
+
+// kind_to_opcode — inverse for outbound sends.
+fn kind_to_opcode(kind: String) -> Int {
+    if kind == "text" { return 1; }
+    if kind == "binary" { return 2; }
+    if kind == "close" { return 8; }
+    if kind == "ping" { return 9; }
+    if kind == "pong" { return 10; }
+    return 0;
+}
+
+// xor8 — arithmetic XOR of two 0..255 byte values. v1 has no
+// bitwise XOR in expression position (G12 in
+// `pond/KNOWN_GOTCHAS.md`); we decompose each input into 8 bits,
+// XOR pairwise via `(ai + bi) % 2`, and recombine. The bit-level
+// XOR identity used: `xi = (ai + bi) - 2 * (ai * bi)` (which
+// computes 0 when bits match, 1 when they differ).
+fn xor8(a: Int, b: Int) -> Int {
+    let mut out = 0;
+    let mut bit = 1;
+    let mut ax = a;
+    let mut bx = b;
+    let mut i = 0;
+    while i < 8 {
+        let ai = ax - (ax / 2) * 2;
+        let bi = bx - (bx / 2) * 2;
+        let xi = (ai + bi) - 2 * (ai * bi);
+        if xi == 1 {
+            out = out + bit;
+        }
+        bit = bit * 2;
+        ax = ax / 2;
+        bx = bx / 2;
+        i = i + 1;
+    }
+    return out;
+}

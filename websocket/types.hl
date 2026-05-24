@@ -1,0 +1,90 @@
+// pond/websocket — shape types
+//
+// All flat records (pattern 5 in the six-pattern catalog):
+// returnable across the m49 calling convention, no flow.
+
+// WsMessage — a single inbound or outbound WebSocket message.
+//
+// `kind` is the high-level opcode discriminator:
+//
+//   "text"   — RFC 6455 opcode 0x1, UTF-8 payload in `text`
+//   "binary" — RFC 6455 opcode 0x2, raw bytes in `bytes`
+//   "close"  — RFC 6455 opcode 0x8, peer requested close
+//   "ping"   — RFC 6455 opcode 0x9, peer pinged us
+//   "pong"   — RFC 6455 opcode 0xA, peer replied to our ping
+//
+// Continuation frames (opcode 0x0) are reassembled by the
+// client before emission — consumers always see a complete
+// message, never a partial fragment.
+//
+// Both `text` and `bytes` fields are populated regardless of
+// the inbound frame's payload encoding; consumers branch on
+// `kind` and read the matching field. Outbound construction
+// fills the field that matches the chosen `kind`.
+// **Lifetime contract** (F.30 5b, 2026-05-20): `text` and
+// `bytes` are non-owning views aliasing the producing
+// WsClient's frag_buf. Valid until the next data frame
+// arrives (the lib defers the frag_buf mutation past one full
+// read_msg return so the consumer's read window survives any
+// intervening heartbeats / pings). Consumers wanting to
+// retain the payload past the next read_msg call must
+// explicitly copy via `std::str::clone` / `std::bytes::clone`.
+// The default literals (`""` / `b""`) coerce to View at the
+// storage default site (F.30 5b).
+type WsMessage {
+    kind: String     = "text";
+    text: StringView = "";
+    bytes: BytesView = b"";
+}
+
+// WsLogEvent — structured trace event emitted by WsClient at
+// every meaningful I/O step. Wired through the WsLogger interface
+// param; the lib emits these unconditionally, the sink decides
+// what to do with them.
+//
+// `phase` is the discriminator. Values used today:
+//
+//   "dial"      — pre/post TCP connect
+//   "tls"       — pre/post TLS handshake
+//   "handshake" — WS HTTP upgrade request / response
+//   "recv"      — each recv_into syscall result (bytes count)
+//   "send"      — each outbound frame (opcode + payload bytes)
+//   "frame"     — each parsed inbound frame (opcode + payload bytes)
+//   "close"     — graceful or abrupt close
+//   "error"     — every path that writes to self.last_error
+//                 mirrors here so a logger sink sees them too
+//
+// `bytes` carries a byte count for recv/send/frame, 0 elsewhere.
+// `op` carries the RFC 6455 opcode (0x0..0xA) for send/frame
+// events, -1 elsewhere.
+type WsLogEvent {
+    phase:  String = "";
+    detail: String = "";
+    bytes:  Int    = 0;
+    op:     Int    = -1;
+}
+
+// WsLogger — single-method interface satisfied by any locus
+// declaring `fn on_event(e: WsLogEvent)`. Caller-injected on
+// WsClient's `logger` param. The lib fires events unconditionally;
+// the sink chooses to print, batch, route to /metrics, drop, etc.
+interface WsLogger {
+    fn on_event(e: WsLogEvent);
+}
+
+// WsError — failure modes the client surfaces through
+// `self.last_error`. Read by the owner after read_msg / open
+// / send_* returns false.
+//
+//   "handshake"      — HTTP upgrade refused or URL malformed.
+//   "io"             — recv / send returned an unexpected error,
+//                      or connection lost mid-stream.
+//   "framing"        — peer sent a malformed WebSocket frame.
+//   "close"          — peer initiated graceful close (only
+//                      surfaces when `auto_reconnect = false`).
+//   "max_retries"    — auto-reconnect gave up after exhausting
+//                      `max_retries`.
+type WsError {
+    kind: String = "";
+    detail: String = "";
+}

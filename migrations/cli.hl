@@ -1,0 +1,163 @@
+// pond/migrations — `migrate` CLI wrapper.
+//
+// Pattern 1 (App locus). Vendoring `pond/migrations` as the only
+// dep, an app can `hale build pond/migrations/` and get a
+// `migrate` binary that handles the three canonical operations:
+//
+//     migrate up           — apply every pending migration
+//     migrate up N         — apply up to (and including) version N
+//     migrate down N       — roll back to version N (N >= -1)
+//     migrate status       — print current version + pending count
+//
+// argv shape (matches `cargo-style verb [args]` conventions):
+//
+//     argv[1] = verb         ("up" | "down" | "status")
+//     argv[2] = target       (Int; required for "down", optional for "up")
+//     argv[3] = db_path      (default ":memory:")
+//     argv[4] = dir          (default "migrations")
+//
+// The verbs themselves don't take flags; `db_path` and `dir` lean
+// on positional defaults rather than --flag parsing to stay
+// allocation-cheap and to match the AGENTS.md preference for
+// "self-demo with no flags."
+//
+// **Why an App locus and not a standalone fn main()**: per
+// `spec/styleguide.md` § Anti-patterns ("Bare `fn main()` with
+// helpers and no outer locus"), every app's outer encapsulation
+// must be a locus. The Migrate locus is that wrapper; `fn main()`
+// reads argv and statement-instantiates the locus.
+
+import "../sqlite"       as db;
+import "../_util/rowbuf" as rb;
+
+locus Migrate {
+    params {
+        verb:    String = "status";
+        target:  Int    = -1;        // -1 → "all" for up; "all the way down" for down
+        db_path: String = ":memory:";
+        dir:     String = "migrations";
+
+        // Captured failure state (for the inline closure).
+        last_error: String = "";
+        last_kind:  String = "";
+    }
+
+    run() {
+        // Hand the db_path to the Runner directly — see runner.hl
+        // for why we don't pass a Db locus instance (codegen quirk
+        // around locus-typed params). The Runner constructs its
+        // own Db handles inside the free-fn surface; the same path
+        // means they all hit the same SQLite file.
+        let runner = Runner { db_path: self.db_path, dir: self.dir };
+
+        if self.verb == "up" {
+            self.do_up(runner);
+        } else if self.verb == "down" {
+            self.do_down(runner);
+        } else if self.verb == "status" {
+            self.do_status(runner);
+        } else {
+            println("migrate: unknown verb '", self.verb, "'");
+            println("usage:");
+            println("  migrate up [target] [db_path] [dir]");
+            println("  migrate down <target> [db_path] [dir]");
+            println("  migrate status [_] [db_path] [dir]");
+        }
+    }
+
+    fn do_up(r: Runner) {
+        // `__log_err_int` prints the diagnostic and returns 0 — the
+        // substitute for the Int-success call's error arm. Returning
+        // 0 means "0 migrations applied" on failure, which the
+        // post-op summary surfaces honestly.
+        let n = migrate_up(r, self.target) or __log_err_int(err);
+        let v = current_version(r) or 0;
+        println("migrate: up done — ", to_string(n), " applied, current version = ", to_string(v));
+    }
+
+    fn do_down(r: Runner) {
+        if self.target < -1 {
+            println("migrate: 'down' requires a non-negative target ",
+                    "(or -1 for full rollback); got ", to_string(self.target));
+        } else {
+            let n = migrate_down(r, self.target) or __log_err_int(err);
+            let v = current_version(r) or 0;
+            println("migrate: down done — ", to_string(n), " rolled back, current version = ", to_string(v));
+        }
+    }
+
+    fn do_status(r: Runner) {
+        let v    = current_version(r) or self.report_int(err);
+        let p    = pending(r) or self.report_rows(err);
+        let rows = rb::RowBuf { };
+        let n    = rows.row_count(p.csv);
+        println("migrate: current version = ", to_string(v));
+        println("migrate: pending count   = ", to_string(n));
+        if n > 0 {
+            println("pending:");
+            println(p.csv);
+        }
+    }
+
+    // Error-check fns — convert the value-channel MigrationError into
+    // a recoverable substitute. Records kind / detail so the caller
+    // branches on success vs failure without re-inspecting err.
+
+    fn report(e: MigrationError) {
+        self.last_error = e.detail;
+        self.last_kind = e.kind;
+        println("migrate: ", e.kind, " (v", to_string(e.version), "): ", e.detail);
+    }
+
+    fn report_int(e: MigrationError) -> Int {
+        self.report(e);
+        return 0;
+    }
+
+    fn report_rows(e: MigrationError) -> db::Rows {
+        self.report(e);
+        return db::Rows { csv: "" };
+    }
+
+}
+
+// __log_err_int — log a MigrationError to stdout and return 0.
+// Substitute for the Int-success `migrate_up` / `migrate_down`
+// calls' error arm. The free-fn shape sidesteps the v1 quirk
+// where `or self.method(err)` on a Unit-success call rejects a
+// Unit-returning method with "fallback type `()` does not match
+// success type `()`" — by tagging the surface return as `Int`
+// instead of `()`, we get a value-bearing fallback we can build
+// the substitute around. See FRICTION.md "Int-not-Unit return
+// surface" entry.
+fn __log_err_int(e: MigrationError) -> Int {
+    println("migrate: ", e.kind, " (v", to_string(e.version), "): ", e.detail);
+    return 0;
+}
+
+// The row-count helper (formerly `__row_count_local` here) is now
+// `rb::RowBuf.row_count`, called inline in `do_status` above.
+
+fn main() {
+    let mut verb    = "status";
+    let mut target  = -1;
+    let mut db_path = ":memory:";
+    let mut dir     = "migrations";
+    if std::env::args_count() > 1 { verb = std::env::arg(1); }
+    if std::env::args_count() > 2 {
+        let t = std::env::arg(2);
+        // For "status" the second arg is ignored; for "up" / "down"
+        // it's the target version.
+        if std::str::can_parse_int(t) {
+            target = std::str::parse_int(t) or -1;
+        }
+    }
+    if std::env::args_count() > 3 { db_path = std::env::arg(3); }
+    if std::env::args_count() > 4 { dir = std::env::arg(4); }
+    Migrate {
+        verb:    verb,
+        target:  target,
+        db_path: db_path,
+        dir:     dir,
+    };
+}

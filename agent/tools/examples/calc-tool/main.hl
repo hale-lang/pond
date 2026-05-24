@@ -1,0 +1,229 @@
+// calc-tool — minimal consumer demo for pond/agent/tools.
+//
+// Demonstrates the shape consumers will use against the
+// `pond/agent/tools` (alias `tools`) surface:
+//
+//   1. Author a Tool: a Calculator locus whose method set
+//      (`spec()` / `invoke()`) structurally satisfies the
+//      `tools::Tool` interface (F.20 — implicit satisfaction).
+//   2. Construct a Registry, register the tool with
+//      `tools::register(reg, calc)` — the free-fn surface
+//      coerces the Calculator locus into a `Tool` interface
+//      value and the Registry stores it directly.
+//   3. Build a ToolCall with `{"op":"add","a":2,"b":3}`, hand
+//      it to `tools::dispatch(reg, call)`, verify the result is
+//      "5".
+//   4. Exercise the other ops (sub / mul / div), the
+//      divide-by-zero branch, an unknown op, and an
+//      unknown_tool dispatch failure to show the full surface.
+//   5. Emit `reg.list()` to show what the JSON spec array
+//      looks like on the wire (this is what gets fed to the
+//      LLM as the `tools: [...]` API param).
+//
+// Vendored normally the import looks like:
+//
+//     import "vendor/pond/agent/tools" as tools;
+//
+// In-tree the example reaches the lib via a relative path.
+
+import "../.." as tools;
+
+// ===== tool author surface ===========================================
+//
+// A Tool is any locus whose method set structurally satisfies
+// the `tools::Tool` interface. The Calculator locus below
+// declares `spec()` / `invoke()` directly; no separate
+// fn-pointer shadow is needed (F.20 Phase B / G20 — interface
+// values can sit in @form(vec) cells, so the Registry stores
+// the coerced Tool fat-pointer directly).
+
+locus Calculator {
+    params { }
+
+    fn spec() -> tools::ToolSpec {
+        return tools::ToolSpec {
+            name:        "calculator",
+            description: "Evaluate a simple arithmetic op (add/sub/mul/div) on two ints.",
+            input_schema:
+                "{\"type\":\"object\","
+                + "\"properties\":{"
+                + "\"op\":{\"type\":\"string\",\"enum\":[\"add\",\"sub\",\"mul\",\"div\"]},"
+                + "\"a\":{\"type\":\"integer\"},"
+                + "\"b\":{\"type\":\"integer\"}"
+                + "},"
+                + "\"required\":[\"op\",\"a\",\"b\"]}"
+        };
+    }
+
+    fn invoke(call: tools::ToolCall) -> tools::ToolResult {
+        let op = std::json::find_string_field(call.args_json, "op");
+        let a  = std::json::find_int_field(call.args_json, "a");
+        let b  = std::json::find_int_field(call.args_json, "b");
+
+        let mut out = "";
+        let mut err = false;
+
+        if op == "add" {
+            out = to_string(a + b);
+        } else {
+            if op == "sub" {
+                out = to_string(a - b);
+            } else {
+                if op == "mul" {
+                    out = to_string(a * b);
+                } else {
+                    if op == "div" {
+                        if b == 0 {
+                            out = "division by zero";
+                            err = true;
+                        } else {
+                            out = to_string(a / b);
+                        }
+                    } else {
+                        out = "unknown op: " + op;
+                        err = true;
+                    }
+                }
+            }
+        }
+
+        return tools::ToolResult {
+            call_id:  call.call_id,
+            content:  out,
+            is_error: err
+        };
+    }
+}
+
+// ===== demo entry ====================================================
+
+locus CalcDemo {
+    params { }
+
+    run() {
+        println("calc-tool demo");
+        println("--------------");
+
+        // Construct the Registry — the ToolList child lives in
+        // the default param so it births here and dissolves with
+        // the Registry's scope exit.
+        let reg = tools::Registry { };
+
+        // Register the calculator via the free-fn surface. The
+        // Calculator → Tool coercion fires at this free-fn arg
+        // site; the Registry stores the coerced interface value
+        // in its @form(vec) ToolList.
+        let calc = Calculator { };
+        tools::register(reg, calc);
+
+        println("registered tools: ", reg.count());
+
+        // ----- 1. Primary contract path: add(2,3) -------------
+        // Fallible `tools::dispatch(reg, call) or <handler>` is
+        // the value-channel surface — `unknown_tool` (registry-
+        // level) and `empty_name` are addressable via `or`;
+        // tool-internal failures (bad args, division by zero)
+        // come back as ToolResult with `is_error: true` even on
+        // the happy `dispatch` path.
+        let add_call = tools::ToolCall {
+            name:      "calculator",
+            args_json: "{\"op\":\"add\",\"a\":2,\"b\":3}",
+            call_id:   "call_001"
+        };
+        let add_res = tools::dispatch(reg, add_call) or err_to_result(err);
+        println("add(2,3)        = ", add_res.content,
+                "  is_error=", add_res.is_error);
+        if add_res.content != "5" {
+            println("FAIL: expected \"5\", got \"", add_res.content, "\"");
+        } else {
+            println("OK: add(2,3) returned \"5\"");
+        }
+
+        // ----- 2. Other ops: sub / mul / div ------------------
+        let sub_call = tools::ToolCall {
+            name:      "calculator",
+            args_json: "{\"op\":\"sub\",\"a\":10,\"b\":4}",
+            call_id:   "call_002"
+        };
+        let sub_res = tools::dispatch(reg, sub_call) or err_to_result(err);
+        println("sub(10,4)       = ", sub_res.content);
+
+        let mul_call = tools::ToolCall {
+            name:      "calculator",
+            args_json: "{\"op\":\"mul\",\"a\":6,\"b\":7}",
+            call_id:   "call_003"
+        };
+        let mul_res = tools::dispatch(reg, mul_call) or err_to_result(err);
+        println("mul(6,7)        = ", mul_res.content);
+
+        let div_call = tools::ToolCall {
+            name:      "calculator",
+            args_json: "{\"op\":\"div\",\"a\":20,\"b\":4}",
+            call_id:   "call_004"
+        };
+        let div_res = tools::dispatch(reg, div_call) or err_to_result(err);
+        println("div(20,4)       = ", div_res.content);
+
+        // ----- 3. In-tool failure: divide by zero -------------
+        // Tool-internal failures surface as ToolResult with
+        // is_error=true, NOT as a ToolError. Dispatch succeeds.
+        let dz_call = tools::ToolCall {
+            name:      "calculator",
+            args_json: "{\"op\":\"div\",\"a\":5,\"b\":0}",
+            call_id:   "call_005"
+        };
+        let dz_res = tools::dispatch(reg, dz_call) or err_to_result(err);
+        println("div(5,0)        = ", dz_res.content,
+                "  is_error=", dz_res.is_error);
+
+        // ----- 4. Unknown op (Tool-internal) ------------------
+        let uo_call = tools::ToolCall {
+            name:      "calculator",
+            args_json: "{\"op\":\"pow\",\"a\":2,\"b\":8}",
+            call_id:   "call_006"
+        };
+        let uo_res = tools::dispatch(reg, uo_call) or err_to_result(err);
+        println("pow(2,8)        = ", uo_res.content,
+                "  is_error=", uo_res.is_error);
+
+        // ----- 5. Unknown tool (Registry-side failure) --------
+        // The fallible free fn `tools::dispatch` raises
+        // ToolError { kind: "unknown_tool", ... } here; the `or`
+        // handler converts it into the same ToolResult shape the
+        // demo printed before so the contract surface stays
+        // visible to the test oracle.
+        let bad_call = tools::ToolCall {
+            name:      "nonexistent",
+            args_json: "{}",
+            call_id:   "call_007"
+        };
+        let bad_res = tools::dispatch(reg, bad_call) or err_to_result(err);
+        println("nonexistent     = ", bad_res.content,
+                "  is_error=", bad_res.is_error);
+
+        // ----- 6. JSON spec dump ------------------------------
+        // This is what gets concatenated into the `tools: [...]`
+        // field of an Anthropic / OpenAI tool-use request.
+        println("");
+        println("registered specs (JSON):");
+        println(reg.list());
+    }
+}
+
+// `err_to_result` — converts a ToolError back into a ToolResult
+// so the `dispatch(...) or err_to_result(err)` chain stays
+// uniform across happy-path and registry-side-failure cases.
+// Content carries the typed error in `kind: detail` shape; the
+// LLM tool_result block fills `is_error: true` so the model can
+// reason about the failure.
+fn err_to_result(e: tools::ToolError) -> tools::ToolResult {
+    return tools::ToolResult {
+        call_id:  "",
+        content:  e.kind + ": " + e.detail,
+        is_error: true
+    };
+}
+
+fn main() {
+    CalcDemo { };
+}

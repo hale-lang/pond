@@ -1,0 +1,93 @@
+// pond/subprocess/examples/run-demo — minimal consumer demo.
+//
+// Demonstrates the shape consumers will use against the
+// `pond/subprocess` (alias `sub`) surface. Vendored normally
+// the import looks like:
+//
+//     import "vendor/pond/subprocess" as sub;
+//
+// In-tree the example reaches the lib via a relative path.
+//
+// Status (2026-05-16): the lib is BLOCKED on a stdlib spawn
+// primitive (see ../../FRICTION.md). Every fallible call below
+// resolves to `fail SpawnError { kind: "unsupported", ... }` —
+// the `or self.report(err)` clauses route the gap through the
+// handler. The whole shape is exactly what consumer code will
+// look like the day the primitive ships; only the assertions
+// at the bottom flip from "all unsupported" to "child ran."
+
+import "../.." as sub;
+
+locus RunDemo {
+    params {
+        cmd:        String     = "/bin/echo";
+        args:       String     = "hello-from-hale";
+        last_kind:  String     = "";
+    }
+
+    run() {
+        // Convenience wrapper — the one-line common case.
+        let out = sub::run_cmd(self.cmd, self.args) or self.report(err);
+
+        if self.last_kind == "" {
+            println("run-demo: exit code = ", out.status.code);
+            println("run-demo: stdout bytes = ", len(out.stdout));
+            println("run-demo: stderr bytes = ", len(out.stderr));
+        }
+
+        // Full SpawnOpts surface — what consumers reach for when
+        // they need cwd / env / stdin / timeout. Demonstrates the
+        // type's field shape so the example still type-checks
+        // against the stubbed surface.
+        let opts = sub::SpawnOpts {
+            cmd:        self.cmd,
+            args:       self.args,
+            cwd:        "",
+            env:        "",
+            stdin:      std::bytes::from_string(""),
+            timeout_ms: 5000,
+        };
+        let _ = sub::spawn(opts) or self.report(err);
+
+        // Long-lived streaming shape — Process locus with bus
+        // topics. Commented out at v1 because of an upstream
+        // compiler bug: when an imported lib's locus contains
+        // `publish TopicName;`, the topic ident in the publish
+        // doesn't go through the seed-rename map (only the topic
+        // *decl* does). Bug filed in ../../FRICTION.md § 4. The
+        // shape consumers will write once the bug is fixed:
+        //
+        //     let p = sub::Process { cmd:  self.cmd,
+        //                            args: self.args };
+        //     p.send_stdin(std::bytes::from_string(""));
+        //     let st = p.wait();
+        //     println("streaming wait code = ", st.code);
+        //
+        // Subscribers wire up via:
+        //     subscribe sub::StdoutLine as on_line;
+        //     subscribe sub::ProcessExit as on_exit;
+
+        // Surface the stub-state to stdout so the demo's exit
+        // code matches its message ("blocked, here's why").
+        if self.last_kind == "unsupported" {
+            println("run-demo: BLOCKED on stdlib spawn primitive — see FRICTION.md");
+        }
+    }
+
+    // Error-check fn — converts the value-channel SpawnError
+    // into a recoverable substitute. Records the kind so the
+    // run-body can branch on it without re-inspecting err.
+    fn report(e: sub::SpawnError) -> sub::Output {
+        self.last_kind = e.kind;
+        println("run-demo: ", e.kind, ": ", e.detail);
+        return sub::Output {
+            status: sub::ExitStatus { code: -1, signaled: false, signal: 0 },
+            stdout: std::bytes::from_string(""),
+            stderr: std::bytes::from_string(""),
+        };
+    }
+}
+
+fn main() {
+    RunDemo { };
+}

@@ -1,0 +1,96 @@
+// pond/migrations — Runner locus.
+//
+// Pattern 3 (service-shaped, lightweight). Owns the binding
+// between a `Db` connection's path and a migrations directory;
+// the four operations all close over both pieces, so the locus
+// is the natural carrier.
+//
+// **Two CONTRACTS.md deviations (mirrors pond/sqlite, pond/jobs,
+// the wider FRICTION.md trend across pond):**
+//
+//   CONTRACTS.md declares:
+//
+//     locus Runner {
+//         params { db: Db; dir: String = "migrations"; }
+//         fn current_version() -> Int fallible(MigrationError);
+//         fn pending() -> Rows fallible(MigrationError);
+//         fn migrate_up(target_version: Int) -> () fallible(MigrationError);
+//         fn migrate_down(target_version: Int) -> () fallible(MigrationError);
+//     }
+//
+// **Deviation 1 — fallible locus methods.** Per
+// `spec/semantics.md § Fallible call semantics` and AGENTS.md's
+// two-channel rule, user-declared locus methods cannot declare
+// `fallible(E)`. Every operation in the contract is naturally
+// fallible, so hosting them as locus methods is type-illegal.
+// The legal shape: the four operations live in `migrate.hl` as
+// free fns whose first argument is a `Runner` reference. Call
+// sites read `migs::migrate_up(r, -1)` instead of
+// `r.migrate_up(-1)` — functionally identical at the use site.
+//
+// **Deviation 2 — `params { db: Db; ... }` rejected by codegen.**
+// Declaring a locus-typed field inside another locus's `params`
+// trips a codegen sequencing error today:
+// `unsupported in codegen v0: qualified type 'db::Db' ... declared
+// in stdlib path-renames table but not registered in user_loci,
+// user_types, or user_interfaces yet`. The v0 workaround is to
+// hold the Db's connection handle (an `Int`) and path (a `String`)
+// directly, then reconstruct a Db inside the free-fn surface when
+// it needs to call db::exec. The Runner is constructed alongside
+// (not from) the Db; the caller passes the *path*, not the Db
+// instance. Once the codegen gap closes, the params field flips
+// back to `db: db::Db;` with no other source changes.
+//
+// Both deviations logged in FRICTION.md.
+
+import "../sqlite" as db;
+
+locus Runner {
+    params {
+        // The SQLite path this runner drives. Mirrored from
+        // `db::Db.path` — the Runner constructs its own Db handle
+        // from this path inside the free-fn surface. ":memory:"
+        // for the in-memory ephemeral DB (and the default in the
+        // examples/blog-schema/main.hl demo).
+        db_path: String = ":memory:";
+
+        // Filesystem directory holding the migration files. The
+        // default "migrations" matches Rails / sqlx conventions —
+        // a top-level migrations/ directory in the project root.
+        dir: String = "migrations";
+
+        // Whether `birth()` has successfully ensured the tracking
+        // table exists. 0 = pre-birth or birth failed; 1 = ready.
+        // Free-fn operations check this and fail with
+        // kind="version_table" if the table isn't there yet.
+        ready: Int = 0;
+
+        // The migrations tracking table name. Override if your app
+        // already uses `schema_migrations` for something else; the
+        // default `pond_migrations` is namespaced to avoid clashes
+        // with another migration tool's table.
+        table: String = "pond_migrations";
+    }
+
+    // birth() — ensure the tracking table exists.
+    //
+    // Opens an ephemeral Db, exec's CREATE TABLE IF NOT EXISTS,
+    // and flips `self.ready = 1`. Today db::exec is stubbed and
+    // always returns `fail DbError { kind: "unsupported" }`; we
+    // still flip ready = 1 so the rest of the surface can be
+    // exercised against the stub. Once sqlite unblocks the create
+    // becomes a real call.
+    //
+    // We can't use `or raise` here (no fallible on locus methods);
+    // we can't `violate` to escalate (would need a closure + parent
+    // `on_failure` handler — more machinery than this lib's CLI
+    // wrapper needs). Sentinel-on-self is the chosen v0 shape.
+    birth() {
+        let conn = db::Db { path: self.db_path };
+        let sql = "CREATE TABLE IF NOT EXISTS " + self.table +
+                  " (version INTEGER PRIMARY KEY, filename TEXT NOT NULL, " +
+                  "applied_at INTEGER NOT NULL DEFAULT 0)";
+        let _ = db::exec(conn, sql) or db::ExecResult { };
+        self.ready = 1;
+    }
+}

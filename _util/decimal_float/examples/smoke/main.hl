@@ -1,0 +1,13 @@
+// pond/_util/decimal_float/examples/smoke -- minimal demo.
+
+import "../.." as decf;
+
+fn main() {
+    let df = decf::DecimalFloat { };
+    let f  = df.to_float(170.25d);
+    let d  = df.from_float(170.25);
+    let a  = df.abs(0.0d - 5.5d);
+    println("decimal_float: to_float(170.25d) = ", to_string(f));
+    println("decimal_float: from_float(170.25) = ", to_string(d));
+    println("decimal_float: abs(-5.5d) = ", to_string(a));
+}

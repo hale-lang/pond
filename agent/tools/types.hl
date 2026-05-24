@@ -1,0 +1,79 @@
+// pond/agent/tools — public types.
+//
+// Shape records (pattern 5 in the six-pattern catalog). Pure
+// data — no lifecycle, no flow. Constructed via struct literal
+// at use sites, returnable by value.
+//
+// Surface contract: pond/CONTRACTS.md § pond/agent/tools/. Field
+// shapes match the contract verbatim.
+
+// ToolSpec — the descriptor a Tool publishes for its surface.
+//
+// `name` is the tool identifier the LLM uses in a tool_use
+// block ("calculator", "shell", "search"). `description` is the
+// human-readable blurb the LLM reads to decide whether to invoke.
+// `input_schema` is the JSON-schema string describing the
+// expected `args_json` shape — emitted on the wire as part of
+// the `tools: [...]` array fed to Anthropic / OpenAI tool-use.
+//
+// `input_schema` is a raw JSON string (not a parsed object) so
+// it round-trips through `std::json::Builder` unchanged: the
+// Tool author hand-writes the schema, the Registry concatenates
+// it into the spec array. This mirrors the v1 commitment in
+// `spec/stdlib.md` § json: JSON is a wire format, not a tree
+// value type.
+type ToolSpec {
+    name:         String = "";
+    description:  String = "";
+    input_schema: String = "{}";
+}
+
+// ToolCall — one invocation request from the LLM.
+//
+// `name` matches a ToolSpec.name registered in the Registry.
+// `args_json` is the JSON object the LLM produced for this call
+// (e.g. `{"op":"add","a":2,"b":3}`); the receiving Tool parses
+// it via the std::json flat-shape readers
+// (`std::json::find_string_field`, `find_int_field`, ...).
+// `call_id` is the vendor-supplied correlation id; the result
+// carries it back so the conversation thread re-attaches.
+type ToolCall {
+    name:     String = "";
+    args_json: String = "{}";
+    call_id:  String = "";
+}
+
+// ToolResult — what a Tool returns from invoke().
+//
+// `call_id` echoes the request id (the conversation pairs
+// result-with-call via this field). `content` is the wire-shape
+// payload returned to the LLM — typically a plain String (the
+// LLM reads it as the tool's output verbatim), or a JSON
+// string when the result has structure. `is_error` flags the
+// content as an error message rather than a success payload;
+// the vendor surfaces this as `is_error: true` in the
+// tool_result block so the model can reason about the failure.
+type ToolResult {
+    call_id:  String = "";
+    content:  String = "";
+    is_error: Bool   = false;
+}
+
+// ToolError — the single fallible(ToolError) payload for the
+// dispatch surface. Per cross-cutting contract: one type per
+// lib, `kind` disambiguates.
+//
+// kind values:
+//   "unknown_tool"  — call.name didn't match any registered Tool
+//   "empty_name"    — call.name was empty (caller bug)
+//   "registry_full" — capacity exhausted (see Registry params)
+//
+// Tool-internal failures (bad args, division by zero, network
+// error) surface inside the returned ToolResult with
+// `is_error: true` and a human-readable `content` — they are
+// NOT dispatched as ToolError. Dispatch failure means the
+// Registry couldn't find/route the tool at all.
+type ToolError {
+    kind:   String = "";
+    detail: String = "";
+}

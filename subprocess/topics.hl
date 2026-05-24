@@ -1,0 +1,15 @@
+// pond/subprocess — bus topics
+//
+// Three typed pub/sub channels backing the long-lived Process
+// locus. Subscribers wire up via `subscribe StdoutLine as ...`
+// in their own bus { } block; the streaming Process locus
+// publishes on each line read from the child's stdout / stderr
+// pipe, and a single ProcessExit publish when the child reaps.
+//
+// Per CONTRACTS.md these wire as topic decls (not literal bus
+// subjects) so subscribers reference them by qualified name
+// (`sub::StdoutLine` under the suggested `sub` alias).
+
+topic StdoutLine  { payload: String;     subject: "subprocess.stdout"; }
+topic StderrLine  { payload: String;     subject: "subprocess.stderr"; }
+topic ProcessExit { payload: ExitStatus; subject: "subprocess.exit";   }

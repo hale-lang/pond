@@ -1,0 +1,398 @@
+// pond/jobs — Pool + Worker (service locus + pinned worker
+// children).
+//
+// Two service loci (pattern 3):
+//
+//   Pool   : cooperative parent. Holds the queue identity
+//            (db_path, table), the handler fn pointer, and the
+//            worker fan-out. Spawns N Workers in birth() so they
+//            attach as Pool children and dissolve when Pool does.
+//   Worker : pinned (`: schedule pinned`) child of Pool. Owns its
+//            own OS thread; its run() loop is the dequeue → invoke
+//            → ack/fail cycle. Pinned because the SQLite roundtrip
+//            and the user-supplied handler are exactly the kind of
+//            "work that genuinely shouldn't share a scheduler with
+//            cooperative siblings" the spec/runtime.md § Schedule
+//            classes table targets.
+//
+// CONTRACTS.md sketches:
+//
+//   locus Pool {
+//       params { queue: Queue; workers: Int = 4; handler: JobHandler; }
+//       birth() { /* spawn workers */ }
+//       drain() { /* finish in-flight */ }
+//   }
+//
+// **Three deviations from CONTRACTS.md, all logged in FRICTION.md:**
+//
+//  1. **`queue: Queue` becomes `db_path` + `table`.** Same root
+//     cause as the Queue deviation: locus refs can't sit in
+//     other loci's params (spec/types.md § F.20 Phase B; the
+//     slot-restriction logic carries over to ordinary params).
+//     Pool holds the queue identity as primitives and lets each
+//     Worker reconstitute a Queue value locally when calling
+//     into query.hl.
+//
+//  2. **`handler: JobHandler` becomes `handler: fn(Job) ->
+//     JobResult`.** Interface values can't be stored in locus
+//     params/fields per spec/types.md § F.20 Phase B — same
+//     workaround pond/router/ uses for Route.handler /
+//     MwEntry.before. The `interface JobHandler` declaration
+//     in interfaces.hl stays as forward-compat scaffolding.
+//
+//  3. **Worker is a separate locus** (not just an internal
+//     spawn loop on Pool). The pinned-class constraint
+//     ("pinned loci cannot declare accept() — children of pinned
+//     would need cross-thread cascade-dissolve coordination",
+//     spec/runtime.md § m28b) means *Pool* must be cooperative
+//     (so it can accept pinned Worker children), and *Worker*
+//     must be pinned (so its run() body owns a thread). Pool's
+//     birth() statement-instantiates N Workers — each becomes a
+//     child of Pool, attaches via accept(), and dissolves at
+//     Pool's dissolve cascade.
+
+// Pool — cooperative parent of N pinned Workers.
+//
+// The fan-out lives in birth() so the workers are running by the
+// time the locus is "live" for other purposes. Pool's run() is a
+// no-op: the workers carry the work, and Pool's dissolve cascade
+// (F.4) drives the per-worker pthread_join.
+locus Pool {
+    params {
+        // Mirrors Queue.db_path. Pool doesn't open its own Db
+        // (the Queue holds the schema-bringup responsibility);
+        // it just carries the path through to each Worker.
+        db_path: String = ":memory:";
+
+        // Mirrors Queue.table.
+        table:   String = "pond_jobs";
+
+        // Worker fan-out count. Default mirrors CONTRACTS.md.
+        // A Pool with `workers = 0` is degenerate but legal —
+        // birth() just doesn't spawn anything.
+        workers: Int = 4;
+
+        // Per-handler invocation cap PER WORKER. When > 0, each
+        // worker exits after running its handler `max_jobs`
+        // times. When 0, the worker loops until drain() arrives
+        // (post-unblock; stub mode treats 0 as "run forever" and
+        // workers never make progress because dequeue returns
+        // "unsupported" — set a positive bound in stub builds).
+        // Surfaced on Pool because every Worker wants the same
+        // bound; pre-divided per-worker rather than divided
+        // dynamically inside the worker so the contract is
+        // explicit.
+        max_jobs_per_worker: Int = 0;
+
+        // Stub-mode switch (FRICTION.md). When true, Worker.run()
+        // bypasses dequeue entirely and synthesizes a Job for
+        // each of `max_jobs_per_worker` iterations, calling the
+        // handler directly. Lets the example exercise the Pool /
+        // Worker / handler shape end-to-end without the SQLite
+        // backing — until pond/sqlite unblocks. Default false so
+        // production builds are unaffected.
+        simulate: Bool = false;
+
+        // Synthetic-job shape for simulate mode. The handler sees
+        // a Job whose `kind` is `simulate_kind` and `payload` is
+        // `simulate_kind_payload_prefix + "id=<wid>:<n>"`. Defaults
+        // produce "simulate" / "id=…" which is what the unit-test
+        // path-through used; real demos override to match their
+        // production payload shape (e.g. simulate_kind="send_email",
+        // payload_prefix="to=user").
+        simulate_kind:           String = "simulate";
+        simulate_payload_prefix: String = "id=";
+
+        // The job handler. Fn-pointer shadow of the
+        // `JobHandler` interface (see interfaces.hl and
+        // FRICTION.md for the deviation context). Default is the
+        // built-in `default_handler` which acks every job with
+        // a "noop" detail — useful for round-trip testing the
+        // pool plumbing without writing a real handler.
+        handler: fn(Job) -> JobResult = default_handler;
+    }
+
+    // Pool's parent-side accept hook. Empty body: Pool only
+    // accepts Worker children, the type check at the accept
+    // site enforces the per-child-type rule. Per
+    // spec/semantics.md § accept(c), accept runs before child
+    // birth and may reject by failing; we always accept.
+    accept(w: Worker) { }
+
+    // birth() — fan out N workers as statement-position child
+    // literals. Each `Worker { ... };` attaches as a Pool child
+    // (the substrate routes statement-position literals inside
+    // a lifecycle method body to self per F.7), so the workers
+    // dissolve with Pool. Per the m28a + m28b stack, each Worker
+    // spawns a pthread at instantiation and runs its full
+    // declared lifecycle (birth → run → drain → dissolve) on
+    // that thread; Pool's main-thread frame continues immediately
+    // after the loop.
+    birth() {
+        let mut i = 0;
+        while i < self.workers {
+            Worker {
+                worker_id:               i,
+                db_path:                 self.db_path,
+                table:                   self.table,
+                max_jobs:                self.max_jobs_per_worker,
+                simulate:                self.simulate,
+                simulate_kind:           self.simulate_kind,
+                simulate_payload_prefix: self.simulate_payload_prefix,
+                handler:                 self.handler,
+            };
+            i = i + 1;
+        }
+    }
+
+    // run() — no-op. The workers carry the work; Pool just owns
+    // their lifecycle. Empty bodies parse-fail (styleguide §
+    // Current language gaps) so a single placeholder statement.
+    run() {
+        let _ = self.workers;
+    }
+
+    // drain() — placeholder. F.4 cascade order means each Worker's
+    // drain() fires first (on its own pthread), then Pool's
+    // drain() here. Workers signal their own pthread to exit by
+    // returning from run() (they're bounded by max_jobs); a
+    // future iteration that wants a fast-cancel path would set a
+    // mailbox-shutdown flag here so any worker still spinning on
+    // an empty queue wakes immediately. Today the body is empty
+    // because the bounded-run shape already drains naturally.
+    drain() {
+        let _ = self.workers;
+    }
+
+    // dissolve() — also placeholder. The runtime pthread_joins
+    // each Worker as the dissolve cascade walks the child list;
+    // no per-worker cleanup logic lives here.
+    dissolve() {
+        let _ = self.workers;
+    }
+
+    // on_failure — restart-strategy hook (F.9). When a Worker's
+    // run() panics or its birth-epoch closure fires (none today —
+    // pinned loci can't declare closures per spec/runtime.md
+    // § m28b gating), the runtime calls this with the worker
+    // handle. We `restart(w)` so a crashed worker resumes on a
+    // fresh pthread with the same params. Cap is 2 attempts per
+    // worker per the v0 default; past the cap the violation falls
+    // through and bubbles up to Pool's parent.
+    //
+    // **Note (FRICTION.md duplicate-suspected)**: this restart-
+    // on-worker-crash policy is exactly what pond/supervisor's
+    // one_for_one strategy targets. Once supervisor lands, Pool
+    // could vendor it instead of open-coding the restart call.
+    on_failure(w: Worker, err: ClosureViolation) {
+        println("[jobs::Pool] worker ", err.locus,
+                " failed (", err.closure, "); restarting");
+        restart(w);
+    }
+}
+
+// Worker — one pinned background thread executing the
+// dequeue → invoke → ack/fail loop.
+//
+// Pinned because the SQLite I/O (post-unblock) plus the user-
+// supplied handler are exactly the "doesn't share a scheduler
+// with cooperative siblings" case from spec/runtime.md §
+// Schedule classes. The pinned class restricts away accept() and
+// closures — both already irrelevant for Worker (no children, no
+// closure-test audit), so the constraint costs nothing here.
+locus Worker : schedule pinned {
+    params {
+        // Stable per-worker identifier. Surfaced in log lines
+        // and (post-unblock) used as part of the claimed_at
+        // audit detail so a worker crash leaves a tractable
+        // breadcrumb in the queue table.
+        worker_id: Int = 0;
+
+        // Queue identity — copied in from Pool.params. Each
+        // Worker opens its own per-call Db inside its loop so
+        // the pinned thread's arena stays single-threaded
+        // territory (per spec/runtime.md § m28b).
+        db_path:   String = ":memory:";
+        table:     String = "pond_jobs";
+
+        // Bounded run loop. 0 = run forever (until drain), > 0 =
+        // exit after that many handler invocations. The bounded
+        // shape is what makes pthread_join work cleanly without
+        // a mailbox-shutdown wire today (see Pool.drain note).
+        max_jobs:  Int = 0;
+
+        // Stub-mode switch (mirrors Pool.simulate). When true,
+        // synthesize a Job per iteration instead of going through
+        // dequeue. See FRICTION.md.
+        simulate:  Bool = false;
+
+        // Synthetic-job shape parameters (mirrors Pool.simulate_*).
+        simulate_kind:           String = "simulate";
+        simulate_payload_prefix: String = "id=";
+
+        // The job handler. Copied in from Pool.params; pinned
+        // arenas hold fn pointers as ordinary values (Int-sized
+        // code pointer, no GC concern).
+        handler:   fn(Job) -> JobResult = default_handler;
+    }
+
+    // run() — the worker loop.
+    //
+    // Two branches:
+    //   simulate == true: synthesize Jobs locally; exercises
+    //     handler + Pool plumbing without the SQLite backing
+    //     (stub build).
+    //   simulate == false: call dequeue → invoke → ack/fail
+    //     against the real queue. Today this branch lands on
+    //     pond/sqlite's "unsupported" stub and the worker emits
+    //     no progress.
+    //
+    // Both branches honor `max_jobs > 0` as a per-worker cap so
+    // the bounded shape stays consistent.
+    run() {
+        if self.simulate {
+            __run_simulate(
+                self.worker_id,
+                self.max_jobs,
+                self.simulate_kind,
+                self.simulate_payload_prefix,
+                self.handler
+            );
+        } else {
+            __run_real(
+                self.worker_id,
+                self.db_path,
+                self.table,
+                self.max_jobs,
+                self.handler
+            );
+        }
+    }
+}
+
+// default_handler — top-level no-op handler. Acks every job with
+// a "noop" detail; used as the Pool.handler default and as the
+// fn-pointer-must-have-a-default placeholder. Lives at the top
+// level (not as a Pool method) because fn-pointer fields take a
+// top-level fn name, not `self.method` references (spec/types.md
+// "Types may hold fn(...) fields; dispatch via record.field(args)").
+fn default_handler(j: Job) -> JobResult {
+    let _ = j;
+    return JobResult { ok: true, detail: "noop" };
+}
+
+// __run_simulate — stub-mode worker loop. Synthesizes a Job per
+// iteration so the handler runs `max_jobs` times. Used by the
+// example/email-worker demo to exercise the pool fan-out without
+// pond/sqlite. The synthetic Job's shape is parameterized so
+// demos can produce handler-visible jobs that look like what
+// dequeue() would return in production:
+//
+//   kind    = simulate_kind                       (e.g. "send_email")
+//   payload = simulate_payload_prefix + "wid:n"   (e.g. "to=user0:0")
+//
+// The handler distinguishes iterations via the payload suffix.
+fn __run_simulate(
+    wid: Int,
+    max_jobs: Int,
+    simulate_kind: String,
+    simulate_payload_prefix: String,
+    handler: fn(Job) -> JobResult
+) {
+    let mut i = 0;
+    while i < max_jobs {
+        let payload = simulate_payload_prefix
+            + to_string(wid) + ":" + to_string(i);
+        let j = Job {
+            kind:         simulate_kind,
+            payload:      payload,
+            attempt:      0,
+            max_attempts: 1,
+        };
+        let r = handler(j);
+        let _ = r;
+        i = i + 1;
+    }
+}
+
+// __run_real — production-shape worker loop. Each iteration:
+//
+//   1. dequeue(q) — claim the oldest ready row.
+//   2. handler(j) — invoke the user handler.
+//   3. ack on r.ok = true; fail(retry = attempt+1 < max_attempts)
+//      otherwise.
+//
+// Today every dequeue returns kind="db" / kind="unsupported"
+// because pond/sqlite is stubbed; the worker hits the empty
+// path, sleeps `idle_ms`, and tries again until max_jobs is
+// reached (or forever if max_jobs == 0). When the upstream stack
+// unblocks, this body picks up real behavior without changing
+// shape.
+//
+// Concurrency note: each worker thread instantiates its own
+// `Queue` value here (cheap — Queue.birth() runs CREATE TABLE
+// IF NOT EXISTS, idempotent). The single source of identity is
+// (db_path, table) so two Queues over the same path/table
+// agree on the underlying rows. Once the upstream sqlite primitive
+// lands, we'll either (a) cache a per-thread Db across iterations
+// for connection reuse, or (b) keep the per-call Db open shape
+// since SQLite is happy with short-lived clients. The contract
+// surface here doesn't care which.
+fn __run_real(
+    wid: Int,
+    db_path: String,
+    table: String,
+    max_jobs: Int,
+    handler: fn(Job) -> JobResult
+) {
+    let q = Queue { db_path: db_path, table: table };
+
+    let mut done = 0;
+    let idle_ms = 25ms;
+
+    let mut keep_going = true;
+    while keep_going {
+        if max_jobs > 0 {
+            if done >= max_jobs {
+                keep_going = false;
+            }
+        }
+        if !keep_going {
+            // Inner loop bound hit; let the lifecycle drain.
+            let _ = wid;
+        } else {
+            let j = dequeue(q) or __empty_marker(err);
+            if j.kind == "" {
+                // dequeue failed (empty or db); back off and retry.
+                std::time::sleep(idle_ms);
+            } else {
+                let r = handler(j);
+                // CONTRACTS.md keeps Job id off the public type
+                // (see FRICTION.md). Without an id surfaced from
+                // dequeue we can't call ack(q, id) / fail(q, id, _)
+                // here; the unblock-path implementation will widen
+                // dequeue to return (id, Job) and the ack/fail
+                // calls re-enter. For now the result is observed
+                // (its detail is forgotten) and we count the
+                // iteration as done — same observable behavior as
+                // ack-success for the round-trip case.
+                let _ = r;
+                done = done + 1;
+            }
+        }
+    }
+
+    let _ = q;
+}
+
+// __empty_marker — error-bridge for the dequeue call site inside
+// __run_real. dequeue's fallible(JobError) gets addressed with
+// `or __empty_marker(err)`; we return a Job with `kind == ""` as
+// the sentinel "no work" marker the loop branches on. This keeps
+// the empty path on the value channel (worker just retries)
+// rather than escalating to a structural failure (which would
+// crash the worker's pthread).
+fn __empty_marker(e: JobError) -> Job {
+    let _ = e;
+    return Job { kind: "", payload: "", attempt: 0, max_attempts: 0 };
+}

@@ -1,0 +1,27 @@
+// pond/ml/neural — bus topics
+//
+// One typed pub/sub channel carries per-epoch training progress
+// out to subscribers:
+//
+//   TrainStep — Float loss + Int epoch + Int step. Published by
+//               Trainer.fit once per epoch (after the full epoch's
+//               samples have been folded through forward+backward).
+//
+// Per the cross-cutting bus convention (pond/CONTRACTS.md
+// § Cross-cutting), wire shape is a typed payload — here the
+// `TrainStep` shape declared in metrics.hl. Subscribers reference
+// the topic by its qualified name (`nn::TrainStep` under the
+// suggested alias) and the payload type is bound to the topic at
+// the decl site.
+//
+// **Deviation from CONTRACTS.md** (logged in FRICTION.md):
+// the contract spells both `type TrainStep` and `topic TrainStep`
+// the same way, but a topic decl + a type decl in the same seed
+// register in one shared top-level namespace ("duplicate top-
+// level name `TrainStep`" at typecheck). Adopted shape: the topic
+// is `TrainStepEvent`, matching the convention in
+// `downstream-consumer/topics.hl`
+// (`topic TickEvent { payload: Tick; subject: "..."; }`).
+// The payload type name `TrainStep` is preserved.
+
+topic TrainStepEvent { payload: TrainStep; subject: "nn.TrainStep"; }

@@ -1,0 +1,19 @@
+// pond/agent/tools — placeholder.
+//
+// Originally housed the ToolList @form(vec) child locus, but a
+// cross-file lookup gap (the codegen pass that resolves
+// `entries: ToolList = ToolList { }` inside a locus param
+// default couldn't find the mangled ToolList type when it
+// lived in a separate file from the Registry decl) forced the
+// child locus to move into registry.hl alongside Registry. See
+// FRICTION.md "@form-vec-cross-file-resolution" for the gap
+// log. This file is kept so the seed remains a per-concern
+// split if/when the gap is fixed (storage.hl currently empty;
+// the placeholder type below keeps the file non-empty so the
+// seed walker still picks it up consistently).
+//
+// **Placeholder note.** `__StoragePlaceholder` exists only to
+// give this file a parseable top-level decl; consumers must
+// not reference it.
+
+type __StoragePlaceholder { unused: Int = 0; }

@@ -1,0 +1,54 @@
+// pond/ml/neural — Layer shape type.
+//
+// Pattern 5 (shape type, pure data, no flow). One Layer record
+// per dense layer registered on a Model. Stored in the Model's
+// `LayerList` @form(vec) substrate (see model.hl); read at
+// forward / train_step time to slice the right weight + bias
+// windows out of the model's flat parameter buffer.
+//
+// **Deviation from CONTRACTS.md** (logged in FRICTION.md).
+// CONTRACTS.md declares:
+//
+//     type Layer { name: String; weights: Matrix; biases: Matrix;
+//                  activation: String; }
+//
+// In v1 a user `type` record cannot carry locus refs as fields
+// (spec/semantics.md § "Slot restrictions (v1)" — slots reject
+// LocusRef cells; the same restriction lands on type-record
+// fields via the codegen-pass-A0 ordering gap noted in
+// pond/router/types.hl "context-req-field"). So `weights` and
+// `biases` Matrix fields had to be flattened.
+//
+// Adopted shape: the Model holds ONE big flat `@form(vec)` of
+// Float — every layer's weights then biases laid out contiguously
+// (row-major weights of shape `output_dim x input_dim`, followed
+// by `output_dim` biases). Each Layer records the (offset,
+// length) windows into that buffer rather than a Matrix handle.
+// Read-side helpers (`load_weights` / `load_biases` in model.hl)
+// rebuild a fresh Matrix per call from those windows; write-side
+// helpers (`store_weights` / `store_biases`) read it back. The
+// Matrix surface is preserved for the user-facing forward()
+// return value — only the on-locus storage is flattened.
+//
+// `name` carries the human-readable layer label ("dense_0",
+// "dense_1"), useful for debug printing and for snapshot Bytes
+// keying. `activation` is the activation-fn name string
+// ("sigmoid" | "relu" | "tanh" | "linear"); the model branches
+// on this in forward() and train_step().
+
+type Layer {
+    name:           String = "";
+    input_dim:      Int    = 0;
+    output_dim:     Int    = 0;
+    activation:     String = "linear";
+
+    // Window into Model.params for this layer's W matrix
+    // (row-major, output_dim rows x input_dim cols).
+    weights_offset: Int    = 0;
+    weights_count:  Int    = 0;
+
+    // Window into Model.params for this layer's bias vector
+    // (length output_dim).
+    biases_offset:  Int    = 0;
+    biases_count:   Int    = 0;
+}
