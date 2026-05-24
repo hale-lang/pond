@@ -1,0 +1,65 @@
+// parse_demo.hl — parse an .hl file and walk the locus tower.
+//
+// Build:
+//   cd pond/heron/examples
+//   hale build .
+//
+// Run:
+//   ./parse_demo path/to/source.hl
+//
+// Expected output: one line per top-level locus / type /
+// interface found, showing kind + name + start row.
+
+import "vendor/pond/heron" as heron;
+
+fn main() {
+    if std::env::args_count() < 2 {
+        println("usage: parse_demo <source.hl>");
+        return;
+    }
+
+    let path = std::env::arg(1);
+    let content = std::io::fs::read_file(path) or raise;
+
+    let parser = heron::Parser { };
+    if !parser.is_ready() {
+        println("parser allocation failed");
+        return;
+    }
+
+    let tree = parser.parse(content);
+    if !tree.is_valid() {
+        println("parse returned invalid tree");
+        return;
+    }
+
+    let root = tree.root();
+    if heron::node_is_null(root) {
+        heron::node_delete(root);
+        println("root node is null");
+        return;
+    }
+
+    println("root kind: ", heron::node_kind(root));
+    println("top-level decls:");
+
+    let n = heron::node_named_child_count(root);
+    let mut i = 0;
+    while i < n {
+        let c = heron::node_named_child(root, i);
+        let kind = heron::node_kind(c);
+        let name_node = heron::node_field(c, "name");
+        let name = "";
+        if !heron::node_is_null(name_node) {
+            name = heron::node_text(name_node);
+        }
+        let row = heron::node_start_row(c);
+        println("  ", kind, " ", name, " @ line ", to_string(row + 1));
+        heron::node_delete(name_node);
+        heron::node_delete(c);
+        i = i + 1;
+    }
+
+    heron::node_delete(root);
+    // tree + parser dissolve at scope exit via F.29 cascade.
+}

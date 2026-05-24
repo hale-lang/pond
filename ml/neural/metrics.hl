@@ -1,0 +1,28 @@
+// pond/ml/neural — per-step training metric shape.
+//
+// Pure-data record — pattern 5 (shape type) per
+// spec/styleguide.md. Published on the `TrainStep` topic once per
+// epoch by Trainer.fit; consumers (loggers, dashboards, halting
+// rules) subscribe and read off the three fields.
+//
+// `loss`  — mean-squared-error averaged over the epoch's samples.
+//           Lower is better. 0.0 means the model fits the epoch's
+//           training data exactly.
+// `epoch_idx` — 1-indexed epoch counter (1, 2, 3, ...). Useful
+//           for plotting loss-over-time and for halting rules
+//           ("stop after N epochs"). Spelled `epoch_idx` rather
+//           than CONTRACTS.md's `epoch` because `epoch` is a
+//           reserved keyword (TokenKind::Epoch — closure cadence
+//           clause); a `type` field named `epoch` is unparseable.
+//           Same deviation pattern the a future store pattern lib applied for
+//           Version.era. Surfaces in FRICTION.md.
+// `step`  — 1-indexed sample counter for the LAST sample of the
+//           epoch (i.e. epoch_idx * num_samples). Lets consumers
+//           reconstruct total samples-seen without re-deriving
+//           from `epoch_idx` and the dataset size.
+
+type TrainStep {
+    loss:      Float = 0.0;
+    epoch_idx: Int   = 0;
+    step:      Int   = 0;
+}

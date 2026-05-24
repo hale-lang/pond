@@ -1,0 +1,87 @@
+// pond/sessions — sign / verify free fns.
+//
+// `sign_cookie` and `verify_cookie` are the load-bearing free fns:
+// they own the HMAC-SHA256 step and the cookie wire shape. The
+// `SessionStore` locus delegates to them so a consumer that wants
+// to keep state outside the locus (CLI tool, batch job, test
+// harness) can still produce / verify cookies without a Store
+// instance.
+//
+// Per the two-channel rule the *locus methods* `read` / `write`
+// in store.hl cannot declare `fallible(SessionError)` — but the
+// free fns below CAN, and they expose the canonical
+// fallible(SessionError) surface this lib's consumers will
+// address with `or` clauses.
+//
+// Catalog pattern 6 (free fn). The whole verify path is one
+// long fallible computation, so a single fn body is the right
+// granularity.
+
+import "../crypto" as crypto;
+
+// Constant-time signing — produces the cookie *value* (the part
+// after `Name=`). Caller wraps it in the full Set-Cookie header
+// with the desired path / max-age / flags. `now_seconds` is
+// passed in (rather than read inside) so tests can drive a
+// deterministic clock and so signing is a pure transformation.
+fn sign_payload(
+    secret:        Bytes,
+    s:             Session,
+    now_seconds:   Int,
+    ttl_seconds:   Int
+) -> String {
+    let expires_at = now_seconds + ttl_seconds;
+    let payload    = __build_payload(s, expires_at);
+    let mac        = crypto::hmac_sha256(secret, payload);
+    return encode_cookie_value(payload, mac);
+}
+
+// Verify a `Cookie:`-header value and return the Session that
+// signed it. Failure modes (each yields a typed SessionError
+// the caller addresses via `or`):
+//
+//   - "missing"   — no `session=` pair in the header
+//   - "malformed" — present but not <b64>.<b64> shape
+//   - "tampered"  — HMAC doesn't match (constant-time compare)
+//   - "expired"   — payload's deadline is past `now_seconds`
+//
+// The verify path is constant-time on the HMAC compare via
+// `crypto::constant_time_eq` — a successful forgery attempt
+// can't be distinguished from an unsuccessful one by timing.
+fn verify_cookie(
+    secret:        Bytes,
+    cookie_header: String,
+    now_seconds:   Int
+) -> Session fallible(SessionError) {
+    let value = extract_session_cookie(cookie_header);
+    if len(value) <= 0 {
+        fail SessionError { kind: "missing" };
+    }
+    let parts = __decode_cookie_value(value);
+    if !parts.ok {
+        fail SessionError { kind: "malformed" };
+    }
+    // Recompute HMAC over the received payload and compare in
+    // constant time against the received mac.
+    let expected = crypto::hmac_sha256(secret, parts.payload);
+    let equal    = crypto::constant_time_eq(expected, parts.mac);
+    if !equal {
+        fail SessionError { kind: "tampered" };
+    }
+    // Authentic. Now check expiry.
+    let exp = __payload_expires_at(parts.payload);
+    if exp < 0 {
+        // Authentic payload that we can't parse the expiry of —
+        // tag it as malformed (the HMAC verified the bytes
+        // themselves, so the format is the actual problem).
+        fail SessionError { kind: "malformed" };
+    }
+    if now_seconds > exp {
+        fail SessionError { kind: "expired" };
+    }
+    let session = __parse_payload(parts.payload);
+    if len(session.id) <= 0 {
+        fail SessionError { kind: "malformed" };
+    }
+    return session;
+}

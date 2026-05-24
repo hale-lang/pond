@@ -1,0 +1,182 @@
+==================
+Closure with band assertion
+==================
+
+locus Aggregator {
+    params { running_sum: Int = 0; }
+    closure within_band {
+        self.running_sum ~~ 0 within 1000;
+        epoch tick;
+    }
+}
+
+---
+
+(source_file
+  (locus_decl
+    name: (identifier)
+    (params_block
+      (param_decl
+        name: (identifier)
+        type: (primitive_type)
+        default: (integer_literal)))
+    (closure_decl
+      name: (identifier)
+      (closure_assertion
+        (field_expr
+          object: (self_expr)
+          member: (identifier))
+        (integer_literal)
+        (integer_literal))
+      (closure_clause))))
+
+==================
+Inline closure with captures
+==================
+
+locus DbConnection {
+    params { last_error: String = ""; }
+    closure fatal_io {
+        captures: last_error;
+        epoch inline;
+    }
+}
+
+---
+
+(source_file
+  (locus_decl
+    name: (identifier)
+    (params_block
+      (param_decl
+        name: (identifier)
+        type: (primitive_type)
+        default: (string_literal)))
+    (closure_decl
+      name: (identifier)
+      (closure_clause
+        (identifier))
+      (closure_clause))))
+
+==================
+Violate statement
+==================
+
+locus Worker {
+    params { count: Int = 0; }
+    closure overflow {
+        captures: count;
+        epoch inline;
+    }
+    fn check() {
+        if self.count > 100 {
+            violate overflow;
+        }
+    }
+}
+
+---
+
+(source_file
+  (locus_decl
+    name: (identifier)
+    (params_block
+      (param_decl
+        name: (identifier)
+        type: (primitive_type)
+        default: (integer_literal)))
+    (closure_decl
+      name: (identifier)
+      (closure_clause
+        (identifier))
+      (closure_clause))
+    (function_decl
+      name: (identifier)
+      (block
+        (if_stmt
+          condition: (binary_expr
+            left: (field_expr
+              object: (self_expr)
+              member: (identifier))
+              right: (integer_literal))
+          then: (block
+            (violate_stmt
+              closure_name: (identifier))))))))
+
+==================
+Match statement with patterns
+==================
+
+fn classify(n: Int) {
+    match n {
+        0 -> "zero",
+        1 -> "one",
+        _ -> "many",
+    }
+}
+
+---
+
+(source_file
+  (function_decl
+    name: (identifier)
+    (parameter name: (identifier) type: (primitive_type))
+    (block
+      (match_stmt
+        scrutinee: (identifier)
+        (match_arm
+          pattern: (literal_pattern (integer_literal))
+          body: (string_literal))
+        (match_arm
+          pattern: (literal_pattern (integer_literal))
+          body: (string_literal))
+        (match_arm
+          pattern: (wildcard_pattern)
+          body: (string_literal))))))
+
+==================
+Lifecycle methods
+==================
+
+locus Service {
+    params { fd: Int = -1; }
+    birth() { self.fd = 0; }
+    run() { yield; }
+    drain() { let _ = 0; }
+    dissolve() { if self.fd >= 0 { let _ = 0; } }
+}
+
+---
+
+(source_file
+  (locus_decl
+    name: (identifier)
+    (params_block
+      (param_decl
+        name: (identifier)
+        type: (primitive_type)
+        default: (unary_expr operand: (integer_literal))))
+    (lifecycle_decl
+      (block
+        (assign_stmt
+          target: (lvalue (identifier))
+          value: (integer_literal))))
+    (lifecycle_decl
+      (block (yield_stmt)))
+    (lifecycle_decl
+      (block
+        (let_stmt
+          name: (identifier)
+          value: (integer_literal))))
+    (lifecycle_decl
+      (block
+        (if_stmt
+          condition: (binary_expr
+            left: (field_expr
+              object: (self_expr)
+              member: (identifier))
+              right: (integer_literal))
+          then: (block
+            (let_stmt
+              name: (identifier)
+              value: (integer_literal))))))))

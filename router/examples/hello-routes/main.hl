@@ -1,0 +1,104 @@
+// pond/router/examples/hello-routes — demo a Router with
+// path params + a logging middleware.
+//
+// Three things this exercises end-to-end:
+//   1. Two routes, one with a `:name` path capture.
+//   2. A before-only middleware that logs every request.
+//   3. The Router locus passed straight to std::http::Server
+//      (structural Handler satisfaction).
+//
+// Build + run:
+//   hale build pond/router/examples/hello-routes/
+//   ./pond/router/examples/hello-routes/hello-routes
+//
+// Then in another shell:
+//   curl -s http://127.0.0.1:8080/
+//   curl -s http://127.0.0.1:8080/greet/world
+//
+// The Server prints "READY" to stdout once its listen socket
+// binds (the ready_signal field on std::http::Server) — test
+// oracles / supervisors can grep for that line instead of
+// polling connect-with-retry.
+
+import "../.." as router;
+
+// Root handler. Plain "hello" body. Handler-shaped locus —
+// satisfies `router::Handler` structurally via its `handle`
+// method (F.20 Phase B; spec/types.md). Returns the local
+// router::Response shape; the Router converts to
+// std::http::Response at the Server boundary.
+locus Root {
+    fn handle(ctx: router::Context) -> router::Response {
+        return router::Response {
+            status: 200,
+            body:   "hello"
+        };
+    }
+}
+
+// Greeting handler. Extracts `name` from the path capture and
+// echoes it. If the capture's empty (shouldn't happen since
+// the pattern requires the segment, but defensively), falls
+// back to "stranger". `router::path_param` is the bare free
+// fn from CONTRACTS.md.
+locus Greet {
+    fn handle(ctx: router::Context) -> router::Response {
+        let name = router::path_param(ctx.params, "name");
+        let who = if len(name) > 0 { name } else { "stranger" };
+        return router::Response {
+            status: 200,
+            body:   "hello, " + who
+        };
+    }
+}
+
+// Logging middleware (before-only logic). Writes the method +
+// path to stderr so a `tail -f` on the demo binary's stderr
+// shows each request without interleaving with the HTTP wire
+// bytes on stdout. `after` is a passthrough. Satisfies
+// `router::Middleware` structurally.
+locus LogMw {
+    fn before(ctx: router::Context) -> router::Context {
+        eprintln(ctx.method, " ", ctx.path);
+        return ctx;
+    }
+    fn after(ctx: router::Context, resp: router::Response) -> router::Response {
+        return resp;
+    }
+}
+
+fn main() {
+    let mut port: Int = 8080;
+    let mut max_accepts: Int = -1;
+    let n = std::env::args_count();
+    let mut i: Int = 0;
+    while i < n {
+        let a = std::env::arg(i);
+        if a == "--port" {
+            if i + 1 < n {
+                let pstr = std::env::arg(i + 1);
+                port = std::str::parse_int(pstr) or 8080;
+            }
+        }
+        if a == "--max-accepts" {
+            if i + 1 < n {
+                let mstr = std::env::arg(i + 1);
+                max_accepts = std::str::parse_int(mstr) or -1;
+            }
+        }
+        i = i + 1;
+    }
+
+    let r = router::Router { };
+    router::add(r, "GET", "/", Root { });
+    router::add(r, "GET", "/greet/:name", Greet { });
+    router::use_before(r, LogMw { });
+
+    std::http::Server {
+        host:          "127.0.0.1",
+        port:          port,
+        max_accepts:   max_accepts,
+        handler:       r,
+        ready_signal:  "READY"
+    };
+}

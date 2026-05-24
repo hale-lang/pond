@@ -1,0 +1,88 @@
+// stats-demo — compute mean + stddev on a small Matrix, then run
+// the same data through OnlineMoments and check the running mean
+// matches the batch mean.
+//
+// Composes pond/math/matrix (the Matrix locus) and pond/math/stats
+// (the free fns + OnlineMoments). Two import lines; aliases are
+// the suggested `mat` and `stats`.
+
+import "../../../matrix" as mat;
+import "../.." as stats;
+
+fn near_eq(actual: Float, expected: Float, eps: Float, label: String) {
+    let mut diff = actual - expected;
+    if diff < 0.0 {
+        diff = 0.0 - diff;
+    }
+    if diff < eps {
+        return;
+    }
+    println("ASSERTION FAILED: ", label);
+    println("  expected: ", to_string(expected));
+    println("  actual:   ", to_string(actual));
+    std::process::exit(1);
+}
+
+locus StatsDemo {
+    run() {
+        // Build a 1x5 row-vec Matrix of small Floats. `zeros`
+        // lives on the `Mat` namespace lotus (matrix factory
+        // methods stay on the namespace lotus per G3 — free fns
+        // can't return Matrix locus refs); instantiate once and
+        // dispatch.
+        let mx = mat::Mat { };
+        let xs = mx.zeros(1, 5);
+        // `Matrix.set_at` is non-fallible (silent no-op on OOB);
+        // the fallible variant is the free fn `mat::set_at_checked`.
+        xs.set_at(0, 0, 2.0);
+        xs.set_at(0, 1, 4.0);
+        xs.set_at(0, 2, 4.0);
+        xs.set_at(0, 3, 4.0);
+        xs.set_at(0, 4, 6.0);
+
+        // Batch mean + stddev. Expected:
+        //   mean    = 20 / 5  = 4.0
+        //   var     = sum((xi-4)^2)/5 = (4+0+0+0+4)/5 = 1.6
+        //   stddev  = sqrt(1.6)        ≈ 1.2649110...
+        let mu  = stats::mean(xs);
+        let sd  = stats::stddev(xs);
+        println("batch mean   = ", to_string(mu));
+        println("batch stddev = ", to_string(sd));
+        near_eq(mu, 4.0, 0.0001, "batch mean");
+        near_eq(sd, 1.2649110640673518, 0.0001, "batch stddev");
+
+        // Min/max → 1x2 [2.0, 6.0].
+        let mm = stats::min_max(xs);
+        let lo = mm.get(0) or 0.0;
+        let hi = mm.get(1) or 0.0;
+        println("min = ", to_string(lo), "  max = ", to_string(hi));
+        near_eq(lo, 2.0, 0.0001, "min");
+        near_eq(hi, 6.0, 0.0001, "max");
+
+        // Median via quantile(0.5). Sorted is [2,4,4,4,6] → 4.0.
+        let med = stats::quantile(xs, 0.5) or raise;
+        println("median = ", to_string(med));
+        near_eq(med, 4.0, 0.0001, "median");
+
+        // Stream the same elements through OnlineMoments; running
+        // mean and variance at the end should match the batch.
+        let om = stats::OnlineMoments { };
+        om.observe(2.0);
+        om.observe(4.0);
+        om.observe(4.0);
+        om.observe(4.0);
+        om.observe(6.0);
+        let online_mean = om.current_mean();
+        let online_var  = om.current_var();
+        println("online mean = ", to_string(online_mean));
+        println("online var  = ", to_string(online_var));
+        near_eq(online_mean, mu, 0.0001, "online mean vs batch mean");
+        near_eq(online_var, 1.6, 0.0001, "online var vs batch var");
+
+        println("stats-demo: all checks passed");
+    }
+}
+
+fn main() {
+    StatsDemo { };
+}

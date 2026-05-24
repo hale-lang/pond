@@ -1,0 +1,198 @@
+// pond/tracing/examples/trace-tree — span-tree demo.
+//
+// Demonstrates the shape consumers will use against the
+// `pond/tracing` (alias `trace`) surface:
+//   1. Instantiate one Tracer per app (service locus, pattern 3).
+//   2. Instantiate a SpanCompleted subscriber BEFORE the
+//      publisher — bus ordering rule per AGENTS.md.
+//   3. Open an outer span (root: parent.id == "").
+//   4. Open a nested inner span (parent = outer's SpanId).
+//   5. End both — innermost first, outermost last — so the
+//      published Span records carry well-formed parent pointers.
+//   6. The SpanSink subscriber records each completed span into
+//      a packed-row buffer; at the end the run-body prints the
+//      buffer as a tree, indented by depth.
+//
+// In a vendored consumer the import would be
+// `import "vendor/pond/tracing" as trace;`. In-tree the example
+// reaches the lib via a relative path.
+
+import "../.."             as trace;
+import "../../../_util/rowbuf" as rb;
+
+// SpanSink — bus subscriber pattern 3.
+//
+// Subscribes to trace::SpanCompleted, packs each Span into a
+// newline-delimited buffer of `id\tparent_id\tname\tdur_ns`
+// rows. Prints the assembled tree from `dump()` on demand.
+locus SpanSink {
+    params {
+        // Each row: `<id>\t<parent_id>\t<name>\t<dur_ns>\n`.
+        rows:  String = "";
+        count: Int    = 0;
+    }
+
+    bus {
+        // Cross-seed subscribe by qualified topic ident; upstream
+        // A1 + A7 (`f9068fa`) closed the gaps that previously
+        // forced the literal-subject + `of type T` workaround.
+        subscribe trace::SpanCompleted as on_span;
+    }
+
+    fn on_span(s: trace::Span) {
+        let dur_ns = s.end_ns - s.start_ns;
+        self.rows = self.rows
+            + s.id.id + "\t"
+            + s.parent.id + "\t"
+            + s.name + "\t"
+            + to_string(dur_ns) + "\n";
+        self.count = self.count + 1;
+    }
+
+    // dump — print the recorded spans as an indented tree.
+    // Root spans (parent_id == "") are depth 0; children indent
+    // by one "  " per level.
+    fn dump() {
+        let rows = rb::RowBuf { };
+        println("--- trace tree (", to_string(self.count), " spans) ---");
+        // Print every root, then walk its descendants depth-first.
+        let total = len(self.rows);
+        let mut cursor = 0;
+        while cursor < total {
+            let rel = std::str::index_of(self.rows[cursor..total], "\n");
+            let mut line_end = total;
+            if rel >= 0 {
+                line_end = cursor + rel;
+            }
+            let row = self.rows[cursor..line_end];
+            let parent_id = rows.nth_field(row, 1);
+            if parent_id == "" {
+                let id = rows.nth_field(row, 0);
+                self.__print_subtree(id, 0);
+            }
+            if rel < 0 {
+                cursor = total;
+            } else {
+                cursor = line_end + 1;
+            }
+        }
+    }
+
+    // __print_subtree — print one span and recursively print
+    // every child whose parent_id == this span's id.
+    fn __print_subtree(span_id: String, depth: Int) {
+        let row = self.__find_row(span_id);
+        if len(row) == 0 {
+            let _ = depth;
+        } else {
+            let rows   = rb::RowBuf { };
+            let name   = rows.nth_field(row, 2);
+            let dur_ns = rows.nth_field(row, 3);
+            let prefix = std::str::repeat("  ", depth);
+            println(prefix, "* ", name, " (", dur_ns, "ns) id=", span_id);
+
+            // Walk every row, recurse if parent matches.
+            let total = len(self.rows);
+            let mut cursor = 0;
+            while cursor < total {
+                let rel = std::str::index_of(self.rows[cursor..total], "\n");
+                let mut line_end = total;
+                if rel >= 0 {
+                    line_end = cursor + rel;
+                }
+                let child_row = self.rows[cursor..line_end];
+                let child_parent = rows.nth_field(child_row, 1);
+                if child_parent == span_id {
+                    let child_id = rows.nth_field(child_row, 0);
+                    self.__print_subtree(child_id, depth + 1);
+                }
+                if rel < 0 {
+                    cursor = total;
+                } else {
+                    cursor = line_end + 1;
+                }
+            }
+        }
+    }
+
+    fn __find_row(target_id: String) -> String {
+        let total = len(self.rows);
+        if total == 0 {
+            return "";
+        }
+        let needle = target_id + "\t";
+        let needle_len = len(needle);
+        let mut cursor = 0;
+        while cursor < total {
+            let rel = std::str::index_of(self.rows[cursor..total], "\n");
+            let mut line_end = total;
+            if rel >= 0 {
+                line_end = cursor + rel;
+            }
+            let line_len = line_end - cursor;
+            if line_len >= needle_len {
+                let head = self.rows[cursor..(cursor + needle_len)];
+                if head == needle {
+                    return self.rows[cursor..line_end];
+                }
+            }
+            if rel < 0 {
+                return "";
+            }
+            cursor = line_end + 1;
+        }
+        return "";
+    }
+}
+
+// __row_field — moved to pond/_util/rowbuf (`RowBuf.nth_field`).
+// Call sites use the `rb` alias imported at the top of this file.
+
+locus TraceTreeDemo {
+    params {
+        service_name: String = "trace-tree-demo";
+    }
+
+    run() {
+        // 1) Subscriber first — bus ordering rule per AGENTS.md.
+        let sink = SpanSink { };
+
+        // 2) Tracer second.
+        let tr = trace::Tracer {
+            service_name: self.service_name,
+        };
+
+        // 3) Outer span (root — empty parent id).
+        let outer = tr.start_span("request.handle", trace::SpanId { id: "" });
+        tr.add_attr(outer, "http.method", "GET");
+        tr.add_attr(outer, "http.path", "/widgets");
+
+        // 4) Nested inner span (parent = outer.id).
+        let inner = tr.start_span("db.query", outer);
+        tr.add_attr(inner, "db.statement", "SELECT * FROM widgets");
+        // Pretend the query took a moment.
+        std::time::sleep(1ms);
+        tr.end_span(inner);
+
+        // 5) Close the outer span last so the publish order
+        //    matches the natural depth-first dissolve order.
+        tr.end_span(outer);
+
+        // 6) Dump the tree.
+        sink.dump();
+
+        // Sanity check: we should have observed exactly 2 spans
+        // (outer + inner). EXPECTED_SPANS would normally live as
+        // a const, but cross-seed `const` lookups have known
+        // resolution gaps at v1; inlined per FRICTION.md.
+        if sink.count != 2 {
+            println("FAIL: expected 2 spans, got ", to_string(sink.count));
+            std::process::exit(1);
+        }
+        println("trace-tree: OK");
+    }
+}
+
+fn main() {
+    TraceTreeDemo { };
+}

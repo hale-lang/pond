@@ -1,0 +1,128 @@
+// query.hl — the SQL surface (exec / query / prepare-bind-step).
+//
+// Pattern 6 (free fns). Per AGENTS.md's two-channel rule, locus
+// methods cannot declare `fallible(E)`, and every SQL call has a
+// natural fallible mode (syntax error, busy, constraint, ...) —
+// so the surface lives here as free fns taking a `Db` ref rather
+// than as methods on `Db`. Call sites read `db::exec(conn, sql)`
+// instead of `conn.exec(sql)`; functionally equivalent.
+//
+// **Deviation from CONTRACTS.md (also called out in db.hl and
+// FRICTION.md)**: the contract lists these as locus methods on
+// Db; that shape is type-illegal under the two-channel rule. The
+// free-fn translation is the closest legal shape and the
+// suggested CONTRACTS.md amendment.
+//
+// Status (2026-05-16): BLOCKED on a stdlib sqlite primitive
+// (proposed: `std::db::sqlite::{open, exec, prepare, bind_text,
+// bind_int, step, column_text, finalize, close}` — see
+// FRICTION.md for the full surface proposal). Every body in this
+// file returns a sentinel zero-value plus an
+//   fail DbError { kind: "unsupported", ... }
+// for the fallible paths, so callers' `or raise` / `or handler`
+// disposition still typechecks. Once the stdlib primitive lands
+// the bodies replace the stubs one-for-one.
+
+// db::exec — run a non-query statement (INSERT / UPDATE / DELETE
+// / DDL). Returns rows_affected + last_insert_rowid.
+//
+// Once unblocked:
+//     let rc = std::db::sqlite::exec(db.conn_handle, sql) or raise;
+//     return ExecResult {
+//         rows_affected:     std::db::sqlite::changes(db.conn_handle),
+//         last_insert_rowid: std::db::sqlite::last_insert_rowid(db.conn_handle),
+//     };
+fn exec(db: Db, sql: String) -> ExecResult fallible(DbError) {
+    // TODO: needs stdlib sqlite primitive
+    fail DbError {
+        kind:        "unsupported",
+        sqlite_code: 0,
+        detail:      "pond/sqlite: stdlib sqlite primitive not yet shipped (db::exec stub)",
+    };
+}
+
+// db::query_one — run a SELECT, return the first row's columns as
+// tab-separated `Row.data`. Fails with kind="no_row" when the
+// statement produced zero rows (so callers don't get a silent
+// empty string back).
+fn query_one(db: Db, sql: String) -> Row fallible(DbError) {
+    // TODO: needs stdlib sqlite primitive
+    //   let stmt = std::db::sqlite::prepare(db.conn_handle, sql) or raise;
+    //   let rc   = std::db::sqlite::step(stmt) or raise;
+    //   if rc != SQLITE_ROW { fail DbError { kind: "no_row", ... }; }
+    //   let cols = collect_tab_separated_columns(stmt);
+    //   std::db::sqlite::finalize(stmt) or raise;
+    //   return Row { data: cols };
+    fail DbError {
+        kind:        "unsupported",
+        sqlite_code: 0,
+        detail:      "pond/sqlite: stdlib sqlite primitive not yet shipped (db::query_one stub)",
+    };
+}
+
+// db::query_all — run a SELECT, return every row as newline-
+// separated rows of tab-separated columns. Empty result set is a
+// successful return with `Rows.csv == ""` (no rows is not an
+// error — distinct from query_one's "no_row" fail).
+fn query_all(db: Db, sql: String) -> Rows fallible(DbError) {
+    // TODO: needs stdlib sqlite primitive
+    //   let stmt = std::db::sqlite::prepare(db.conn_handle, sql) or raise;
+    //   let mut out = "";
+    //   loop step-until-SQLITE_DONE: accumulate tab-joined columns
+    //                                separated by "\n";
+    //   std::db::sqlite::finalize(stmt) or raise;
+    //   return Rows { csv: out };
+    fail DbError {
+        kind:        "unsupported",
+        sqlite_code: 0,
+        detail:      "pond/sqlite: stdlib sqlite primitive not yet shipped (db::query_all stub)",
+    };
+}
+
+// db::prepare — compile a SQL statement, return the stmt handle.
+// The handle is a private Int; callers pass it to bind_* / step /
+// finalize. Once unblocked the handle is the address of the
+// underlying `sqlite3_stmt*`.
+fn prepare(db: Db, sql: String) -> Int fallible(DbError) {
+    // TODO: needs stdlib sqlite primitive
+    //   return std::db::sqlite::prepare(db.conn_handle, sql) or raise;
+    fail DbError {
+        kind:        "unsupported",
+        sqlite_code: 0,
+        detail:      "pond/sqlite: stdlib sqlite primitive not yet shipped (db::prepare stub)",
+    };
+}
+
+// NOTE: `bind_text` and `bind_int` live on the Db locus as methods
+// (see db.hl), not as free fns. Codegen v0 can't lower a non-
+// fallible cross-seed path call in expression position (FRICTION.md
+// § F.6), and the unit-fallible (`() fallible(E)`) shape spec'd in
+// CONTRACTS.md hits a separate codegen-v0 limitation (FRICTION.md
+// § F.5). Method dispatch on imported loci IS lowered by codegen,
+// which is why bind_*/finalize live there. Call sites:
+//     let rc = conn.bind_text(stmt, 1, "hello");
+//     if rc != 0 { /* error */ }
+
+// db::step — advance a prepared statement one row.
+//
+// Returns the row's columns as tab-separated `Row.data`. Once
+// unblocked the body branches on SQLITE_ROW vs SQLITE_DONE:
+// SQLITE_ROW returns the row, SQLITE_DONE fails with
+// kind="no_row" so the caller's loop terminates on a check rather
+// than a sentinel. Errors (SQLITE_BUSY, SQLITE_ERROR, ...) fail
+// with the matching kind + sqlite_code.
+fn step(stmt: Int) -> Row fallible(DbError) {
+    // TODO: needs stdlib sqlite primitive
+    //   let rc = std::db::sqlite::step(stmt) or raise;
+    //   if rc == SQLITE_DONE { fail DbError { kind: "no_row", ... }; }
+    //   return Row { data: collect_tab_separated_columns(stmt) };
+    fail DbError {
+        kind:        "unsupported",
+        sqlite_code: 0,
+        detail:      "pond/sqlite: stdlib sqlite primitive not yet shipped (db::step stub)",
+    };
+}
+
+// NOTE: `finalize` lives on the Db locus as a method (see db.hl),
+// not as a free fn. Same codegen-v0 reasoning as bind_text /
+// bind_int — see FRICTION.md § F.5 / § F.6.

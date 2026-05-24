@@ -1,0 +1,33 @@
+// pond/jobs — public interface.
+//
+// Per CONTRACTS.md the public surface declares one structural
+// interface:
+//
+//   interface JobHandler { fn invoke(j: Job) -> JobResult; }
+//
+// Per spec/types.md § F.20, satisfaction is implicit — any
+// locus whose method set covers this signature structurally
+// satisfies the interface.
+//
+// **Deviation from CONTRACTS.md (logged in FRICTION.md):** the
+// contract sketches `Pool.params { ... handler: JobHandler }` —
+// an interface value stored in a locus param. Per
+// spec/types.md § F.20 Phase B (2026-05-11): "Returning an
+// interface value from a fn, storing one in a locus param/field,
+// or putting interfaces in arrays/tuples is not yet supported."
+// The v1 implementation accepts a fn-pointer shadow instead:
+//
+//   locus Pool {
+//       params { ..., handler: fn(Job) -> JobResult = default_handler; }
+//   }
+//
+// This mirrors `pond/router/`'s Route/MwEntry fn-pointer-shadow
+// pattern (see pond/router/interfaces.hl). The interface is
+// declared here for forward-compatibility — once interface values
+// can sit in locus fields, the Pool's `handler` param will accept
+// a `JobHandler` directly and the fn-pointer shadow goes away
+// with no source change at the call site.
+
+interface JobHandler {
+    fn invoke(j: Job) -> JobResult;
+}

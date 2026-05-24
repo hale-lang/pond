@@ -1,0 +1,99 @@
+// pond/supervisor/examples/one-for-one — one_for_one isolation demo.
+//
+// Demonstrates the canonical Erlang OTP claim: under one_for_one,
+// when one child crashes, only that child is restarted; siblings
+// keep running untouched.
+//
+// Shape (under the suggested `sup` alias; vendored consumers
+// import via `vendor/pond/supervisor`):
+//
+//   import "vendor/pond/supervisor" as sup;
+//
+// In-tree the example reaches the lib via a relative path.
+//
+// What this example proves:
+//
+//   1. Two child workers ("good" and "bad") are registered with
+//      a Supervisor configured with strategy=one_for_one.
+//   2. The bad worker's `fail_on_birth` flag is set true, so its
+//      birth() fires the inline `failed` closure on first
+//      invocation. The runtime synthesizes a ClosureViolation
+//      and routes to the Supervisor's on_failure handler.
+//   3. The supervisor's one_for_one branch calls restart(bad).
+//      The runtime re-runs bad's birth(), which fires the
+//      closure again. The runtime's cap-2 restart budget bounds
+//      this; after the cap is hit, the violation falls through
+//      to the supervisor's on_failure absorb path.
+//   4. The good worker is *never* touched — its birth() runs
+//      exactly once, its run()'s "still alive" print fires
+//      exactly once.
+//
+// The "only the bad one was restarted" check is observable on
+// stdout: the count of "Worker.birth name=bad" lines is > 1, the
+// count of "Worker.birth name=good" lines is exactly 1, and the
+// count of "Worker.run name=good" lines is exactly 1.
+//
+// What this example does NOT cover (out of scope for one_for_one):
+//
+//   - Sibling cross-restart (one_for_all / rest_for_one). The
+//     library's supervisor.hl stubs those strategies and routes
+//     them to one_for_one with a friction note; see
+//     ../../FRICTION.md.
+//   - Application-driven (non-birth) failures. Worker.fail(reason)
+//     is the canonical hook for "value error → structural failure"
+//     bridging; the supervision routing is identical.
+
+import "../.." as sup;
+
+fn main() {
+    SupervisedApp { };
+}
+
+// SupervisedApp — outer App locus (catalog pattern #1). Owns the
+// supervisor as a let-bound child; the supervisor's run() does the
+// actual worker instantiation via self.spawn_worker so the workers
+// become children of the supervisor (not of SupervisedApp).
+locus SupervisedApp {
+    run() {
+        // The supervisor's run() body (declared in the library)
+        // is empty by design — the user wires per-app worker
+        // instantiation by writing a wrapping locus that calls
+        // supervisor.spawn_worker from inside the wrapper's own
+        // method body, then triggers the supervisor's run by
+        // statement-position-instantiating the wrapper.
+        //
+        // For this demo the supervisor doesn't need a custom
+        // run(); the App's run drives spawn_worker directly via
+        // a let-bound supervisor handle. Because spawn_worker
+        // instantiates Worker INSIDE the supervisor's own method
+        // body, the workers attach to the supervisor (accept(c:
+        // Worker) fires on the supervisor) — even though the
+        // method call originates from SupervisedApp's frame.
+
+        let s = sup::Supervisor {
+            strategy: sup::SupStrategy { kind: "one_for_one" },
+        };
+
+        // Register the per-child restart policies before
+        // spawning the workers, so on_failure's lookup hits.
+        // Both are "permanent" — restart on every failure
+        // (subject to the strategy and the intensity gate).
+        s.add_child(sup::ChildSpec { name: "good", policy: "permanent" }, "good");
+        s.add_child(sup::ChildSpec { name: "bad",  policy: "permanent" }, "bad");
+
+        // Spawn the good worker — fail_on_birth=false, lives.
+        s.spawn_worker("good", "echo", "hello", false);
+
+        // Spawn the bad worker — fail_on_birth=true. The first
+        // birth() prints, sets last_error, and violates `failed`.
+        // The supervisor's on_failure picks the one_for_one branch
+        // and calls restart(c). The runtime re-runs birth on the
+        // same memory; the new birth() does the same thing. The
+        // runtime's per-locus restart cap (2) bounds the loop;
+        // after the cap is hit the violation falls through and
+        // the supervisor absorbs.
+        s.spawn_worker("bad", "broken", "oops", true);
+
+        println("--- SupervisedApp.run done ---");
+    }
+}

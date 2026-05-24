@@ -1,0 +1,23 @@
+# Helix language configuration for Hale.
+#
+# Copy these two blocks into your ~/.config/helix/languages.toml
+# (creating it if needed), then:
+#
+#   hx --grammar fetch
+#   hx --grammar build
+#
+# See README.md for the full integration story.
+
+[[language]]
+name = "hale"
+scope = "source.hale"
+file-types = ["hl"]
+roots = []
+comment-tokens = ["//"]
+block-comment-tokens = { start = "/*", end = "*/" }
+indent = { tab-width = 4, unit = "    " }
+auto-format = false
+
+[[grammar]]
+name = "hale"
+source = { git = "https://github.com/hale-lang/pond", subpath = "heron", rev = "main" }

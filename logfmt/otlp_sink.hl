@@ -1,0 +1,342 @@
+// pond/logfmt — OtlpSink (STUB at v1).
+//
+// Service locus (catalog pattern 3): subscribes to "log.**", batches
+// events, and (when fully wired) POSTs each batch to an OTLP/HTTP
+// endpoint as `application/json`. Same `write/line/newline` surface
+// as FileSink so the locus structurally satisfies `std::text::Sink`
+// — drop-in alternative for any sink position.
+//
+// STATUS — STUB. The transport call to pond/http/client is currently
+// commented out because Hale v1's no-transitive-import rule means a
+// downstream importer of pond/logfmt would have to also vendor +
+// import pond/http/client, OR every reference to `http::*` types
+// inside this file fails to resolve at the importer's build site
+// (`unsupported in codegen v0: qualified type http::HttpError not in
+// stdlib path-renames table`). Until the import surface lifts that
+// limit — or a workload pushes the assignment to require
+// http-vendoring — the OTLP transport is left as a documented gap.
+//
+// What's wired regardless of the gap:
+//   - bus subscription on "log.**" — events still arrive
+//   - in-memory batching into pending_buf + pending_count
+//   - OTLP/JSON payload assembly via std::json::Builder
+//   - severity-number mapping (level → OTLP severity)
+//   - `pending_payload()` accessor returning the rendered JSON
+//     so callers can inspect / forward the batch externally
+//
+// What's stubbed:
+//   - the actual HTTP POST. `__post_batch` clears the buffer and
+//     records `last_kind = "transport_stub"` so a caller can see
+//     a batch was assembled but not shipped.
+//
+// To re-enable the transport (once the import rule is relaxed OR
+// the consumer is willing to vendor http alongside logfmt):
+//   1. uncomment the `import "../http/client" as http;` line below
+//   2. replace `__post_batch`'s stub body with the
+//      `http::post(...)` call shown in the comment
+//   3. add an `__handle_http(e: http::HttpError) -> http::Response`
+//      capture method (template in the comment block at end of file)
+//
+// See FRICTION.md `otlp-transport-stubbed`.
+//
+// Wire shape (OTLP/HTTP JSON, simplified). The full OTLP schema
+// nests `resourceLogs[].scopeLogs[].logRecords[]`; for v1 we emit
+// the minimum a permissive collector accepts:
+//
+//   {
+//     "resourceLogs": [{
+//       "resource": { "attributes": [
+//         {"key": "service.name", "value": {"stringValue": "..."}}
+//       ]},
+//       "scopeLogs": [{
+//         "logRecords": [
+//           {"severityNumber": N, "severityText": "INFO",
+//            "body": {"stringValue": "..."},
+//            "attributes": [{"key":"log.path","value":{"stringValue":"..."}}]},
+//           ...
+//         ]
+//       }]
+//     }]
+//   }
+//
+// Severity mapping (std::log level → OTLP severityNumber):
+//   1 INFO  → 9
+//   2 WARN  → 13
+//   3 ERROR → 17
+//   4 DEBUG → 5
+//   5 TRACE → 1
+
+// import "../http/client" as http;   // re-enable once consumers vendor it
+
+locus OtlpSink {
+    params {
+        endpoint: String = "";
+        service_name: String = "hale-app";
+        batch_size: Int = 32;
+
+        // Internal batch buffer — newline-separated "level\tpath\tmsg"
+        // rows. Cleared after each flush attempt.
+        pending_buf: String = "";
+        pending_count: Int = 0;
+
+        // Cumulative batches assembled so far. Useful for tests
+        // verifying the batching cadence under the stub.
+        batches_assembled: Int = 0;
+
+        // Last-error scratch — captures the transport failure
+        // (or, at v1, the "transport_stub" pseudo-error every
+        // flush emits). Same shape as logfmt::FileSink and
+        // pond/http/client::Client.
+        last_kind: String = "";
+        last_status: Int = 0;
+        last_detail: String = "";
+    }
+
+    bus {
+        subscribe "log.**" as on_event of type std::log::LogEvent;
+    }
+
+    // ----- std::text::Sink-shape methods -----
+    //
+    // For raw text, each call enqueues one synthetic event at
+    // INFO severity (level=1). `write` / `line` differ only in
+    // semantic intent (consistent with stdlib StdoutSink).
+
+    fn write(s: String) {
+        self.__enqueue(1, "logfmt.text", s);
+    }
+
+    fn line(s: String) {
+        self.__enqueue(1, "logfmt.text", s);
+    }
+
+    fn newline() {
+        self.__enqueue(1, "logfmt.text", "");
+    }
+
+    // ----- Log-event subscriber -----
+
+    fn on_event(e: std::log::LogEvent) {
+        self.__enqueue(e.level, e.path, e.msg);
+    }
+
+    // ----- Explicit flush -----
+
+    fn flush() {
+        if self.pending_count == 0 {
+            return;
+        }
+        self.__post_batch();
+    }
+
+    // ----- Accessors -----
+
+    fn last_error_kind() -> String { return self.last_kind; }
+    fn last_error_status() -> Int { return self.last_status; }
+    fn last_error_detail() -> String { return self.last_detail; }
+    fn pending_event_count() -> Int { return self.pending_count; }
+    fn batches_count() -> Int { return self.batches_assembled; }
+
+    // Render the current pending batch as the OTLP/JSON payload
+    // that *would* be POSTed. Exposed as a stub-era affordance:
+    // a caller wiring up its own transport can pull the payload
+    // out and ship it via whatever HTTP surface it has on hand.
+    fn pending_payload() -> String {
+        return self.__render_payload();
+    }
+
+    // ----- Lifecycle -----
+
+    dissolve() {
+        // Best-effort: drain any pending batch on the way out.
+        self.flush();
+    }
+
+    // ----- Internal helpers -----
+
+    fn __enqueue(level: Int, path: String, msg: String) {
+        let row = to_string(level) + "\t" + path + "\t" + msg + "\n";
+        self.pending_buf = self.pending_buf + row;
+        self.pending_count = self.pending_count + 1;
+        if self.pending_count >= self.batch_size {
+            self.__post_batch();
+        }
+    }
+
+    // STUB version. Real version (commented at end of file)
+    // would call `http::post` and capture the result. At v1 we
+    // assemble the payload (verifies the JSON builder path),
+    // tick the batches counter, and record a transport-stub
+    // marker in last_*.
+    //
+    // The pending buffer clears either way — the batch is
+    // "released" from the locus's perspective.
+    fn __post_batch() {
+        let _payload = self.__render_payload();
+        self.batches_assembled = self.batches_assembled + 1;
+        self.last_kind = "transport_stub";
+        self.last_status = 0;
+        self.last_detail = "OtlpSink: http transport not wired at v1; see FRICTION.md";
+        self.pending_buf = "";
+        self.pending_count = 0;
+    }
+
+    // Translate the pending_buf into an OTLP/JSON string.
+    // Uses std::json::Builder for the outer structure; per-row
+    // user strings flow through Builder's string_value /
+    // string_field which escape internally.
+    fn __render_payload() -> String {
+        let b = std::json::Builder { };
+        b.begin_object();
+
+        b.begin_array_field("resourceLogs");
+        b.begin_object();
+
+        // resource.attributes (service.name only at v1)
+        b.begin_object_field("resource");
+        b.begin_array_field("attributes");
+        b.begin_object();
+        b.string_field("key", "service.name");
+        b.begin_object_field("value");
+        b.string_field("stringValue", self.service_name);
+        b.end_object();
+        b.end_object();
+        b.end_array();
+        b.end_object();
+
+        // scopeLogs[0].logRecords[]
+        b.begin_array_field("scopeLogs");
+        b.begin_object();
+        b.begin_array_field("logRecords");
+        self.__emit_log_records(b);
+        b.end_array();
+        b.end_object();
+        b.end_array();
+
+        b.end_object();
+        b.end_array();
+
+        b.end_object();
+        return b.result();
+    }
+
+    // Emit one logRecord per pending row.
+    //
+    // Pending format: "level\tpath\tmsg\n" repeated. We walk by
+    // finding each newline boundary; per-row, we split on '\t'
+    // (twice: level then path).
+    fn __emit_log_records(b: std::json::Builder) {
+        let buf = self.pending_buf;
+        let total = len(buf);
+        let mut i = 0;
+        while i < total {
+            let rest = buf[i..total];
+            let nl = std::str::index_of(rest, "\n");
+            if nl < 0 {
+                let tail_row = buf[i..total];
+                self.__emit_one(b, tail_row);
+                i = total;
+            } else {
+                let row_end = i + nl;
+                let row = buf[i..row_end];
+                self.__emit_one(b, row);
+                i = row_end + 1;
+            }
+        }
+    }
+
+    fn __emit_one(b: std::json::Builder, row: String) {
+        let row_len = len(row);
+        if row_len == 0 {
+            return;
+        }
+        let t1 = std::str::index_of(row, "\t");
+        if t1 < 0 { return; }
+        let level_str = row[0..t1];
+        let after_level = row[(t1 + 1)..row_len];
+        let after_len = len(after_level);
+        let t2 = std::str::index_of(after_level, "\t");
+        if t2 < 0 { return; }
+        let path = after_level[0..t2];
+        let msg = after_level[(t2 + 1)..after_len];
+
+        let level = std::str::parse_int(level_str) or 1;
+        let sev_num = self.__severity_number(level);
+        let sev_text = self.__severity_text(level);
+
+        b.begin_object();
+        b.int_field("severityNumber", sev_num);
+        b.string_field("severityText", sev_text);
+        b.begin_object_field("body");
+        b.string_field("stringValue", msg);
+        b.end_object();
+        b.begin_array_field("attributes");
+        b.begin_object();
+        b.string_field("key", "log.path");
+        b.begin_object_field("value");
+        b.string_field("stringValue", path);
+        b.end_object();
+        b.end_object();
+        b.end_array();
+        b.end_object();
+    }
+
+    fn __severity_number(level: Int) -> Int {
+        if level == 1 { return 9; }   // INFO
+        if level == 2 { return 13; }  // WARN
+        if level == 3 { return 17; }  // ERROR
+        if level == 4 { return 5; }   // DEBUG
+        if level == 5 { return 1; }   // TRACE
+        return 0;
+    }
+
+    fn __severity_text(level: Int) -> String {
+        if level == 1 { return "INFO"; }
+        if level == 2 { return "WARN"; }
+        if level == 3 { return "ERROR"; }
+        if level == 4 { return "DEBUG"; }
+        if level == 5 { return "TRACE"; }
+        return "UNSPECIFIED";
+    }
+}
+
+// ===== Re-enabling the http transport =====
+//
+// When pond/logfmt's consumer is willing to also vendor + import
+// pond/http/client (the v1 no-transitive-import rule requires this),
+// swap `__post_batch` for the body below and add the
+// `__handle_http` capture method. The stub-marker `last_kind =
+// "transport_stub"` goes away; real HTTP errors land in last_*.
+//
+// import "../http/client" as http;          // top of file
+//
+// fn __post_batch() {
+//     let body_str = self.__render_payload();
+//     let body = std::bytes::from_string(body_str);
+//     let resp = http::post(self.endpoint, body, "application/json")
+//         or self.__handle_http(err);
+//     self.batches_assembled = self.batches_assembled + 1;
+//     if self.last_kind != "" {
+//         self.pending_buf = "";
+//         self.pending_count = 0;
+//         return;
+//     }
+//     if resp.status < 200 || resp.status >= 300 {
+//         self.last_kind = "non_2xx";
+//         self.last_status = resp.status;
+//         self.last_detail = "OTLP collector rejected batch";
+//     }
+//     self.pending_buf = "";
+//     self.pending_count = 0;
+// }
+//
+// fn __handle_http(e: http::HttpError) -> http::Response {
+//     self.last_kind = e.kind;
+//     self.last_status = e.status;
+//     self.last_detail = e.detail;
+//     return http::Response {
+//         status: 0,
+//         headers: "",
+//         body: std::bytes::from_string("")
+//     };
+// }

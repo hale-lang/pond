@@ -1,0 +1,34 @@
+// pond/router — public interfaces.
+//
+// Per CONTRACTS.md the public surface declares two structural
+// interfaces:
+//
+//   interface Handler    { fn handle(ctx: Context) -> Response; }
+//   interface Middleware { fn before(ctx: Context) -> Context;
+//                          fn after(ctx: Context, resp: Response) -> Response; }
+//
+// Per spec/types.md § F.20, satisfaction is implicit — any
+// locus whose method set covers these signatures structurally
+// satisfies the interface. The Router locus itself satisfies
+// `std::http::Handler` (note: stdlib's Handler, not this one)
+// because its `fn handle(req: Request) -> Response` matches
+// the std::http::Handler signature — that's what lets a
+// consumer pass `router` straight to `std::http::Server`.
+//
+// Post-G20 (2026-05-18), interface values sit directly in the
+// Router's @form(vec) storage cells (HandlerList, MwList in
+// lists.hl). The Router's add() and use_mw() methods accept
+// these interface-typed values by name and route them through
+// the synthesized .push() — locus → interface coercion fires
+// at the push arg site per F.20 Phase B. Consumers write a
+// small handler / middleware locus per route (Pattern 3-ish)
+// and pass the locus value at register time.
+
+interface Handler {
+    fn handle(ctx: Context) -> Response;
+}
+
+interface Middleware {
+    fn before(ctx: Context) -> Context;
+    fn after(ctx: Context, resp: Response) -> Response;
+}

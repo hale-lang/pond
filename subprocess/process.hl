@@ -1,0 +1,218 @@
+// pond/subprocess — Process locus (long-lived streaming child)
+//
+// CONTRACTS.md declares:
+//
+//   locus Process {
+//       params { cmd, args, cwd, pid: Int = -1; }
+//       bus { publish StdoutLine; publish StderrLine; publish ProcessExit; }
+//       fn send_stdin(b: Bytes) -> () fallible(SpawnError);
+//       fn signal(sig: Int) -> () fallible(SpawnError);
+//       fn wait() -> ExitStatus fallible(SpawnError);
+//   }
+//
+// Contract deviation (logged in FRICTION.md, duplicate-suspected:
+// all CONTRACTS.md "X locus method -> T fallible(E)" entries
+// trip the same rule): per spec/semantics.md § Fallible call
+// semantics, **user-declared locus methods may not declare
+// fallible(E)** — that channel is reserved for free fns and
+// @form-synthesized methods so that locus-structural failures
+// flow through the closure-violation channel instead. The
+// methods below match the contract's argument shape and return
+// type but drop the `fallible(SpawnError)` marker; failures
+// surface via:
+//
+//   - `self.last_error: SpawnError` — readable after every call;
+//     `kind == ""` means success.
+//   - `violate fatal_io;` — the error-check-fn pattern from
+//     spec/styleguide.md § 7 (the structural channel) for
+//     unrecoverable failures that should drain the locus and
+//     escalate to the parent's on_failure.
+//
+// Status (2026-05-18): bodies now wire through to the
+// `std::process::spawn` / `wait` / `kill` / `write_stdin` /
+// `read_stdout` / `read_stderr` primitives that shipped
+// 2026-05-17. `birth()` spawns the child and stashes the
+// returned `Child` handle on self.child; `dissolve()` lets
+// the held Child's own dissolve() drive the TERM→100ms→KILL
+// reap escalation (no manual signal plumbing needed).
+//
+// `run()` is intentionally a no-op placeholder: the contract
+// names StdoutLine/StderrLine streaming publishes but a real
+// line-by-line drain loop wants non-blocking I/O + a yield
+// point that pond doesn't expose yet. The send_stdin / signal
+// / wait surface is fully functional; the StdoutLine/StderrLine
+// pub/sub streaming side is documented as gap in FRICTION.md
+// and remains as future work.
+
+locus Process {
+    params {
+        cmd:        String;
+        args:       String    = "";
+        cwd:        String    = "";
+        pid:        Int       = -1;
+        last_error: SpawnError;
+        // Held Child handle from std::process::spawn. Its own
+        // dissolve() reaps the child (TERM → 100ms → KILL); we
+        // declare it as a param so the m82 deferred-dissolve
+        // frame chains its cleanup after Process's dissolve.
+        child:      std::process::Child;
+    }
+    bus {
+        // Publish by topic ident — the topic decls in topics.hl
+        // carry the wire subjects. Upstream A1 (`f9068fa`) closed
+        // the mangle-rewrite gap that previously forced literal-
+        // subject publishes here.
+        publish StdoutLine;
+        publish StderrLine;
+        publish ProcessExit;
+    }
+
+    // Captures last_error into the violation payload so the
+    // parent's on_failure handler can read .kind / .detail /
+    // .errno via the child handle.
+    closure fatal_io { captures: last_error, pid; epoch inline; }
+
+    birth() {
+        // Spawn the child via std::process::spawn. cwd is a
+        // documented no-op (no upstream chdir hook yet); the
+        // child inherits the parent's working directory.
+        let argv = argv_blob(self.cmd, self.args);
+        self.child = std::process::spawn(argv) or self.bridge_spawn(err);
+        if self.last_error.kind == "" {
+            self.pid = self.child.pid;
+        }
+    }
+
+    run() {
+        // No-op at v1. The StdoutLine/StderrLine streaming
+        // shape wants a polling loop with non-blocking reads
+        // and yield points; revisit when those primitives land.
+        // Placeholder so the body isn't empty (empty bodies
+        // parse-fail per spec/styleguide.md § Current language
+        // gaps).
+        let _ = self.pid;
+    }
+
+    dissolve() {
+        // The held std::process::Child handle has its own
+        // dissolve() (TERM→100ms→KILL→reap); m82 deferred-
+        // dissolve chaining runs it after Process's dissolve.
+        // Placeholder so the body isn't empty.
+        let _ = self.pid;
+    }
+
+    // send_stdin — write bytes to the child's stdin pipe.
+    // Per the two-channel rule the locus method itself can't
+    // declare fallible(SpawnError); inspect self.last_error
+    // after the call to distinguish success from failure.
+    fn send_stdin(b: Bytes) {
+        if self.pid <= 0 {
+            self.last_error = SpawnError {
+                kind:   "spawn_failed",
+                detail: "send_stdin: child never spawned",
+                errno:  0,
+            };
+            return;
+        }
+        let s = std::str::from_bytes(b);
+        let _ = std::process::write_stdin(self.child, s)
+            or self.bridge_write(err);
+    }
+
+    // signal — request the child terminate. The upstream
+    // `std::process::kill` runs a fixed SIGTERM → 100ms grace
+    // → SIGKILL escalation; the `sig` argument is therefore
+    // currently ignored (documented no-op — see FRICTION.md).
+    // Same error-surface convention as send_stdin.
+    fn signal(sig: Int) {
+        let _ = sig;
+        if self.pid <= 0 {
+            self.last_error = SpawnError {
+                kind:   "spawn_failed",
+                detail: "signal: child never spawned",
+                errno:  0,
+            };
+            return;
+        }
+        std::process::kill(self.child) or discard;
+    }
+
+    // wait — block until the child exits and return the
+    // ExitStatus. Returns the sentinel ExitStatus { code: -1,
+    // signaled: false, signal: 0 } on failure; check
+    // self.last_error.kind for the failure reason.
+    fn wait() -> ExitStatus {
+        if self.pid <= 0 {
+            self.last_error = SpawnError {
+                kind:   "spawn_failed",
+                detail: "wait: child never spawned",
+                errno:  0,
+            };
+            return ExitStatus { code: -1, signaled: false, signal: 0 };
+        }
+        let code = std::process::wait(self.child) or self.bridge_wait(err);
+        if self.last_error.kind != "" {
+            return ExitStatus { code: -1, signaled: false, signal: 0 };
+        }
+        let st = ExitStatus {
+            code:     code,
+            signaled: code < 0,
+            signal:   0,
+        };
+        // Publish the one-shot exit notification. Subscribers
+        // wire via `subscribe sub::ProcessExit as on_exit;`.
+        ProcessExit <- st;
+        return st;
+    }
+
+    // handle_io — error-check fn (spec/styleguide.md § 7) the
+    // implementation routes fallible internal helpers through
+    // for failures the host wants to escalate to its on_failure.
+    // Sets last_error and violates fatal_io when the failure
+    // is unrecoverable (kind="spawn_failed" or "killed").
+    fn handle_io(e: SpawnError) -> Int {
+        self.last_error = e;
+        if e.kind == "spawn_failed" || e.kind == "killed" {
+            violate fatal_io;
+        }
+        return -1;
+    }
+
+    // bridge_spawn — error-check fn for the birth() spawn call.
+    // Records the IoError-derived SpawnError on last_error and
+    // returns a sentinel Child the codegen can stash on
+    // self.child without crashing (pid: -1 sentinel signals
+    // "never spawned" to the rest of the surface).
+    fn bridge_spawn(e: IoError) -> std::process::Child {
+        self.last_error = SpawnError {
+            kind:   "spawn_failed",
+            detail: e.kind + ": " + e.path,
+            errno:  e.errno,
+        };
+        return std::process::Child { };
+    }
+
+    // bridge_write — error-check fn for write_stdin. Returns
+    // a 0 byte-count substitute so the caller's `let _ = ...`
+    // pattern type-checks; the failure is captured on
+    // last_error.
+    fn bridge_write(e: IoError) -> Int {
+        self.last_error = SpawnError {
+            kind:   "io",
+            detail: e.kind + ": " + e.path,
+            errno:  e.errno,
+        };
+        return 0;
+    }
+
+    // bridge_wait — error-check fn for std::process::wait.
+    // Returns a 0 exit-code substitute; failure on last_error.
+    fn bridge_wait(e: IoError) -> Int {
+        self.last_error = SpawnError {
+            kind:   "io",
+            detail: e.kind + ": " + e.path,
+            errno:  e.errno,
+        };
+        return 0;
+    }
+}

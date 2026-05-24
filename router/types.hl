@@ -1,0 +1,66 @@
+// pond/router — shape types.
+//
+// Pattern 5 (shape types, pure data, no flow). Per CONTRACTS.md
+// the public surface declares two types:
+//
+//   type RouteParams { qs: String; path_kv: String; }
+//   type Context     { req: Request; params: RouteParams; }
+//
+// `qs` is the raw query string with the leading `?` stripped
+// ("a=1&b=2"). `path_kv` is a tab-separated alternating key/
+// value list of path captures extracted by the pattern matcher
+// ("id\t42\tslug\thello"). Both representations are flat
+// Strings because v1 has no Map<K,V>; the free fns
+// `path_param` / `query_param` (params.hl) walk them on lookup.
+// Lookup is O(N) per call, which is fine — typical routes have
+// < 5 path params and < 10 query params, so the constant beats
+// any structured-map overhead.
+//
+// `Context` bundles the parsed request with the matcher's
+// captures so middleware + handlers see a single object.
+// `req` is the std::http::Request as parsed by std::http;
+// `params` carries the per-request capture state. Both fields
+// stay value-shaped (no locus refs) so a Context can be passed
+// freely between fns and through interface vtable calls.
+
+type RouteParams {
+    qs:      String = "";
+    path_kv: String = "";
+}
+
+// Context is the per-request bundle threaded through the
+// middleware chain and into the matched handler. The contract
+// names a single `req: Request` field, but at v1 user `type`
+// records can't carry path-qualified stdlib types as fields —
+// the codegen pass A0 order (user types first, stdlib types
+// appended) means `std::http::Request` isn't registered yet
+// when this declaration is lowered. See FRICTION.md
+// "context-req-field" for the workaround: we flatten the
+// Request's user-readable fields into Context directly, which
+// preserves the read-only access pattern (`ctx.method`,
+// `ctx.path`, `ctx.headers`, `ctx.body`) without the storage-
+// layer block.
+type Context {
+    method:  String;
+    path:    String;
+    headers: String;
+    body:    String;
+    params:  RouteParams;
+}
+
+// Response — pond/router's local Response shape.
+//
+// Same fields as `std::http::Response` (status / content_type
+// / body); declared locally because user `type` records can't
+// carry path-qualified stdlib types in field positions at v1
+// (see FRICTION.md "context-req-field" / "response-in-fn-ptr-
+// field" for the codegen-pass-A0 ordering gap). The Router
+// converts a router::Response into a std::http::Response at
+// the std::http::Server boundary; handler authors write the
+// router type. The two shapes are field-equal so the
+// conversion is one struct-literal at the boundary.
+type Response {
+    status:       Int    = 200;
+    content_type: String = "text/plain";
+    body:         String = "";
+}

@@ -1,0 +1,352 @@
+// pond/supervisor — Supervisor locus
+
+import "../_util/duration_int" as durint;
+
+//
+// Erlang OTP-style supervision tree on top of Hale's built-in
+// on_failure + recovery primitives (spec/runtime.md § Recovery
+// primitives, F.9 Collapse vs explosion).
+//
+// CONTRACTS.md declares:
+//
+//   locus Supervisor {
+//       params { strategy: SupStrategy; max_restarts: Int = 3;
+//                window_seconds: Int = 60; }
+//       fn add_child(spec: ChildSpec, child: LocusRef) -> ();
+//       // on_failure machinery routes through the strategy
+//   }
+//
+// Contract deviations (logged in FRICTION.md):
+//
+//   1. `child: LocusRef` is not a user-typeable parameter in v1 —
+//      LocusRef is the C-ABI shape used internally for `self.children`
+//      iteration and recovery-op args. The Hale-shape equivalent
+//      is "instantiate the child inside the Supervisor's run() so
+//      accept() registers it." add_child here records ONLY the
+//      ChildSpec keyed by name; the child itself joins via the
+//      normal accept(c: Worker) lifecycle.
+//
+//   2. Single accept type per F.11 — Supervisor accepts the
+//      provided `Worker` locus (see worker.hl). Heterogeneous
+//      child types require waiting on v1.x multi-accept syntax.
+//
+//   3. `for c in self.children { restart(c); }` (the natural
+//      one_for_all body) is untested in the v1 fixture set; the
+//      strategy branch attempts it and falls back to bubble() with
+//      a friction note if the runtime rejects iter-then-restart.
+//
+// Pattern: Service locus (catalog #3) — full lifecycle wires up
+// the spec table on birth, accept registers children, on_failure
+// dispatches per strategy, drain/dissolve flush counters cleanly.
+
+locus Supervisor {
+    params {
+        // Strategy — applied uniformly on every child failure unless
+        // a ChildSpec's `restart` field downgrades the response
+        // (e.g. "temporary" never restarts even under one_for_one).
+        strategy: SupStrategy;
+
+        // max_restarts / window_seconds — Erlang-style intensity gate.
+        // If more than `max_restarts` child failures occur within
+        // `window_seconds`, the supervisor itself escalates via
+        // bubble(err) instead of continuing to restart. Defaults
+        // (3 in 60s) match Erlang OTP's traditional MaxR/MaxT.
+        max_restarts:   Int = 3;
+        window_seconds: Int = 60;
+
+        // Internal restart-window bookkeeping. Initialized in birth();
+        // updated on every on_failure entry.
+        //
+        //   restart_count    — failures since window_start_ns
+        //   window_start_ns  — monotonic timestamp of the current
+        //                      window's first failure. 0 = no window
+        //                      open yet.
+        //   children_seen    — running counter; used both as the next
+        //                      birth_order to assign in accept() and
+        //                      as a hint for "did rest_for_one have
+        //                      any later siblings to restart."
+        //   spec_count       — number of ChildSpec entries recorded
+        //                      via add_child().
+        //   spec_names       — newline-separated names of recorded
+        //                      ChildSpecs; index matches spec_restarts.
+        //   spec_restarts    — newline-separated restart policies
+        //                      ("permanent" / "transient" / "temporary"),
+        //                      one per line, parallel to spec_names.
+        restart_count:    Int    = 0;
+        window_start_ns:  Int    = 0;
+        children_seen:    Int    = 0;
+        spec_count:       Int    = 0;
+        spec_names:       String = "";
+        spec_restarts:    String = "";
+    }
+
+    birth() {
+        // The supervisor is ready to receive accept()/add_child()
+        // calls immediately. Window bookkeeping initializes lazily
+        // — the first failure populates window_start_ns rather
+        // than birth() pinning a start time the supervisor may
+        // never use.
+        let _ = self.strategy.kind;
+    }
+
+    // accept(c: Worker) — the substrate-level child registration.
+    // Per F.11 child registration runs before the Worker is added to
+    // self.children. We only bump a sibling counter here; per-child
+    // birth_order assignment is deferred until v1 supports
+    // cross-locus field writes from accept() (currently the codegen
+    // rejects non-self field assignment targets; see
+    // pond/KNOWN_GOTCHAS.md). rest_for_one's "later siblings"
+    // calculation is friction-tagged in FRICTION.md as a result.
+    accept(c: Worker) {
+        let _ = c.name;
+        self.children_seen = self.children_seen + 1;
+    }
+
+    // add_child(spec, child_name) — record the per-child restart
+    // policy. Per the deviation note above, the `child: LocusRef`
+    // contract slot is replaced by a String name; the actual child
+    // joins via the accept(c: Worker) path, typically through
+    // self.spawn_worker(...) below so the literal sits inside the
+    // supervisor's own method body (the F.11 "child registers under
+    // the enclosing locus" rule). Call add_child BEFORE
+    // spawn_worker so on_failure can look up the policy by matching
+    // child.name against spec_names.
+    //
+    // Spec table is a pair of newline-separated strings rather than
+    // a @form(hashmap) because v1's hashmap form pins value-shape
+    // sizing per declaration and the supervisor seed should stay
+    // dependency-free (one .hl seed, no @form annotations on the
+    // primary locus). Newline-string append is O(N) per add_child;
+    // policy lookup is O(N) per failure. For supervisor child
+    // counts in the typical Erlang range (single-digit to low
+    // hundreds) this is negligible.
+    fn add_child(spec: ChildSpec, child_name: String) {
+        let _ = child_name;
+        if self.spec_count == 0 {
+            self.spec_names    = spec.name;
+            self.spec_restarts = spec.policy;
+        } else {
+            self.spec_names    = self.spec_names    + "\n" + spec.name;
+            self.spec_restarts = self.spec_restarts + "\n" + spec.policy;
+        }
+        self.spec_count = self.spec_count + 1;
+    }
+
+    // spawn_worker(name, kind, payload, fail_on_birth) — instantiate
+    // a Worker child INSIDE the supervisor's own method body. Per
+    // spec/semantics.md § "Locus instantiation", the literal sits in
+    // the supervisor's lifecycle/method scope, so accept(c: Worker)
+    // fires and the child joins self.children. The child's region
+    // is sub-allocated from the supervisor's arena (F.22 slot-0
+    // parent-override for rich-class parents); when the supervisor
+    // dissolves, the child arena frees wholesale.
+    //
+    // Returns nothing — the spawn shape is fire-and-attach. The
+    // supervisor tracks the child via self.children + the spec
+    // table. Recovery routing (restart / bubble) happens from
+    // on_failure with the child handle the runtime passes in.
+    //
+    // The trailing fail_on_birth flag is a test-and-demo hook that
+    // gives deterministic "this child will violate on its first
+    // birth" behavior; production callers leave it false and route
+    // real failures through Worker.fail(reason).
+    fn spawn_worker(name: String, kind: String, payload: String,
+                    fail_on_birth: Bool) {
+        Worker {
+            name:          name,
+            kind:          kind,
+            payload:       payload,
+            fail_on_birth: fail_on_birth,
+        };
+    }
+
+    // lookup_restart(name) — find a child's restart policy in the
+    // spec table. Returns "permanent" if the child wasn't registered
+    // (matches the Erlang default for unregistered children, which
+    // is the safe restart-everything posture).
+    fn lookup_restart(child_name: String) -> String {
+        if self.spec_count == 0 {
+            return "permanent";
+        }
+        // Walk spec_names / spec_restarts in lockstep. Lines are
+        // separated by '\n'; each list has exactly spec_count entries.
+        let mut name_start: Int = 0;
+        let mut rest_start: Int = 0;
+        let mut i: Int = 0;
+        let names = self.spec_names;
+        let rests = self.spec_restarts;
+        let n_len = len(names);
+        let r_len = len(rests);
+        while i < self.spec_count {
+            let mut name_end = name_start;
+            while name_end < n_len && names[name_end..name_end+1] != "\n" {
+                name_end = name_end + 1;
+            }
+            let mut rest_end = rest_start;
+            while rest_end < r_len && rests[rest_end..rest_end+1] != "\n" {
+                rest_end = rest_end + 1;
+            }
+            let this_name = names[name_start..name_end];
+            if this_name == child_name {
+                return rests[rest_start..rest_end];
+            }
+            name_start = name_end + 1;
+            rest_start = rest_end + 1;
+            i = i + 1;
+        }
+        return "permanent";
+    }
+
+    // intensity_check — Erlang-style restart-intensity gate.
+    // Returns true if a restart is permitted under the current window;
+    // false if the window's restart_count would exceed max_restarts,
+    // in which case the supervisor should bubble() rather than
+    // restart again.
+    //
+    // Semantics:
+    //   - If no window is open (window_start_ns == 0) or the current
+    //     monotonic time is more than window_seconds past window_start,
+    //     open a fresh window starting now and count this failure
+    //     as the first.
+    //   - Otherwise increment the existing window's count and compare
+    //     to max_restarts.
+    fn intensity_check() -> Bool {
+        // `std::time::monotonic()` returns Duration (i64 ns). v1
+        // codegen rejects mixed Duration/Int arithmetic, and
+        // there is no `Int(d: Duration)` conversion (see
+        // pond/sessions/FRICTION.md "Duration → Int conversion").
+        // We use the stringify-and-parse workaround the sessions
+        // lib also relies on: to_string(Duration) formats as
+        // "<n>ns"; strip the trailing "ns" and parse back to Int.
+        let di      = durint::DurationInt { };
+        let now_sec = di.now_seconds();
+        if self.window_start_ns == 0 || (now_sec - self.window_start_ns) > self.window_seconds {
+            // Fresh window — open it at the current second and
+            // count this failure as the first.
+            self.window_start_ns = now_sec;
+            self.restart_count = 1;
+            return true;
+        }
+        self.restart_count = self.restart_count + 1;
+        if self.restart_count > self.max_restarts {
+            return false;
+        }
+        return true;
+    }
+
+    // on_failure(c: Worker, err: ClosureViolation) — the strategy
+    // dispatcher. Per spec/semantics.md § "Recovery primitives" and
+    // F.9 § "Recovery primitives interact", this body chooses one of
+    // restart / restart_in_place / bubble / (absorb) per the strategy
+    // kind and the child's ChildSpec.
+    //
+    // ChildSpec.restart filters the response BEFORE the strategy:
+    //   "temporary"  — never restart; absorb (return without action).
+    //   "transient"  — only restart on ClosureViolation. Since
+    //                  on_failure for v1 ONLY runs on ClosureViolation
+    //                  (clean dissolves never invoke on_failure per
+    //                  F.11), this currently equals "permanent". The
+    //                  branch is documented and tagged TODO for the
+    //                  day Hale adds a clean-exit failure type.
+    //   "permanent"  — restart per strategy (default).
+    //
+    // Then the strategy kind:
+    //   "one_for_one"  — restart(c).
+    //   "rest_for_one" — restart(c); the runtime cap-2 also limits
+    //                    siblings restartability per spec/semantics.md
+    //                    § restart(). TODO: needs sibling iter; see
+    //                    FRICTION.md.
+    //   "one_for_all"  — restart every child via self.children iter.
+    //                    TODO: needs verified runtime support for
+    //                    restart(c) where c flows from self.children;
+    //                    see FRICTION.md.
+    //   "escalate"     — bubble(err) immediately.
+    //
+    // Intensity gate: if the current window's restart_count exceeds
+    // max_restarts, bubble(err) regardless of strategy.
+    on_failure(c: Worker, err: ClosureViolation) {
+        let policy = self.lookup_restart(c.name);
+
+        // ChildSpec filter: "temporary" never restarts; absorb.
+        // Recovery primitives are statement-level (per
+        // spec/grammar.ebnf § 14); skipping all of them is the
+        // absorb action. `return` is forbidden inside on_failure
+        // bodies (lifecycle methods reject return per
+        // spec/styleguide.md § Current language gaps), so we
+        // chain the cases through if/else.
+        if policy == "temporary" {
+            println("supervisor: child=", c.name,
+                    " policy=temporary; absorbing closure=", err.closure);
+        } else {
+            if !self.intensity_check() {
+                println("supervisor: intensity exceeded (",
+                        self.restart_count, " > ", self.max_restarts,
+                        " in ", self.window_seconds, "s) — bubbling");
+                bubble(err);
+            } else {
+                self.route_by_strategy(c, err);
+            }
+        }
+    }
+
+    // route_by_strategy — chained if/else dispatch on strategy.kind.
+    // Factored out of on_failure so the lifecycle-body return ban
+    // doesn't force every branch through a cascading if/else tower.
+    // Each branch fires its recovery primitive (or absorbs); no
+    // explicit return is required because `restart()` / `bubble()`
+    // are divergent at the language level (Never type).
+    fn route_by_strategy(c: Worker, err: ClosureViolation) {
+        let kind = self.strategy.kind;
+
+        if kind == "escalate" {
+            println("supervisor: strategy=escalate; bubbling closure=",
+                    err.closure, " from child=", c.name);
+            bubble(err);
+        } else {
+            if kind == "one_for_one" {
+                println("supervisor: one_for_one restart child=", c.name,
+                        " (last_error=", c.last_error, ")");
+                restart(c);
+            } else {
+                if kind == "rest_for_one" {
+                    // TODO: needs sibling iteration that supports
+                    // recovery ops on each child (untested in v1
+                    // fixtures). For now we restart only the failed
+                    // child; the spec is documented and exercised by
+                    // example/one-for-one. See FRICTION.md.
+                    println("supervisor: rest_for_one (degraded — restarting only c=",
+                            c.name, "); see FRICTION.md");
+                    restart(c);
+                } else {
+                    if kind == "one_for_all" {
+                        // TODO: needs `for sib in self.children {
+                        // restart(sib); }` — untested in v1 fixture
+                        // set. Degraded to one_for_one semantics with
+                        // a friction note. See FRICTION.md.
+                        println("supervisor: one_for_all (degraded — restarting only c=",
+                                c.name, "); see FRICTION.md");
+                        restart(c);
+                    } else {
+                        // Unknown strategy.kind — defensive default:
+                        // bubble so the problem surfaces rather than
+                        // silently absorbing.
+                        println("supervisor: unknown strategy kind=", kind,
+                                "; bubbling");
+                        bubble(err);
+                    }
+                }
+            }
+        }
+    }
+
+    dissolve() {
+        // No external resources to release — children drain via the
+        // F.4 depth-first cascade before the supervisor's dissolve
+        // runs; the spec table is just two Strings in the arena.
+        let _ = self.spec_count;
+    }
+}
+
+// The Duration → whole-seconds shim (formerly `__mono_seconds`)
+// now lives in pond/_util/duration_int. The restart-window
+// arithmetic above calls `durint::DurationInt.now_seconds()`.

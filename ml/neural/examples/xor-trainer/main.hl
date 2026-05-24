@@ -1,0 +1,180 @@
+// xor-trainer — toy 2-3-1 MLP learning the XOR truth table.
+//
+// The canonical "tiny but nontrivial" NN problem: XOR is the
+// smallest function a single-layer perceptron CANNOT learn, so
+// any working MLP trainer must reproduce it. The minimal valid
+// topology is 2-2-1 (two hidden + one output sigmoid unit) but
+// it's notoriously init-sensitive — most random initializations
+// fall into a local-minimum plateau at loss ~0.15 (3-of-4
+// corners correct). 2-3-1 trains reliably across seeds in a
+// few thousand epochs and is what this demo uses. See
+// FRICTION.md "xor-2-2-1-init-sensitive".
+//
+// Wiring:
+//   - Construct a Model and add two dense layers (2 -> 3 -> 1).
+//   - Construct a TrainLogger subscriber (so it's born before
+//     Trainer fires its first publish — AGENTS.md publisher /
+//     subscriber order rule).
+//   - Build the (xs, ys) training matrices (4x2, 4x1).
+//   - Construct a Trainer with lr=0.5 and call fit(model, xs, ys, 5000).
+//   - After training, run model.forward on each of the four
+//     inputs and check that round(out) matches the truth table.
+//
+// Compose: pond/math/matrix (Matrix + Mat factories),
+// pond/ml/neural (Layer / Model / Trainer / NnError / TrainStep).
+
+import "../../../../math/matrix" as mat;
+import "../.." as nn;
+
+// TrainLogger — subscribes to the lib's TrainStepEvent topic and
+// prints every 500 epochs so the console output stays readable
+// but progress is visible. Cross-seed subscribe by qualified
+// topic ident; upstream A1 + A7 (`f9068fa`) closed the gaps that
+// previously forced the literal-string + `of type T` workaround.
+locus TrainLogger {
+    params { last_loss: Float = 0.0; printed_any: Bool = false; }
+    bus {
+        subscribe nn::TrainStepEvent as on_step;
+    }
+    fn on_step(s: nn::TrainStep) {
+        self.last_loss = s.loss;
+        // Print every 500 epochs + the very first.
+        let e = s.epoch_idx;
+        if e == 1 || e == 500 || e == 1000 || e == 2000 || e == 3000
+            || e == 4000 || e == 5000 {
+            println("[xor]   epoch=", to_string(e),
+                    " loss=", to_string(s.loss));
+            self.printed_any = true;
+        }
+    }
+}
+
+fn assert_lt_float(label: String, value: Float, threshold: Float) {
+    if value < threshold {
+        println("ok   ", label, " ", to_string(value), " < ",
+                to_string(threshold));
+    } else {
+        println("FAIL ", label, " ", to_string(value), " >= ",
+                to_string(threshold));
+    }
+}
+
+fn assert_eq_int(label: String, got: Int, want: Int) {
+    if got == want {
+        println("ok   ", label, " = ", to_string(got));
+    } else {
+        println("FAIL ", label, " got=", to_string(got),
+                " want=", to_string(want));
+    }
+}
+
+// Round a sigmoid output to a 0/1 class label by thresholding at
+// 0.5. The trained network's outputs settle within a few
+// thousandths of 0 or 1 on the four XOR corners.
+fn predict_label(model: nn::Model, x: mat::Matrix) -> Int {
+    let out = model.forward(x);
+    let p = out.get(0) or 0.0;
+    if p >= 0.5 {
+        return 1;
+    }
+    return 0;
+}
+
+locus XorDemo {
+    run() {
+        let mx = mat::Mat { };
+
+        // The four XOR rows:
+        //   (0, 0) -> 0
+        //   (0, 1) -> 1
+        //   (1, 0) -> 1
+        //   (1, 1) -> 0
+        let xs = mx.from_rows(4, 2, "0.0,0.0, 0.0,1.0, 1.0,0.0, 1.0,1.0");
+        let ys = mx.from_rows(4, 1, "0.0, 1.0, 1.0, 0.0");
+
+        // 2-2-1 MLP with sigmoid throughout. rng_state=7 seeds
+        // a reproducible weight init so the demo's loss is
+        // identical across runs.
+        let model = nn::Model {
+            name:       "xor",
+            last_error: nn::NnError { },
+            rng_state:  42,
+        };
+        // 2-3-1 with a 3-neuron hidden layer escapes the
+        // local-minimum failure mode that 2-2-1 sigmoid nets
+        // hit with most initializations (see FRICTION.md
+        // "xor-2-2-1-init-sensitive"). 2-3-1 trains reliably
+        // across seeds in a few thousand epochs.
+        model.add_dense(2, 3, "sigmoid");
+        model.add_dense(3, 1, "sigmoid");
+
+        // Subscribers MUST be born before publishers fire.
+        let logger = TrainLogger { };
+
+        let trainer = nn::Trainer {
+            lr:         0.5,
+            batch_size: 4,
+            last_error: nn::NnError { },
+        };
+
+        println("[xor] training 2-3-1 MLP for 5000 epochs ...");
+        trainer.fit(model, xs, ys, 5000);
+
+        // Check the trainer didn't surface an error.
+        if trainer.last_error.kind != "" {
+            println("FAIL trainer.last_error.kind = ", trainer.last_error.kind);
+            println("     detail = ", trainer.last_error.detail);
+        } else {
+            println("ok   trainer.last_error empty");
+        }
+
+        // Final loss should be small.
+        assert_lt_float("final loss", logger.last_loss, 0.05);
+
+        // Verify the truth table on the four corners.
+        let x00 = mx.from_rows(2, 1, "0.0, 0.0");
+        let x01 = mx.from_rows(2, 1, "0.0, 1.0");
+        let x10 = mx.from_rows(2, 1, "1.0, 0.0");
+        let x11 = mx.from_rows(2, 1, "1.0, 1.0");
+
+        assert_eq_int("XOR(0,0)", predict_label(model, x00), 0);
+        assert_eq_int("XOR(0,1)", predict_label(model, x01), 1);
+        assert_eq_int("XOR(1,0)", predict_label(model, x10), 1);
+        assert_eq_int("XOR(1,1)", predict_label(model, x11), 0);
+
+        // Dump raw outputs so the demo body shows the
+        // continuous-valued sigmoid responses for the visual reader.
+        println("[xor] sigmoid outputs:");
+        let p00 = model.forward(x00);
+        let p01 = model.forward(x01);
+        let p10 = model.forward(x10);
+        let p11 = model.forward(x11);
+        println("  f(0,0) = ", to_string(p00.get(0) or 0.0));
+        println("  f(0,1) = ", to_string(p01.get(0) or 0.0));
+        println("  f(1,0) = ", to_string(p10.get(0) or 0.0));
+        println("  f(1,1) = ", to_string(p11.get(0) or 0.0));
+
+        // state-mirroring surface round-trip: snapshot the trained model, then
+        // apply_delta into a fresh model and confirm it predicts
+        // identically.
+        let snap = model.snapshot_bytes();
+        let copy = nn::Model {
+            name:       "xor_copy",
+            last_error: nn::NnError { },
+        };
+        copy.apply_delta(snap);
+        if copy.last_error.kind != "" {
+            println("FAIL copy.apply_delta last_error = ", copy.last_error.kind);
+        } else {
+            println("ok   snapshot round-trip clean");
+        }
+        assert_eq_int("copy XOR(0,1)", predict_label(copy, x01), 1);
+        assert_eq_int("copy XOR(1,1)", predict_label(copy, x11), 0);
+
+        println("[xor] xor-trainer demo complete");
+    }
+}
+
+fn main() {
+    XorDemo { };
+}

@@ -1,0 +1,72 @@
+// pond/tower — Multi-tower app interfaces.
+//
+// A multi-tower app is a binary running multiple
+// independent locus trees ("towers") under one process.
+// Each tower handles its own concern — HTTP serving,
+// metrics endpoint, market-data ingest, job pool, etc.
+// The app composes them.
+//
+// This file declares the shared interfaces every
+// tower-shape locus targets.
+
+// Tower — the shared identity surface every tower
+// exposes. The locus's name is *caller-defined* (a
+// param on the locus, not a hardcoded library string),
+// so two instances of the same tower type can coexist
+// with distinct identities — e.g. one Router named
+// "public" on :8080 and a second Router named "admin"
+// on :9090.
+//
+// Tower-shape library authors satisfy by exposing the
+// param via a one-line method:
+//
+//   locus Router {
+//       params { name: String; port: Int; }
+//       fn name() -> String { return self.name; }
+//   }
+//
+// The locus's own arena and lifecycle are independent
+// from pond/tower — Tower is purely an identity seam.
+// Anything that needs to introspect "which tower is
+// this" can take a Tower value as a fn parameter and
+// dispatch through F.20.
+
+interface Tower {
+    fn name() -> String;
+}
+
+// TowerBuilder — the deferred-init shape.
+//
+// A builder captures construction config in its own
+// params and produces the actual tower when `build()`
+// is called. This lets a list of "towers to start"
+// be carried as data — a registry or supervisor can
+// hold an `@form(vec) of TowerBuilder`, then invoke
+// each builder's `build()` at the right moment in its
+// own lifecycle.
+//
+// Library authors who ship a builder export it
+// alongside the tower locus:
+//
+//   locus RouterBuilder {
+//       params { name: String; port: Int; }
+//       fn build() -> Tower {
+//           return Router { name: self.name, port: self.port };
+//       }
+//   }
+//
+// Hale v1 has no closures-with-capture (v1.x-9
+// deferred). The builder pattern is the load-bearing
+// substitute: the builder *locus* is the carrier of
+// captured config; `build()` is the invocation point.
+//
+// Important lifecycle nuance: a tower instantiated
+// inside a builder's `build()` body has the builder
+// as its lexical construction site, so F.7 `accept(c)`
+// on any *enclosing* locus does NOT fire. Builders
+// produce towers as values, not as F.11 children.
+// Coordinate via the registry, not via accept.
+
+interface TowerBuilder {
+    fn build() -> Tower;
+}

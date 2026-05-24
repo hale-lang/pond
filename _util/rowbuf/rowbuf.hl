@@ -1,0 +1,146 @@
+// pond/_util/rowbuf -- tab+newline row buffer iteration.
+//
+// Consolidates the `__nth_field` / `__row_field` /
+// `__remove_row` family that surfaces with the same shape
+// across:
+//
+//   - pond/tracing::tracer.hl         (__nth_field, __remove_row)
+//   - pond/tracing/examples/trace-tree (__row_field)
+//   - pond/migrations                 (rowbuf iteration helpers)
+//
+// A "rowbuf" is a `\n`-delimited block where each row carries
+// tab-separated fields. The `Rows.csv` stdlib shape and a
+// number of pond libs use this representation; the helpers here
+// give a single place for the cursor-walk pattern.
+//
+// All callable surface lives on the `RowBuf` namespace lotus
+// (per pond/KNOWN_GOTCHAS.md G11).
+//
+// Consumers:
+//
+//     import "vendor/pond/_util/rowbuf" as rb;
+//     let rows = rb::RowBuf { };
+//     let field = rows.nth_field(row, 2);
+//     let updated = rows.remove_row(buf, "row_id_to_drop");
+
+locus RowBuf {
+    params { }
+
+    // nth_field(row, n) -- 0-indexed tab-separated field
+    // extraction. Strips a trailing `\n` from the last field
+    // (so callers can pass a `\n`-terminated row from a `\n`-
+    // delimited buffer without separate trimming). Returns ""
+    // if `n` is out of range or `row` is empty.
+    fn nth_field(row: String, n: Int) -> String {
+        let row_len = len(row);
+        if row_len == 0 {
+            return "";
+        }
+        let mut cursor = 0;
+        let mut idx    = 0;
+        while cursor <= row_len {
+            let rel = std::str::index_of(row[cursor..row_len], "\t");
+            let mut field_end = row_len;
+            if rel >= 0 {
+                field_end = cursor + rel;
+            }
+            if idx == n {
+                let mut piece = row[cursor..field_end];
+                let plen = len(piece);
+                if plen > 0 {
+                    let last = piece[(plen - 1)..plen];
+                    if last == "\n" {
+                        piece = piece[0..(plen - 1)];
+                    }
+                }
+                return piece;
+            }
+            if rel < 0 {
+                return "";
+            }
+            cursor = field_end + 1;
+            idx = idx + 1;
+        }
+        return "";
+    }
+
+    // remove_row(buf, target_first_field) -- return `buf` with
+    // the row whose first tab-separated field equals
+    // `target_first_field` removed. Rows are `\n`-delimited.
+    // Returns `buf` unchanged if no row matches.
+    fn remove_row(buf: String, target_first_field: String) -> String {
+        let total = len(buf);
+        if total <= 0 { return buf; }
+
+        let mut out    = "";
+        let mut cursor = 0;
+        while cursor < total {
+            let rest = buf[cursor..total];
+            let nl_rel = std::str::index_of(rest, "\n");
+            let mut row_end = total;
+            if nl_rel >= 0 {
+                row_end = cursor + nl_rel;
+            }
+            let row = buf[cursor..row_end];
+            let first = self.nth_field(row, 0);
+            if first != target_first_field {
+                out = out + row;
+                if nl_rel >= 0 {
+                    out = out + "\n";
+                }
+            }
+            if nl_rel < 0 {
+                cursor = total;
+            } else {
+                cursor = row_end + 1;
+            }
+        }
+        return out;
+    }
+
+    // row_count(buf) -- number of `\n`-delimited rows. A trailing
+    // newline does NOT inflate the count.
+    fn row_count(buf: String) -> Int {
+        let total = len(buf);
+        if total <= 0 { return 0; }
+        let mut n = 0;
+        let mut cursor = 0;
+        while cursor < total {
+            let rest = buf[cursor..total];
+            let nl_rel = std::str::index_of(rest, "\n");
+            if nl_rel < 0 {
+                // tail with no trailing \n still counts.
+                return n + 1;
+            }
+            n = n + 1;
+            cursor = cursor + nl_rel + 1;
+        }
+        return n;
+    }
+
+    // nth_row(buf, idx) -- 0-indexed `\n`-delimited row. Returns
+    // "" if `idx` is out of range. Trailing `\n` is stripped.
+    fn nth_row(buf: String, idx: Int) -> String {
+        let total = len(buf);
+        if total <= 0 { return ""; }
+        let mut cursor = 0;
+        let mut i = 0;
+        while cursor < total {
+            let rest = buf[cursor..total];
+            let nl_rel = std::str::index_of(rest, "\n");
+            let mut row_end = total;
+            if nl_rel >= 0 {
+                row_end = cursor + nl_rel;
+            }
+            if i == idx {
+                return buf[cursor..row_end];
+            }
+            if nl_rel < 0 {
+                return "";
+            }
+            cursor = row_end + 1;
+            i = i + 1;
+        }
+        return "";
+    }
+}

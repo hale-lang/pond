@@ -1,0 +1,844 @@
+// pond/metrics — Prometheus-format exposition.
+//
+// Single-file seed. Per `spec/stdlib.md § F.19` the per-
+// directory bundle model is symmetric whether the seed has one
+// `.hl` file or many; this lib ships one because the cross-
+// seed import codegen path (v1.x-IMPORT) tripped a
+// "unknown type name in signature" error when an importer
+// referenced an intra-library locus declared in a sibling file
+// of the imported seed. The bundling collapses every public
+// symbol into one file so the importer's mangler resolves
+// `metrics::Name` to `__lib_metrics_metrics_Name` consistently,
+// and the codegen sees every declaration before any signature
+// references it. See `FRICTION.md` for the underlying bug.
+//
+// Sections, in file order (typecheck is order-free per
+// AGENTS.md § Operational rules, but reading left-to-right
+// roughly mirrors the dependency graph):
+//   1. Imports
+//   2. Public shape types (Labels, MetricEntry, HistogramData)
+//   3. Storage substrate (MetricMap, HistogramList)
+//   4. Helper free fns (labels constructors, CSV serialization,
+//      Prometheus rendering)
+//   5. Registry locus
+//   6. Counter / Gauge / Histogram handle loci
+//   7. MetricsEndpoint locus (`std::http::Handler` impl)
+
+// ===== 1. Imports =====
+//
+// pond/math/matrix is the sibling lib carrying the `Matrix`
+// locus that `Registry.histogram(name, buckets, labels)`
+// accepts for bucket bounds. Suggested alias `mat` per
+// CONTRACTS.md.
+
+import "../math/matrix" as mat;
+
+
+// ===== 2. Public shape types =====
+//
+// Pure-data records — no lifecycle, no flow. Constructed via
+// struct literal at use sites; passed by value through methods
+// and free fns. Per pattern 5 (Shape type) in
+// `spec/styleguide.md`.
+
+// `Labels` — a serialized set of label key/value pairs.
+//
+// Stored as "k1=v1\tk2=v2\t..." (tab-separated, `=`-joined)
+// to match the cross-cutting CONTRACTS.md convention
+// ("Labels { kv: String; } // "k1=v1\tk2=v2""). Empty `kv`
+// ("") means no labels; consumers should construct via the
+// free-fn helpers (`labels_empty`, `labels_one`, `labels_two`)
+// so the empty-vs-populated branch is uniform.
+type Labels {
+    kv: String = "";
+}
+
+// `MetricEntry` — the cell shape stored in `MetricMap` (the
+// `@form(hashmap)` substrate inside Registry).
+//
+// Single struct shape covers all three metric kinds. The
+// `kind` field discriminates (0=counter, 1=gauge,
+// 2=histogram); `value` carries the live scalar; `hist_idx`
+// is the index into Registry's parallel `HistogramList` vec
+// for histograms (-1 for counter/gauge).
+//
+// `key` is the hashmap index: `name + "{" + labels.kv + "}"`.
+// Composite keying lets a single name carry multiple label-
+// disambiguated series (the standard Prometheus shape).
+//
+// Per `spec/forms.md § @form(hashmap)`, the cell type must be
+// a user-declared struct and the `indexed_by` field must
+// exist on it. Both hold (`key: String`).
+type MetricEntry {
+    key:      String = "";
+    name:     String = "";
+    labels:   String = "";
+    kind:     Int    = 0;
+    value:    Float  = 0.0;
+    hist_idx: Int    = -1;
+}
+
+// `HistogramData` — bucket bounds + cumulative counts + sum
+// + count for one histogram series. Lives as a cell in
+// Registry's `HistogramList` `@form(vec)`. The
+// `MetricEntry.hist_idx` field indexes into that vec.
+//
+// Bucket bounds and counts are serialized as tab-separated
+// strings rather than nested Matrix locus refs because
+// `@form(vec)` cells must be value-shapes (per
+// `spec/semantics.md § Slot restrictions (v1)` — slots reject
+// LocusRef cells). Bounds parse once at register time; counts
+// are read+modified+rewritten at every observe(). Slow but
+// straightforward; a per-iteration optimization can lift the
+// parse if hot-path histograms surface.
+//
+// `bounds_csv` carries the user-supplied bucket upper bounds
+// in ascending order, tab-separated. `counts_csv` is the
+// parallel cumulative counts array, one longer than bounds
+// (the trailing slot is the +Inf bucket per Prometheus
+// convention).
+type HistogramData {
+    name:       String = "";
+    labels:     String = "";
+    bounds_csv: String = "";
+    counts_csv: String = "";
+    sum:        Float  = 0.0;
+    count:      Int    = 0;
+}
+
+
+// ===== 3. Storage substrate (@form(...)) =====
+//
+// Both forms are application-layer storage substrate per
+// `spec/forms.md § Form-annotated loci as application-layer
+// storage substrate` — their synthesized methods carry
+// `fallible(KeyError)` / `fallible(IndexError)` which user-
+// declared locus methods elsewhere in the lib address via
+// `or` at the call site.
+
+@form(hashmap)
+locus MetricMap {
+    capacity { pool entries of MetricEntry indexed_by key; }
+}
+
+@form(vec)
+locus HistogramList {
+    capacity { heap items of HistogramData; }
+}
+
+
+// ===== 4. Helper free fns =====
+//
+// Pattern 6 helpers covering labels construction + CSV
+// serialization for histogram state + the Prometheus exposition
+// rendering primitives.
+
+// ----- labels constructors (bare free fns) -----
+//
+// Pre-A3 the cross-seed `path call X::Y in expression position`
+// rejection forced these onto a `Lab` namespace lotus. Upstream
+// `f9068fa` (A3) closed that gap; consumers call
+// `metrics::labels_one(...)` etc. directly. Naming follows the
+// CONTRACTS.md hint (`metrics::labels_*`).
+//
+// `metric_key` stays a private bare free fn because Registry
+// (intra-seed) reaches it directly; cross-seed consumers
+// shouldn't need it.
+
+fn labels_empty() -> Labels {
+    return Labels { kv: "" };
+}
+
+fn labels_one(k: String, v: String) -> Labels {
+    return Labels { kv: k + "=" + v };
+}
+
+fn labels_two(k1: String, v1: String, k2: String, v2: String) -> Labels {
+    return Labels { kv: k1 + "=" + v1 + "\t" + k2 + "=" + v2 };
+}
+
+fn labels_append(l: Labels, k: String, v: String) -> Labels {
+    if len(l.kv) == 0 {
+        return Labels { kv: k + "=" + v };
+    }
+    return Labels { kv: l.kv + "\t" + k + "=" + v };
+}
+
+// `metric_key(name, labels)` — composite hashmap key for one
+// metric series. The format `name{labels.kv}` mirrors the
+// Prometheus exposition shape closely enough that debug
+// printing the key is recognizable. Bare free fn; intra-seed
+// callers (Registry) reach it directly.
+fn metric_key(name: String, labels: Labels) -> String {
+    return name + "{" + labels.kv + "}";
+}
+
+// ----- bucket-bounds + counts serialization -----
+
+// `floats_to_csv(m)` — flatten a Matrix's elements (storage
+// order) into a tab-separated Float string. Used at histogram
+// register time to pack the bucket bounds into the
+// HistogramData cell (which can't hold a Matrix ref directly).
+fn floats_to_csv(m: mat::Matrix) -> String {
+    let n = m.len();
+    if n == 0 {
+        return "";
+    }
+    let mut out = "";
+    let mut i = 0;
+    while i < n {
+        let v = m.get(i) or 0.0;
+        if i == 0 {
+            out = to_string(v);
+        } else {
+            out = out + "\t" + to_string(v);
+        }
+        i = i + 1;
+    }
+    return out;
+}
+
+// `len_floats(s)` — count of tab-separated tokens in `s`.
+// Zero for empty. Shared between Float and Int CSV paths
+// (tokenization is identical).
+fn len_floats(s: String) -> Int {
+    let n = len(s);
+    if n == 0 {
+        return 0;
+    }
+    let mut count = 1;
+    let mut i = 0;
+    while i < n {
+        let ch = s[i..i + 1];
+        if ch == "\t" {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+// `nth_tab_token(s, i)` — the i-th tab-separated token in
+// `s`, 0-indexed. Returns "" on out-of-range.
+fn nth_tab_token(s: String, i: Int) -> String {
+    let n = len(s);
+    if n == 0 {
+        return "";
+    }
+    let mut idx = 0;
+    let mut start = 0;
+    let mut j = 0;
+    while j < n {
+        let ch = s[j..j + 1];
+        if ch == "\t" {
+            if idx == i {
+                return s[start..j];
+            }
+            idx = idx + 1;
+            start = j + 1;
+        }
+        j = j + 1;
+    }
+    if idx == i {
+        return s[start..n];
+    }
+    return "";
+}
+
+// `float_at(s, i)` — i-th Float token. Returns 0.0 on OOB or
+// parse failure (sentinel).
+fn float_at(s: String, i: Int) -> Float {
+    let tok = nth_tab_token(s, i);
+    return std::str::parse_float(tok) or 0.0;
+}
+
+// `int_at(s, i)` — i-th Int token. 0 on OOB.
+fn int_at(s: String, i: Int) -> Int {
+    let tok = nth_tab_token(s, i);
+    return std::str::parse_int(tok) or 0;
+}
+
+// `zero_counts_csv(n)` — build a tab-separated string of `n`
+// zero counts. Used at histogram-register time to seed the
+// cumulative-counts buffer with the right slot count.
+fn zero_counts_csv(n: Int) -> String {
+    if n <= 0 {
+        return "";
+    }
+    let mut out = "0";
+    let mut i = 1;
+    while i < n {
+        out = out + "\t0";
+        i = i + 1;
+    }
+    return out;
+}
+
+// `int_csv_inc_at(s, i)` — return a new CSV where token i is
+// incremented by 1; rest unchanged. Out-of-range is a no-op.
+fn int_csv_inc_at(s: String, i: Int) -> String {
+    let n = len_floats(s);
+    if i < 0 {
+        return s;
+    }
+    if i >= n {
+        return s;
+    }
+    let mut out = "";
+    let mut j = 0;
+    while j < n {
+        let cur = int_at(s, j);
+        let new_val = if j == i { cur + 1 } else { cur };
+        if j == 0 {
+            out = to_string(new_val);
+        } else {
+            out = out + "\t" + to_string(new_val);
+        }
+        j = j + 1;
+    }
+    return out;
+}
+
+// `count_out_of_order(s)` — count pairs where counts[i+1] <
+// counts[i] (cumulative-monotonicity invariant violation).
+// Zero for a well-formed cumulative-counts vector. The
+// Histogram locus's closure-monitored field tracks this.
+fn count_out_of_order(s: String) -> Int {
+    let n = len_floats(s);
+    if n <= 1 {
+        return 0;
+    }
+    let mut violations = 0;
+    let mut prev = int_at(s, 0);
+    let mut j = 1;
+    while j < n {
+        let cur = int_at(s, j);
+        if cur < prev {
+            violations = violations + 1;
+        }
+        prev = cur;
+        j = j + 1;
+    }
+    return violations;
+}
+
+// ----- Prometheus exposition rendering -----
+
+// `prom_full_name(ns, name)` — apply the namespace prefix.
+// Empty namespace yields the bare name; otherwise "ns_name".
+fn prom_full_name(ns: String, name: String) -> String {
+    if len(ns) == 0 {
+        return name;
+    }
+    return ns + "_" + name;
+}
+
+// `prom_escape_label_value(v)` — escape a label value per the
+// Prometheus text format. Three replacements (in order):
+// backslash → \\, double-quote → \", newline → \n.
+fn prom_escape_label_value(v: String) -> String {
+    let s1 = std::str::replace(v, "\\", "\\\\");
+    let s2 = std::str::replace(s1, "\"", "\\\"");
+    let s3 = std::str::replace(s2, "\n", "\\n");
+    return s3;
+}
+
+// `render_labels(kv)` — emit the `{k1="v1",k2="v2"}` block for
+// a Labels.kv tab-joined string. Returns "" for empty kv so the
+// metric line renders as `name 1.23` (no braces).
+fn render_labels(kv: String) -> String {
+    if len(kv) == 0 {
+        return "";
+    }
+    let mut out = "{";
+    let n = len_floats(kv);
+    let mut i = 0;
+    while i < n {
+        let pair = nth_tab_token(kv, i);
+        let eq = std::str::index_of(pair, "=");
+        if eq >= 0 {
+            let k = pair[0..eq];
+            let v = pair[(eq + 1)..len(pair)];
+            if i > 0 {
+                out = out + ",";
+            }
+            out = out + k + "=\"" + prom_escape_label_value(v) + "\"";
+        }
+        i = i + 1;
+    }
+    out = out + "}";
+    return out;
+}
+
+// `render_labels_with_le(kv, le)` — variant for histogram
+// bucket samples. Appends `le="<bound>"` (the Prometheus
+// bucket-edge label) to the existing label set. Empty kv
+// yields `{le="<bound>"}`.
+fn render_labels_with_le(kv: String, le: String) -> String {
+    let escaped_le = prom_escape_label_value(le);
+    if len(kv) == 0 {
+        return "{le=\"" + escaped_le + "\"}";
+    }
+    let base = render_labels(kv);
+    let baselen = len(base);
+    return base[0..baselen - 1] + ",le=\"" + escaped_le + "\"}";
+}
+
+// `render_type_line(ns, name, kind)` — the `# TYPE name kind\n`
+// header line per the Prometheus exposition spec.
+fn render_type_line(ns: String, name: String, kind: String) -> String {
+    return "# TYPE " + prom_full_name(ns, name) + " " + kind + "\n";
+}
+
+// `render_sample(ns, name, labels, value)` — one sample line:
+// `<full_name>{<labels>} <value>\n`.
+fn render_sample(ns: String, name: String, labels: String, value: Float) -> String {
+    let full = prom_full_name(ns, name);
+    let lab = render_labels(labels);
+    return full + lab + " " + to_string(value) + "\n";
+}
+
+// `render_histogram(ns, h)` — emit the bucket / sum / count
+// triple for one histogram series. Cumulative bucket counts
+// emit as `<name>_bucket{le="<bound>"} <count>` lines (plus
+// the `+Inf` bucket), then `<name>_sum` and `<name>_count`.
+// Per-bucket-line build via BytesBuilder. The previous `out = out
+// + ...` loop allocated a fresh String per line of output, with
+// the scratch peak growing N² as `out` accumulated. For a 10-
+// bucket histogram that was ~13 intermediate Strings per call;
+// per /metrics scrape with H histograms × 13 lines, the scratch
+// burst was big enough to occasionally overflow the chunk pool
+// and trickle into glibc [heap]. BytesBuilder grows by doubling
+// in place — one allocation amortized over all appends.
+// See docs/src/how-tos/keeping-memory-bounded.md.
+fn render_histogram(ns: String, h: HistogramData) -> String {
+    let full = prom_full_name(ns, h.name);
+    let nb = len_floats(h.bounds_csv);
+    let nc = len_floats(h.counts_csv);
+    let b = std::bytes::BytesBuilder { initial_cap: 1024 };
+    let mut i = 0;
+    while i < nb {
+        let bound = nth_tab_token(h.bounds_csv, i);
+        let cnt = int_at(h.counts_csv, i);
+        let lab = render_labels_with_le(h.labels, bound);
+        b.append(std::bytes::from_string(full + "_bucket" + lab + " " + to_string(cnt) + "\n"));
+        i = i + 1;
+    }
+    if nc > nb {
+        let inf_cnt = int_at(h.counts_csv, nb);
+        let lab_inf = render_labels_with_le(h.labels, "+Inf");
+        b.append(std::bytes::from_string(full + "_bucket" + lab_inf + " " + to_string(inf_cnt) + "\n"));
+    }
+    let lab_total = render_labels(h.labels);
+    b.append(std::bytes::from_string(full + "_sum"   + lab_total + " " + to_string(h.sum)   + "\n"));
+    b.append(std::bytes::from_string(full + "_count" + lab_total + " " + to_string(h.count) + "\n"));
+    return std::str::from_bytes(b.finish());
+}
+
+
+// ===== 5. Registry locus =====
+//
+// The single per-app metrics hub. Holds:
+//
+// - `store: MetricMap` — `@form(hashmap)` of MetricEntry cells.
+//   Owns the live scalar value for every counter / gauge and
+//   the discriminator + hist_idx for every histogram.
+// - `histograms: HistogramList` — `@form(vec)` of HistogramData
+//   cells (bucket bounds + cumulative counts + sum + count).
+//   Histogram entries in `store` carry their `hist_idx` here.
+//
+// Factory methods (`counter`, `gauge`, `histogram`)
+// idempotently register the metric and return a thin handle
+// locus carrying `(store, key, ...)`. Mutation routes through
+// the handle directly — the handle owns a reference to the
+// underlying `MetricMap` (not to Registry itself; see the
+// handle loci below for why).
+//
+// Pattern 3 — long-lived service-style locus, no birth/run
+// machinery required. Per AGENTS.md the two-channel rule
+// applies: locus methods are infallible. The
+// `@form(...)`-synthesized methods they invoke (`store.set`,
+// `store.get`, `histograms.push`, etc.) carry their own
+// `fallible(E)` returns that Registry addresses inline with
+// `or` clauses.
+//
+// `namespace`, when non-empty, is prefixed onto every emitted
+// metric name in render() (separated by "_"), matching the
+// Prometheus convention for app-level namespacing.
+//
+// Construct via two-step:
+//
+//     let store = metrics::MetricMap { };
+//     let hl    = metrics::HistogramList { };
+//     let reg   = metrics::Registry {
+//         namespace: "myapp",
+//         store: store,
+//         histograms: hl
+//     };
+//
+// The two `@form(...)`-typed fields are required (no default
+// initializer at v1; see FRICTION.md "default-init of locus-
+// typed param field is broken").
+
+locus Registry {
+    params {
+        namespace:  String        = "";
+        store:      MetricMap;
+        histograms: HistogramList;
+    }
+
+    // `counter(name, labels) -> Counter` — register-or-fetch a
+    // counter series. Idempotent: a second call with the same
+    // (name, labels) returns a handle pointing at the same
+    // entry without resetting the value.
+    fn counter(name: String, labels: Labels) -> Counter {
+        let k = metric_key(name, labels);
+        if !self.store.has(k) {
+            self.store.set(MetricEntry {
+                key:      k,
+                name:     name,
+                labels:   labels.kv,
+                kind:     0,
+                value:    0.0,
+                hist_idx: -1
+            });
+        }
+        return Counter { store: self.store, key: k };
+    }
+
+    // `gauge(name, labels) -> Gauge` — register-or-fetch a
+    // gauge series. Same idempotent shape as `counter()`.
+    fn gauge(name: String, labels: Labels) -> Gauge {
+        let k = metric_key(name, labels);
+        if !self.store.has(k) {
+            self.store.set(MetricEntry {
+                key:      k,
+                name:     name,
+                labels:   labels.kv,
+                kind:     1,
+                value:    0.0,
+                hist_idx: -1
+            });
+        }
+        return Gauge { store: self.store, key: k };
+    }
+
+    // `histogram(name, buckets, labels) -> Histogram` —
+    // register a histogram. `buckets` is a flat Matrix of
+    // bucket upper bounds in ascending order; the +Inf bucket
+    // is implicit (one extra count slot per Prometheus
+    // convention).
+    fn histogram(name: String, buckets: mat::Matrix, labels: Labels) -> Histogram {
+        let k = metric_key(name, labels);
+        if !self.store.has(k) {
+            let nb = buckets.len();
+            let bounds_csv = floats_to_csv(buckets);
+            let counts_csv = zero_counts_csv(nb + 1);
+            self.histograms.push(HistogramData {
+                name:       name,
+                labels:     labels.kv,
+                bounds_csv: bounds_csv,
+                counts_csv: counts_csv,
+                sum:        0.0,
+                count:      0
+            });
+            let new_idx = self.histograms.len() - 1;
+            self.store.set(MetricEntry {
+                key:      k,
+                name:     name,
+                labels:   labels.kv,
+                kind:     2,
+                value:    0.0,
+                hist_idx: new_idx
+            });
+        }
+        let e = self.store.get(k) or MetricEntry { };
+        return Histogram {
+            store:        self.store,
+            histograms:   self.histograms,
+            key:          k,
+            hist_idx:     e.hist_idx,
+            bucket_count: buckets.len()
+        };
+    }
+
+    // `render() -> String` — emit Prometheus text exposition
+    // format. Iterates store in hash-table order (deterministic
+    // per `spec/forms.md § @form(hashmap)` `key_at`). One
+    // `# TYPE` line per series, then one sample line; for
+    // histograms, the `_bucket` / `_sum` / `_count` triple
+    // with the per-bucket `le="..."` label.
+    // Exposition build via BytesBuilder. The previous `out = out
+    // + render_*(...)` loop forced the method-scratch arena to
+    // hold N intermediate Strings (one per metric line) before
+    // the final result returned -- with M metrics the scratch
+    // peak was O(M²) bytes. On hot binaries with many
+    // (symbol-labelled) series, that occasionally overflowed
+    // the chunk pool and the surplus chunks settled into glibc
+    // [heap], producing a slow stair-step in RSS even when
+    // every locus arena's residency was flat. See
+    // docs/src/how-tos/keeping-memory-bounded.md for the full
+    // shape + diagnostic workflow.
+    //
+    // BytesBuilder grows in place via doubling: one underlying
+    // buffer absorbs all appends, scratch peak collapses from
+    // O(M²) to O(M) bytes.
+    fn render() -> String {
+        let b = std::bytes::BytesBuilder { initial_cap: 8192 };
+        let n = self.store.len();
+        let mut i = 0;
+        while i < n {
+            let k = self.store.key_at(i) or "";
+            let e = self.store.get(k) or MetricEntry { };
+            if e.kind == 0 {
+                b.append(std::bytes::from_string(render_type_line(self.namespace, e.name, "counter")));
+                b.append(std::bytes::from_string(render_sample(self.namespace, e.name, e.labels, e.value)));
+            } else if e.kind == 1 {
+                b.append(std::bytes::from_string(render_type_line(self.namespace, e.name, "gauge")));
+                b.append(std::bytes::from_string(render_sample(self.namespace, e.name, e.labels, e.value)));
+            } else if e.kind == 2 {
+                b.append(std::bytes::from_string(render_type_line(self.namespace, e.name, "histogram")));
+                let h = self.histograms.get(e.hist_idx) or HistogramData { };
+                b.append(std::bytes::from_string(render_histogram(self.namespace, h)));
+            }
+            i = i + 1;
+        }
+        return std::str::from_bytes(b.finish());
+    }
+}
+
+
+// ===== 6. Counter / Gauge / Histogram handle loci =====
+//
+// Each handle is a thin proxy returned from Registry's
+// factories. The actual metric state lives in the `@form(...)`
+// substrate slots (`store: MetricMap` for counter+gauge+
+// histogram-meta cells, `histograms: HistogramList` for
+// per-histogram bucket / count state). The handle carries
+// direct references to those slots rather than to the
+// Registry itself — passing the wrapping Registry tripped a
+// codegen v0 issue where returning `Foo { reg: self, ... }`
+// from a method failed. Per-slot references work because
+// they're field-of-self reads (`self.store`), not bare `self`.
+//
+// Per AGENTS.md's two-channel rule, locus methods are
+// infallible. The substrate calls they invoke (`store.set`,
+// `histograms.set`, etc.) carry their own `fallible(E)`
+// returns that the handle bodies absorb inline via `or`
+// clauses. State changes that would constitute a structural
+// failure (e.g. monotonicity violation on histogram buckets)
+// route through the inline closure + `violate` channel.
+
+locus Counter {
+    params {
+        store: MetricMap;
+        key:   String = "";
+    }
+
+    fn inc() {
+        if self.store.has(self.key) {
+            let e = self.store.get(self.key) or MetricEntry { };
+            self.store.set(MetricEntry {
+                key:      e.key,
+                name:     e.name,
+                labels:   e.labels,
+                kind:     e.kind,
+                value:    e.value + 1.0,
+                hist_idx: e.hist_idx
+            });
+        }
+    }
+
+    fn add(v: Float) {
+        if self.store.has(self.key) {
+            let e = self.store.get(self.key) or MetricEntry { };
+            self.store.set(MetricEntry {
+                key:      e.key,
+                name:     e.name,
+                labels:   e.labels,
+                kind:     e.kind,
+                value:    e.value + v,
+                hist_idx: e.hist_idx
+            });
+        }
+    }
+}
+
+locus Gauge {
+    params {
+        store: MetricMap;
+        key:   String = "";
+    }
+
+    fn set(v: Float) {
+        if self.store.has(self.key) {
+            let e = self.store.get(self.key) or MetricEntry { };
+            self.store.set(MetricEntry {
+                key:      e.key,
+                name:     e.name,
+                labels:   e.labels,
+                kind:     e.kind,
+                value:    v,
+                hist_idx: e.hist_idx
+            });
+        }
+    }
+
+    fn inc() {
+        if self.store.has(self.key) {
+            let e = self.store.get(self.key) or MetricEntry { };
+            self.store.set(MetricEntry {
+                key:      e.key,
+                name:     e.name,
+                labels:   e.labels,
+                kind:     e.kind,
+                value:    e.value + 1.0,
+                hist_idx: e.hist_idx
+            });
+        }
+    }
+
+    fn dec() {
+        if self.store.has(self.key) {
+            let e = self.store.get(self.key) or MetricEntry { };
+            self.store.set(MetricEntry {
+                key:      e.key,
+                name:     e.name,
+                labels:   e.labels,
+                kind:     e.kind,
+                value:    e.value - 1.0,
+                hist_idx: e.hist_idx
+            });
+        }
+    }
+}
+
+locus Histogram {
+    params {
+        store:        MetricMap;
+        histograms:   HistogramList;
+        key:          String = "";
+        hist_idx:     Int    = -1;
+        bucket_count: Int    = 0;
+        // `out_of_order` is the closure-monitored invariant:
+        // count of cumulative-bucket pairs where counts[i+1] <
+        // counts[i]. Stays 0 by construction (observe() only
+        // increments cumulatively), so the closure passes
+        // silently. The closure declaration below makes the
+        // invariant audit-channel-observable.
+        out_of_order: Int    = 0;
+    }
+
+    // Inline closure — the "buckets sum monotonically"
+    // structural invariant. `epoch inline` (per
+    // `spec/grammar.ebnf § closure_decl` v1.x-VIOLATE and
+    // `spec/semantics.md § Inline closure violation`) means
+    // the closure never fires automatically; observe() checks
+    // the invariant after each update and fires
+    // `violate buckets_monotonic;` if the count of out-of-
+    // order bucket pairs is non-zero. The `captures` clause
+    // names `out_of_order` so the audit snapshot includes it
+    // in the ClosureViolation payload routed to the parent's
+    // `on_failure`.
+    //
+    // The closure-assertion grammar
+    // (`expr ~~ expr within expr`) doesn't express "for every
+    // pair (i, i+1), counts[i+1] >= counts[i]" directly — the
+    // pair-quantifier shape would require a new accumulator
+    // vocabulary. The error-check-fn pattern from
+    // `spec/styleguide.md § 7` is the canonical bridge: a
+    // value-channel computation
+    // (free fn `count_out_of_order`) folds into a single
+    // scalar (`self.out_of_order`), and the structural channel
+    // fires the named closure when the scalar is non-zero.
+    closure buckets_monotonic {
+        captures: out_of_order;
+        epoch inline;
+    }
+
+    fn observe(v: Float) {
+        if self.hist_idx < 0 {
+            return;
+        }
+        if self.hist_idx >= self.histograms.len() {
+            return;
+        }
+        let h = self.histograms.get(self.hist_idx) or HistogramData { };
+        let nb = len_floats(h.bounds_csv);
+        // Find first bucket whose upper-bound >= v; cumulative-
+        // increment that slot and every later one (the +Inf
+        // bucket is the trailing slot at index nb).
+        let mut hit = nb;
+        let mut i = 0;
+        while i < nb {
+            let b = float_at(h.bounds_csv, i);
+            if v <= b {
+                hit = i;
+                i = nb;
+            } else {
+                i = i + 1;
+            }
+        }
+        let mut counts = h.counts_csv;
+        let mut j = hit;
+        while j <= nb {
+            counts = int_csv_inc_at(counts, j);
+            j = j + 1;
+        }
+        self.histograms.set(self.hist_idx, HistogramData {
+            name:       h.name,
+            labels:     h.labels,
+            bounds_csv: h.bounds_csv,
+            counts_csv: counts,
+            sum:        h.sum + v,
+            count:      h.count + 1
+        }) or discard;
+
+        // Recompute monotonicity invariant; violate if breached.
+        let h2 = self.histograms.get(self.hist_idx) or HistogramData { };
+        self.out_of_order = count_out_of_order(h2.counts_csv);
+        if self.out_of_order > 0 {
+            violate buckets_monotonic;
+        }
+    }
+}
+
+
+// ===== 7. MetricsEndpoint locus =====
+//
+// `std::http::Handler` implementation that serves the
+// Prometheus exposition over HTTP. Per F.20 structural-
+// satisfaction (`spec/stdlib.md § F.20`), any locus whose
+// method set covers `fn handle(req: Request) -> Response` is
+// usable wherever the `std::http::Handler` interface is the
+// declared type. No `impl I for L` ceremony.
+//
+// Used at the app's `std::http::Server` site:
+//
+//     std::http::Server {
+//         port: 9090,
+//         handler: metrics::MetricsEndpoint { registry: reg }
+//     };
+//
+// `registry: Registry` is the same Registry the rest of the
+// app uses to inc/observe metrics. Render is invoked on every
+// request; v1 doesn't cache the rendered body (Prometheus
+// polls are infrequent enough that re-rendering on demand
+// stays cheap). The handler returns the standard
+// `text/plain; version=0.0.4` Content-Type that Prometheus
+// clients sniff.
+
+locus MetricsEndpoint {
+    params {
+        registry: Registry;
+    }
+
+    fn handle(req: std::http::Request) -> std::http::Response {
+        let body = self.registry.render();
+        return std::http::Response {
+            status:       200,
+            content_type: "text/plain; version=0.0.4",
+            body:         body
+        };
+    }
+}

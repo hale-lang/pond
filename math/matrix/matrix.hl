@@ -1,0 +1,357 @@
+// pond/math/matrix — dense row-major Float matrix.
+//
+// Storage: a `@form(vec)` locus carrying `rows * cols` Float cells in
+// row-major order. The form-synthesized vector methods (`push`,
+// `get`, `set`, `len`, etc.) live on the locus already; user-added
+// methods (`at`, `set_at`, `transpose`) sit on top.
+//
+// Surface deviation from CONTRACTS.md (logged in FRICTION.md):
+// `zeros` / `eye` / `from_rows` / `matmul` / `add` / `scale` / `dot`
+// ship as methods on a namespace lotus `Mat` rather than as free
+// fns, and the binary ops carry a SENTINEL-PAIR shape rather than a
+// `fallible(MatrixError)` shape. Two compounding v1 codegen
+// restrictions force this:
+//
+//   * Free fns can't return LocusRef. Codegen rejects with
+//     "locus references shouldn't cross arena boundaries"; the
+//     locus's region would dissolve at the free fn's frame exit,
+//     leaving the caller with a dangling handle. Method returns
+//     escape via the m90 heap-alloc path.
+//   * Locus methods can't declare `fallible(E)` (two-channel rule,
+//     spec/semantics.md § "Where each channel lives").
+//
+// The cross-product means a Matrix-producing op that signals
+// failure with a typed payload has no clean v1 surface. The
+// adopted shape: each binary op pairs `Mat.<op>` (returning a
+// Matrix; on shape mismatch returns `Mat.error_matrix()`, a
+// `rows=-1, cols=-1` sentinel) with a sibling `Mat.try_<op>`
+// path-call free-fn predicate that returns the success path's
+// validity bit. Callers check `Mat.is_error(m)` before reading
+// the result.
+//
+// `dot` returns Float; shape-mismatch sentinel is NaN
+// (`Mat.nan_sentinel()`) — checked with the std::math comparison
+// idiom.
+//
+// Locus-method restriction (same two-channel rule): the bounds-
+// checked element access lives on free fns (`at_checked`,
+// `set_at_checked`); the locus's `at` / `set_at` methods substitute
+// sentinels (`0.0` on read OOB, silent no-op on write OOB) so they
+// stay infallible.
+
+type MatrixError {
+    kind: String;
+}
+
+@form(vec)
+locus Matrix {
+    params {
+        rows: Int;
+        cols: Int;
+    }
+    capacity { heap data of Float; }
+
+    // ----- user-added methods over the @form(vec) substrate -----
+
+    // Read element (r, c). On out-of-range, returns 0.0 silently;
+    // use `at_checked(m, r, c) or raise` for the fallible surface.
+    fn at(r: Int, c: Int) -> Float {
+        let idx = index_of(self.rows, self.cols, r, c) or -1;
+        if idx < 0 {
+            return 0.0;
+        }
+        return self.get(idx) or 0.0;
+    }
+
+    // Write element (r, c) = v. Silent no-op on OOB; use
+    // `set_at_checked` for the fallible surface.
+    fn set_at(r: Int, c: Int, v: Float) {
+        let idx = index_of(self.rows, self.cols, r, c) or -1;
+        if idx < 0 {
+            return;
+        }
+        self.set(idx, v) or discard;
+    }
+
+    // Return a freshly-allocated transpose. Per spec/semantics.md
+    // § "Method-returning-locus heap allocation (m90)" the returned
+    // Matrix lives in the lazy global payload arena and outlives
+    // the caller frame.
+    fn transpose() -> Matrix {
+        let out = Matrix { rows: self.cols, cols: self.rows };
+        // Fill the underlying vec with zeros first so `set` is
+        // legal at every (r, c) slot.
+        let n = out.rows * out.cols;
+        let mut z = 0;
+        while z < n {
+            out.push(0.0);
+            z = z + 1;
+        }
+        let mut tr = 0;
+        while tr < out.rows {
+            let mut tc = 0;
+            while tc < out.cols {
+                // out[tr, tc] = self[tc, tr]
+                out.set_at(tr, tc, self.at(tc, tr));
+                tc = tc + 1;
+            }
+            tr = tr + 1;
+        }
+        return out;
+    }
+}
+
+// ===== free fns: bounds-check + index translation =====
+
+fn index_of(rows: Int, cols: Int, r: Int, c: Int) -> Int fallible(IndexError) {
+    if r < 0 {
+        fail IndexError { kind: "out_of_bounds", index: r, len: rows };
+    }
+    if r >= rows {
+        fail IndexError { kind: "out_of_bounds", index: r, len: rows };
+    }
+    if c < 0 {
+        fail IndexError { kind: "out_of_bounds", index: c, len: cols };
+    }
+    if c >= cols {
+        fail IndexError { kind: "out_of_bounds", index: c, len: cols };
+    }
+    return r * cols + c;
+}
+
+fn at_checked(m: Matrix, r: Int, c: Int) -> Float fallible(IndexError) {
+    let idx = index_of(m.rows, m.cols, r, c) or raise;
+    let v = m.get(idx) or raise;
+    return v;
+}
+
+// Bounds-checked write. Returns the new value on success so the
+// signature has a non-Unit success type (`fallible(E)` free fns
+// must declare a non-Unit return at v1).
+fn set_at_checked(m: Matrix, r: Int, c: Int, v: Float) -> Float fallible(IndexError) {
+    let idx = index_of(m.rows, m.cols, r, c) or raise;
+    m.set(idx, v) or raise;
+    return v;
+}
+
+// Shape-compat free fns. Free fns CAN be fallible; they just can't
+// return loci. The Mat methods consume these to decide whether to
+// short-circuit to an error sentinel.
+
+fn check_matmul_shapes(a_rows: Int, a_cols: Int, b_rows: Int, b_cols: Int)
+    -> Int fallible(MatrixError)
+{
+    if a_cols != b_rows {
+        fail MatrixError { kind: "shape_mismatch" };
+    }
+    return 0;
+}
+
+fn check_same_shape(a_rows: Int, a_cols: Int, b_rows: Int, b_cols: Int)
+    -> Int fallible(MatrixError)
+{
+    if a_rows != b_rows {
+        fail MatrixError { kind: "shape_mismatch" };
+    }
+    if a_cols != b_cols {
+        fail MatrixError { kind: "shape_mismatch" };
+    }
+    return 0;
+}
+
+fn check_dot_shapes(a_rows: Int, a_cols: Int, b_rows: Int, b_cols: Int)
+    -> Int fallible(MatrixError)
+{
+    let na = a_rows * a_cols;
+    let nb = b_rows * b_cols;
+    if na != nb {
+        fail MatrixError { kind: "shape_mismatch" };
+    }
+    if na == 0 {
+        fail MatrixError { kind: "empty" };
+    }
+    return na;
+}
+
+// ===== Mat namespace lotus =====
+//
+// Factories + binary ops. Codegen rejects free-fn returns of
+// LocusRef; locus-method returns are allowed (heap-allocated per
+// m90), so the surface lives here. Empty params per the
+// namespace-lotus pattern (spec/styleguide.md § 2).
+
+locus Mat {
+    params { }
+
+    // Sentinel "error" matrix. Callers check `is_error(m)` after
+    // any binary op whose contract claims `fallible(MatrixError)`.
+    fn error_matrix() -> Matrix {
+        return Matrix { rows: -1, cols: -1 };
+    }
+
+    fn is_error(m: Matrix) -> Bool {
+        if m.rows < 0 {
+            return true;
+        }
+        if m.cols < 0 {
+            return true;
+        }
+        return false;
+    }
+
+    // NaN-shaped Float for dot-product mismatch. IEEE 754 NaN is
+    // the only Float that compares unequal to itself; the helper
+    // is `is_nan(f) -> Bool`.
+    fn nan_sentinel() -> Float {
+        let a = 0.0;
+        let b = 0.0;
+        return a / b;
+    }
+
+    fn is_nan(f: Float) -> Bool {
+        // NaN is the only Float not equal to itself.
+        if f == f {
+            return false;
+        }
+        return true;
+    }
+
+    fn zeros(rows: Int, cols: Int) -> Matrix {
+        let m = Matrix { rows: rows, cols: cols };
+        let n = rows * cols;
+        let mut i = 0;
+        while i < n {
+            m.push(0.0);
+            i = i + 1;
+        }
+        return m;
+    }
+
+    fn eye(n: Int) -> Matrix {
+        let m = self.zeros(n, n);
+        let mut i = 0;
+        while i < n {
+            m.set_at(i, i, 1.0);
+            i = i + 1;
+        }
+        return m;
+    }
+
+    // Build from a comma-separated, row-by-row literal:
+    // "1,2,3,4,5,6" with rows=2, cols=3 yields [[1,2,3],[4,5,6]].
+    // Unparseable entries substitute 0.0; missing entries pad
+    // with 0.0 to `rows*cols`. Non-fallible.
+    fn from_rows(rows: Int, cols: Int, data: String) -> Matrix {
+        let m = Matrix { rows: rows, cols: cols };
+        let n = rows * cols;
+        let total_len = len(data);
+        let mut filled = 0;
+        let mut i = 0;
+        while filled < n {
+            if i >= total_len {
+                m.push(0.0);
+                filled = filled + 1;
+            } else {
+                let mut j = i;
+                let mut tok_end = total_len;
+                while j < total_len {
+                    let s = std::str::substring(data, j, j + 1);
+                    if s == "," {
+                        tok_end = j;
+                        j = total_len; // break
+                    } else {
+                        j = j + 1;
+                    }
+                }
+                let raw = std::str::substring(data, i, tok_end);
+                let trimmed = std::str::trim(raw);
+                let v = std::str::parse_float(trimmed) or 0.0;
+                m.push(v);
+                filled = filled + 1;
+                i = tok_end + 1;
+            }
+        }
+        return m;
+    }
+
+    // Naive triple-loop matmul. O(rows_a * cols_b * cols_a).
+    // Future perf passes can do tiling / SIMD without changing
+    // the surface. On shape mismatch returns the error sentinel
+    // (see `is_error`).
+    fn matmul(a: Matrix, b: Matrix) -> Matrix {
+        let _check = check_matmul_shapes(a.rows, a.cols, b.rows, b.cols)
+            or -1;
+        if _check < 0 {
+            return self.error_matrix();
+        }
+        let out = self.zeros(a.rows, b.cols);
+        let mut i = 0;
+        while i < a.rows {
+            let mut j = 0;
+            while j < b.cols {
+                let mut acc = 0.0;
+                let mut k = 0;
+                while k < a.cols {
+                    acc = acc + a.at(i, k) * b.at(k, j);
+                    k = k + 1;
+                }
+                out.set_at(i, j, acc);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    fn add(a: Matrix, b: Matrix) -> Matrix {
+        let _check = check_same_shape(a.rows, a.cols, b.rows, b.cols)
+            or -1;
+        if _check < 0 {
+            return self.error_matrix();
+        }
+        let out = self.zeros(a.rows, a.cols);
+        let mut i = 0;
+        while i < a.rows {
+            let mut j = 0;
+            while j < a.cols {
+                out.set_at(i, j, a.at(i, j) + b.at(i, j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    fn scale(a: Matrix, k: Float) -> Matrix {
+        let out = self.zeros(a.rows, a.cols);
+        let mut i = 0;
+        while i < a.rows {
+            let mut j = 0;
+            while j < a.cols {
+                out.set_at(i, j, a.at(i, j) * k);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    // Vector dot product. On shape mismatch returns NaN (check
+    // with `is_nan`). On empty returns NaN as well.
+    fn dot(a: Matrix, b: Matrix) -> Float {
+        let na = check_dot_shapes(a.rows, a.cols, b.rows, b.cols)
+            or -1;
+        if na < 0 {
+            return self.nan_sentinel();
+        }
+        let mut acc = 0.0;
+        let mut i = 0;
+        while i < na {
+            let av = a.get(i) or 0.0;
+            let bv = b.get(i) or 0.0;
+            acc = acc + av * bv;
+            i = i + 1;
+        }
+        return acc;
+    }
+}

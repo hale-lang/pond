@@ -1,0 +1,75 @@
+// pond/agent/llm — public types.
+//
+// Shape records (pattern 5 in the six-pattern catalog). Pure
+// data — no lifecycle, no flow. Constructed via struct literal
+// at use sites, returnable by value.
+//
+// Surface contract: pond/CONTRACTS.md § pond/agent/llm/. Field
+// shapes match the contract verbatim.
+
+// LlmRequest — the prompt + decoding parameters fed to either
+// vendor.
+//
+// `system` carries the system-prompt as a plain String (empty
+// string = no system prompt). `messages` is a tab-separated
+// "role\tcontent\trole\tcontent\t..." stream because Hale v1
+// has no parametric List<T> — same convention pond/router uses
+// for query/path kv blocks, and pond/conversation uses for
+// history. Each pair is one Message; roles are "user" /
+// "assistant" / "system". The wire-format adapters in
+// anthropic.hl / openai.hl unpack this into the vendor's
+// preferred shape.
+//
+// `max_tokens` and `temperature` are decoding knobs. `<= 0` for
+// max_tokens means "use the vendor default"; the wire-format
+// adapter skips emitting the field in that case. `temperature`
+// follows the vendor's range (Anthropic: 0..1, OpenAI: 0..2);
+// both accept the field verbatim.
+type LlmRequest {
+    model:       String = "";
+    system:      String = "";
+    messages:    String = "";
+    max_tokens:  Int    = 0;
+    temperature: Float  = 1.0;
+}
+
+// LlmResponse — the parsed response from a completion call.
+//
+// `text` is the concatenated assistant text (across all content
+// blocks for Anthropic; the single message.content for OpenAI).
+// `stop_reason` is the vendor's reason tag verbatim
+// ("end_turn", "max_tokens", "stop_sequence" for Anthropic;
+// "stop", "length", "tool_calls" for OpenAI). Token counts are
+// surfaced from the vendor's usage block; 0 if the vendor
+// didn't include them.
+type LlmResponse {
+    text:          String = "";
+    stop_reason:   String = "";
+    input_tokens:  Int    = 0;
+    output_tokens: Int    = 0;
+}
+
+// LlmError — the single fallible(LlmError) payload for every
+// fallible surface in this lib. Per the cross-cutting contract:
+// one type per lib, `kind` disambiguates.
+//
+// kind values:
+//   "bad_url"           — base_url didn't parse (includes the
+//                         "unsupported scheme" case — only http
+//                         and https are accepted)
+//   "http"              — underlying HTTP/TLS request failed (status is
+//                         the HTTP status if known; 0 if pre-connect)
+//   "parse_failed"      — JSON response parse couldn't extract fields
+//   "missing_api_key"   — api_key param is empty
+//   "vendor_error"      — vendor returned a non-2xx with a parseable
+//                         JSON error envelope; detail carries the
+//                         vendor's `error.message` field
+//
+// `status` carries the HTTP status code when the failure came
+// from a post-connect error envelope; 0 otherwise. `detail` is
+// the human-readable explanation.
+type LlmError {
+    kind:   String = "";
+    status: Int    = 0;
+    detail: String = "";
+}

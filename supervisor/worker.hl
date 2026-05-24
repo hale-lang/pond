@@ -1,0 +1,111 @@
+// pond/supervisor — Worker locus (the supervised child shape)
+//
+// The Supervisor parent accepts a single concrete child type per the
+// v1 single-accept-type restriction (F.11 "single-accept-type only").
+// This `Worker` locus is that shape — a generic supervised process
+// with a name, a payload field for application data, and a closure
+// that fires (a) automatically at birth when `fail_on_birth` is
+// true, or (b) explicitly via `worker.fail("reason")` to surface a
+// closure violation to the Supervisor's on_failure handler.
+//
+// Workers carry:
+//   - `name` — human-readable identifier matched against a ChildSpec
+//     in the parent Supervisor's spec table.
+//   - `kind` — application-defined string the worker's user code can
+//     branch on (e.g. "logger", "fetcher").
+//   - `payload` — application-defined string (CSV or tab-separated
+//     by convention) that user code reads in run().
+//   - `fail_on_birth` — if true, birth() fires the `failed` closure
+//     after recording last_error. Used in tests and the
+//     supervision demo to get deterministic per-child failures.
+//   - `birth_order` — assigned by the Supervisor at accept time so
+//     rest_for_one can identify "later siblings."
+//   - `last_error` — set by `fail(reason)` (or by birth() in the
+//     fail_on_birth path) immediately before `violate failed`;
+//     readable by the parent's on_failure handler through the child
+//     handle (the portable cross-runtime audit-state access pattern
+//     per spec/styleguide.md § 7).
+//
+// Why a single Worker type instead of an interface or per-app child
+// locus:
+//   - v1's `accept(c: T)` admits only one concrete T (F.11).
+//   - Interface-typed `accept` is not in the grammar.
+//   - Function-pointer-style customization (`work: fn(self) -> ()`)
+//     is rejected by codegen for closures-as-values.
+// The Worker therefore exposes name + kind + payload + a violate
+// trigger; application logic specializes by branching on `kind` in
+// the body, or by subscribing to a bus topic from a sibling locus.
+
+locus Worker {
+    params {
+        name:          String = "worker";
+        kind:          String = "generic";
+        payload:       String = "";
+        fail_on_birth: Bool   = false;
+        birth_order:   Int    = 0;
+        last_error:    String = "";
+    }
+
+    // failed — closure-violation tag. Captures the worker's name and
+    // last_error so the Supervisor's on_failure handler can read both
+    // off the child handle in either runtime (the captures clause is
+    // declarative under `hale build` per spec/semantics.md
+    // § "Inline closure violation").
+    closure failed { captures: name, last_error; epoch inline; }
+
+    // birth — print arrival and delegate to fail_now() if the
+    // fail_on_birth flag is set. Per spec/semantics.md
+    // § "Inline closure violation", `violate` is documented as legal
+    // in lifecycle method bodies — but codegen v0 rejects it there
+    // ("`violate` outside a user fn"), so we route the violate
+    // through the regular member fn fail_now() instead. The
+    // observable behavior is identical: birth runs, calls fail_now,
+    // which sets last_error and violates `failed`; the violate is
+    // divergent, birth never sees the next statement, and the parent
+    // reads c.last_error / c.name through the child handle in
+    // on_failure (spec/semantics.md § "Reading the audit state").
+    //
+    // The codegen gap is logged in FRICTION.md.
+    birth() {
+        println("Worker.birth name=", self.name, " kind=", self.kind,
+                " payload=", self.payload);
+        if self.fail_on_birth {
+            self.fail_now();
+        }
+    }
+
+    // fail_now — internal helper invoked by birth's fail_on_birth
+    // branch. Same shape as fail(reason) below but tags the
+    // last_error with the deterministic-test reason so consumers can
+    // distinguish "birth chose to fail" from a real fail() call.
+    fn fail_now() {
+        self.last_error = "deliberate failure-on-birth for name=" + self.name;
+        violate failed;
+    }
+
+    // fail(reason) — the canonical "this worker has decided it cannot
+    // continue" signal. Sets last_error, then violates `failed`. The
+    // statement after `violate` is unreachable; the worker's locus
+    // state is frozen at the violate moment and the parent's
+    // on_failure(child, ClosureViolation { ... }) runs with the child
+    // handle still readable (spec/semantics.md § "Reading the audit
+    // state").
+    //
+    // Use from inside `run()` or any locus method body:
+    //
+    //     if some_value_error_condition {
+    //         self.fail("upstream sent malformed frame");
+    //     }
+    fn fail(reason: String) {
+        self.last_error = reason;
+        violate failed;
+    }
+
+    // run() — default body prints once so the supervision example can
+    // observe "good worker stays alive" via stdout. Application code
+    // wraps Worker via a sibling locus that publishes the work to do
+    // over the bus, or specializes by branching on self.kind here.
+    run() {
+        println("Worker.run name=", self.name, " kind=", self.kind);
+    }
+}

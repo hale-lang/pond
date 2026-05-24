@@ -1,0 +1,85 @@
+// pond/tower — multi-tower demo
+//
+// Three tiny tower-shape loci composed in one binary.
+// Demonstrates:
+//   - caller-defined names (two PrintTowers with
+//     distinct prefixes and names)
+//   - Tower interface satisfaction (no `impl`)
+//   - Registry registration via free fns
+//   - Builder pattern (deferred-init)
+//   - lookup + has free fns
+//   - startup_banner output
+//   - reverse-instantiation drain at scope exit
+
+import "../../" as tower;
+
+// A made-up tower type. Real apps would use
+// pond/router::Router, pond/metrics::Registry, etc.
+locus PrintTower {
+    params {
+        name:   String;
+        prefix: String = "msg";
+    }
+    fn name() -> String { return self.name; }
+
+    fn say(line: String) {
+        println("[" + self.prefix + "/" + self.name + "] " + line);
+    }
+}
+
+// A builder for the same. Captures the same params,
+// constructs on demand.
+locus PrintTowerBuilder {
+    params {
+        name:   String;
+        prefix: String = "msg";
+    }
+    fn build() -> tower::Tower {
+        return PrintTower { name: self.name, prefix: self.prefix };
+    }
+}
+
+fn main() {
+    // Register FIRST — dissolves LAST, so its interface
+    // fat-pointers remain valid through every tower's
+    // dissolve.
+    let reg = tower::Registry { };
+
+    // Direct instantiation — most common shape.
+    let a = PrintTower { name: "alpha", prefix: "A" };
+    let b = PrintTower { name: "beta",  prefix: "B" };
+
+    // Builder shape — deferred-init. The builder
+    // captures config; build() instantiates here, in
+    // main's frame.
+    let bld = PrintTowerBuilder { name: "gamma", prefix: "G" };
+    let c = bld.build();
+
+    tower::add(reg, a);
+    tower::add(reg, b);
+    tower::add(reg, c);
+
+    tower::startup_banner(reg);
+    println("names: " + tower::names(reg));
+
+    // Each tower does its work.
+    a.say("hello from alpha");
+    b.say("hello from beta");
+    // c is typed as Tower (interface) — only Tower
+    // methods are callable here.
+    println("tower c via interface: " + c.name());
+
+    // has / find_or
+    if tower::has(reg, "alpha") {
+        let sentinel = PrintTower { name: "<sentinel>", prefix: "?" };
+        let t = tower::find_or(reg, "alpha", sentinel);
+        println("looked up: " + t.name());
+    }
+
+    let sentinel2 = PrintTower { name: "<missing>", prefix: "?" };
+    let missing = tower::find_or(reg, "nope", sentinel2);
+    println("missing fallback: " + missing.name());
+
+    // Drain cascade at fn-main exit fires in reverse
+    // instantiation order: c, bld, b, a, reg.
+}

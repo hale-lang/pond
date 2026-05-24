@@ -1,0 +1,44 @@
+// pond/agent/llm — bus topic + payload-wrapper decls.
+//
+// Two typed pub/sub channels backing the streaming surface of
+// both AnthropicClient and OpenAiClient. Subscribers wire up
+// via:
+//
+//   bus {
+//       subscribe llm::LlmChunk as on_chunk;
+//       subscribe llm::LlmDone  as on_done;
+//   }
+//   fn on_chunk(c: llm::LlmChunkMsg) { ... }
+//   fn on_done (d: llm::LlmDoneMsg ) { ... }
+//
+// `LlmChunk` fires once per parsed SSE delta with the raw text
+// fragment in `payload.payload` (the wrapper's `payload`
+// field). `LlmDone` fires exactly once at the end of a stream
+// with the assembled LlmResponse in `payload.payload`
+// (text concatenated from every chunk, plus the vendor-
+// reported stop_reason + usage counts).
+//
+// Filename note (`wire_topics.hl` rather than `topics.hl`):
+// F.19 per-directory seed model bundles `.hl` files in
+// alphabetical order and codegen v0 processes type decls in
+// that order, so `topic LlmDone { payload: LlmDoneMsg; ...; }`
+// needs `LlmDoneMsg` / `LlmResponse` (in `types.hl`) to be
+// earlier in the bundle. `t < ty` lexically, so a literal
+// `topics.hl` would land before `types.hl` and fail with
+// "unknown type name" diagnostics. Logged in FRICTION.md.
+//
+// Naming note (topic-ident form, 2026-05-18 sweep): the bus
+// requires a user-defined type at every publish site (raw
+// String payloads are rejected by codegen), so we keep a thin
+// wrapper type per topic — `LlmChunkMsg` / `LlmDoneMsg`. The
+// topic ident itself (`LlmChunk` / `LlmDone`) is the
+// addressable channel; the wrapper carries the actual data
+// the subscriber unpacks. Prior to the rename-asymmetry fix
+// (`f9068fa`) the publish sites had to use literal subjects
+// (`"agent.llm.chunk" <- ...`); that workaround is now gone.
+
+type LlmChunkMsg { payload: String;      }
+type LlmDoneMsg  { payload: LlmResponse; }
+
+topic LlmChunk { payload: LlmChunkMsg; subject: "agent.llm.chunk"; }
+topic LlmDone  { payload: LlmDoneMsg;  subject: "agent.llm.done";  }

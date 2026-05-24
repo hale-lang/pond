@@ -1,0 +1,195 @@
+// pond/logfmt — FileSink.
+//
+// Service locus (catalog pattern 3): subscribes to "log.**", appends
+// every event to a file path, rotates by size. Also exposes the
+// `write/line/newline` triple from `std::text::Sink` so callers that
+// want to stream non-event text (a report, a dump) reuse the same
+// locus structurally — F.20's no-`impl I for L` rule means the
+// satisfaction is implicit.
+//
+// Why one locus, two surfaces:
+//   - The Sink-shape methods (`write`/`line`/`newline`) drive the
+//     "raw text → file with rotation" path. Useful on its own.
+//   - The bus subscription on "log.**" lets the same locus drop in
+//     where a `std::log::StdoutSink { };` would have gone — the
+//     formatting layer (level name, path, message) lives here so
+//     callers don't have to re-implement it.
+//
+// Drop-in shape:
+//   logfmt::FileSink { path: "logs/app.log" };
+//   let log = std::log::Logger { name: "app" };
+//   log.info("started");           // → appended to logs/app.log
+//
+// Rotation policy:
+//   After every append, the locus reads the current file size via
+//   `std::io::fs::file_size`. If size > max_size_bytes, the file
+//   chain shifts:
+//       path.keep_files-1  → path.keep_files     (oldest evicted
+//                                                  via atomic
+//                                                  rename-overwrite)
+//       ...
+//       path.1             → path.2
+//       path               → path.1
+//       path                ← absent; next append recreates it
+//                              (write_file_append's O_CREAT)
+//
+//   Each shift is `std::io::fs::rename(src, dst)` (C9, hale
+//   `cc94a1b`). Linux `rename(2)` atomically overwrites the
+//   destination in a single syscall, so the oldest slot is evicted
+//   implicitly and no read-into-memory round-trip is needed.
+//
+// Two-channel deviation (logged in FRICTION.md): CONTRACTS.md
+// declares `write` / `line` / `newline` as
+// `fallible(IoError)`. Per AGENTS.md's two-channel rule, locus
+// methods cannot declare fallible(E). The methods here address the
+// underlying `std::io::fs::write_file_append` fallible via
+// `or self.__handle_io(err)` instead — value errors are captured
+// into a `last_*` triple readable through accessors, matching
+// pond/http/client::Client's shape.
+
+locus FileSink {
+    params {
+        path: String = "";
+        max_size_bytes: Int = 10000000;
+        keep_files: Int = 5;
+
+        // Last-error scratch — surfaces the IoError that locus
+        // methods cannot return through the value channel. Same
+        // shape pond/http/client::Client uses.
+        last_kind: String = "";
+        last_errno: Int = 0;
+        last_path: String = "";
+    }
+
+    // Subscribe to every Logger publish in the system. Same wildcard
+    // (`log.**`) std::log::StdoutSink uses, so this locus is a true
+    // drop-in alternative.
+    bus {
+        subscribe "log.**" as on_event of type std::log::LogEvent;
+    }
+
+    // ----- std::text::Sink-shape methods -----
+    //
+    // Plain text → file. Each call appends; rotation is checked
+    // after every write so a partial-line append still keeps the
+    // file under the cap on the next call. Returns `()` (not
+    // fallible) so locus-method rules hold; failures land in
+    // `last_kind` / `last_errno` / `last_path`.
+
+    fn write(s: String) {
+        self.__append(s);
+    }
+
+    fn line(s: String) {
+        self.__append(s + "\n");
+    }
+
+    fn newline() {
+        self.__append("\n");
+    }
+
+    // ----- Log-event subscriber -----
+
+    fn on_event(e: std::log::LogEvent) {
+        let mut name = "?";
+        if e.level == 1 { name = "INFO"; }
+        if e.level == 2 { name = "WARN"; }
+        if e.level == 3 { name = "ERROR"; }
+        if e.level == 4 { name = "DEBUG"; }
+        if e.level == 5 { name = "TRACE"; }
+        let formatted = "[" + name + " " + e.path + "] " + e.msg + "\n";
+        self.__append(formatted);
+    }
+
+    // ----- Accessors for the captured last-error -----
+    //
+    // Mirrors pond/http/client::Client's `last_error_*` triple so
+    // agents reaching for the error after a call have a uniform
+    // shape across pond libs.
+
+    fn last_error_kind() -> String { return self.last_kind; }
+    fn last_error_errno() -> Int { return self.last_errno; }
+    fn last_error_path() -> String { return self.last_path; }
+
+    // ----- Internal helpers -----
+
+    // Single-write entry point. Append, then check rotation.
+    // Append failure is captured into self.last_*; rotation skipped
+    // on failed write so we don't compound errors.
+    fn __append(s: String) {
+        let written = self.__do_append(s);
+        if !written {
+            return;
+        }
+        self.__maybe_rotate();
+    }
+
+    fn __do_append(s: String) -> Bool {
+        std::io::fs::write_file_append(self.path, s) or self.__handle_io(err);
+        if self.last_kind != "" {
+            return false;
+        }
+        return true;
+    }
+
+    // Error-capture sink for the `or self.__handle_io(err)` form.
+    // Records the failure and returns the unit-equivalent so the
+    // caller continues; the outer __do_append then checks last_kind.
+    fn __handle_io(e: IoError) {
+        self.last_kind = e.kind;
+        self.last_errno = e.errno;
+        self.last_path = e.path;
+    }
+
+    // Read the current file size; if over the cap, rotate the
+    // chain. The size read is itself fallible (the file may not
+    // exist yet on first call) — we treat a failed size read as
+    // "size 0" via the `or 0` shortcut, so no rotation fires on
+    // first write.
+    fn __maybe_rotate() {
+        let size = std::io::fs::file_size(self.path) or 0;
+        if size <= self.max_size_bytes {
+            return;
+        }
+        self.__rotate();
+    }
+
+    // Rotate the chain. See file header for the policy:
+    //   path.keep_files-1 → path.keep_files (oldest evicted via
+    //                                         atomic-overwrite)
+    //   ...
+    //   path.1            → path.2
+    //   path              → path.1
+    //
+    // Backed by `std::io::fs::rename` (C9, hale `cc94a1b`).
+    // Linux `rename(2)` atomically overwrites the destination, so
+    // each shift naturally evicts the prior file at that slot —
+    // including the oldest at path.keep_files. After the path →
+    // path.1 shift the active path is gone; the next append
+    // recreates it (write_file_append's `O_CREAT`).
+    fn __rotate() {
+        // Shift .{i} → .{i+1} for i from keep_files-1 down to 1.
+        let mut i = self.keep_files - 1;
+        while i >= 1 {
+            let src = self.path + "." + to_string(i);
+            let dst = self.path + "." + to_string(i + 1);
+            self.__shift_if_exists(src, dst);
+            i = i - 1;
+        }
+        // Final shift: path → path.1.
+        let dst1 = self.path + ".1";
+        self.__shift_if_exists(self.path, dst1);
+    }
+
+    // Move src → dst iff src exists. Atomic on Linux (rename(2)
+    // overwrites dst in a single syscall, no read-into-memory
+    // round-trip). The `file_exists` guard avoids surfacing a
+    // benign ENOENT into last_kind on the first rotation cycle
+    // before any backup files have been created.
+    fn __shift_if_exists(src: String, dst: String) {
+        if !std::io::fs::file_exists(src) {
+            return;
+        }
+        std::io::fs::rename(src, dst) or self.__handle_io(err);
+    }
+}

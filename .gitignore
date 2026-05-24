@@ -1,0 +1,41 @@
+# Compiled Hale binaries — produced by `hale build` next to source.
+#
+# Hale places the binary in the same directory as its main.hl, named
+# after the directory. Demos also sometimes carry a `main` binary from
+# intermediate builds. CI / consumers should rebuild from .hl source.
+
+# Per-demo binaries: examples/<demo>/<demo> and examples/<demo>/main
+**/examples/*/main
+**/examples/sign-demo/sign-demo
+**/examples/trace-tree/trace-tree
+**/examples/email-worker/email-worker
+**/examples/counter-owner/counter-owner
+**/examples/kv-demo/kv-demo
+**/examples/run-demo/run-demo
+**/examples/get-demo/get-demo
+**/examples/echo-completion/echo-completion
+**/examples/two-turn/two-turn
+**/examples/calc-tool/calc-tool
+**/examples/run-python/run-python
+**/examples/topk-demo/topk-demo
+**/examples/xor-trainer/xor-trainer
+**/examples/matmul-demo/matmul-demo
+**/examples/blog-schema/blog-schema
+**/examples/login-flow/login-flow
+**/examples/rotated-file/rotated-file
+**/examples/one-for-one/one-for-one
+**/examples/hello-routes/hello-routes
+**/examples/book-demo/book-demo
+**/examples/breach-demo/breach-demo
+**/examples/replay-demo/replay-demo
+**/examples/synth-feed-demo/synth-feed-demo
+**/examples/stats-demo/stats-demo
+**/examples/exposition-demo/exposition-demo
+
+# Library-root binaries (a CLI shape, e.g. migrations/migrations)
+/migrations/migrations
+
+# OS / editor cruft
+.DS_Store
+*.swp
+*~

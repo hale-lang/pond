@@ -1,0 +1,146 @@
+// kv-demo — minimal "create table, insert, select" against the
+// pond/sqlite surface. Demonstrates the call shape consumers can
+// write today against the stubbed API; the same source compiles
+// against the real implementation once the stdlib sqlite primitive
+// lands (see ../../FRICTION.md).
+//
+// Three layers of caveat:
+//   1. The lib is BLOCKED — every db::* free fn currently returns
+//      `fail DbError { kind: "unsupported", ... }`. The demo's
+//      `or self.handle(err)` paths are exercised, not the happy
+//      path. Output today is the diagnostic.
+//   2. The shape demonstrated is the post-unblock shape: open a
+//      Db, create a table, insert a row, select it back. The
+//      demo's body does NOT change when the lib unblocks.
+//   3. Codegen v0 cannot lower unit-fallible fns
+//      (`-> () fallible(E)`) — see ../../FRICTION.md § F.5. The
+//      bind_text / bind_int / finalize signatures deviate from
+//      CONTRACTS.md and return `Int` status codes instead (0 =
+//      SQLITE_OK; non-zero = error). Call sites here use
+//      `let rc = db::bind_text(stmt, 1, "..."); if rc != 0 {...}`
+//      rather than `or self.handle(err)`. Same shape as the
+//      pre-2026-05-16 stdlib filesystem fns (mkdir/write_file
+//      returned Int 0/-1 before the fallible flip).
+//
+// Import alias is `db` per pond/CONTRACTS.md.
+
+import "../.." as db;
+
+// Error-check fn pattern (styleguide § 7). Catches a DbError from
+// any of the db::* fallible calls and prints it. The locus also
+// declares an inline closure for the structural-failure escalation
+// path; today the stub returns "unsupported" and we keep running
+// (substituting an empty ExecResult / Row / Rows) so the demo's
+// trace shows every call shape. A real consumer would `violate`
+// here when the kind indicates a fatal connection state.
+locus KvDemo {
+    params {
+        // Path for the demo. ":memory:" once unblocked. Today
+        // the path is ignored by the stub `birth()`.
+        path: String = ":memory:";
+
+        // Last-seen error detail, captured by the inline closure.
+        last_error: String = "";
+    }
+
+    closure fatal_db { captures: last_error; epoch inline; }
+
+    // Error-check fns: one per success type the call sites expect.
+    // Each updates `self.last_error` (closure-captured) and prints
+    // the diagnostic; today they return the zero-value for the
+    // success type so the demo continues past the stub.
+    fn handle_exec(e: db::DbError) -> db::ExecResult {
+        self.last_error = e.detail;
+        println("[kv-demo] db error (exec): ", e.kind, " -- ", e.detail);
+        return db::ExecResult { };
+    }
+    fn handle_row(e: db::DbError) -> db::Row {
+        self.last_error = e.detail;
+        println("[kv-demo] db error (row): ", e.kind, " -- ", e.detail);
+        return db::Row { };
+    }
+    fn handle_rows(e: db::DbError) -> db::Rows {
+        self.last_error = e.detail;
+        println("[kv-demo] db error (rows): ", e.kind, " -- ", e.detail);
+        return db::Rows { };
+    }
+    fn handle_prepare(e: db::DbError) -> Int {
+        self.last_error = e.detail;
+        println("[kv-demo] db error (prepare): ", e.kind, " -- ", e.detail);
+        return 0;
+    }
+
+    run() {
+        // Open a Db. `let`-binding means the Db's `dissolve()`
+        // (which closes the connection once unblocked) fires at
+        // run()'s scope exit per the m82 deferred-dissolve rule.
+        let conn = db::Db { path: self.path };
+
+        // 1. DDL: create a key-value table.
+        let r1 = db::exec(
+            conn,
+            "CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)"
+        ) or self.handle_exec(err);
+        println("[kv-demo] CREATE TABLE: rows_affected=",
+                to_string(r1.rows_affected));
+
+        // 2. Insert a row.
+        let r2 = db::exec(
+            conn,
+            "INSERT INTO kv (k, v) VALUES ('greeting', 'hello, pond')"
+        ) or self.handle_exec(err);
+        println("[kv-demo] INSERT: rows_affected=",
+                to_string(r2.rows_affected),
+                "  last_insert_rowid=",
+                to_string(r2.last_insert_rowid));
+
+        // 3. SELECT one back via query_one. The tab-separated row
+        // payload is `k\tv`.
+        let row = db::query_one(
+            conn,
+            "SELECT k, v FROM kv WHERE k = 'greeting'"
+        ) or self.handle_row(err);
+        println("[kv-demo] SELECT one: ", row.data);
+
+        // 4. SELECT all to show the multi-row shape.
+        let rows = db::query_all(
+            conn,
+            "SELECT k, v FROM kv ORDER BY k"
+        ) or self.handle_rows(err);
+        println("[kv-demo] SELECT all (newline-separated rows):");
+        println(rows.csv);
+
+        // 5. Prepare / bind / step / finalize — full parameterized
+        // path. `bind_text` / `bind_int` / `finalize` return Int
+        // status codes (0 = SQLITE_OK; see FRICTION.md § F.5) so
+        // call sites use `if rc != 0 { ... }` instead of
+        // `or self.handle(err)`. `prepare` and `step` keep the
+        // fallible(DbError) shape and use the error-check fn.
+        let stmt = db::prepare(
+            conn,
+            "SELECT v FROM kv WHERE k = ?1"
+        ) or self.handle_prepare(err);
+        if stmt > 0 {
+            let bind_rc = conn.bind_text(stmt, 1, "greeting");
+            if bind_rc != 0 {
+                println("[kv-demo] bind_text rc=", to_string(bind_rc),
+                        " (stub mode)");
+            }
+            let r = db::step(stmt) or self.handle_row(err);
+            println("[kv-demo] prepared step: ", r.data);
+            let fin_rc = conn.finalize(stmt);
+            if fin_rc != 0 {
+                println("[kv-demo] finalize rc=", to_string(fin_rc),
+                        " (stub mode)");
+            }
+        } else {
+            println("[kv-demo] prepare returned 0 handle (stub mode)");
+        }
+
+        println("[kv-demo] done (last_error=", self.last_error, ")");
+    }
+}
+
+fn main() {
+    KvDemo { };
+}

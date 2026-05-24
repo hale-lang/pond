@@ -1,0 +1,119 @@
+// exposition-demo — register a counter (plus a gauge and a
+// histogram for taste), increment, render to stdout, verify the
+// output looks like Prometheus text exposition format.
+//
+// Composes pond/metrics. Two imports — the lib itself and the
+// pond/math/matrix sibling (the bucket bounds for histograms
+// flow through Matrix per CONTRACTS.md).
+//
+// Construction note: `metrics::Registry` requires its `store`
+// and `histograms` `@form(...)` fields to be passed in
+// explicitly. Default-init of a locus-typed field via a
+// struct literal default at v1 breaks at first access (see
+// `pond/metrics/FRICTION.md`); the workaround is to construct
+// the substrate slots in the demo's scope and pass them
+// through.
+//
+// Labels constructors are bare free fns post-A3 / hale
+// `f9068fa` (`metrics::labels_one(...)` etc.) — the pre-A3
+// `Lab` namespace lotus is gone.
+
+import "../.." as metrics;
+import "../../../math/matrix" as mat;
+
+// `expect_contains` — assert helper. Substrate-channel exit on
+// failure (Hale has no panic/assert; std::process::exit(1) is
+// the v0 idiom for demo / smoke-test failure surfaces).
+fn expect_contains(body: String, needle: String, label: String) {
+    if std::str::index_of(body, needle) >= 0 {
+        println("ok    ", label);
+        return;
+    }
+    println("FAIL  ", label);
+    println("  needle:  ", needle);
+    println("  body:");
+    println(body);
+    std::process::exit(1);
+}
+
+// `drive(reg)` — pattern-6 free fn doing the demo work. Pulled
+// out of a lifecycle body so we can use the helpful fn-level
+// idioms (early return) without bumping against the "no
+// `return` in lifecycle bodies" v0 limitation.
+fn drive(reg: metrics::Registry, mx: mat::Mat) {
+    // Register a counter. Labels constructed via bare free fns.
+    let lbl_get = metrics::labels_one("method", "GET");
+    let requests = reg.counter("http_requests_total", lbl_get);
+    let lbl_none = metrics::labels_empty();
+    let temp = reg.gauge("process_resident_memory_bytes", lbl_none);
+
+    // Exercise mutation. inc + inc + add(3.0) = 5.
+    requests.inc();
+    requests.inc();
+    requests.add(3.0);
+    temp.set(123456.0);
+
+    // Histogram round-trips bucket bounds through Matrix.
+    let buckets = mx.from_rows(1, 4, "0.005, 0.05, 0.5, 1.0");
+    let lbl_hist = metrics::labels_one("method", "GET");
+    let req_dur = reg.histogram("http_request_duration_seconds", buckets, lbl_hist);
+    req_dur.observe(0.001);
+    req_dur.observe(0.04);
+    req_dur.observe(0.4);
+    req_dur.observe(0.9);
+    req_dur.observe(2.5);   // lands in the +Inf bucket only
+
+    // Render and dump.
+    let body = reg.render();
+    println("===== /metrics body =====");
+    println(body);
+    println("===== end =====");
+
+    // Format checks: TYPE lines, sample lines with label
+    // encoding, histogram triple.
+    expect_contains(body,
+        "# TYPE pondapp_http_requests_total counter",
+        "counter TYPE line"
+    );
+    expect_contains(body,
+        "pondapp_http_requests_total{method=\"GET\"} 5",
+        "counter sample line with labels"
+    );
+    expect_contains(body,
+        "# TYPE pondapp_process_resident_memory_bytes gauge",
+        "gauge TYPE line"
+    );
+    expect_contains(body,
+        "pondapp_process_resident_memory_bytes 123456",
+        "gauge sample line without labels"
+    );
+    expect_contains(body,
+        "# TYPE pondapp_http_request_duration_seconds histogram",
+        "histogram TYPE line"
+    );
+    expect_contains(body,
+        "pondapp_http_request_duration_seconds_bucket{method=\"GET\",le=\"+Inf\"} 5",
+        "histogram +Inf bucket cumulative count"
+    );
+    expect_contains(body,
+        "pondapp_http_request_duration_seconds_count{method=\"GET\"} 5",
+        "histogram _count line"
+    );
+
+    println("exposition-demo: all format checks passed");
+}
+
+fn main() {
+    // Construct the substrate slots first, then thread them into
+    // the Registry. Two-step construction sidesteps the v1
+    // default-init bug on locus-typed fields.
+    let store = metrics::MetricMap { };
+    let hl    = metrics::HistogramList { };
+    let reg   = metrics::Registry {
+        namespace:  "pondapp",
+        store:      store,
+        histograms: hl
+    };
+    let mx  = mat::Mat { };
+    drive(reg, mx);
+}

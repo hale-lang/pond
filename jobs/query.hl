@@ -1,0 +1,134 @@
+// pond/jobs — queue surface (free fns over Queue).
+//
+// Pattern 6 (free fns). Per the two-channel rule (spec/semantics.md
+// § "Where each channel lives"), locus methods can't declare
+// `fallible(E)`, so CONTRACTS.md's `Queue.enqueue(...) -> Int
+// fallible(JobError)` shape migrates here. Call sites read
+// `jobs::enqueue(q, kind, payload, max)` instead of
+// `q.enqueue(kind, payload, max)`. Same deviation pattern as
+// pond/sqlite's `db::exec(conn, sql)` translation.
+//
+// **Stub mode (BLOCKED on pond/sqlite, FRICTION.md item 1)**:
+// every body in this file fails with
+//   fail JobError { kind: "unsupported", ... }
+// **without** invoking pond/sqlite at all — codegen v0 rejects
+// qualified type names and qualified struct literals in user
+// code reachable from any built binary (FRICTION.md item 11),
+// which means the moment a real `db::Db { ... }` instantiation
+// or `db::exec(...) or handler(err)` shows up here, every
+// downstream binary fails to build. The (commented-out) "once
+// unblocked" calls inside each body show the post-unblock shape;
+// the stub bodies satisfy the surface today. Same shape a future store pattern's
+// SqliteStore uses.
+//
+// The same comment / FRICTION.md page also covers item 12
+// (`() fallible(E)` return-type gap → ack / fail_job return Bool)
+// and item 13 (`fail` keyword vs `fn fail()` shadowing → the
+// surface fn is `fail_job`, not `fail`).
+
+import "../sqlite" as db;
+
+// jobs::enqueue — append a new ready row to the queue.
+//
+// Once unblocked the body:
+//   let conn = db::Db { path: q.db_path };
+//   let stmt = "INSERT INTO " + q.table
+//       + " (kind, payload, attempt, max_attempts, state) VALUES (?, ?, 0, ?, 'ready')";
+//   let s = db::prepare(conn, stmt) or __bridge(err);
+//   conn.bind_text(s, 1, kind);
+//   conn.bind_text(s, 2, payload);
+//   conn.bind_int(s, 3, max_attempts);
+//   db::step(s) or __bridge(err);
+//   conn.finalize(s);
+//   return db::exec(conn, "SELECT last_insert_rowid()") ...;
+fn enqueue(
+    q: Queue,
+    kind: String,
+    payload: String,
+    max_attempts: Int
+) -> Int fallible(JobError) {
+    let _ = q;
+    let _ = kind;
+    let _ = payload;
+    let _ = max_attempts;
+    fail JobError {
+        kind:   "unsupported",
+        detail: "pond/jobs: BLOCKED on pond/sqlite (see FRICTION.md); enqueue stub",
+    };
+}
+
+// jobs::dequeue — claim the oldest ready row (FIFO).
+//
+// Once unblocked the body implements the standard at-least-once
+// claim:
+//   1. SELECT id, kind, payload, attempt, max_attempts
+//      FROM <table> WHERE state = 'ready'
+//      ORDER BY id LIMIT 1;
+//   2. UPDATE <table> SET state = 'in_flight',
+//      claimed_at = strftime('%s','now') WHERE id = <id>
+//      AND state = 'ready';
+//   3. If the UPDATE affected 0 rows, another worker beat us;
+//      fail kind="empty" and let the worker spin/retry.
+//   4. Return the Job.
+//
+// The visibility check against a concurrent dequeue (step 3)
+// keeps the contention path on the value channel rather than
+// escalating — per the two-channel rule.
+fn dequeue(q: Queue) -> Job fallible(JobError) {
+    let _ = q;
+    fail JobError {
+        kind:   "unsupported",
+        detail: "pond/jobs: BLOCKED on pond/sqlite (see FRICTION.md); dequeue stub",
+    };
+}
+
+// jobs::ack — mark a claimed row as done.
+//
+// CONTRACTS.md spells `ack(job_id) -> () fallible(JobError)`.
+// As built returns `Bool` (always `true` on success) — codegen
+// v0 rejects `() fallible(E)` return type ("tuple type must
+// have at least 2 elements; got 0"), same gap pond/sqlite hits
+// for `bind_*` / `finalize`. The Bool carries no information;
+// callers can discard with `or false`. See FRICTION.md item 12.
+//
+// Once unblocked the body:
+//   let conn = db::Db { path: q.db_path };
+//   let upd = "UPDATE " + q.table + " SET state = 'done' "
+//       + "WHERE id = " + to_string(job_id) + " AND state = 'in_flight'";
+//   let r = db::exec(conn, upd) or __bridge(err);
+//   if r.rows_affected <= 0 { fail JobError { kind: "not_found", ... }; }
+//   return true;
+fn ack(q: Queue, job_id: Int) -> Bool fallible(JobError) {
+    let _ = q;
+    let _ = job_id;
+    fail JobError {
+        kind:   "unsupported",
+        detail: "pond/jobs: BLOCKED on pond/sqlite (see FRICTION.md); ack stub",
+    };
+}
+
+// jobs::fail_job — record a failed invocation; retry vs dead-letter
+// is the caller's choice (the worker computes
+//   retry = job.attempt + 1 < job.max_attempts
+// and passes the boolean here).
+//
+// retry == true: bump attempt, flip state back to 'ready' so the
+//                next dequeue picks it up.
+// retry == false: flip state to 'failed' (dead-letter). The row
+//                stays in the table for audit / manual replay.
+//
+// **Deviation from CONTRACTS.md** (FRICTION.md item 13): the
+// contract spells this as `fail(id, retry)`. As built the public
+// name is `fail_job` so it doesn't shadow the `fail` keyword
+// inside its own body (where we'd want `fail JobError { ... }`
+// on the not-found branch). The Bool return is the same workaround
+// `ack` uses for the `() fallible(E)` codegen gap.
+fn fail_job(q: Queue, job_id: Int, retry: Bool) -> Bool fallible(JobError) {
+    let _ = q;
+    let _ = job_id;
+    let _ = retry;
+    fail JobError {
+        kind:   "unsupported",
+        detail: "pond/jobs: BLOCKED on pond/sqlite (see FRICTION.md); fail_job stub",
+    };
+}

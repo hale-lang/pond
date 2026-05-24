@@ -1,0 +1,147 @@
+// pond/sessions — payload encode / decode.
+//
+// The HMAC-signed cookie has the wire shape
+//
+//     session=<base64(payload)>.<base64(hmac)>
+//
+// where `payload` is a UTF-8 byte block laid out as
+//
+//     <id>\t<expires_at_seconds>\t<data>
+//
+// `id` is the caller-provided opaque identifier (no tabs); the
+// expiry stamp is whole monotonic seconds (see clock.hl for the
+// caveat about process restarts); `data` is the tab-separated
+// k=v packed block from `Session.data` and may itself contain
+// tabs as the kv separator. We never split `data` here — that's
+// the value-fn (`get_value` / `set_value`) layer's job. Only the
+// first two tab characters are interpreted by the codec.
+//
+// Free fns; pure transformations. (Catalog pattern 6.)
+
+// Pack a Session + expiry into the signed payload bytes.
+fn __build_payload(s: Session, expires_at: Int) -> Bytes {
+    let txt = s.id + "\t" + to_string(expires_at) + "\t" + s.data;
+    return std::bytes::from_string(txt);
+}
+
+// Split a payload back into (id, expires_at, data). Returns a
+// Session whose id == "" on parse failure; callers treat that
+// as a malformed payload. expires_at is returned via the
+// `out_expires` mutable receiver convention is unavailable in
+// v1, so the function instead packs the deadline into the
+// Session's id slot when needed. To avoid that hack we expose
+// the expiry as a sibling free fn `payload_expires_at`.
+fn __parse_payload(payload: Bytes) -> Session {
+    let raw = std::str::from_bytes(payload);
+    let total = len(raw);
+    if total <= 0 {
+        return Session { id: "", data: "" };
+    }
+    let t1 = std::str::index_of(raw, "\t");
+    if t1 < 0 {
+        return Session { id: "", data: "" };
+    }
+    let id      = raw[0..t1];
+    let rest1   = raw[(t1 + 1)..total];
+    let rest_len = len(rest1);
+    let t2      = std::str::index_of(rest1, "\t");
+    let mut data = "";
+    if t2 >= 0 {
+        data = rest1[(t2 + 1)..rest_len];
+    }
+    return Session { id: id, data: data };
+}
+
+// Companion: pull just the expiry stamp out of a payload. -1 on
+// parse failure (id == "" sibling check is also fine; the call
+// sites use whichever is more convenient).
+fn __payload_expires_at(payload: Bytes) -> Int {
+    let raw = std::str::from_bytes(payload);
+    let total = len(raw);
+    if total <= 0 { return -1; }
+    let t1 = std::str::index_of(raw, "\t");
+    if t1 < 0 { return -1; }
+    let rest1 = raw[(t1 + 1)..total];
+    let rest_len = len(rest1);
+    let t2 = std::str::index_of(rest1, "\t");
+    let mut exp_str = rest1;
+    if t2 >= 0 {
+        exp_str = rest1[0..t2];
+    }
+    return std::str::parse_int(exp_str) or -1;
+}
+
+// Wrap the payload + HMAC into the final cookie *value* (the
+// part that lives after `Name=`). The full Set-Cookie header is
+// assembled by `write` in store.hl.
+fn encode_cookie_value(payload: Bytes, mac: Bytes) -> String {
+    let p64 = std::text::base64::encode(payload);
+    let m64 = std::text::base64::encode(mac);
+    return p64 + "." + m64;
+}
+
+// Split a cookie value (the `session=<value>` value, with the
+// `session=` prefix already stripped) into (payload_bytes,
+// mac_bytes). Returns a sentinel where either Bytes is empty on
+// shape failure; callers detect that and produce a
+// `SessionError { kind: "malformed" }`.
+type CookieParts {
+    payload: Bytes;
+    mac:     Bytes;
+    ok:      Bool  = false;
+}
+
+fn __decode_cookie_value(value: String) -> CookieParts {
+    let empty = std::bytes::from_string("");
+    let total = len(value);
+    if total <= 0 {
+        return CookieParts { payload: empty, mac: empty, ok: false };
+    }
+    let dot = std::str::index_of(value, ".");
+    if dot <= 0 || dot >= total - 1 {
+        return CookieParts { payload: empty, mac: empty, ok: false };
+    }
+    let p64 = value[0..dot];
+    let m64 = value[(dot + 1)..total];
+    let payload = std::text::base64::decode(p64);
+    let mac     = std::text::base64::decode(m64);
+    if len(payload) <= 0 || len(mac) <= 0 {
+        return CookieParts { payload: empty, mac: empty, ok: false };
+    }
+    return CookieParts { payload: payload, mac: mac, ok: true };
+}
+
+// Locate the `session=<value>` pair inside a `Cookie:` header
+// value. Cookie headers are `name=value; name2=value2; ...`. We
+// don't import the full RFC 6265 parser — we just walk `; `-
+// joined pairs and return the first match. Empty on absent.
+fn extract_session_cookie(cookie_header: String) -> String {
+    let total = len(cookie_header);
+    if total <= 0 { return ""; }
+    let needle = "session=";
+    let needle_len = len(needle);
+    let mut cursor = 0;
+    while cursor < total {
+        // Skip leading whitespace and `;`.
+        let rest_len = total - cursor;
+        let rest = cookie_header[cursor..total];
+        let semi_rel = std::str::index_of(rest, ";");
+        let mut pair_end = total;
+        if semi_rel >= 0 {
+            pair_end = cursor + semi_rel;
+        }
+        let pair = std::str::trim(cookie_header[cursor..pair_end]);
+        let pair_len = len(pair);
+        if pair_len >= needle_len {
+            let head = pair[0..needle_len];
+            if head == needle {
+                return pair[needle_len..pair_len];
+            }
+        }
+        if semi_rel < 0 {
+            return "";
+        }
+        cursor = pair_end + 1;
+    }
+    return "";
+}

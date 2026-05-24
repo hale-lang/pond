@@ -1,0 +1,66 @@
+// pond/http/client get-demo
+//
+// Fetches a URL and prints the status code + body length.
+// Default URL is http://127.0.0.1:8080/ (point it at a local
+// server). Pass any URL on argv[1]. Both http:// and https://
+// schemes work; hostnames resolve via getaddrinfo
+// (`std::io::tcp::connect` as of upstream C6, 2026-05-17), and
+// https:// routes through `std::io::tls::*` (shipped 2026-05-18).
+//
+// Run:
+//   cd pond/http/client/examples/get-demo/
+//   hale build .
+//   ./main http://127.0.0.1:8080/
+//   ./main https://example.com/
+//
+// Test against a local server:
+//   python3 -m http.server 8080 &
+//   ./main http://127.0.0.1:8080/
+
+import "../.." as http;
+
+locus GetDemo {
+    params {
+        url: String = "http://127.0.0.1:8080/";
+    }
+    run() {
+        fetch(self.url);
+    }
+}
+
+fn fetch(url: String) {
+    println("GET ", url);
+    let resp = http::get(url) or report_err(err);
+    if resp.status > 0 {
+        println("status: ", resp.status);
+        println("body length: ", len(resp.body));
+        // Print up to 512 bytes of the body as text. Binary
+        // responses will get strlen-truncated at the first NUL.
+        let body_str = std::str::from_bytes(resp.body);
+        let body_len = len(body_str);
+        let mut show_end = body_len;
+        if show_end > 512 { show_end = 512; }
+        println("---");
+        println(body_str[0..show_end]);
+        if body_len > 512 {
+            println("...[truncated]");
+        }
+    }
+}
+
+fn report_err(e: http::HttpError) -> http::Response {
+    println("ERROR kind=", e.kind, " status=", e.status, " detail=", e.detail);
+    return http::Response {
+        status: 0,
+        headers: "",
+        body: b""
+    };
+}
+
+fn main() {
+    let mut url = "http://127.0.0.1:8080/";
+    if std::env::args_count() > 1 {
+        url = std::env::arg(1);
+    }
+    GetDemo { url: url };
+}

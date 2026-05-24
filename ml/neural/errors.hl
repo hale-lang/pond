@@ -1,0 +1,31 @@
+// pond/ml/neural — error payload shape
+//
+// One error type per lib (cross-cutting convention in
+// pond/CONTRACTS.md § Cross-cutting). Kinds disambiguate.
+//
+// `kind` vocabulary:
+//   - "shape_mismatch"     — forward / train_step received an input
+//                            whose dim doesn't match the first
+//                            layer's `input_dim`, or a target whose
+//                            dim doesn't match the last layer's
+//                            `output_dim`.
+//   - "unknown_activation" — `add_dense` was called with an
+//                            activation name outside the supported
+//                            set ("sigmoid" | "relu" | "tanh" |
+//                            "linear").
+//   - "empty_model"        — forward / train_step called before
+//                            any `add_dense` registered a layer.
+//   - "decode_failed"      — `apply_delta` couldn't decode the
+//                            incoming Bytes into a recognized
+//                            in-memory shape (state-mirroring surface surface).
+//   - "snapshot_decode_failed"
+//                          — `apply_delta` (or a consumer's
+//                            on_snapshot) hit a malformed snapshot
+//                            payload.
+//
+// `detail` is the human-readable explanation suitable for log
+// emission or for printing inside an error-check fn.
+type NnError {
+    kind:   String = "";
+    detail: String = "";
+}

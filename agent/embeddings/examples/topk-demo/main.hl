@@ -1,0 +1,138 @@
+// topk-demo — embed 5 trivial 4-dim vectors, query against a
+// 6th, verify the top-3 matches the closest by inspection.
+//
+// Hand-crafted vectors arranged so the cosine ordering is
+// unambiguous against the query:
+//
+//   v_red    = [1, 0, 0, 0]    "primary axis"  — same family as query
+//   v_red2   = [2, 1, 0, 0]    "near red"
+//   v_green  = [0, 1, 0, 0]    "orthogonal"
+//   v_blue   = [0, 0, 1, 0]    "orthogonal, different"
+//   v_opp    = [-1, 0, 0, 0]   "anti-red"      — anti-correlated
+//
+//   query    = [3, 1, 0, 0]    "red-ish"
+//
+// Cosine similarities by inspection:
+//   v_red    → dot=3, mag_q≈3.162, mag_v=1     ≈ 0.949
+//   v_red2   → dot=7, mag_q≈3.162, mag_v≈2.236 ≈ 0.990
+//   v_green  → dot=1, mag_q≈3.162, mag_v=1     ≈ 0.316
+//   v_blue   → dot=0                            = 0.000
+//   v_opp    → dot=-3                           ≈ -0.949
+//
+// Expected top-3 (descending): red2, red, green.
+
+import "../.." as emb;
+import "../../../../math/matrix" as mat;
+
+fn main() {
+    let mx = mat::Mat { };
+    let store = emb::Store { dim: 4 };
+
+    // Load 5 hand-crafted 4-dim vectors.
+    let v_red    = mx.from_rows(1, 4, "1.0, 0.0, 0.0, 0.0");
+    let v_red2   = mx.from_rows(1, 4, "2.0, 1.0, 0.0, 0.0");
+    let v_green  = mx.from_rows(1, 4, "0.0, 1.0, 0.0, 0.0");
+    let v_blue   = mx.from_rows(1, 4, "0.0, 0.0, 1.0, 0.0");
+    let v_opp    = mx.from_rows(1, 4, "-1.0, 0.0, 0.0, 0.0");
+
+    store.add("red",   v_red,   "primary axis");
+    store.add("red2",  v_red2,  "near red");
+    store.add("green", v_green, "orthogonal");
+    store.add("blue",  v_blue,  "different axis");
+    store.add("opp",   v_opp,   "anti-red");
+
+    println("count = ", store.count());
+
+    // Query and pull the top-3.
+    let q = mx.from_rows(1, 4, "3.0, 1.0, 0.0, 0.0");
+    let rows = store.search(q, 3);
+    println("--- top-3 ---");
+    println(rows.csv);
+
+    // Verify by parsing the first three rows out of the csv.
+    // Each row is `id\tscore\tmetadata`; rows are newline-
+    // separated. We pull the ids and check ordering.
+    let id1 = nth_id(rows.csv, 0);
+    let id2 = nth_id(rows.csv, 1);
+    let id3 = nth_id(rows.csv, 2);
+
+    println("--- ranking ---");
+    println("#1 = ", id1, " (want red2)");
+    println("#2 = ", id2, " (want red)");
+    println("#3 = ", id3, " (want green)");
+
+    if id1 == "red2" {
+        println("ok   #1 = red2");
+    } else {
+        println("FAIL #1 = ", id1, " want red2");
+    }
+    if id2 == "red" {
+        println("ok   #2 = red");
+    } else {
+        println("FAIL #2 = ", id2, " want red");
+    }
+    if id3 == "green" {
+        println("ok   #3 = green");
+    } else {
+        println("FAIL #3 = ", id3, " want green");
+    }
+
+    // Exercise the fallible surface — dim mismatch.
+    let bad_q = mx.from_rows(1, 3, "1.0, 2.0, 3.0");
+    let _r = emb::search_checked(store, bad_q, 3)
+        or report_dim_mismatch(err);
+
+    // Exercise remove + recount.
+    store.remove("blue");
+    println("after remove(blue) count = ", store.count());
+
+    let rows2 = store.search(q, 5);
+    println("--- top-5 (post-remove) ---");
+    println(rows2.csv);
+}
+
+// Read the id (first tab-separated field) of the `i`-th row in
+// `csv` (rows newline-separated). Returns "" on out-of-range.
+fn nth_id(csv: String, i: Int) -> String {
+    let row = nth_line(csv, i);
+    if len(row) == 0 {
+        return "";
+    }
+    let tab_at = std::str::index_of(row, "\t");
+    if tab_at < 0 {
+        return row;
+    }
+    return std::str::substring(row, 0, tab_at);
+}
+
+// Pull the `i`-th newline-separated row from `csv`. Returns "" if
+// `i` is out of range. Linear scan; fine for the demo's small
+// outputs.
+fn nth_line(csv: String, i: Int) -> String {
+    let n = len(csv);
+    let mut start = 0;
+    let mut row_idx = 0;
+    let mut j = 0;
+    while j < n {
+        let ch = std::str::substring(csv, j, j + 1);
+        if ch == "\n" {
+            if row_idx == i {
+                return std::str::substring(csv, start, j);
+            }
+            row_idx = row_idx + 1;
+            start = j + 1;
+        }
+        j = j + 1;
+    }
+    if row_idx == i {
+        return std::str::substring(csv, start, n);
+    }
+    return "";
+}
+
+// Fallback for `search_checked` — never expected to fire on the
+// happy path; if it does, report which kind triggered.
+fn report_dim_mismatch(e: emb::EmbError) -> emb::Rows {
+    println("ok   search_checked rejected dim mismatch (kind=", e.kind, ")");
+    return emb::Rows { csv: "" };
+}

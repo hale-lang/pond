@@ -1,0 +1,385 @@
+// pond/agent/llm — wire-format helpers.
+//
+// Free fns (pattern 6) that turn an `LlmRequest` into the
+// vendor's JSON body, and parse the JSON response back into an
+// `LlmResponse`. Two adapter pairs — one per vendor — share the
+// same `__decode_messages` walker over the tab-separated
+// `messages` field on LlmRequest.
+//
+// Per CONTRACTS.md the request body assembly uses
+// `std::json::Builder` end-to-end. Response parsing leans on
+// `std::json::find_string_field` + `find_int_field` for the
+// flat top-level fields; nested-content arrays are walked with
+// the index-API pattern (no nested-tree shape in v1 json).
+//
+// FRICTION: the tab-separated `messages: String` encoding for
+// LlmRequest paired with this walker is duplicate-suspected —
+// `pond/router::RouteParams` (`path_kv: String` tab-separated
+// kv) and `pond/conversation::Conversation` (history is
+// tab-separated messages) follow the same shape. A
+// `std::iter::TabFields` or similar would lift the pattern.
+// Logged in FRICTION.md.
+
+// __next_field — read one tab-separated field starting at
+// `from`. Returns the field value (excluding the delimiter)
+// and writes the post-delimiter cursor into the second
+// element of the returned `__Slice`. End-of-string yields
+// done=true.
+type __Slice {
+    value: String = "";
+    next:  Int    = 0;
+    done:  Bool   = false;
+}
+
+fn __next_field(s: String, from: Int) -> __Slice {
+    let total = len(s);
+    if from >= total {
+        return __Slice { value: "", next: total, done: true };
+    }
+    let rest = s[from..total];
+    let rest_len = len(rest);
+    let rel = std::str::index_of(rest, "\t");
+    if rel < 0 {
+        return __Slice {
+            value: rest,
+            next:  total,
+            done:  false
+        };
+    }
+    return __Slice {
+        value: rest[0..rel],
+        next:  from + rel + 1,
+        done:  false
+    };
+}
+
+// __emit_message — append one `{"role": ..., "content": ...}`
+// object inside the currently-open messages array. Used by
+// both vendor adapters.
+fn __emit_message(b: std::json::Builder, role: String, content: String) {
+    b.begin_object();
+    b.string_field("role",    role);
+    b.string_field("content", content);
+    b.end_object();
+}
+
+// __build_anthropic_body — assemble the JSON body for an
+// Anthropic /v1/messages call.
+//
+// Wire shape (Anthropic v1):
+//   {
+//     "model": "...",
+//     "max_tokens": N,
+//     "system": "..." (omitted when empty),
+//     "temperature": F,
+//     "stream": <bool>,
+//     "messages": [{"role": ..., "content": ...}, ...]
+//   }
+//
+// We emit `max_tokens` even when 0 because Anthropic *requires*
+// it — see FRICTION.md (default 1024 picked here so the field
+// is never absent on the wire).
+fn __build_anthropic_body(req: LlmRequest, stream: Bool) -> String {
+    let b = std::json::Builder { };
+    b.begin_object();
+    b.string_field("model", req.model);
+
+    let mut max_tok = req.max_tokens;
+    if max_tok <= 0 { max_tok = 1024; }
+    b.int_field("max_tokens", max_tok);
+
+    if len(req.system) > 0 {
+        b.string_field("system", req.system);
+    }
+
+    // Temperature is plumbed through to_string for the Float
+    // → text rendering; Anthropic accepts standard decimal
+    // forms.
+    b.field("temperature", to_string(req.temperature));
+
+    b.bool_field("stream", stream);
+
+    b.begin_array_field("messages");
+    let mut cur = 0;
+    let total = len(req.messages);
+    while cur < total {
+        let role = __next_field(req.messages, cur);
+        if role.done { break; }
+        cur = role.next;
+        if cur >= total {
+            // Dangling role with no content — emit empty content
+            // for safety and stop.
+            __emit_message(b, role.value, "");
+            break;
+        }
+        let content = __next_field(req.messages, cur);
+        cur = content.next;
+        __emit_message(b, role.value, content.value);
+    }
+    b.end_array();
+
+    b.end_object();
+    return b.result();
+}
+
+// __build_openai_body — assemble the JSON body for an OpenAI
+// /v1/chat/completions call.
+//
+// Wire shape (OpenAI v1):
+//   {
+//     "model": "...",
+//     "temperature": F,
+//     "stream": <bool>,
+//     "max_tokens": N (omitted when <= 0),
+//     "messages": [
+//       {"role": "system", "content": "..."} (when system is non-empty),
+//       {"role": ..., "content": ...}, ...
+//     ]
+//   }
+fn __build_openai_body(req: LlmRequest, stream: Bool) -> String {
+    let b = std::json::Builder { };
+    b.begin_object();
+    b.string_field("model", req.model);
+    b.field("temperature", to_string(req.temperature));
+    b.bool_field("stream", stream);
+    if req.max_tokens > 0 {
+        b.int_field("max_tokens", req.max_tokens);
+    }
+
+    b.begin_array_field("messages");
+    if len(req.system) > 0 {
+        __emit_message(b, "system", req.system);
+    }
+    let mut cur = 0;
+    let total = len(req.messages);
+    while cur < total {
+        let role = __next_field(req.messages, cur);
+        if role.done { break; }
+        cur = role.next;
+        if cur >= total {
+            __emit_message(b, role.value, "");
+            break;
+        }
+        let content = __next_field(req.messages, cur);
+        cur = content.next;
+        __emit_message(b, role.value, content.value);
+    }
+    b.end_array();
+
+    b.end_object();
+    return b.result();
+}
+
+// __parse_anthropic_response — Anthropic's non-streaming
+// response shape:
+//
+//   {
+//     "id": "...",
+//     "type": "message",
+//     "role": "assistant",
+//     "content": [{"type":"text","text":"..."}, ...],
+//     "stop_reason": "end_turn",
+//     "usage": {"input_tokens": N, "output_tokens": M}
+//   }
+//
+// We walk `content[]` with std::json::array_first / array_next
+// (the v1 flat-array iterator) and accumulate each block's
+// `text` field. Token counts come from a nested usage object —
+// since the flat-field finder doesn't descend, we slice the
+// usage substring out first and run find_int_field on it.
+fn __parse_anthropic_response(body: String) -> LlmResponse {
+    let stop = std::json::find_string_field(body, "stop_reason");
+
+    // Walk the `content` array, concatenating each block's
+    // `text` field. Use the std::str::builder so the inner
+    // append stays amortized O(N).
+    let buf = std::str::builder_new();
+    let content_raw = __extract_field_raw(body, "content");
+    if len(content_raw) > 0 {
+        let mut it = std::json::array_first(content_raw);
+        while !it.done {
+            let chunk_text = std::json::find_string_field(it.element, "text");
+            if len(chunk_text) > 0 {
+                std::str::builder_append(buf, chunk_text);
+            }
+            it = std::json::array_next(it);
+        }
+    }
+
+    // Nested usage object — slice it out then find ints inside.
+    let usage_raw = __extract_field_raw(body, "usage");
+    let mut in_tok = 0;
+    let mut out_tok = 0;
+    if len(usage_raw) > 0 {
+        in_tok  = std::json::find_int_field(usage_raw, "input_tokens");
+        out_tok = std::json::find_int_field(usage_raw, "output_tokens");
+    }
+
+    return LlmResponse {
+        text:          std::str::builder_finish(buf),
+        stop_reason:   stop,
+        input_tokens:  in_tok,
+        output_tokens: out_tok
+    };
+}
+
+// __parse_openai_response — OpenAI's non-streaming response
+// shape:
+//
+//   {
+//     "id": "...",
+//     "object": "chat.completion",
+//     "choices": [{
+//       "index": 0,
+//       "message": {"role": "assistant", "content": "..."},
+//       "finish_reason": "stop"
+//     }],
+//     "usage": {"prompt_tokens": N, "completion_tokens": M, "total_tokens": ...}
+//   }
+//
+// We take choices[0] (most chat completions never request n>1)
+// and pull message.content out of it.
+fn __parse_openai_response(body: String) -> LlmResponse {
+    let choices_raw = __extract_field_raw(body, "choices");
+    let mut text = "";
+    let mut stop = "";
+    if len(choices_raw) > 0 {
+        let it = std::json::array_first(choices_raw);
+        if !it.done {
+            let first = it.element;
+            stop = std::json::find_string_field(first, "finish_reason");
+            // message is a nested object; slice it then dig.
+            let msg_raw = __extract_field_raw(first, "message");
+            if len(msg_raw) > 0 {
+                text = std::json::find_string_field(msg_raw, "content");
+            }
+        }
+    }
+
+    let usage_raw = __extract_field_raw(body, "usage");
+    let mut in_tok = 0;
+    let mut out_tok = 0;
+    if len(usage_raw) > 0 {
+        in_tok  = std::json::find_int_field(usage_raw, "prompt_tokens");
+        out_tok = std::json::find_int_field(usage_raw, "completion_tokens");
+    }
+
+    return LlmResponse {
+        text:          text,
+        stop_reason:   stop,
+        input_tokens:  in_tok,
+        output_tokens: out_tok
+    };
+}
+
+// __extract_field_raw — return the raw substring value of a
+// top-level JSON field, including surrounding quotes /
+// braces / brackets. Mirrors what std::json's internal
+// `__json_find_field_raw` does, but exposes it for our nested-
+// object case (usage, message, etc.) which the flat finders
+// can't drill into.
+//
+// FRICTION: duplicate-suspected with std::json's internal
+// `__json_find_field_raw` — that helper isn't exported. Once
+// the stdlib lifts it (or adds a `find_object_field(json,
+// name) -> String`), this can go. Logged in FRICTION.md.
+fn __extract_field_raw(json: String, name: String) -> String {
+    let needle = "\"" + name + "\"";
+    let pos = std::str::index_of(json, needle);
+    if pos < 0 { return ""; }
+    let total = len(json);
+    let mut p = pos + len(needle);
+    let bs = std::bytes::from_string(json);
+    // Skip ws + colon + ws.
+    while p < total {
+        let c = std::bytes::at(bs, p) or 0;
+        if c == 32 || c == 9 || c == 10 || c == 13 { p = p + 1; }
+        else if c == 58 { p = p + 1; break; }
+        else { return ""; }
+    }
+    while p < total {
+        let c = std::bytes::at(bs, p) or 0;
+        if c == 32 || c == 9 || c == 10 || c == 13 { p = p + 1; }
+        else { break; }
+    }
+    if p >= total { return ""; }
+    let start_v = p;
+    let first = std::bytes::at(bs, p) or 0;
+    if first == 34 {
+        // String — walk to closing quote (skipping escapes).
+        p = p + 1;
+        while p < total {
+            let c = std::bytes::at(bs, p) or 0;
+            if c == 92 { p = p + 2; continue; }
+            if c == 34 { p = p + 1; break; }
+            p = p + 1;
+        }
+        return json[start_v..p];
+    }
+    if first == 123 {
+        // Object — depth-track braces, respecting nested strings.
+        let mut depth = 1;
+        p = p + 1;
+        while p < total && depth > 0 {
+            let c = std::bytes::at(bs, p) or 0;
+            if c == 34 {
+                // Skip string.
+                p = p + 1;
+                while p < total {
+                    let cc = std::bytes::at(bs, p) or 0;
+                    if cc == 92 { p = p + 2; continue; }
+                    if cc == 34 { p = p + 1; break; }
+                    p = p + 1;
+                }
+                continue;
+            }
+            if c == 123 { depth = depth + 1; }
+            else if c == 125 { depth = depth - 1; }
+            p = p + 1;
+        }
+        return json[start_v..p];
+    }
+    if first == 91 {
+        // Array — depth-track brackets, respecting nested strings.
+        let mut depth = 1;
+        p = p + 1;
+        while p < total && depth > 0 {
+            let c = std::bytes::at(bs, p) or 0;
+            if c == 34 {
+                p = p + 1;
+                while p < total {
+                    let cc = std::bytes::at(bs, p) or 0;
+                    if cc == 92 { p = p + 2; continue; }
+                    if cc == 34 { p = p + 1; break; }
+                    p = p + 1;
+                }
+                continue;
+            }
+            if c == 91 { depth = depth + 1; }
+            else if c == 93 { depth = depth - 1; }
+            p = p + 1;
+        }
+        return json[start_v..p];
+    }
+    // Scalar — walk to comma / closing brace / closing bracket.
+    while p < total {
+        let c = std::bytes::at(bs, p) or 0;
+        if c == 44 || c == 125 || c == 93 || c == 32 || c == 9 || c == 10 || c == 13 {
+            break;
+        }
+        p = p + 1;
+    }
+    return json[start_v..p];
+}
+
+// __extract_error_detail — vendor error envelopes share the
+// "{"error": {"message": "...", ...}}" outer shape. We pull
+// the nested message out so the LlmError.detail carries
+// something useful.
+fn __extract_error_detail(body: String) -> String {
+    let err_obj = __extract_field_raw(body, "error");
+    if len(err_obj) == 0 {
+        return "";
+    }
+    return std::json::find_string_field(err_obj, "message");
+}

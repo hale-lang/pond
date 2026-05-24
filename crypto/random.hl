@@ -1,0 +1,23 @@
+// random.hl — random_bytes.
+//
+// Backed by `std::os::getrandom(n: Int) -> Bytes fallible(IoError)`
+// (hale `ef85ed5`, "stdlib: std::os::getrandom CSPRNG (C4)"),
+// which routes through the `getrandom(2)` syscall with a
+// `/dev/urandom` fallback. This is the real CSPRNG the contract
+// has always asked for.
+//
+// The `or` clause substitutes empty Bytes on IoError. The public
+// `random_bytes` free fn is non-fallible to match CONTRACTS.md;
+// callers that need to distinguish "entropy source failed" from
+// "n was 0" can call `std::os::getrandom(n) or <handler>` directly.
+
+fn random_bytes(n: Int) -> Bytes {
+    // `std::os::getrandom` already treats n=0 as "return empty
+    // without error" (upstream C4 commit), so the early return
+    // here is a consistency guard rather than a requirement.
+    if n <= 0 {
+        return std::bytes::from_string("");
+    }
+    let bs = std::os::getrandom(n) or std::bytes::from_string("");
+    return bs;
+}

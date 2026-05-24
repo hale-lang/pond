@@ -1,0 +1,121 @@
+// pond/ml/neural — Trainer locus (Service pattern).
+//
+// Drives epochs over a (xs, ys) dataset by calling
+// Model.train_step per sample and publishing a TrainStep on the
+// bus once per epoch.
+//
+// **CONTRACTS.md deviation log** (see FRICTION.md):
+//
+//   1. CONTRACTS.md declares
+//        params { model: Model; lr: Float = 0.01; batch_size: Int = 32; }
+//      Locus refs can't sit in another locus's params at v1
+//      (spec/semantics.md § Slot restrictions — same restriction
+//      noted in pond/jobs/pool.hl and pond/router/types.hl).
+//      Shipped shape: `lr`, `batch_size`, `last_error` only;
+//      `fit(model, xs, ys, epochs)` takes the model handle as a
+//      fn-arg instead.
+//
+//   2. CONTRACTS.md declares
+//        fn fit(xs, ys, epochs) -> () fallible(NnError);
+//      Locus methods can't carry fallible(E) per the two-channel
+//      rule (KNOWN_GOTCHAS G4). Shipped non-fallible; errors
+//      stash on `self.last_error`. Callers branch on
+//      `tr.last_error.kind != ""` to detect failures.
+//
+//   3. `batch_size` is parsed and recorded but the v0
+//      implementation is per-sample SGD (effective batch_size=1).
+//      A true mini-batch loop would accumulate grads across
+//      `batch_size` samples before each update — straight-line
+//      to add once we either (a) ship a fallible-method-on-locus
+//      surface so train_step can accumulate vs apply, or (b)
+//      extend Model with a `zero_grad()` / `apply_grad()` pair.
+//      See FRICTION.md "batch-size-stub".
+
+import "../../math/matrix" as mat;
+
+locus Trainer {
+    params {
+        lr:         Float       = 0.01;
+        batch_size: Int         = 32;
+        last_error: NnError;
+    }
+    bus {
+        // Publish by topic ident; the topic decl in `topics.hl`
+        // carries the wire subject. Upstream A1 (`f9068fa`) closed
+        // the mangle-rewrite gap that previously forced the
+        // literal-subject form here.
+        publish TrainStepEvent;
+    }
+
+    // Train `model` on the (xs, ys) sample pair for `epochs`
+    // epochs. `xs` and `ys` are rectangular: each row is one
+    // sample. The model's first-layer input_dim must match
+    // xs.cols and the last-layer output_dim must match ys.cols.
+    //
+    // Publishes one TrainStep per epoch with the epoch's mean
+    // loss. Returns nothing; inspect `self.last_error` after the
+    // call to detect a structural failure.
+    fn fit(model: Model, xs: mat::Matrix, ys: mat::Matrix, epochs: Int) {
+        if epochs <= 0 {
+            self.last_error = NnError {
+                kind:   "shape_mismatch",
+                detail: "epochs must be > 0",
+            };
+            return;
+        }
+        if xs.rows != ys.rows {
+            self.last_error = NnError {
+                kind:   "shape_mismatch",
+                detail: "xs and ys have different row counts",
+            };
+            return;
+        }
+        if xs.rows == 0 {
+            self.last_error = NnError {
+                kind:   "shape_mismatch",
+                detail: "empty training set",
+            };
+            return;
+        }
+
+        let n_samples = xs.rows;
+        let in_dim = xs.cols;
+        let out_dim = ys.cols;
+
+        let mut e_idx = 1;
+        let mut step = 0;
+        while e_idx <= epochs {
+            let mut sample = 0;
+            let mut epoch_loss = 0.0;
+            let ops = NnOps { };
+            while sample < n_samples {
+                let x_row = ops.extract_row(xs, sample, in_dim);
+                let y_row = ops.extract_row(ys, sample, out_dim);
+                let loss = model.train_step(x_row, y_row, self.lr);
+                // Skip NaN losses (shape mismatch surfaced from
+                // train_step). Set our own last_error from the
+                // model's so the caller has one place to look.
+                if std::math::is_nan(loss) {
+                    self.last_error = model.last_error;
+                    return;
+                }
+                epoch_loss = epoch_loss + loss;
+                step = step + 1;
+                sample = sample + 1;
+            }
+            let n_samples_f = int_to_float(n_samples);
+            let mean_loss = epoch_loss / n_samples_f;
+            let payload = TrainStep {
+                loss:      mean_loss,
+                epoch_idx: e_idx,
+                step:      step,
+            };
+            TrainStepEvent <- payload;
+            e_idx = e_idx + 1;
+        }
+        self.last_error = NnError { };
+    }
+}
+
+// `extract_row` lives on the NnOps namespace lotus in model.hl
+// (free fns can't return LocusRef at v1 — KNOWN_GOTCHAS G3).

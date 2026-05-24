@@ -1,0 +1,124 @@
+// pond/sessions — SessionStore locus.
+//
+// Holds the HMAC secret + TTL and brokers cookie read/write for a
+// running app. Typical wiring inside a `std::http::Handler`-shaped
+// locus:
+//
+//     locus Routes {
+//         params {
+//             sessions: SessionStore;     // shared by every request
+//         }
+//         fn handle(req: std::http::Request) -> std::http::Response {
+//             let cookie = std::http::header(req, "Cookie");
+//             let s = self.sessions.read(cookie);
+//             if self.sessions.last_error.kind == "" {
+//                 // authenticated; s.id / sess::get_value(s, "user")
+//             } else {
+//                 // missing / expired / tampered — render login
+//             }
+//             ...
+//         }
+//     }
+//
+// CONTRACTS.md declares:
+//
+//     locus SessionStore {
+//         params { secret: Bytes; ttl_seconds: Int = 86400; }
+//         fn read(cookie_header: String) -> Session fallible(SessionError);
+//         fn write(s: Session) -> String;
+//         fn invalidate(id: String) -> String;
+//     }
+//
+// Contract deviation (logged in FRICTION.md): per spec/semantics.md
+// § Fallible call semantics, **user-declared locus methods may
+// not declare fallible(E)** — that channel is reserved for free
+// fns and @form-synthesized methods. `read` therefore drops the
+// `fallible(SessionError)` marker; failures surface via:
+//
+//   - `self.last_error: SessionError` — readable after every
+//     `read` call. `kind == ""` means success.
+//   - The companion free fn `verify_cookie(secret, header, now)`
+//     in sign.hl *is* fallible(SessionError) — consumers that
+//     want `or` addressing (e.g. CLI tools, batch jobs)
+//     short-circuit the locus and call it directly.
+
+locus SessionStore {
+    params {
+        secret:      Bytes;
+        ttl_seconds: Int          = 86400;
+        // Surfaced after every read/write. kind == "" on success.
+        last_error:  SessionError = SessionError { kind: "" };
+    }
+
+    // Audit channel for unrecoverable signing failures. v0 of
+    // this locus never violates — every error path is
+    // recoverable (just hand back the sentinel Session + report
+    // via last_error). The closure is declared so the
+    // structural-failure shape is in place for the future when
+    // a key-rotation / kms-backed-secret variant might need to
+    // shut the store down on a fetch failure.
+    closure fatal_secret { captures: last_error; epoch inline; }
+
+    // Read + verify a cookie. On success, returns the Session
+    // and sets `self.last_error.kind = ""`. On failure, returns
+    // a sentinel `Session { id: "", data: "" }` and records the
+    // failure kind on `self.last_error`.
+    //
+    // Per-call ordering note: this method reads
+    // `std::time::monotonic()` to compute "now" — pass-through
+    // tests can compare two consecutive reads and observe the
+    // monotone-non-decreasing property.
+    fn read(cookie_header: String) -> Session {
+        let now = now_seconds();
+        let s   = verify_cookie(self.secret, cookie_header, now)
+            or self.handle_verify(err);
+        return s;
+    }
+
+    // Sign the session and return a `Set-Cookie:` *value* (the
+    // part after the colon and one space — not the full header
+    // line). The caller writes
+    //     Set-Cookie: <returned value>
+    // into the response headers.
+    //
+    // The returned value is
+    //     session=<b64payload>.<b64hmac>; Path=/; HttpOnly; Max-Age=<ttl>
+    //
+    // — the standard defensive shape (HttpOnly so JS can't read
+    // it; Max-Age tracks the same TTL the HMAC payload encodes).
+    // The Path is `/` so the cookie travels with every request
+    // under the origin; consumers that need a tighter scope can
+    // call `sign_payload` directly and assemble their own header.
+    fn write(s: Session) -> String {
+        let now      = now_seconds();
+        let value    = sign_payload(self.secret, s, now, self.ttl_seconds);
+        let max_age  = to_string(self.ttl_seconds);
+        self.last_error = SessionError { kind: "" };
+        return "session=" + value + "; Path=/; HttpOnly; Max-Age=" + max_age;
+    }
+
+    // Produce an expiring/clearing Set-Cookie value. Servers
+    // respond with this when logging the user out. The `id`
+    // param is accepted (per CONTRACTS.md) but not consumed —
+    // HMAC-signed cookies are self-contained, so invalidation
+    // happens on the browser side via Max-Age=0 + an empty
+    // value. (When a future variant adds a server-side
+    // revocation list, `id` flips from advisory to required.)
+    fn invalidate(id: String) -> String {
+        let _ = id;
+        self.last_error = SessionError { kind: "" };
+        return "session=; Path=/; HttpOnly; Max-Age=0";
+    }
+
+    // Error-check fn (spec/styleguide.md § 7) — converts the
+    // value-channel SessionError from `verify_cookie` into the
+    // recoverable shape used at the read() call site. Every
+    // failure today is recoverable (the consumer just renders
+    // a login page); the `violate fatal_secret` branch is
+    // reserved for future variants where verifying requires an
+    // external secret fetch.
+    fn handle_verify(e: SessionError) -> Session {
+        self.last_error = e;
+        return Session { id: "", data: "" };
+    }
+}

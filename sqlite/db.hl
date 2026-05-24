@@ -1,0 +1,124 @@
+// db.hl — the Db service locus.
+//
+// Pattern 3 (service locus): `birth` opens the SQLite connection;
+// `dissolve` closes it. `params.conn_handle = -1` is the
+// "not-yet-bound" sentinel so a partially-constructed Db (one whose
+// birth raised before stashing the handle) still dissolves safely.
+//
+// Lifecycle is the locus's job; **the query/exec/prepare surface
+// lives in `query.hl` as free fns** taking a `Db` ref. Per
+// AGENTS.md (semantics.md § "Where each channel lives"), locus
+// methods cannot declare `fallible(E)` — the two-channel rule.
+// Every SQL operation is naturally fallible (SQLITE_BUSY, syntax
+// error, constraint violation, ...), so locus methods are the
+// wrong shape. Free fns reading the locus's `conn_handle` field
+// move the failure onto the value channel where it belongs.
+//
+// **Deviation from CONTRACTS.md**: the contract lists
+// `fn exec`, `fn query_one`, ... as locus methods on Db. That
+// shape is type-illegal under the two-channel rule. The free-fn
+// surface in `query.hl` is functionally identical at the call
+// site (`db::exec(conn, sql)` instead of `conn.exec(sql)`) and
+// keeps the lib type-checkable. Logged in FRICTION.md.
+//
+// Status (2026-05-16): BLOCKED on a stdlib sqlite primitive. The
+// `birth()` body cannot actually open a connection — there is no
+// `std::db::sqlite::open` (or libsqlite3 FFI) in stdlib, and
+// AGENTS.md forbids adding one in `crates/`. `birth()` stamps
+// `conn_handle = 0` as a non-`-1` placeholder so the rest of the
+// surface can reason about "a Db that's been birthed"; the real
+// implementation will replace the `0` with an actual handle.
+
+locus Db {
+    params {
+        // SQLite path. ":memory:" picks the in-memory ephemeral
+        // DB once unblocked. Default lets a caller construct a
+        // throwaway Db with no flags.
+        path:        String = ":memory:";
+
+        // Sentinel value semantics:
+        //   -1 → not yet birthed (or birth raised before stash)
+        //    0 → birthed-but-stub (BLOCKED state; no real handle)
+        //   >0 → real SQLite connection handle (post-unblock)
+        // dissolve() reads this and no-ops on -1 / 0 today; once
+        // unblocked the >0 branch closes via the real primitive.
+        conn_handle: Int    = -1;
+    }
+
+    // birth() — open the SQLite connection.
+    //
+    // Once unblocked this calls `std::db::sqlite::open(self.path)`
+    // (proposed primitive — see FRICTION.md) and stashes the
+    // returned handle in `self.conn_handle`. If open fails, the
+    // primitive bubbles structurally via the closure-violation
+    // channel (parents see it through `on_failure`). Today the
+    // body stamps `0` as a "stub-birthed" marker.
+    birth() {
+        // TODO: needs stdlib sqlite primitive
+        //   self.conn_handle = std::db::sqlite::open(self.path);
+        self.conn_handle = 0;
+    }
+
+    // dissolve() — close the connection.
+    //
+    // Conditioned on the sentinel so dissolve is safe on a
+    // partially-constructed Db. The -1 case is "never birthed";
+    // the 0 case is "birthed but no real handle" (stub mode).
+    // Both no-op. Real handles (>0) close via the (future)
+    // `std::db::sqlite::close` primitive.
+    dissolve() {
+        if self.conn_handle > 0 {
+            // TODO: needs stdlib sqlite primitive
+            //   std::db::sqlite::close(self.conn_handle);
+        }
+    }
+
+    // bind_text / bind_int / finalize live as **methods on Db**
+    // (rather than free fns) for two combined reasons:
+    //
+    //   1. The two-channel rule forbids `fallible(E)` on locus
+    //      methods (semantics.md § "Where each channel lives").
+    //      The post-codegen-lift signature for these three would
+    //      be `-> () fallible(DbError)` per CONTRACTS.md.
+    //   2. Codegen v0 can't lower unit-fallible (`() fallible(E)`)
+    //      fns AND can't lower non-fallible cross-seed path calls
+    //      in expression position (FRICTION.md § F.5 / § F.6).
+    //      The intersection of those two restrictions leaves
+    //      exactly one shape codegen accepts: a locus method
+    //      returning a value-typed non-fallible result.
+    //
+    // The status-Int return (0 = SQLITE_OK; non-zero = error
+    // code) mirrors the pre-2026-05-16 stdlib shape for fs::mkdir
+    // / fs::write_file (Int 0/-1 before the fallible flip). Once
+    // both codegen restrictions lift, these can graduate back to
+    // free fns with `() fallible(DbError)` per the original
+    // CONTRACTS.md.
+    //
+    // Call sites:
+    //     let conn = db::Db { path: ":memory:" };
+    //     let stmt = db::prepare(conn, "SELECT v FROM kv WHERE k = ?1")
+    //         or self.handle(err);
+    //     let rc1  = conn.bind_text(stmt, 1, "greeting");
+    //     if rc1 != 0 { /* error */ }
+    //     let row  = db::step(stmt) or self.handle(err);
+    //     let rc2  = conn.finalize(stmt);
+    //     if rc2 != 0 { /* error */ }
+
+    fn bind_text(stmt: Int, idx: Int, val: String) -> Int {
+        // TODO: needs stdlib sqlite primitive
+        //   return std::db::sqlite::bind_text(stmt, idx, val);
+        return -1;
+    }
+
+    fn bind_int(stmt: Int, idx: Int, val: Int) -> Int {
+        // TODO: needs stdlib sqlite primitive
+        //   return std::db::sqlite::bind_int(stmt, idx, val);
+        return -1;
+    }
+
+    fn finalize(stmt: Int) -> Int {
+        // TODO: needs stdlib sqlite primitive
+        //   return std::db::sqlite::finalize(stmt);
+        return -1;
+    }
+}

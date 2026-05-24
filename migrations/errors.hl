@@ -1,0 +1,34 @@
+// pond/migrations — error payload type
+//
+// Per CONTRACTS.md the public data surface is:
+//
+//   type MigrationError { kind: String; detail: String; version: Int; }
+//
+// One shape record (pattern 5). MigrationError is the synthesized
+// fallible(MigrationError) payload across every fallible free fn in
+// this lib (current_version, pending, migrate_up, migrate_down,
+// plus the internal step helpers).
+//
+// `kind` vocabulary:
+//   "io"             — std::io::fs::* failure (read_file, list_dir_*)
+//   "bad_filename"   — file in dir didn't match NNN_description.sql
+//   "duplicate"      — two files share the same version prefix
+//   "down_missing"   — migrate_down can't find the .down.sql sibling
+//   "exec_failed"    — db::exec rejected the SQL (wraps DbError.detail)
+//   "version_table"  — couldn't create / read the migrations table
+//   "below_zero"     — migrate_down asked to go below version 0
+//   "above_latest"   — migrate_up target exceeds the highest on-disk
+//
+// `detail` is human-readable; surfaces at the CLI as the diagnostic
+// line. `version` is the migration version under whose application
+// the error fired (0 when the failure is pre-iteration, e.g. the
+// initial migrations-table create). Defaulting `version` to -1 in
+// the type would have been cleaner ("no version yet"), but the
+// CONTRACTS.md shape doesn't tag it as optional, so we keep the
+// zero default and document the semantics here.
+
+type MigrationError {
+    kind:    String = "";
+    detail:  String = "";
+    version: Int    = 0;
+}

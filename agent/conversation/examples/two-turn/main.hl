@@ -1,0 +1,64 @@
+// two-turn — minimal consumer demo for pond/agent/conversation.
+//
+// Walks through the canonical lifecycle of a Conversation locus:
+//
+//   1. Construct a Conversation with a system prompt.
+//   2. Append three messages (`hello` from user, `hi there` from
+//      assistant, `how are you` from user) using the
+//      `append(Message)` method.
+//   3. Read back the canonical tab-separated history via
+//      `history()` and print it.
+//
+// Vendored normally the import looks like:
+//
+//     import "vendor/pond/agent/conversation" as conv;
+//
+// In-tree the example reaches the lib via a relative path.
+//
+// **Note on Time literals.** `Message.ts` is a `Time` field; we
+// supply backtick-literal timestamps (`` `2026-05-16T00:00:00Z` ``)
+// per the v1 Time-literal syntax. The values are illustrative —
+// a real conversation runtime would stamp via a wall-clock now()
+// (currently missing per pond/sessions/FRICTION.md `time::now()`
+// gap) or accept the timestamp from the calling layer.
+
+import "../.." as conv;
+
+locus TwoTurn {
+    run() {
+        // Step 1: construct the Conversation.
+        let c = conv::Conversation {
+            system_prompt: "You are a terse assistant.",
+            max_messages: 10,
+        };
+
+        // Step 2: append three messages. Each append fires the
+        // ConversationUpdated topic; this demo has no subscriber
+        // wired (the topic exists for downstream consumers like
+        // an LLM-client mirror).
+        c.append(conv::Message {
+            role:    "user",
+            content: "hello",
+            ts:      `2026-05-16T00:00:00Z`,
+        });
+        c.append(conv::Message {
+            role:    "assistant",
+            content: "hi there",
+            ts:      `2026-05-16T00:00:01Z`,
+        });
+        c.append(conv::Message {
+            role:    "user",
+            content: "how are you",
+            ts:      `2026-05-16T00:00:02Z`,
+        });
+
+        // Step 3: print the canonical history view.
+        let hist = c.history();
+        println("[two-turn] history()           =");
+        println(hist);
+    }
+}
+
+fn main() {
+    TwoTurn { };
+}

@@ -1,0 +1,24 @@
+// pond/sessions — Session.data accessors.
+
+import "../_util/kvpack" as kv;
+
+// `Session.data` is a tab-separated `k1=v1\tk2=v2\t...` packed
+// block. The walker logic (formerly two ~40-line helpers in this
+// file) consolidated into pond/_util/kvpack during pond pass D5.
+// `get_value` / `set_value` stay as thin wrappers so consumers
+// keep their existing `sess::get_value(s, key)` / `set_value(s,
+// k, v)` shape.
+//
+// Catalog pattern 6.
+
+// Lookup. Returns "" for absent keys (sentinel shape).
+fn get_value(s: Session, key: String) -> String {
+    let k = kv::KvPack { };
+    return k.get(s.data, key);
+}
+
+// Pure setter — returns a new Session with the key set to val.
+fn set_value(s: Session, key: String, val: String) -> Session {
+    let k = kv::KvPack { };
+    return Session { id: s.id, data: k.set(s.data, key, val) };
+}

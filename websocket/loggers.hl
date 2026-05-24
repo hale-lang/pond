@@ -1,0 +1,46 @@
+// pond/websocket/loggers.hl — stock WsLogger sinks.
+//
+// Two implementations ship: NoopWsLogger discards (production
+// default when the lib's own default is overridden), and
+// StderrWsLogger emits one line per event to stderr via println.
+// Both satisfy the WsLogger interface declared in types.hl.
+//
+// Custom sinks are easy: any locus declaring
+// `fn on_event(e: WsLogEvent)` structurally satisfies the
+// interface — route to a bus topic, append to a ring buffer,
+// emit prometheus counters, batch into the tracing span tower,
+// etc.
+
+// NoopWsLogger — silent. Pass this when you want zero overhead
+// + zero output from a WsClient. Production deploys that don't
+// want raw-I/O traces in their logs should set this explicitly:
+//
+//   ws::WsClient { logger: ws::NoopWsLogger { }, ... }
+locus NoopWsLogger {
+    fn on_event(e: WsLogEvent) { }
+}
+
+// StderrWsLogger — one line per event to stderr. Default sink
+// when no `logger:` override is supplied to WsClient so the
+// "I/O libs debug raw I/O by default" principle holds out of
+// the box.
+//
+// Line shape: `[ws <phase>] <detail>` plus optional `bytes=N`
+// and `op=N` suffixes when relevant. Single-line; easy to grep
+// by phase or grep -v to filter out noisy ones.
+locus StderrWsLogger {
+    fn on_event(e: WsLogEvent) {
+        if e.bytes > 0 && e.op >= 0 {
+            println("[ws ", e.phase, "] ", e.detail,
+                    " op=", e.op, " bytes=", e.bytes);
+        } else if e.bytes > 0 {
+            println("[ws ", e.phase, "] ", e.detail,
+                    " bytes=", e.bytes);
+        } else if e.op >= 0 {
+            println("[ws ", e.phase, "] ", e.detail,
+                    " op=", e.op);
+        } else {
+            println("[ws ", e.phase, "] ", e.detail);
+        }
+    }
+}

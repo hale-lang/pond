@@ -1,0 +1,31 @@
+// pond/agent/conversation — public shape types.
+//
+// Pattern 5 in the six-pattern catalog: pure data, no flow.
+// Constructed via struct literal at use sites, returnable from
+// fns by value through the m49 calling convention.
+//
+// Surface contract: pond/CONTRACTS.md § pond/agent/conversation/.
+
+// Message — a single chat-history entry. `role` is one of
+// "user" / "assistant" / "system" (we don't enum-constrain at v1
+// because `role` is an opaque string the LLM vendors validate
+// downstream). `content` is the message body verbatim.
+// `ts` records when the message was appended; mirrors the
+// `ts: Time` shape from `downstream-consumer::Tick` / `downstream-consumer::Quote`
+// per the cross-cutting precedent.
+//
+// **Note on tab-encoding** (see `history()` in
+// `conversation.hl`): role and content are appended into a
+// single tab-separated stream when callers ask for the
+// canonical "history()" representation. Embedded tabs in
+// `content` would corrupt the stream; the conservative v1 stance
+// is "callers don't pass tabs in content" — same convention
+// `pond/router::RouteParams` and `pond/agent/llm::LlmRequest`
+// already use. A future `std::iter::TabFields` (logged in
+// FRICTION.md as duplicate-suspected) would centralize the
+// pattern and could escape the delimiter properly.
+type Message {
+    role:    String = "";
+    content: String = "";
+    ts:      Time   = `1970-01-01T00:00:00Z`;
+}

@@ -1,0 +1,139 @@
+// sign-demo — exercises pond/crypto end-to-end:
+//   1. SHA-256 of "abc" against the FIPS 180-2 known vector.
+//   2. SHA-256 of "" (empty) against the known vector.
+//   3. SHA-256 of the FIPS 180-2 B.2 long input (exercises the
+//      pad-overflow-to-second-block branch).
+//   4. HMAC-SHA256 with the RFC 4231 test-case-1 vector.
+//   5. Hex encode / decode round-trip (using the bare free-fn
+//      surface — post-A3 cross-seed non-fallible free-fn calls
+//      lower cleanly).
+//   6. constant_time_eq distinguishes equal / unequal.
+//   7. random_bytes returns the requested length.
+//   8. Sign + verify a message round-trip — the core HMAC use case.
+//
+// Build: cd to this directory, then
+//   hale build .
+
+import "../.." as crypto;
+
+fn main() {
+    // (1) SHA-256("abc") — FIPS 180-2 Appendix B.1.
+    let abc = std::bytes::from_string("abc");
+    let d = crypto::sha256(abc);
+    let dhex = crypto::hex_encode(d);
+    let want_abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    println("sha256(abc) = ", dhex);
+    if dhex == want_abc {
+        println("  PASS");
+    } else {
+        println("  FAIL — wanted ", want_abc);
+    }
+
+    // (2) SHA-256("") — known:
+    //   e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    let empty = std::bytes::from_string("");
+    let de = crypto::sha256(empty);
+    let dehex = crypto::hex_encode(de);
+    let want_empty = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    println("sha256('')  = ", dehex);
+    if dehex == want_empty {
+        println("  PASS");
+    } else {
+        println("  FAIL — wanted ", want_empty);
+    }
+
+    // (3) SHA-256 of the FIPS 180-2 B.2 56-byte input — exercises
+    // padding into a second block.
+    let long_msg = std::bytes::from_string(
+        "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+    );
+    let dl = crypto::sha256(long_msg);
+    let dlhex = crypto::hex_encode(dl);
+    let want_long = "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1";
+    println("sha256(B.2) = ", dlhex);
+    if dlhex == want_long {
+        println("  PASS");
+    } else {
+        println("  FAIL — wanted ", want_long);
+    }
+
+    // (4) HMAC-SHA256 — RFC 4231 test case 1:
+    //   key = 0x0b * 20, data = "Hi There"
+    //   expect = b0344c61d8db38535ca8afceaf0bf12b
+    //            881dc200c9833da726e9376c2e32cff7
+    let mut key = std::bytes::from_string("");
+    let mut i = 0;
+    while i < 20 {
+        key = std::bytes::concat(key, std::bytes::from_int(0x0b));
+        i = i + 1;
+    }
+    let msg = std::bytes::from_string("Hi There");
+    let mac = crypto::hmac_sha256(key, msg);
+    let machex = crypto::hex_encode(mac);
+    let want_mac = "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7";
+    println("hmac-sha256 = ", machex);
+    if machex == want_mac {
+        println("  PASS");
+    } else {
+        println("  FAIL — wanted ", want_mac);
+    }
+
+    // (5) Hex round-trip via the fallible free fn — proves
+    // `crypto::hex_decode(s) or raise` works through the import
+    // alias (the codegen path that DOES handle imported fns).
+    let original_hex = "deadbeef00ff";
+    let bs = crypto::hex_decode(original_hex) or raise;
+    let back = crypto::hex_encode(bs);
+    println("hex round   = ", back);
+    if back == original_hex {
+        println("  PASS");
+    } else {
+        println("  FAIL");
+    }
+
+    // (6) constant_time_eq.
+    let a = std::bytes::from_string("hello");
+    let b = std::bytes::from_string("hello");
+    let z = std::bytes::from_string("world");
+    if crypto::constant_time_eq(a, b) {
+        println("ct-eq same  = PASS");
+    } else {
+        println("ct-eq same  = FAIL");
+    }
+    if !crypto::constant_time_eq(a, z) {
+        println("ct-eq diff  = PASS");
+    } else {
+        println("ct-eq diff  = FAIL");
+    }
+
+    // (7) random_bytes — length check only.
+    let r = crypto::random_bytes(16);
+    if len(r) == 16 {
+        println("random(16)  = PASS");
+    } else {
+        println("random(16)  = FAIL — got ", len(r));
+    }
+
+    // (8) Sign + verify a message round-trip — the core HMAC
+    // use case (signed cookies / API request signing).
+    let secret = std::bytes::from_string("super-secret-key");
+    let payload = std::bytes::from_string("user=alice&exp=1700000000");
+    let tag = crypto::hmac_sha256(secret, payload);
+    let tag_hex = crypto::hex_encode(tag);
+    println("signed tag  = ", tag_hex);
+
+    // verifier side: recompute and compare in constant time.
+    let recomputed = crypto::hmac_sha256(secret, payload);
+    if crypto::constant_time_eq(tag, recomputed) {
+        println("verify good = PASS");
+    } else {
+        println("verify good = FAIL");
+    }
+    let tampered = std::bytes::from_string("user=alice&exp=9999999999");
+    let tag2 = crypto::hmac_sha256(secret, tampered);
+    if !crypto::constant_time_eq(tag, tag2) {
+        println("verify bad  = PASS");
+    } else {
+        println("verify bad  = FAIL");
+    }
+}

@@ -1,0 +1,875 @@
+// pond/ml/neural — Model locus (Service + state-mirroring surface).
+//
+// The model owns:
+//   - a flat `@form(vec)` of Float carrying every layer's weights
+//     concatenated, followed by every layer's bias vector;
+//   - a String-encoded layer-metadata table (`meta_csv`) holding
+//     `input_dim,output_dim,activation;...` per layer; and
+//   - an Int `layer_count` so callers can iterate without parsing
+//     the CSV.
+//
+// Per "one form per locus" (forms.md § 1), Model carries the
+// hot-path substrate (the Float param buffer). The Layer
+// metadata is packed into a String rather than a sub-locus
+// because (a) v1 doesn't admit a sub-locus field on Model (same
+// "locus ref in params" restriction logged across the pond tree)
+// and (b) layer count for the supported toy-NN class (≤ 4 dense
+// layers, XOR fits in 2) makes the per-call String walk
+// negligible against the matmul.
+//
+// **CONTRACTS.md deviation log** (see FRICTION.md for full
+// context):
+//
+//   1. CONTRACTS.md says `Model.forward(x: Matrix) -> Matrix
+//      fallible(NnError)`. Locus methods can't carry fallible(E)
+//      per the two-channel rule (KNOWN_GOTCHAS G4). Shipped
+//      shape: `forward(x: Matrix) -> Matrix`; on shape mismatch
+//      returns the matrix error sentinel and stashes
+//      `self.last_error: NnError`. Callers branch on
+//      `mat::Mat.is_error(out)` after the call.
+//
+//   2. CONTRACTS.md says `Model.apply_delta(d: Bytes) -> ()
+//      fallible(NnError)`. Same rule; shipped non-fallible.
+//      Errors land on `self.last_error`.
+//
+//   3. The `Layer` type stores `weights_offset / weights_count /
+//      biases_offset / biases_count` Int windows into Model.params
+//      rather than the contract's `weights: Matrix; biases:
+//      Matrix;` because `type` records can't carry locus refs at
+//      v1. See layer.hl header for the design.
+//
+// **Autograd-lite scope.** No tape, no graph. The supported
+// activations are sigmoid (canonical XOR/MLP pick), relu, tanh,
+// and linear. Backward is hand-coded inside `train_step` for a
+// single forward+backward sweep per sample. Loss is MSE over the
+// final layer's output vs. target.
+//
+// **state-mirroring surface.** `version() -> Version`,
+// `snapshot_bytes() -> Bytes`, `apply_delta(d: Bytes) -> ()`
+// match state-mirroring surface (which itself dropped the
+// fallible(E) marker per the two-channel rule; see
+// a future store-pattern lib header). The snapshot encodes meta_csv
+// + the entire params buffer as a tab-separated ASCII payload so
+// any consumer with std::str + std::math primitives can decode.
+
+import "../../math/matrix" as mat;
+
+// **the store-pattern lib import deviation**. The Model is contractually a
+// `state-mirroring surface` (CONTRACTS.md § pond/ml/neural). Importing
+// the future store-pattern lib as `the store-pattern lib` and referencing `the version shape` from this
+// file's signatures parse-clean but codegen rejects with
+// "qualified type `the version shape` not in stdlib path-renames
+// table" — the cross-seed qualified-type lookup table doesn't
+// yet register user-lib qualified types in fn return positions.
+// The same surface for store-lib::an error type surfaces too. Workaround:
+// declare local twin shapes (`NnVersion`) here matching the store-pattern lib's
+// wire-stable layout (`generation: Int; era: Int;`). A consumer
+// that needs the version shape exactly can construct one from
+// the NnVersion pair at the boundary. See FRICTION.md
+// "the store-pattern lib-qualified-type-codegen".
+type NnVersion {
+    generation: Int = 0;
+    era:        Int = 0;
+}
+
+@form(vec)
+locus Model {
+    params {
+        name:        String         = "model";
+
+        // Layer metadata table, one record per layer:
+        //   "in,out,act;in,out,act;..."
+        meta_csv:    String         = "";
+        layer_count: Int            = 0;
+
+        // Total Float slots consumed in the @form(vec) so far.
+        // Mirrors `self.len()` but read without an `or 0`
+        // addressing site.
+        params_len:  Int            = 0;
+
+        // Owner state for state-mirroring surface surface.
+        gen:         Int            = 0;
+        era:         Int            = 0;
+        last_error:  NnError;
+
+        // PRNG state for Xavier-init weights. Tiny LCG; not
+        // cryptographic — deterministic seeds matter more than
+        // statistical fidelity for a toy trainer.
+        rng_state:   Int            = 1;
+    }
+    capacity { heap data of Float; }
+
+    // ---- state-mirroring surface ----
+
+    fn version() -> NnVersion {
+        return NnVersion { generation: self.gen, era: self.era };
+    }
+
+    // Encode the model as:
+    //     meta_csv + "\n" + p0 + "\t" + p1 + "\t" + ... + "\n"
+    // Two newlines partition meta from params; tabs separate
+    // params. ASCII Floats round-trip through to_string +
+    // std::str::parse_float.
+    fn snapshot_bytes() -> Bytes {
+        let mut s = self.meta_csv;
+        s = s + "\n";
+        let mut i = 0;
+        while i < self.params_len {
+            let v = self.get(i) or 0.0;
+            s = s + to_string(v);
+            if i + 1 < self.params_len {
+                s = s + "\t";
+            }
+            i = i + 1;
+        }
+        s = s + "\n";
+        return std::bytes::from_string(s);
+    }
+
+    // Replace the model's full state from a snapshot-shaped
+    // Bytes payload. Bumps `gen` on success. On any decode
+    // failure stashes `self.last_error` with kind
+    // "decode_failed" and leaves state untouched.
+    fn apply_delta(d: Bytes) {
+        let s = std::str::from_bytes(d);
+        let total = len(s);
+        // Locate the first newline — meta boundary.
+        let mut nl = -1;
+        let mut i = 0;
+        while i < total {
+            let c = std::str::substring(s, i, i + 1);
+            if c == "\n" {
+                if nl < 0 {
+                    nl = i;
+                }
+            }
+            i = i + 1;
+        }
+        if nl < 0 {
+            self.last_error = NnError {
+                kind:   "decode_failed",
+                detail: "missing newline meta delimiter",
+            };
+            return;
+        }
+        let meta = std::str::substring(s, 0, nl);
+        // Parse + replace state. Reset the @form(vec) by
+        // re-popping everything (no `clear` synthesized at v1).
+        let mut p = self.params_len;
+        while p > 0 {
+            self.pop() or 0.0;
+            p = p - 1;
+        }
+        self.meta_csv = meta;
+        self.layer_count = count_layers_in_meta(meta);
+        self.params_len = 0;
+        // Walk the tab-separated params after the newline.
+        let body_start = nl + 1;
+        let mut cursor = body_start;
+        let mut consumed = 0;
+        while cursor < total {
+            let mut j = cursor;
+            let mut tok_end = total;
+            while j < total {
+                let c2 = std::str::substring(s, j, j + 1);
+                if c2 == "\t" || c2 == "\n" {
+                    tok_end = j;
+                    j = total;
+                } else {
+                    j = j + 1;
+                }
+            }
+            let raw = std::str::substring(s, cursor, tok_end);
+            let trimmed = std::str::trim(raw);
+            if len(trimmed) > 0 {
+                let v = std::str::parse_float(trimmed) or 0.0;
+                self.push(v);
+                self.params_len = self.params_len + 1;
+                consumed = consumed + 1;
+            }
+            cursor = tok_end + 1;
+        }
+        self.gen = self.gen + 1;
+        self.last_error = NnError { };
+    }
+
+    // ---- model-building surface ----
+
+    // Append a dense layer with `input_dim -> output_dim` shape
+    // and the given activation. Allocates `output_dim * input_dim`
+    // weight slots + `output_dim` bias slots in the param buffer
+    // and initializes weights with Xavier-uniform draws scaled by
+    // sqrt(1 / input_dim); biases start at 0.0.
+    //
+    // Unknown activations are accepted with a `last_error` stash
+    // (kind="unknown_activation") and treated as "linear" at
+    // forward time — the structurally-clean path is to address
+    // last_error after add_dense().
+    fn add_dense(input_dim: Int, output_dim: Int, activation: String) {
+        // Validate activation.
+        let act = canonical_activation(activation);
+        if act == "unknown" {
+            self.last_error = NnError {
+                kind:   "unknown_activation",
+                detail: activation,
+            };
+        }
+        // Compute windows.
+        let w_off = self.params_len;
+        let w_cnt = output_dim * input_dim;
+        let b_off = w_off + w_cnt;
+        let b_cnt = output_dim;
+
+        // Init weights — Xavier-uniform in [-bound, bound] with
+        // bound = sqrt(6 / (in + out)) scaled to LCG draws.
+        let in_out_sum_i = input_dim + output_dim;
+        let scale = std::math::sqrt(6.0 / int_to_float(in_out_sum_i));
+        let mut wi = 0;
+        while wi < w_cnt {
+            let u = self.lcg_next();
+            // u in [0, 1); shift to [-1, 1) then scale.
+            let v = (u * 2.0 - 1.0) * scale;
+            self.push(v);
+            wi = wi + 1;
+        }
+        // Init biases to 0.
+        let mut bi = 0;
+        while bi < b_cnt {
+            self.push(0.0);
+            bi = bi + 1;
+        }
+        self.params_len = b_off + b_cnt;
+
+        // Append metadata.
+        let act_use = act;
+        let row = to_string(input_dim) + "," + to_string(output_dim)
+            + "," + act_use;
+        if self.layer_count == 0 {
+            self.meta_csv = row;
+        } else {
+            self.meta_csv = self.meta_csv + ";" + row;
+        }
+        self.layer_count = self.layer_count + 1;
+    }
+
+    // ---- introspection ----
+
+    // Read back the i-th layer's metadata as a Layer record.
+    // Returns a default Layer (`input_dim=0`) if `i` is out of
+    // range. The metadata walk costs O(layer_count) per call,
+    // which is fine for toy models.
+    fn layer_at(i: Int) -> Layer {
+        if i < 0 || i >= self.layer_count {
+            return Layer { };
+        }
+        return parse_layer_at(self.meta_csv, i, self.params_len, self.layer_count);
+    }
+
+    // ---- forward / training ----
+
+    // Run the model on input `x` (shape input_dim x 1 column-vec,
+    // or 1 x input_dim row-vec — we treat the underlying storage
+    // as a length-input_dim vector). Returns an output Matrix of
+    // shape output_dim x 1.
+    //
+    // Empty model → returns the matrix error sentinel and stashes
+    // `last_error` kind="empty_model". Shape mismatch (input
+    // length doesn't match first-layer input_dim) → error
+    // sentinel + last_error kind="shape_mismatch".
+    fn forward(x: mat::Matrix) -> mat::Matrix {
+        let mx = mat::Mat { };
+        let ops = NnOps { };
+        if self.layer_count == 0 {
+            self.last_error = NnError {
+                kind:   "empty_model",
+                detail: "forward() called with no layers",
+            };
+            return mx.error_matrix();
+        }
+        let first = self.layer_at(0);
+        if x.len() != first.input_dim {
+            self.last_error = NnError {
+                kind:   "shape_mismatch",
+                detail: "input length doesn't match first layer input_dim",
+            };
+            return mx.error_matrix();
+        }
+        // Coerce input to column-vec view (input_dim x 1).
+        let mut a = ops.column_view(x, first.input_dim);
+        let mut li = 0;
+        while li < self.layer_count {
+            let layer = self.layer_at(li);
+            let w = self.load_weights(layer);
+            let b = self.load_biases(layer);
+            let z = mx.matmul(w, a);
+            let zb = mx.add(z, b);
+            a = ops.apply_activation(zb, layer.activation);
+            li = li + 1;
+        }
+        self.last_error = NnError { };
+        return a;
+    }
+
+    // Single forward + backward + SGD update on one sample.
+    // Returns the per-sample MSE loss (or NaN on shape mismatch
+    // with last_error set).
+    //
+    // Caches forward activations in two parallel @form(vec) Float
+    // buffers held on a sibling FwdCache locus — let-bound inside
+    // this method so it dissolves at scope exit. The caches store
+    // pre-activation (z) and post-activation (a) values for each
+    // layer in storage order.
+    fn train_step(x: mat::Matrix, y: mat::Matrix, lr: Float) -> Float {
+        let mx = mat::Mat { };
+        if self.layer_count == 0 {
+            self.last_error = NnError {
+                kind:   "empty_model",
+                detail: "train_step() called with no layers",
+            };
+            return std::math::nan();
+        }
+        let first = self.layer_at(0);
+        let last = self.layer_at(self.layer_count - 1);
+        if x.len() != first.input_dim {
+            self.last_error = NnError {
+                kind:   "shape_mismatch",
+                detail: "input length doesn't match first layer input_dim",
+            };
+            return std::math::nan();
+        }
+        if y.len() != last.output_dim {
+            self.last_error = NnError {
+                kind:   "shape_mismatch",
+                detail: "target length doesn't match last layer output_dim",
+            };
+            return std::math::nan();
+        }
+
+        // Sibling activation cache (let-bound; dissolves at fn
+        // exit). Holds two concatenated flat Float buffers per
+        // layer — pre-activation z and post-activation a — plus
+        // the seed input a_0 at the front. We track per-slot
+        // offsets ourselves in a sibling OffsetTable @form(vec)
+        // of Int so the backward sweep can re-extract each slice
+        // without re-summing predecessor lengths from a String.
+        //
+        // Slot schedule (per layer i ∈ [0, L)):
+        //   slot 0           — a_in for layer 0 (length = layer0.input_dim)
+        //   slot 2*i+1       — z_i  (length = layer_i.output_dim)
+        //   slot 2*i+2       — a_in for layer i+1 (length = layer_i.output_dim)
+        // The last slot (2*L) is the final output a_L.
+        let cache = FwdCache { };
+        let offsets = OffsetTable { };
+
+        let ops = NnOps { };
+
+        // Seed input as the layer-0 input slot.
+        let a0 = ops.column_view(x, first.input_dim);
+        offsets.push(0);                // slot 0 starts at offset 0
+        cache.push_vec(a0);
+        let mut running = first.input_dim;
+
+        let mut li = 0;
+        let mut a = a0;
+        while li < self.layer_count {
+            let layer = self.layer_at(li);
+            let w = self.load_weights(layer);
+            let b = self.load_biases(layer);
+            let z = mx.add(mx.matmul(w, a), b);
+            offsets.push(running);
+            cache.push_vec(z);
+            running = running + layer.output_dim;
+            let a_next = ops.apply_activation(z, layer.activation);
+            offsets.push(running);
+            cache.push_vec(a_next);
+            running = running + layer.output_dim;
+            a = a_next;
+            li = li + 1;
+        }
+
+        // Loss: MSE = (1 / output_dim) * sum((a_out - y)^2).
+        let a_out = a;
+        let diff = mx.add(a_out, mx.scale(y, -1.0));
+        let mut loss_acc = 0.0;
+        let mut di = 0;
+        while di < diff.len() {
+            let v = diff.get(di) or 0.0;
+            loss_acc = loss_acc + v * v;
+            di = di + 1;
+        }
+        let out_dim_f = int_to_float(last.output_dim);
+        let loss = loss_acc / out_dim_f;
+
+        // Backward — start with dL/da_out = 2*(a_out - y)/N.
+        let inv_n = 2.0 / out_dim_f;
+        let mut grad_a = mx.scale(diff, inv_n);
+
+        // Walk layers in reverse. The offset table records each
+        // slot's starting position; slot indices follow the
+        // schedule documented at cache construction above.
+        let mut li_b = self.layer_count - 1;
+        while li_b >= 0 {
+            let layer = self.layer_at(li_b);
+            let z_off = offsets.get(2 * li_b + 1) or 0;
+            let a_in_off = offsets.get(2 * li_b) or 0;
+            let z = cache.get_vec_from(z_off, layer.output_dim);
+            let a_in = cache.get_vec_from(a_in_off, layer.input_dim);
+
+            // dL/dz = grad_a * activation'(z)  (element-wise).
+            let grad_z = ops.backprop_activation(grad_a, z, layer.activation);
+
+            // dL/dW = grad_z @ a_in^T  (output_dim x input_dim).
+            let a_in_row = ops.transpose_col_to_row(a_in);
+            let grad_w = mx.matmul(grad_z, a_in_row);
+            // dL/db = grad_z  (output_dim x 1).
+            let grad_b = grad_z;
+
+            // SGD update: W -= lr * grad_w; b -= lr * grad_b.
+            self.update_weights(layer, grad_w, lr);
+            self.update_biases(layer, grad_b, lr);
+
+            // Propagate to next layer down: grad_a_prev = W^T @ grad_z.
+            let w = self.load_weights(layer);
+            let w_t = w.transpose();
+            grad_a = mx.matmul(w_t, grad_z);
+
+            li_b = li_b - 1;
+        }
+
+        self.last_error = NnError { };
+        return loss;
+    }
+
+    // ---- private helpers (callable as self.x) ----
+
+    // Build a fresh `output_dim x input_dim` Matrix from the
+    // weight window for `layer`. Allocates; caller-owned.
+    fn load_weights(layer: Layer) -> mat::Matrix {
+        let mx = mat::Mat { };
+        let m = mx.zeros(layer.output_dim, layer.input_dim);
+        let mut i = 0;
+        while i < layer.weights_count {
+            let v = self.get(layer.weights_offset + i) or 0.0;
+            m.set(i, v) or discard;
+            i = i + 1;
+        }
+        return m;
+    }
+
+    // Build a fresh `output_dim x 1` Matrix from the bias window.
+    fn load_biases(layer: Layer) -> mat::Matrix {
+        let mx = mat::Mat { };
+        let m = mx.zeros(layer.output_dim, 1);
+        let mut i = 0;
+        while i < layer.biases_count {
+            let v = self.get(layer.biases_offset + i) or 0.0;
+            m.set(i, v) or discard;
+            i = i + 1;
+        }
+        return m;
+    }
+
+    // In-place SGD update of the weight window.
+    fn update_weights(layer: Layer, grad_w: mat::Matrix, lr: Float) {
+        let mut i = 0;
+        while i < layer.weights_count {
+            let cur = self.get(layer.weights_offset + i) or 0.0;
+            let g = grad_w.get(i) or 0.0;
+            self.set(layer.weights_offset + i, cur - lr * g) or discard;
+            i = i + 1;
+        }
+    }
+
+    fn update_biases(layer: Layer, grad_b: mat::Matrix, lr: Float) {
+        let mut i = 0;
+        while i < layer.biases_count {
+            let cur = self.get(layer.biases_offset + i) or 0.0;
+            let g = grad_b.get(i) or 0.0;
+            self.set(layer.biases_offset + i, cur - lr * g) or discard;
+            i = i + 1;
+        }
+    }
+
+    // LCG PRNG: state = state * 1103515245 + 12345 (glibc).
+    // Returns a Float in [0, 1).
+    fn lcg_next() -> Float {
+        let next = self.rng_state * 1103515245 + 12345;
+        // Mask to 31 bits to avoid overflow blow-up.
+        let masked = next - (next / 2147483648) * 2147483648;
+        self.rng_state = masked;
+        let masked_f = int_to_float(masked);
+        return masked_f / 2147483648.0;
+    }
+}
+
+// ---- free-fn helpers ----
+
+// `FwdCache` — flat Float buffer for cached forward-pass vectors.
+// Per-vector storage runs in declaration order; offsets are
+// implicit because each push appends, and `get_vec(slot_idx,
+// length)` re-derives the offset by summing predecessor lengths.
+// At v1 we don't have a hashmap of (slot -> offset), so the
+// cache assumes uniform-record layout: caller pushes each vec in
+// order, then asks for slot N by length L. The Model's
+// train_step is the only caller and pushes in a strict order:
+//   slot 0: input  (input_dim long)
+//   slot 1: z_0    (layer 0 output_dim long)
+//   slot 2: a_1    (layer 0 output_dim long)
+//   slot 3: z_1    (layer 1 output_dim long)
+//   ...
+// `get_vec(slot, length)` walks the layer-by-layer schedule and
+// re-derives the offset. Costs O(layer_count) per call; fine.
+
+// `OffsetTable` — parallel Int vec recording each cache slot's
+// starting offset inside FwdCache. Sibling to FwdCache so each
+// `train_step` invocation gets its own pair (both let-bound on
+// the Model.train_step frame; both dissolve at fn exit).
+@form(vec)
+locus OffsetTable {
+    params { }
+    capacity { heap data of Int; }
+}
+
+@form(vec)
+locus FwdCache {
+    params { }
+    capacity { heap data of Float; }
+
+    fn push_vec(v: mat::Matrix) {
+        let n = v.len();
+        let mut i = 0;
+        while i < n {
+            let f = v.get(i) or 0.0;
+            self.push(f);
+            i = i + 1;
+        }
+    }
+
+    // Re-derive offset by walking. Caller-side knows the schedule
+    // (input_dim, then per-layer (output_dim, output_dim)) and
+    // passes the matching length so we can re-extract the slice.
+    fn get_vec_from(offset: Int, length: Int) -> mat::Matrix {
+        let mx = mat::Mat { };
+        let m = mx.zeros(length, 1);
+        let mut i = 0;
+        while i < length {
+            let v = self.get(offset + i) or 0.0;
+            m.set(i, v) or discard;
+            i = i + 1;
+        }
+        return m;
+    }
+
+    // Convenience: given a slot index in the train_step schedule,
+    // compute the offset on the fly. Slot 0 is the input (whose
+    // length must be passed via `length`); subsequent slots are
+    // alternating z and a vectors of the same `length` (per
+    // layer). We don't actually use this helper from Model because
+    // each layer's length differs — Model walks slot-by-slot
+    // tracking the running offset itself. Kept here as a
+    // documentation anchor.
+    fn get_vec(slot: Int, length: Int) -> mat::Matrix {
+        // For Model.train_step we keep our own offset bookkeeping
+        // on the Model side; this helper is unused. Callers should
+        // prefer `get_vec_from` (offset, length).
+        return self.get_vec_from(slot * length, length);
+    }
+}
+
+// Walk the meta_csv string to extract layer `i`. CSV shape:
+//   "in,out,act;in,out,act;..."  (semicolon-separated rows)
+// Computes the weights_offset / biases_offset windows by summing
+// preceding layers' (in * out + out) slot counts. The last
+// layer's terminal byte index is `params_len`; we don't need
+// `params_len` for the offset calc but accept it for sanity.
+fn parse_layer_at(meta: String, i: Int, params_len: Int, layer_count: Int)
+    -> Layer
+{
+    let total = len(meta);
+    let mut cursor = 0;
+    let mut idx = 0;
+    let mut running_offset = 0;
+    let mut found_in = 0;
+    let mut found_out = 0;
+    let mut found_act = "linear";
+
+    while idx <= i && cursor < total {
+        // Find next ';' (or end).
+        let mut j = cursor;
+        let mut row_end = total;
+        while j < total {
+            let c = std::str::substring(meta, j, j + 1);
+            if c == ";" {
+                row_end = j;
+                j = total;
+            } else {
+                j = j + 1;
+            }
+        }
+        let row = std::str::substring(meta, cursor, row_end);
+        // Parse "in,out,act".
+        let parts = parse_three_csv(row);
+        let in_d = std::str::parse_int(parts.first) or 0;
+        let out_d = std::str::parse_int(parts.second) or 0;
+        let act = parts.third;
+
+        if idx == i {
+            found_in = in_d;
+            found_out = out_d;
+            found_act = act;
+            // running_offset is this layer's weights_offset.
+            return Layer {
+                name:           "dense_" + to_string(i),
+                input_dim:      in_d,
+                output_dim:     out_d,
+                activation:     act,
+                weights_offset: running_offset,
+                weights_count:  in_d * out_d,
+                biases_offset:  running_offset + in_d * out_d,
+                biases_count:   out_d,
+            };
+        }
+        running_offset = running_offset + in_d * out_d + out_d;
+        cursor = row_end + 1;
+        idx = idx + 1;
+    }
+    let _ = params_len;
+    let _ = layer_count;
+    let _ = found_in;
+    let _ = found_out;
+    let _ = found_act;
+    return Layer { };
+}
+
+// Helper return type for splitting "a,b,c" into three Strings.
+type TripleCsv {
+    first:  String = "";
+    second: String = "";
+    third:  String = "";
+}
+
+fn parse_three_csv(row: String) -> TripleCsv {
+    let total = len(row);
+    let mut a_end = total;
+    let mut b_end = total;
+    let mut i = 0;
+    let mut seen = 0;
+    while i < total && seen < 2 {
+        let c = std::str::substring(row, i, i + 1);
+        if c == "," {
+            if seen == 0 {
+                a_end = i;
+            } else {
+                b_end = i;
+            }
+            seen = seen + 1;
+        }
+        i = i + 1;
+    }
+    let first = std::str::substring(row, 0, a_end);
+    let mut second = "";
+    let mut third = "";
+    if a_end < total {
+        second = std::str::substring(row, a_end + 1, b_end);
+    }
+    if b_end < total {
+        third = std::str::substring(row, b_end + 1, total);
+    }
+    return TripleCsv {
+        first:  std::str::trim(first),
+        second: std::str::trim(second),
+        third:  std::str::trim(third),
+    };
+}
+
+// Count semicolons + 1; tolerates empty / single-layer meta.
+fn count_layers_in_meta(meta: String) -> Int {
+    let total = len(meta);
+    if total == 0 {
+        return 0;
+    }
+    let mut count = 1;
+    let mut i = 0;
+    while i < total {
+        let c = std::str::substring(meta, i, i + 1);
+        if c == ";" {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+// Canonicalize activation names; unknown returns "unknown".
+fn canonical_activation(s: String) -> String {
+    if s == "sigmoid" {
+        return "sigmoid";
+    }
+    if s == "relu" {
+        return "relu";
+    }
+    if s == "tanh" {
+        return "tanh";
+    }
+    if s == "linear" {
+        return "linear";
+    }
+    if s == "" {
+        return "linear";
+    }
+    return "unknown";
+}
+
+// ===== NnOps namespace lotus =====
+//
+// Matrix-shaping helpers (`column_view`, `transpose_col_to_row`)
+// and the per-element activation pass live as methods on this
+// namespace lotus because free fns can't return LocusRef in v1
+// (KNOWN_GOTCHAS G3). Pattern 2 in spec/styleguide.md. Empty
+// params; one-shot instantiate at the call site.
+
+locus NnOps {
+    params { }
+
+    // Re-shape `x` into a `length x 1` column-vec Matrix. The
+    // underlying flat buffer order is preserved.
+    fn column_view(x: mat::Matrix, length: Int) -> mat::Matrix {
+        let mx = mat::Mat { };
+        let out = mx.zeros(length, 1);
+        let n = x.len();
+        let mut i = 0;
+        while i < length {
+            let mut got = 0.0;
+            if i < n {
+                got = x.get(i) or 0.0;
+            }
+            out.set(i, got) or discard;
+            i = i + 1;
+        }
+        return out;
+    }
+
+    // Transpose a `length x 1` column vec to `1 x length` row
+    // vec by re-shape — same storage order.
+    fn transpose_col_to_row(v: mat::Matrix) -> mat::Matrix {
+        let mx = mat::Mat { };
+        let n = v.len();
+        let out = mx.zeros(1, n);
+        let mut i = 0;
+        while i < n {
+            let val = v.get(i) or 0.0;
+            out.set(i, val) or discard;
+            i = i + 1;
+        }
+        return out;
+    }
+
+    // Element-wise activation: sigmoid / relu / tanh / linear.
+    // Input is a column vec; returns a fresh column vec.
+    fn apply_activation(z: mat::Matrix, name: String) -> mat::Matrix {
+        let mx = mat::Mat { };
+        let n = z.len();
+        let out = mx.zeros(z.rows, z.cols);
+        let mut i = 0;
+        while i < n {
+            let v = z.get(i) or 0.0;
+            let av = activate_one(v, name);
+            out.set(i, av) or discard;
+            i = i + 1;
+        }
+        return out;
+    }
+
+    // Extract row `r` from `m` (shape rows x cols) as a fresh
+    // `cols x 1` column-vec Matrix. Used by Trainer.fit to feed
+    // one sample at a time to Model.train_step / Model.forward.
+    // Lives on NnOps (rather than as a free fn) because v1
+    // free fns can't return LocusRef (KNOWN_GOTCHAS G3).
+    fn extract_row(m: mat::Matrix, r: Int, cols: Int) -> mat::Matrix {
+        let mx = mat::Mat { };
+        let out = mx.zeros(cols, 1);
+        let mut c = 0;
+        while c < cols {
+            let v = m.at(r, c);
+            out.set(c, v) or discard;
+            c = c + 1;
+        }
+        return out;
+    }
+
+    // dL/dz = dL/da * da/dz, element-wise. Returns grad_z with
+    // the same shape as `grad_a` and `z`.
+    fn backprop_activation(grad_a: mat::Matrix, z: mat::Matrix,
+                           name: String) -> mat::Matrix
+    {
+        let mx = mat::Mat { };
+        let n = z.len();
+        let out = mx.zeros(z.rows, z.cols);
+        let mut i = 0;
+        while i < n {
+            let ga = grad_a.get(i) or 0.0;
+            let zv = z.get(i) or 0.0;
+            let dadz = activation_deriv(zv, name);
+            out.set(i, ga * dadz) or discard;
+            i = i + 1;
+        }
+        return out;
+    }
+}
+
+fn activate_one(v: Float, name: String) -> Float {
+    if name == "sigmoid" {
+        return sigmoid(v);
+    }
+    if name == "relu" {
+        if v > 0.0 {
+            return v;
+        }
+        return 0.0;
+    }
+    if name == "tanh" {
+        return std::math::tanh(v);
+    }
+    return v;
+}
+
+fn activation_deriv(z: Float, name: String) -> Float {
+    if name == "sigmoid" {
+        let s = sigmoid(z);
+        return s * (1.0 - s);
+    }
+    if name == "relu" {
+        if z > 0.0 {
+            return 1.0;
+        }
+        return 0.0;
+    }
+    if name == "tanh" {
+        let t = std::math::tanh(z);
+        return 1.0 - t * t;
+    }
+    return 1.0;
+}
+
+// Bridge Int → Float. Routes through ASCII roundtrip (the same
+// shape downstream-consumer/library-b.hl uses for
+// decimal_to_float) because the documented `let f: Float = i;`
+// ascription widening (spec/types.md § "Numeric coercion: Int →
+// Float") fires "expected Float, got Int" at typecheck on the
+// current build for ints sourced from struct fields. Routing
+// through `to_string` + `parse_float` is the available
+// type-coercion surface. See FRICTION.md
+// "int-to-float-ascription-rejected" for the symptom and the
+// downstream consumer's matching workaround for Decimal→Float.
+fn int_to_float(n: Int) -> Float {
+    return std::str::parse_float(to_string(n)) or 0.0;
+}
+
+fn sigmoid(x: Float) -> Float {
+    // 1 / (1 + exp(-x)). std::math::exp is the libm primitive.
+    return 1.0 / (1.0 + std::math::exp(0.0 - x));
+}
+
+// `std::math::tanh` (C8, hale `d946ae2`) replaces this
+// lib's former in-line `tanh_float(x) = (e^x - e^-x) / (e^x +
+// e^-x)` helper. Call sites use `std::math::tanh(...)` directly.

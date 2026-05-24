@@ -1,0 +1,178 @@
+// pond/sessions/examples/login-flow — end-to-end demo.
+//
+// Exercises the four cases a real login flow has to handle:
+//
+//   1. Set a session cookie for a freshly-logged-in user.
+//   2. Read it back on the next request and recover the user.
+//   3. Detect a tampered cookie (flipped byte in the HMAC).
+//   4. Detect an expired cookie (deadline already passed).
+//
+// Vendored normally, the imports look like:
+//
+//     import "vendor/pond/sessions" as sess;
+//     import "vendor/pond/crypto"   as crypto;
+//
+// In-tree we reach the libs via relative paths.
+
+import "../.." as sess;
+import "../../../crypto" as crypto;
+
+locus LoginFlow {
+    params {
+        // 32-byte HMAC secret. Production would load this from
+        // an env var or KMS; the demo uses a fixed seed so the
+        // run is reproducible.
+        secret_hex: String =
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        // Pass-counter for cosmetic reporting.
+        passes:     Int    = 0;
+        fails:      Int    = 0;
+    }
+
+    run() {
+        // Public surface is bare free fns (post-hale A3 /
+        // f9068fa). The fallible `verify_cookie(...) or ...`
+        // already reached across the import alias before A3 via
+        // `lower_or_disp`; the non-fallible `sign_payload` /
+        // `get_value` / `set_value` calls work the same way now.
+        let secret = crypto::hex_decode(self.secret_hex) or raise;
+
+        // ---- (1) sign a session -----------------------------
+        let issued = sess::set_value(
+            sess::Session { id: "u-42", data: "" },
+            "user", "alice"
+        );
+        let issued2 = sess::set_value(issued, "role", "admin");
+
+        // The free-fn surface takes (secret, session, now, ttl)
+        // directly so we can drive a deterministic clock.
+        let now = 100;
+        let cookie_value = sess::sign_payload(secret, issued2, now, 3600);
+        let cookie_header = "session=" + cookie_value;
+
+        println("issued cookie: ", cookie_header);
+
+        // ---- (2) read it back, still within the TTL window --
+        let later = 200;
+        let read_back = sess::verify_cookie(secret, cookie_header, later)
+            or self.note_unexpected_err(err);
+        self.check_eq_str("round-trip id",   read_back.id, "u-42");
+        self.check_eq_str("round-trip user", sess::get_value(read_back, "user"),  "alice");
+        self.check_eq_str("round-trip role", sess::get_value(read_back, "role"),  "admin");
+        self.check_eq_str("absent key returns empty",
+            sess::get_value(read_back, "missing"), "");
+
+        // ---- (3) tamper detection ---------------------------
+        // Flip the LAST character of the cookie value. The HMAC
+        // half lives after the `.`, so this corrupts the mac
+        // (or — if base64 padding pushes it earlier — produces
+        // a malformed shape that still fails verification).
+        let cv_len = len(cookie_value);
+        let last_ch = cookie_value[(cv_len - 1)..cv_len];
+        let mut flipped_ch = "A";
+        if last_ch == "A" { flipped_ch = "B"; }
+        let tampered = "session=" + cookie_value[0..(cv_len - 1)] + flipped_ch;
+        let _ = sess::verify_cookie(secret, tampered, later)
+            or self.expect_err("tamper", err);
+
+        // ---- (4) expiry detection ---------------------------
+        // Same cookie, but "now" is 1 hour and 1 second past the
+        // signing time. The 3600s TTL means it's expired.
+        let way_later = now + 3601;
+        let _ = sess::verify_cookie(secret, cookie_header, way_later)
+            or self.expect_err("expired", err);
+
+        // ---- (5) missing cookie -----------------------------
+        let _ = sess::verify_cookie(secret, "", later)
+            or self.expect_err("missing", err);
+        let _ = sess::verify_cookie(secret, "other=foo; another=bar", later)
+            or self.expect_err("missing-among-others", err);
+
+        // ---- (6) SessionStore locus surface -----------------
+        // The locus path drops `fallible` per the two-channel
+        // rule and surfaces failures on `last_error`. Demo both
+        // shapes so consumers see the parity.
+        let store = sess::SessionStore {
+            secret:      secret,
+            ttl_seconds: 60
+        };
+        let issued_via_store = store.write(issued2);
+        println("store-issued: ", issued_via_store);
+
+        let recovered = store.read(issued_via_store);
+        // Note: SessionStore.read uses now_seconds() (monotonic),
+        // not the deterministic clock above, so the round-trip
+        // here is the realistic path.
+        self.check_eq_str("store round-trip id", recovered.id, "u-42");
+        self.check_eq_str("store last_error empty after good read",
+            store.last_error.kind, "");
+
+        // base64("garbage") decodes to bytes but HMAC won't match;
+        // depending on what base64 produces, the verifier may
+        // report either "tampered" (decode succeeded, mac
+        // mismatch) or "malformed" (decode produced zero bytes).
+        // Accept either — both signal "definitely not authentic."
+        let _ = store.read("session=garbage.garbage");
+        let bad_kind = store.last_error.kind;
+        if bad_kind == "tampered" || bad_kind == "malformed" {
+            self.passes = self.passes + 1;
+            println("  PASS store last_error after bad cookie -> ", bad_kind);
+        } else {
+            self.fails = self.fails + 1;
+            println("  FAIL store last_error after bad cookie -> ", bad_kind);
+        }
+
+        // ---- summary ----------------------------------------
+        println("");
+        println("PASSES: ", self.passes);
+        println("FAILS:  ", self.fails);
+        if self.fails > 0 {
+            println("login-flow: FAIL");
+        } else {
+            println("login-flow: OK");
+        }
+    }
+
+    // ---- Helpers ---------------------------------------------
+
+    fn check_eq_str(label: String, got: String, want: String) {
+        if got == want {
+            self.passes = self.passes + 1;
+            println("  PASS ", label);
+        } else {
+            self.fails = self.fails + 1;
+            println("  FAIL ", label, " — got <", got, "> want <", want, ">");
+        }
+    }
+
+    // Error-check fn used at the `or` site for cases where an
+    // err is EXPECTED. Records a pass when err.kind matches.
+    fn expect_err(want_kind_label: String, e: sess::SessionError) -> sess::Session {
+        // Map the friendly label to the actual kind we want.
+        let mut want = "tampered";
+        if want_kind_label == "expired"             { want = "expired"; }
+        if want_kind_label == "missing"             { want = "missing"; }
+        if want_kind_label == "missing-among-others"{ want = "missing"; }
+        if e.kind == want {
+            self.passes = self.passes + 1;
+            println("  PASS expected-err ", want_kind_label, " -> ", e.kind);
+        } else {
+            self.fails = self.fails + 1;
+            println("  FAIL expected-err ", want_kind_label,
+                " -> wanted <", want, "> got <", e.kind, ">");
+        }
+        return sess::Session { id: "", data: "" };
+    }
+
+    // Error-check fn for cases where err is UNEXPECTED — bumps
+    // the fail counter.
+    fn note_unexpected_err(e: sess::SessionError) -> sess::Session {
+        self.fails = self.fails + 1;
+        println("  FAIL unexpected-err: ", e.kind);
+        return sess::Session { id: "", data: "" };
+    }
+}
+
+fn main() {
+    LoginFlow { };
+}

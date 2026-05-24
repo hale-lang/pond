@@ -1,0 +1,82 @@
+// pond/websocket/examples/echo-client — minimal end-to-end exercise.
+//
+// Connects to wss://echo.websocket.events, sends a few text frames,
+// prints the echoes, exits cleanly.
+//
+// Build:
+//   hale build pond/websocket/examples/echo-client/
+//
+// Run:
+//   ./pond/websocket/examples/echo-client/echo-client
+//
+// Shape (post-refactor 2026-05-19): owner-driven recv. EchoTap
+// owns the WsClient as a child locus, drives the recv loop from
+// its own run() body, never touches the bus.
+
+import "../.." as ws;
+
+locus EchoTap : schedule pinned {
+    params {
+        limit: Int = 5;
+    }
+
+    run() {
+        println("=== echo-client ===");
+
+        let conn = ws::WsClient {
+            url:            "wss://echo.websocket.events",
+            auto_reconnect: true,
+            max_retries:    3,
+            reconnect_initial: 1s,
+            reconnect_max:  10s,
+            ping_interval:  30s,
+            pong_timeout:   10s,
+            recv_chunk:     4096,
+            rx_buf:         std::bytes::from_string(""),
+            last_message:   ws::WsMessage { },
+            last_error:     ws::WsError { },
+        };
+
+        let mut bail = false;
+        if !conn.open() {
+            println("[echo] open failed: kind=", conn.last_error.kind,
+                    " detail=", conn.last_error.detail);
+            bail = true;
+        } else {
+            println("[echo] connected");
+
+            let _ = conn.send_text("hello from pond/websocket");
+            let _ = conn.send_text("frame 2");
+            let _ = conn.send_text("frame 3");
+
+            let mut seen = 0;
+            while seen < self.limit && !bail {
+                if conn.read_msg() {
+                    seen = seen + 1;
+                    let m = conn.last_message;
+                    if m.kind == "text" {
+                        println("[echo] text #", seen, ": ", m.text);
+                    } else {
+                        println("[echo] ", m.kind, " #", seen,
+                                " (", len(m.bytes), " bytes)");
+                    }
+                } else {
+                    println("[echo] error: kind=", conn.last_error.kind,
+                            " detail=", conn.last_error.detail);
+                    bail = true;
+                }
+            }
+
+            conn.close();
+            println("[echo] done; frames_received=", conn.frames_received,
+                    " frames_sent=", conn.frames_sent,
+                    " reconnects=", conn.reconnects);
+        }
+
+        let _ = conn;
+    }
+}
+
+fn main() {
+    EchoTap { limit: 5 };
+}

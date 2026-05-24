@@ -1,0 +1,116 @@
+// pond/tower — Registry locus.
+//
+// Holds references to running towers. Apps register
+// each tower at boot; the registry is the read-side
+// surface admin endpoints, health aggregators,
+// banners, and shutdown coordinators consume.
+//
+// **Pull registration, no hidden behavior.** The
+// app's `fn main()` body explicitly calls
+// `tower::add(reg, t)` for each instantiated tower.
+// Tower libraries do not auto-register; the registry
+// has no knowledge of any tower except what the app
+// hands it.
+//
+// **Non-fallible free-fn API.** v1 surfaces only
+// non-fallible operations (`add`, `count`, `name_at`,
+// `tower_at`, `has`, `find_or`). For "couldn't find"
+// the caller either:
+//   - branches on `has` first, then looks up; or
+//   - calls `find_or(r, name, fallback_tower)` and
+//     supplies an explicit sentinel.
+// Cross-seed mangling of struct literals and bare-name
+// fn calls under `fail` / `or fail` keywords hits a v1
+// gap (FRICTION.md); the non-fallible surface dodges
+// the keyword entirely. A fallible `lookup` shape will
+// land when the cross-seed mangler covers `or fail`
+// expression positions.
+//
+// **Lifetime discipline.** Instantiate the registry
+// BEFORE the towers it tracks. Drain at scope exit
+// fires in reverse instantiation order (F.4), so the
+// registry dissolves LAST — after every tower it
+// holds a reference to. This guarantees the
+// registry's interface fat-pointers don't outlive
+// the towers they point at.
+
+@form(vec)
+locus Registry {
+    capacity { heap items of Tower; }
+}
+
+// add — register a tower in the registry.
+//
+// Locus → Interface coercion happens at this free-fn's
+// arg site (the standard F.20 Phase B path). The
+// internal `r.push(t)` call sees `t` already typed as
+// Tower, so the storage path stores the fat-pointer
+// as-is.
+//
+//   tower::add(reg, Router { name: "public", port: 8080 });
+fn add(r: Registry, t: Tower) {
+    r.push(t);
+}
+
+// count — number of registered towers.
+fn count(r: Registry) -> Int {
+    return r.len();
+}
+
+// name_at — name of the tower at index `i`.
+//
+// Non-fallible. Caller must bounds-check via
+// `count()`; an out-of-range index panics at the root
+// (`or raise` traverses upward for a fallible frame
+// and finds none).
+fn name_at(r: Registry, i: Int) -> String {
+    let t = r.get(i) or raise;
+    return t.name();
+}
+
+// tower_at — Tower handle at index `i`.
+//
+// Same bounds rule as `name_at`. Returns the F.20
+// fat-pointer; the caller dispatches through whatever
+// Tower methods are visible (just `name()` at v1).
+fn tower_at(r: Registry, i: Int) -> Tower {
+    return r.get(i) or raise;
+}
+
+// has — non-fallible presence predicate.
+fn has(r: Registry, name: String) -> Bool {
+    let n = count(r);
+    let mut i = 0;
+    while i < n {
+        if name_at(r, i) == name {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+// find_or — look up by name with an explicit fallback.
+//
+// The caller supplies a Tower value to return when no
+// match is found. Typical patterns:
+//
+//   // Branch first, then look up unconditionally.
+//   if tower::has(reg, "public") {
+//       let t = tower::find_or(reg, "public", sentinel);
+//       // ... t is the matching tower ...
+//   }
+//
+//   // Or use the fallback directly.
+//   let t = tower::find_or(reg, "public", default_route_tower);
+fn find_or(r: Registry, name: String, fallback: Tower) -> Tower {
+    let n = count(r);
+    let mut i = 0;
+    while i < n {
+        if name_at(r, i) == name {
+            return tower_at(r, i);
+        }
+        i = i + 1;
+    }
+    return fallback;
+}

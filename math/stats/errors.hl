@@ -1,0 +1,10 @@
+// errors.hl — error payload type for the stats lib.
+//
+// Only `quantile` is fallible; `mean`/`variance`/`stddev`/`min_max`
+// have sensible identity values on empty input. The kind tags
+// match CONTRACTS.md: "empty" for an empty input matrix,
+// "out_of_range" for q outside [0, 1].
+
+type StatsError {
+    kind: String;
+}

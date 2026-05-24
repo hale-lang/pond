@@ -1,0 +1,257 @@
+// pond/agent/tools — Registry service locus + dispatch helpers.
+//
+// Pattern 3 in spirit (service locus with implicit lifecycle —
+// no birth/run/dissolve declared because the Registry has no
+// resources of its own; the ToolList child is owned via a
+// param default, so it births at instantiation and dissolves
+// on the Registry's scope exit).
+//
+// Public surface per CONTRACTS.md:
+//
+//   locus Registry {
+//       params { }
+//       fn register(t: Tool) -> ();
+//       fn dispatch(call: ToolCall) -> ToolResult fallible(ToolError);
+//       fn list() -> String;
+//   }
+//
+// Two deviations land here (logged in FRICTION.md):
+//
+//   - `dispatch` is split into a non-fallible locus method
+//     (`Registry.dispatch_call(call) -> ToolResult`) and a
+//     fallible free fn (`dispatch(reg, call) -> ToolResult
+//     fallible(ToolError)`). Per the two-channel rule
+//     (KNOWN_GOTCHAS G4 / spec/semantics.md § "Where each
+//     channel lives") user-declared locus methods may NOT
+//     declare `fallible(E)`. The free fn is the fallible
+//     surface (callers writing
+//     `tools::dispatch(reg, call) or raise;`); the locus
+//     method is the non-fallible wrapper for the common case
+//     where "tool not found" should surface as a tool-result
+//     (`is_error: true, content: "unknown_tool: <name>"`)
+//     rather than propagate as a value-channel error. Both
+//     code paths share the same lookup kernel
+//     (`__lookup_invoke`) so behavior stays consistent.
+//
+//   - Cross-seed consumers register via the free fn
+//     `tools::register(reg, t)`, not the locus method
+//     `reg.register(t)`. User-declared locus method arg
+//     coercion `LocusRef → Interface` isn't yet wired across
+//     seed boundaries; the free-fn arg-site coercion IS
+//     (synthesized `@form(vec).push` and free-fn arg sites are
+//     the canonical interface-coercion points). The locus
+//     method stays declared for in-seed callers.
+
+// Internal storage child locus. Lives in this file (not in
+// storage.hl) because a cross-file @form(vec) with a user-typed
+// cell wasn't resolving in the param-default position
+// (`entries: ToolList = ToolList { }` couldn't find the
+// mangled ToolList type when ToolList lived in storage.hl).
+// FRICTION.md "@form-vec-cross-file-resolution" tracks the gap.
+// Internal storage; consumers never name it.
+@form(vec)
+locus ToolList {
+    capacity { heap items of Tool; }
+}
+
+// __NoopTool — sentinel locus satisfying the Tool interface.
+// Used (via the `__noop_tool()` returning-free-fn helper below)
+// as the proof-of-unreachable default for
+// `entries.get(i) or __noop_tool()` inside loops that have
+// already bounded `i < entries.len()`. Per styleguide §
+// "Current language gaps", `@form(vec).get(i)` returns
+// `T fallible(IndexError)`; the `or` branch is unreachable in
+// the loops below but the fallback expression must still
+// type-check at the interface (Tool) success type.
+//
+// The literal `or __NoopTool { }` doesn't compile because the
+// `or <substitute>` checker doesn't do LocusRef → Interface
+// coercion on the fallback expression; routing the sentinel
+// through a `-> Tool`-returning free fn picks up the
+// fn-return-site coercion the typechecker already wires.
+locus __NoopTool {
+    fn spec() -> ToolSpec { return ToolSpec { }; }
+    fn invoke(call: ToolCall) -> ToolResult {
+        return ToolResult {
+            call_id:  call.call_id,
+            content:  "",
+            is_error: true
+        };
+    }
+}
+
+// __noop_tool — returns a Tool-typed __NoopTool instance. The
+// fn-return-site coercion converts the locus into a Tool fat
+// pointer; this is what `or` fallbacks reach for when the get
+// branch is provably unreachable.
+fn __noop_tool() -> Tool {
+    return __NoopTool { };
+}
+
+// __lookup_invoke — find a Tool by name and invoke it.
+// Returns a tagged ToolResult: on hit, `content` carries the
+// tool's output and `is_error` reflects what the tool said; on
+// miss, `is_error` is true and `content` carries
+// "unknown_tool: <name>". Free fn because lifecycle methods
+// reject `return` per spec/styleguide.md § "Current language
+// gaps", and lookup is naturally a return-bearing helper.
+//
+// `not_found_marker` distinguishes the two failure modes for
+// the fallible-free-fn caller (which raises ToolError) from the
+// non-fallible locus method (which converts not-found into a
+// ToolResult): when true, returns a sentinel ToolResult with
+// `content == "__not_found__"` so the caller can branch on it
+// without re-walking the vec; when false, returns the friendly
+// "unknown_tool: <name>" ToolResult directly.
+fn __lookup_invoke(
+    entries: ToolList,
+    call: ToolCall,
+    not_found_marker: Bool
+) -> ToolResult {
+    let n = entries.len();
+    let mut i = 0;
+    while i < n {
+        let t = entries.get(i) or __noop_tool();
+        let s = t.spec();
+        if s.name == call.name {
+            return t.invoke(call);
+        }
+        i = i + 1;
+    }
+    if not_found_marker {
+        return ToolResult {
+            call_id:  call.call_id,
+            content:  "__not_found__",
+            is_error: true
+        };
+    }
+    return ToolResult {
+        call_id:  call.call_id,
+        content:  "unknown_tool: " + call.name,
+        is_error: true
+    };
+}
+
+// __build_spec_array — emit the JSON array of tool specs.
+// Uses std::json::Builder for separator tracking (no manual
+// comma juggling). One object per Tool:
+//
+//   {"name":"...", "description":"...", "input_schema":<raw>}
+//
+// `input_schema` is written as a raw value (not quoted) because
+// it's already a JSON-shaped string per the type contract — the
+// Tool author hand-builds it and the Registry passes it through
+// unchanged. This lets the LLM tool-use surface inline arbitrarily-
+// shaped schemas without the Registry needing a schema parser.
+//
+// Free fn because lifecycle/method bodies that want a return
+// value plus internal mutation of a Builder play more cleanly
+// outside the method signature; mirrors pond/router's
+// __router_run_chain split.
+fn __build_spec_array(entries: ToolList) -> String {
+    let b = std::json::Builder { };
+    b.begin_array();
+    let n = entries.len();
+    let mut i = 0;
+    while i < n {
+        let t = entries.get(i) or __noop_tool();
+        let s = t.spec();
+        b.begin_object();
+        b.string_field("name",        s.name);
+        b.string_field("description", s.description);
+        // input_schema is already a JSON value — emit it raw via
+        // b.field(name, raw_value) rather than string_field so it
+        // isn't quoted into a JSON string literal.
+        b.field("input_schema", s.input_schema);
+        b.end_object();
+        i = i + 1;
+    }
+    b.end_array();
+    return b.result();
+}
+
+// register — public free-fn entry. Cross-seed consumers call
+// `tools::register(reg, calc)` where `calc` is any Tool-shaped
+// locus; the locus → Tool coercion fires at this free-fn arg
+// site, and the synthesized `@form(vec).push` accepts the
+// already-coerced interface value.
+fn register(reg: Registry, t: Tool) {
+    reg.entries.push(t);
+}
+
+// dispatch — fallible free fn entry point. The bottom-of-stack
+// call Registry.dispatch_call wraps for the non-fallible case.
+// Same lookup kernel; the difference is the failure-routing
+// channel.
+//
+// `unknown_tool` is the only ToolError kind dispatch raises —
+// any other failure (bad args, tool-side exception) lives in
+// the returned ToolResult with `is_error: true`. Empty call
+// name is normalized to `empty_name`.
+fn dispatch(reg: Registry, call: ToolCall) -> ToolResult fallible(ToolError) {
+    if len(call.name) == 0 {
+        fail ToolError {
+            kind:   "empty_name",
+            detail: "ToolCall.name must be non-empty"
+        };
+    }
+    let r = __lookup_invoke(reg.entries, call, true);
+    if r.content == "__not_found__" {
+        fail ToolError {
+            kind:   "unknown_tool",
+            detail: "no tool registered with name: " + call.name
+        };
+    }
+    return r;
+}
+
+locus Registry {
+    params {
+        // ToolList child locus; default-initialized at Registry
+        // birth so it dissolves with the Registry's enclosing
+        // scope. Stored as a param-with-default rather than
+        // birthed in `birth()` because there's no per-instance
+        // configuration the storage needs from the Registry.
+        entries: ToolList = ToolList { };
+    }
+
+    // register — locus-method form matching the contract surface
+    // exactly: `fn register(t: Tool)`. Pushes the Tool into the
+    // dispatch table. In-seed callers can use this directly.
+    // Cross-seed consumers should prefer the free fn
+    // `tools::register(reg, t)` because user-declared locus
+    // method arg coercion `LocusRef → Interface` isn't yet wired
+    // across seed boundaries (the free-fn arg site is wired).
+    fn register(t: Tool) {
+        self.entries.push(t);
+    }
+
+    // dispatch_call — non-fallible dispatch method. Per the
+    // two-channel rule (KNOWN_GOTCHAS G4), the method form can't
+    // declare `fallible(ToolError)`; instead, "tool not found"
+    // surfaces as a ToolResult with `is_error: true` and
+    // `content == "unknown_tool: <name>"`. Callers that need
+    // value-channel error addressing use the free fn `dispatch`
+    // in this file (which IS fallible).
+    fn dispatch_call(call: ToolCall) -> ToolResult {
+        return __lookup_invoke(self.entries, call, false);
+    }
+
+    // list — JSON array of every registered ToolSpec. Mirrors
+    // the wire-shape consumers feed to Anthropic's `tools` API
+    // param or OpenAI's `functions` param. The schema for each
+    // tool is the consumer's own JSON-schema string (stored on
+    // ToolSpec.input_schema verbatim), so this output is ready-
+    // to-paste into a wire request.
+    fn list() -> String {
+        return __build_spec_array(self.entries);
+    }
+
+    // count — convenience: how many tools are registered.
+    // Not in CONTRACTS.md but cheap to expose and useful for
+    // diagnostics ("Registry has 3 tools available"). Mirrors
+    // pond/jobs::Queue's similar diagnostic helpers.
+    fn count() -> Int {
+        return self.entries.len();
+    }
+}

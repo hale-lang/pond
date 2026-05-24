@@ -1,0 +1,440 @@
+// pond/migrations — fallible free-fn surface.
+//
+// Pattern 6 free fns. Per the two-channel rule (AGENTS.md /
+// `spec/semantics.md § Fallible call semantics`), locus methods
+// can't declare `fallible(E)`, so the four operations CONTRACTS.md
+// lists as `Runner.{current_version,pending,migrate_up,
+// migrate_down}` live here instead as `migs::current_version(r)`,
+// `migs::pending(r)`, `migs::migrate_up(r, target)`,
+// `migs::migrate_down(r, target)`.
+//
+// Migration files follow the canonical naming convention:
+//
+//     NNN_description.sql       — up
+//     NNN_description.down.sql  — down (optional, but needed for
+//                                  migrate_down)
+//
+// where NNN is a zero-padded integer (e.g. "001", "042"). The
+// per-file version is the prefix; description is freeform and
+// ignored by the runner (it surfaces in `pending()`'s rows for
+// readability).
+//
+// Iteration uses the `std::io::fs::list_dir_count` +
+// `std::io::fs::list_dir_at` index API per the AGENTS.md guidance
+// (no parametric collections; the index-API pair is the v1 idiom).
+//
+// Migration files are sorted by version (an ASCII sort on the
+// zero-padded prefix is sufficient — that's exactly why the
+// convention demands the padding). We do a small in-place
+// insertion sort on a tab-separated buffer because v1 has no
+// `Vec<String>` surface; for typical migration counts (<100) the
+// O(N^2) cost is dwarfed by I/O.
+//
+// Status (2026-05-16): every db::exec call routes through the
+// pond/sqlite stub, which currently returns
+// `fail DbError { kind: "unsupported", ... }`. Consumers' `or`
+// clauses are therefore exercised. The shapes below are the
+// post-unblock shape; the source does not change when sqlite
+// unblocks.
+//
+// **Idiom note**: `or fail SomeType { ... }` does not parse at
+// v1; the right-associative `or` clause expects an expression
+// position on the right. The v1 idiom (mirroring
+// pond/http/client::__raise_connect) is a tiny helper free fn
+// that is itself `fallible(E)` and always fails — call sites then
+// read `op() or (__raise_X(err, ctx) or raise)`. Each kind of
+// failure-translation gets one such helper.
+
+import "../sqlite"      as db;
+import "../_util/rowbuf" as rb;
+
+// =====================================================================
+// Public surface — the four free fns CONTRACTS.md lists as Runner
+// methods, translated to take a `Runner` first argument.
+// =====================================================================
+
+// current_version — read the highest version that's been applied
+// from the tracking table. Returns 0 if the table is empty (no
+// migrations applied yet). Fails with kind="version_table" if the
+// table couldn't be read.
+fn current_version(r: Runner) -> Int fallible(MigrationError) {
+    if r.ready == 0 {
+        __raise_not_ready() or raise;
+    }
+    let conn = db::Db { path: r.db_path };
+    let sql = "SELECT version FROM " + r.table +
+              " ORDER BY version DESC LIMIT 1";
+    let row = db::query_one(conn, sql) or db::Row { data: "" };
+    if len(row.data) == 0 {
+        return 0;
+    }
+    return std::str::parse_int(row.data) or 0;
+}
+
+// pending — return one row per pending up-migration as Rows
+// (newline-separated rows of `version\tfilename`). "Pending" means
+// the on-disk migration's version > current_version().
+fn pending(r: Runner) -> db::Rows fallible(MigrationError) {
+    let current = current_version(r) or raise;
+    let listing = __list_up_files(r.dir) or raise;
+    let rows    = rb::RowBuf { };
+    let n = rows.row_count(listing);
+    let mut out = "";
+    let mut i = 0;
+    while i < n {
+        let line = rows.nth_row(listing, i);
+        i = i + 1;
+        let v = __version_of(line);
+        if v > current {
+            if len(out) > 0 {
+                out = out + "\n";
+            }
+            out = out + line;
+        }
+    }
+    return db::Rows { csv: out };
+}
+
+// migrate_up — apply every pending migration whose version is in
+// (current_version(), target]. Pass target = -1 to mean "all
+// pending."
+fn migrate_up(r: Runner, target: Int) -> Int fallible(MigrationError) {
+    if r.ready == 0 {
+        __raise_not_ready() or raise;
+    }
+    let current = current_version(r) or raise;
+    let listing = __list_up_files(r.dir) or raise;
+    let rows    = rb::RowBuf { };
+    let n = rows.row_count(listing);
+    let mut applied = 0;
+    let mut i = 0;
+    while i < n {
+        let line = rows.nth_row(listing, i);
+        i = i + 1;
+        let v = __version_of(line);
+        let fname = __filename_of(line);
+        if v <= current {
+            continue;
+        }
+        if target >= 0 && v > target {
+            break;
+        }
+        __apply_up_one(r, v, fname) or raise;
+        applied = applied + 1;
+    }
+    return applied;
+}
+
+// migrate_down — roll back every applied migration whose version
+// is > target, in reverse order. Pass target = -1 to mean
+// "everything down to 0."
+fn migrate_down(r: Runner, target: Int) -> Int fallible(MigrationError) {
+    if r.ready == 0 {
+        __raise_not_ready() or raise;
+    }
+    if target < -1 {
+        __raise_below_zero(target) or raise;
+    }
+    let current = current_version(r) or raise;
+    let listing = __list_up_files(r.dir) or raise;
+    let rows    = rb::RowBuf { };
+    let n = rows.row_count(listing);
+    let mut cap = target;
+    if target < 0 { cap = 0; }
+    let mut rolled = 0;
+    let mut i = n;
+    while i > 0 {
+        i = i - 1;
+        let line = rows.nth_row(listing, i);
+        let v = __version_of(line);
+        let fname = __filename_of(line);
+        if v > current {
+            continue;
+        }
+        if v <= cap {
+            break;
+        }
+        __apply_down_one(r, v, fname) or raise;
+        rolled = rolled + 1;
+    }
+    return rolled;
+}
+
+// =====================================================================
+// Internal failure-translation helpers (the "always-fail" shape).
+// Each is `fallible(MigrationError)` and unconditionally fails; the
+// success-type return is just to satisfy the typechecker — the body
+// never reaches a `return`. Pattern mirrors
+// pond/http/client::__raise_connect.
+//
+// We need one per success-type the call sites use:
+//   - Int    — for list_dir_count, file_exists, the migrate_*
+//              top-level success channel, and the trampoline cases
+//              where the outer call's success type is Int.
+//   - String — for read_file / list_dir_at translation
+//   - db::ExecResult — for db::exec translation
+//
+// Hale v1 has no generics, so we hand-specialize. Naming
+// convention: __raise_<kind>_<success-type-tag>.
+// =====================================================================
+
+// not_ready, below_zero — these are always called at Int return
+// sites (the top-level migrate_* fns and current_version), so one
+// flavor suffices.
+fn __raise_not_ready() -> Int fallible(MigrationError) {
+    fail MigrationError {
+        kind:    "version_table",
+        detail:  "migrations tracking table not initialized (was Runner birthed?)",
+        version: 0,
+    };
+}
+
+fn __raise_below_zero(t: Int) -> Int fallible(MigrationError) {
+    fail MigrationError {
+        kind:    "below_zero",
+        detail:  "migrate_down target must be >= -1 (got " + to_string(t) + ")",
+        version: 0,
+    };
+}
+
+// I/O translators — one per call-site success type.
+fn __raise_io_int(path: String, kind: String, v: Int) -> Int fallible(MigrationError) {
+    fail MigrationError {
+        kind:    "io",
+        detail:  "I/O failure on " + path + " (" + kind + ")",
+        version: v,
+    };
+}
+
+fn __raise_io_str(path: String, kind: String, v: Int) -> String fallible(MigrationError) {
+    fail MigrationError {
+        kind:    "io",
+        detail:  "I/O failure on " + path + " (" + kind + ")",
+        version: v,
+    };
+}
+
+// Exec translator — db::exec returns db::ExecResult, so the
+// substitute must too.
+fn __raise_exec_res(label: String, detail: String, v: Int) -> db::ExecResult fallible(MigrationError) {
+    fail MigrationError {
+        kind:    "exec_failed",
+        detail:  label + ": " + detail,
+        version: v,
+    };
+}
+
+// down_missing — only ever called from an Int site (the precondition
+// check inside __apply_down_one which returns Int).
+fn __raise_down_missing(path: String, v: Int) -> Int fallible(MigrationError) {
+    fail MigrationError {
+        kind:    "down_missing",
+        detail:  "no down-migration at " + path,
+        version: v,
+    };
+}
+
+// =====================================================================
+// Internal: directory scan + per-file apply.
+// =====================================================================
+
+fn __list_up_files(dir: String) -> String fallible(MigrationError) {
+    let n = std::io::fs::list_dir_count(dir)
+        or (__raise_io_int(dir, err.kind, 0) or raise);
+    let mut buf = "";
+    let mut i = 0;
+    while i < n {
+        let name = std::io::fs::list_dir_at(dir, i) or "";
+        i = i + 1;
+        if len(name) == 0 { continue; }
+        // Skip .down.sql siblings — loaded on demand by migrate_down.
+        if __ends_with(name, ".down.sql") { continue; }
+        if !__ends_with(name, ".sql") { continue; }
+        let v = __parse_prefix_version(name);
+        if v < 0 {
+            // Not in NNN_ form — silently ignore.
+            continue;
+        }
+        let row = __pad3(v) + "\t" + name;
+        buf = __insert_sorted(buf, row);
+    }
+    return buf;
+}
+
+fn __apply_up_one(r: Runner, v: Int, fname: String) -> Int fallible(MigrationError) {
+    let conn = db::Db { path: r.db_path };
+    let path = r.dir + "/" + fname;
+    let sql = std::io::fs::read_file(path)
+        or (__raise_io_str(path, err.kind, v) or raise);
+    db::exec(conn, sql)
+        or (__raise_exec_res("applying " + fname, err.detail, v) or raise);
+    let insert = "INSERT INTO " + r.table + " (version, filename, applied_at) " +
+                 "VALUES (" + to_string(v) + ", '" + fname + "', 0)";
+    db::exec(conn, insert)
+        or (__raise_exec_res("recording " + fname + " in tracking table", err.detail, v) or raise);
+    return 0;
+}
+
+fn __apply_down_one(r: Runner, v: Int, up_fname: String) -> Int fallible(MigrationError) {
+    let conn = db::Db { path: r.db_path };
+    let down_fname = __down_sibling(up_fname);
+    let path = r.dir + "/" + down_fname;
+    if !std::io::fs::file_exists(path) {
+        __raise_down_missing(path, v) or raise;
+    }
+    let sql = std::io::fs::read_file(path)
+        or (__raise_io_str(path, err.kind, v) or raise);
+    db::exec(conn, sql)
+        or (__raise_exec_res("rolling back " + down_fname, err.detail, v) or raise);
+    let del = "DELETE FROM " + r.table + " WHERE version = " + to_string(v);
+    db::exec(conn, del)
+        or (__raise_exec_res("removing tracking row for v" + to_string(v), err.detail, v) or raise);
+    return 0;
+}
+
+// =====================================================================
+// Internal: tab+newline buffer helpers. duplicate-suspected — every
+// pond lib that iterates "rows in a tab+newline buffer" reinvents
+// these. Logged in FRICTION.md.
+// =====================================================================
+
+// The newline-row count + index walkers (formerly `__row_count` and
+// `__row_at` here) consolidated into pond/_util/rowbuf during pond
+// pass D5. Call sites use `rows.row_count(buf)` / `rows.nth_row(buf,
+// idx)` on a local `rb::RowBuf { }` instance.
+
+// Insert a row into a sorted buffer, preserving ascending order.
+// O(N) scan + O(N) splice; called O(N) times for total O(N^2) —
+// fine for migration counts < 100.
+fn __insert_sorted(buf: String, row: String) -> String {
+    let n = len(buf);
+    if n == 0 { return row; }
+    let rows  = rb::RowBuf { };
+    let count = rows.row_count(buf);
+    let mut i = 0;
+    while i < count {
+        let existing = rows.nth_row(buf, i);
+        if row < existing {
+            let head = __rows_through(buf, i);
+            let tail = __rows_from(buf, i);
+            if len(head) == 0 {
+                return row + "\n" + tail;
+            }
+            return head + "\n" + row + "\n" + tail;
+        }
+        i = i + 1;
+    }
+    return buf + "\n" + row;
+}
+
+// Return the buffer slice containing rows [0..count) (no trailing
+// newline). Returns "" if count == 0.
+fn __rows_through(buf: String, count: Int) -> String {
+    if count == 0 { return ""; }
+    let n = len(buf);
+    let mut cur = 0;
+    let mut i = 0;
+    while i < n {
+        if buf[i..i+1] == "\n" {
+            cur = cur + 1;
+            if cur == count {
+                return buf[0..i];
+            }
+        }
+        i = i + 1;
+    }
+    return buf;
+}
+
+// Return the buffer slice containing rows [from..). "" if past end.
+fn __rows_from(buf: String, from: Int) -> String {
+    if from == 0 { return buf; }
+    let n = len(buf);
+    let mut cur = 0;
+    let mut i = 0;
+    while i < n {
+        if buf[i..i+1] == "\n" {
+            cur = cur + 1;
+            if cur == from {
+                return buf[i+1..n];
+            }
+        }
+        i = i + 1;
+    }
+    return "";
+}
+
+// =====================================================================
+// Internal: filename helpers.
+// =====================================================================
+
+// Extract the version prefix from a buffer row "NNN\tname.sql".
+fn __version_of(row: String) -> Int {
+    let n = len(row);
+    let mut i = 0;
+    while i < n {
+        if row[i..i+1] == "\t" {
+            return std::str::parse_int(row[0..i]) or 0;
+        }
+        i = i + 1;
+    }
+    return 0;
+}
+
+// Extract the filename part from a buffer row "NNN\tname.sql".
+fn __filename_of(row: String) -> String {
+    let n = len(row);
+    let mut i = 0;
+    while i < n {
+        if row[i..i+1] == "\t" {
+            return row[i+1..n];
+        }
+        i = i + 1;
+    }
+    return "";
+}
+
+// Parse the leading integer prefix of "NNN_description.sql". Returns
+// -1 if there's no underscore or the prefix isn't a clean integer.
+fn __parse_prefix_version(name: String) -> Int {
+    let n = len(name);
+    let mut i = 0;
+    while i < n {
+        if name[i..i+1] == "_" {
+            if i == 0 { return -1; }
+            let prefix = name[0..i];
+            if !std::str::can_parse_int(prefix) { return -1; }
+            return std::str::parse_int(prefix) or -1;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Convert "001_create_posts.sql" → "001_create_posts.down.sql".
+fn __down_sibling(up_fname: String) -> String {
+    let n = len(up_fname);
+    if n < 4 { return up_fname + ".down.sql"; }
+    if up_fname[n-4..n] == ".sql" {
+        return up_fname[0..n-4] + ".down.sql";
+    }
+    return up_fname + ".down.sql";
+}
+
+// Zero-pad an Int to 3 digits ("1" → "001"). For sort-stable
+// "version\tfilename" keys.
+fn __pad3(v: Int) -> String {
+    if v < 0 { return to_string(v); }
+    if v < 10 { return "00" + to_string(v); }
+    if v < 100 { return "0" + to_string(v); }
+    return to_string(v);
+}
+
+// Substring "ends with suffix" predicate. duplicate-suspected —
+// would naturally live in std::str. Logged in FRICTION.md.
+fn __ends_with(s: String, suffix: String) -> Bool {
+    let n = len(s);
+    let m = len(suffix);
+    if m > n { return false; }
+    return s[n-m..n] == suffix;
+}

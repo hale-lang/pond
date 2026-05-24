@@ -1,0 +1,119 @@
+// matmul-demo — verify pond/math/matrix matmul on two 3x3s and
+// the I * A = A invariant.
+//
+// Demonstrates the @form(vec) perf bands from spec/forms.md:
+//   (a) tight-loop primitive — each `m.push` / `m.set` / `m.get`
+//       inside matmul lowers to a `lotus_vec_*` call.
+//   (b) amortized workload — the triple-loop body mixes the
+//       (a)-band primitives with real arithmetic.
+//   (c) per-op fallible — `set` / `get` calls inside the hot loop
+//       address `fallible(IndexError)` with `or discard` / `or 0.0`.
+
+import "../.." as mat;
+
+fn print_row(m: mat::Matrix, r: Int) {
+    let mut s = "  ";
+    let mut c = 0;
+    while c < m.cols {
+        s = s + to_string(m.at(r, c));
+        if c + 1 < m.cols {
+            s = s + ", ";
+        }
+        c = c + 1;
+    }
+    println(s);
+}
+
+fn print_matrix(label: String, m: mat::Matrix) {
+    println(label, " (", m.rows, "x", m.cols, "):");
+    let mut r = 0;
+    while r < m.rows {
+        print_row(m, r);
+        r = r + 1;
+    }
+}
+
+fn assert_eq_float(label: String, got: Float, want: Float) {
+    let mut diff = got - want;
+    if diff < 0.0 {
+        diff = 0.0 - diff;
+    }
+    if diff > 0.0001 {
+        println("FAIL ", label, " got=", got, " want=", want);
+    } else {
+        println("ok   ", label, " = ", got);
+    }
+}
+
+fn main() {
+    let mx = mat::Mat { };
+
+    // 3x3 A.
+    let a = mx.from_rows(3, 3, "1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0");
+    print_matrix("A", a);
+
+    // 3x3 identity.
+    let i3 = mx.eye(3);
+    print_matrix("I", i3);
+
+    // I * A should equal A.
+    let ia = mx.matmul(i3, a);
+    print_matrix("I*A", ia);
+
+    // Spot-check a few entries against A.
+    assert_eq_float("(I*A)[0,0]", ia.at(0, 0), 1.0);
+    assert_eq_float("(I*A)[1,1]", ia.at(1, 1), 5.0);
+    assert_eq_float("(I*A)[2,2]", ia.at(2, 2), 9.0);
+    assert_eq_float("(I*A)[2,0]", ia.at(2, 0), 7.0);
+
+    // A second known case: A * A. Hand-computed row 0:
+    //   [1*1+2*4+3*7, 1*2+2*5+3*8, 1*3+2*6+3*9] = [30, 36, 42].
+    let aa = mx.matmul(a, a);
+    print_matrix("A*A", aa);
+    assert_eq_float("(A*A)[0,0]", aa.at(0, 0), 30.0);
+    assert_eq_float("(A*A)[0,1]", aa.at(0, 1), 36.0);
+    assert_eq_float("(A*A)[0,2]", aa.at(0, 2), 42.0);
+
+    // Shape mismatch surfaces via the error-matrix sentinel.
+    let b = mx.zeros(2, 4);
+    let bad = mx.matmul(a, b);
+    if mx.is_error(bad) {
+        println("ok   matmul(3x3, 2x4) -> error sentinel");
+    } else {
+        println("FAIL matmul shape-mismatch not flagged");
+    }
+
+    // dot of a flattened row-vector with itself.
+    let v = mx.from_rows(1, 3, "3.0, 4.0, 0.0");
+    let d = mx.dot(v, v);
+    assert_eq_float("dot(v,v)", d, 25.0);
+
+    // dot shape-mismatch -> NaN sentinel.
+    let v2 = mx.from_rows(1, 2, "1.0, 2.0");
+    let nd = mx.dot(v, v2);
+    if mx.is_nan(nd) {
+        println("ok   dot(1x3, 1x2) -> NaN sentinel");
+    } else {
+        println("FAIL dot shape-mismatch not flagged");
+    }
+
+    // scale.
+    let s = mx.scale(a, 2.0);
+    assert_eq_float("scale(A,2)[1,1]", s.at(1, 1), 10.0);
+
+    // add: A + A = scale(A, 2).
+    let sum = mx.add(a, a);
+    assert_eq_float("(A+A)[1,1]", sum.at(1, 1), 10.0);
+
+    // transpose.
+    let t = a.transpose();
+    print_matrix("A^T", t);
+    assert_eq_float("A^T[0,2]", t.at(0, 2), 7.0);
+    assert_eq_float("A^T[2,0]", t.at(2, 0), 3.0);
+
+    // at_checked free-fn — fallible surface.
+    let v_ok = mat::at_checked(a, 1, 2) or 0.0;
+    assert_eq_float("at_checked(A,1,2)", v_ok, 6.0);
+    let v_oob = mat::at_checked(a, 5, 5) or -1.0;
+    assert_eq_float("at_checked(A,5,5) substitute", v_oob, -1.0);
+}

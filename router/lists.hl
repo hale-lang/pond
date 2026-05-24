@@ -1,0 +1,47 @@
+// pond/router — internal storage loci (file named lists.hl so
+// it sorts alphabetically before `router.hl` — the v1 codegen
+// declares loci in source-merge order, and Router's params
+// reference these vecs by name, so the vec loci must land in
+// user_loci first; see FRICTION.md "intra-seed-locus-order").
+//
+// Pattern 1 in spec/forms.md (@form(vec) — contiguous growable
+// buffer). The spec rule "one form per locus" means a Router
+// can't carry every list as forms on the same locus, so each
+// gets its own @form(vec) child locus instantiated as a Router
+// param default. The Router's add() / use_mw() methods then
+// dispatch into these via the synthesized .push() member;
+// dispatch() reads them via .len() + .get(i).
+//
+// Post-G20 (2026-05-18): interface values can sit in @form(vec)
+// cells; the locus → interface coercion fires at synthesized
+// `.push(...)` arg sites and at free-fn arg sites. So
+// `HandlerList` is `@form(vec) of Handler` and `MwList` is
+// `@form(vec) of Middleware` directly — the fn-pointer + struct
+// shadow from the pre-G20 era is gone. Method + pattern
+// metadata travel in parallel String vecs (MethodList /
+// PatternList) since v1 has no struct-field interface-coerce at
+// the literal init site (see pond/tower/FRICTION.md
+// `v1-cross-seed-struct-field-interface-coerce`) — a
+// `RouteEntry { handler: Handler }` literal won't coerce a
+// concrete handler locus into the Handler field. Three vecs
+// pushed in lockstep is the v1 shape that compiles.
+
+@form(vec)
+locus MethodList {
+    capacity { heap items of String; }
+}
+
+@form(vec)
+locus PatternList {
+    capacity { heap items of String; }
+}
+
+@form(vec)
+locus HandlerList {
+    capacity { heap items of Handler; }
+}
+
+@form(vec)
+locus MwList {
+    capacity { heap items of Middleware; }
+}

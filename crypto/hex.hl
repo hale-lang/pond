@@ -1,0 +1,87 @@
+// hex.hl — hex encode / decode. ASCII-only, lowercase output.
+//
+// `hex_encode` returns a String (safe — every byte renders to two
+// 0-9a-f chars, none of which are NUL, so String's strlen-based
+// view is faithful). `hex_decode` walks a String and rebuilds a
+// Bytes via from_int + concat.
+
+type HexError {
+    kind: String;   // "odd_length" | "invalid_char"
+}
+
+fn hex_encode(b: Bytes) -> String {
+    let n = len(b);
+    let mut out = "";
+    let mut i = 0;
+    while i < n {
+        let v = std::bytes::at(b, i) or 0;
+        let hi = (v >> 4) & 0xF;
+        let lo = v & 0xF;
+        out = out + nibble_char(hi) + nibble_char(lo);
+        i = i + 1;
+    }
+    return out;
+}
+
+// Stays as `hex_decode` (no underscore prefix): the lib's
+// fallible free-fn surface IS callable through the import alias
+// (codegen handles `alias::fn(...) or ...` correctly). Consumers
+// who want typed err handling should call this directly:
+//     let bs = crypto::hex_decode(s) or self.report(err);
+fn hex_decode(s: String) -> Bytes fallible(HexError) {
+    let n = len(s);
+    if n % 2 != 0 {
+        fail HexError { kind: "odd_length" };
+    }
+    let mut out = std::bytes::from_string("");
+    let mut i = 0;
+    while i < n {
+        let c0 = char_at_byte(s, i);
+        let c1 = char_at_byte(s, i + 1);
+        let h0 = nibble_value(c0);
+        let h1 = nibble_value(c1);
+        if h0 < 0 || h1 < 0 {
+            fail HexError { kind: "invalid_char" };
+        }
+        out = std::bytes::concat(out, std::bytes::from_int((h0 << 4) | h1));
+        i = i + 2;
+    }
+    return out;
+}
+
+// Helpers — internal to hex.hl.
+
+fn nibble_char(n: Int) -> String {
+    if n == 0  { return "0"; }
+    if n == 1  { return "1"; }
+    if n == 2  { return "2"; }
+    if n == 3  { return "3"; }
+    if n == 4  { return "4"; }
+    if n == 5  { return "5"; }
+    if n == 6  { return "6"; }
+    if n == 7  { return "7"; }
+    if n == 8  { return "8"; }
+    if n == 9  { return "9"; }
+    if n == 10 { return "a"; }
+    if n == 11 { return "b"; }
+    if n == 12 { return "c"; }
+    if n == 13 { return "d"; }
+    if n == 14 { return "e"; }
+    return "f";
+}
+
+// Returns 0..15 for valid hex chars (case-insensitive); -1 otherwise.
+fn nibble_value(c: Int) -> Int {
+    if c >= 48 && c <= 57  { return c - 48; }       // '0'..'9'
+    if c >= 97 && c <= 102 { return c - 97 + 10; }  // 'a'..'f'
+    if c >= 65 && c <= 70  { return c - 65 + 10; }  // 'A'..'F'
+    return -1;
+}
+
+// Pull byte i of a String as an Int (0..255). Strings are byte
+// sequences in v1 codegen, so `from_string` + `bytes::at` is the
+// canonical way to inspect a char.
+fn char_at_byte(s: String, i: Int) -> Int {
+    let bs = std::bytes::from_string(s);
+    return std::bytes::at(bs, i) or 0;
+}

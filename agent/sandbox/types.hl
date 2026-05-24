@@ -1,0 +1,56 @@
+// pond/agent/sandbox — public types
+//
+// Shape records for the sandboxed-code-execution surface. Per
+// pond/CONTRACTS.md § pond/agent/sandbox/ the public types are:
+//
+//   type SandboxResult { exit_code: Int; stdout: String; stderr: String; }
+//   type SandboxError  { kind: String; }   // "timeout" | "oom" | "spawn_failed"
+//
+// Both are pure data (pattern 5 — Shape type). SandboxError is
+// the synthesized fallible(...) payload for every fallible
+// surface in this lib.
+//
+// Status (2026-05-18): UNBLOCKED + WIRED. pond/subprocess's
+// implementation pass landed alongside this lib's wire-up, so
+// the methods below now drive real subprocess invocations
+// (via `sub::run_cmd` + `std::io::fs::mktemp` / `write_file`
+// / `unlink`). See FRICTION.md for the small set of forwarded
+// no-ops (`timeout_ms`, `memory_limit_mb`).
+
+// SandboxResult — the success payload of a sandboxed run.
+//
+// `exit_code` is the runtime's own exit status (0 = OK; non-zero
+// = the user-code raised or the runtime errored). `stdout` and
+// `stderr` are the captured streams as String (sandboxed code
+// is expected to emit text; binary-producing runs should drop
+// to pond/subprocess directly until a Bytes-shaped variant is
+// added).
+type SandboxResult {
+    exit_code: Int    = 0;
+    stdout:    String = "";
+    stderr:    String = "";
+}
+
+// SandboxError — fallible(SandboxError) payload across the surface.
+//
+// `kind` is one of:
+//   "timeout"       — the run exceeded `timeout_ms`.
+//   "oom"           — the run exceeded `memory_limit_mb` (reserved;
+//                     not yet enforced — see FRICTION.md).
+//   "spawn_failed"  — the underlying subprocess invocation failed
+//                     (including the current "lib is blocked"
+//                     state — `detail` carries the subprocess
+//                     SpawnError detail string verbatim).
+//   "io"            — failed to write the temp file for run_code,
+//                     or failed to read back the captured output.
+//   "unsupported"   — reserved tag from the pre-2026-05-17
+//                     blocked era; no longer produced by any
+//                     code path. Kept in the kind vocabulary so
+//                     consumer switch-tables stay forward-compat.
+//
+// `detail` is a human-readable explanation (typically forwarded
+// from the underlying SpawnError / IoError detail).
+type SandboxError {
+    kind:   String = "";
+    detail: String = "";
+}

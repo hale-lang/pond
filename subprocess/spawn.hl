@@ -1,0 +1,179 @@
+// pond/subprocess — fallible free-fn surface
+//
+// `spawn(opts) -> Output fallible(SpawnError)` is the canonical
+// one-shot subprocess entry point: run a command to completion,
+// capture stdout/stderr, return the result. `run_cmd(cmd, args)` is
+// the convenience wrapper for the common case of "no stdin, no
+// timeout, default cwd/env."
+//
+// Status (2026-05-18): bodies now wire through to the upstream
+// `std::process::run` / `std::process::spawn` primitives that
+// shipped 2026-05-17. The pond SpawnOpts shape (cmd + space-
+// separated args + Bytes stdin) is translated into the stdlib's
+// newline-separated argv blob; on the empty-stdin path we delegate
+// to `std::process::run` for a one-shot capture, otherwise we
+// drive a `std::process::Child` (spawn → write_stdin → read until
+// exit → wait).
+//
+// Unsupported on the current upstream surface (forwarded as
+// documented no-ops):
+//   - cwd:        std::process::* has no chdir hook; ignored.
+//   - env:        std::process::* inherits the parent env; ignored.
+//   - timeout_ms: std::process::* has no wall-clock cutoff; ignored.
+// These map onto the contract surface without changing it so
+// callers wiring `or raise` / `or handler(err)` keep working.
+//
+// Error-channel translation
+// -------------------------
+// Upstream `std::process::*` raises `fallible(IoError)`; pond's
+// contract is `fallible(SpawnError)`. We can't `or raise` directly
+// across the type mismatch (G6: cross-payload re-raise requires a
+// two-stage helper that returns the inner success type and itself
+// re-raises in the outer fallible channel). The shape used below
+// is the G6 workaround: one helper per inner-call return-type so
+// the substitute's return matches the original. See
+// `wrap_run` / `wrap_spawn` / `wrap_pipe_int` / `wrap_pipe_str`
+// / `wrap_wait` / `wrap_kill` below.
+
+// argv_blob(cmd, args) — translate pond's "cmd + whitespace-
+// separated args" shape into stdlib's "newline-separated argv"
+// shape. Each space in `args` becomes a newline; the result is
+// `cmd\narg1\narg2\n...`. Empty `args` collapses to a bare `cmd`.
+fn argv_blob(cmd: String, args: String) -> String {
+    if len(args) == 0 {
+        return cmd;
+    }
+    let joined = std::str::replace(args, " ", "\n");
+    return cmd + "\n" + joined;
+}
+
+// io_kind_to_spawn — translate the upstream stdlib IoError.kind
+// tag into pond's SpawnError.kind tag. Most exec-time IoError
+// kinds ("not_found", "permission_denied", "invalid") map to
+// pond's catch-all "spawn_failed"; pipe-time IoErrors map to
+// "io". The original IoError.kind is preserved verbatim in
+// SpawnError.detail so callers can recover it.
+fn io_kind_to_spawn(io_kind: String) -> String {
+    if io_kind == "not_found" || io_kind == "permission_denied" || io_kind == "invalid" {
+        return "spawn_failed";
+    }
+    return "io";
+}
+
+// spawn(opts) — run a child process to completion. The full
+// `SpawnOpts` shape (cwd, env, stdin, timeout_ms) is plumbed
+// here; callers needing only the common shape reach for
+// `run_cmd` below instead.
+//
+// Routing:
+//   - len(opts.stdin) == 0 → `std::process::run(argv)`
+//     (single capture+wait, no pipes needed).
+//   - len(opts.stdin) >  0 → `std::process::spawn(argv)` +
+//     `write_stdin` + drain stdout/stderr + `wait`.
+fn spawn(opts: SpawnOpts) -> Output fallible(SpawnError) {
+    let argv = argv_blob(opts.cmd, opts.args);
+
+    if len(opts.stdin) == 0 {
+        let po = std::process::run(argv) or wrap_run(err) or raise;
+        return Output {
+            status: ExitStatus {
+                code:     po.code,
+                signaled: po.signal != 0,
+                signal:   po.signal,
+            },
+            stdout: std::bytes::from_string(po.stdout),
+            stderr: std::bytes::from_string(po.stderr),
+        };
+    }
+
+    // Stdin-bearing path: spawn, write, drain, wait.
+    let c = std::process::spawn(argv) or wrap_spawn(err) or raise;
+    let stdin_str = std::str::from_bytes(opts.stdin);
+    let _ = std::process::write_stdin(c, stdin_str) or wrap_pipe_int(err) or raise;
+    // Closing stdin explicitly would require a primitive that
+    // doesn't exist yet; most tools (cat, sort, python -) drain
+    // their pipe buffer and exit on EOF after the read returns
+    // short. Gap documented in FRICTION.md.
+    let code = std::process::wait(c) or wrap_wait(err) or raise;
+    let out_s = std::process::read_stdout(c) or wrap_pipe_str(err) or raise;
+    let err_s = std::process::read_stderr(c) or wrap_pipe_str(err) or raise;
+    return Output {
+        status: ExitStatus {
+            code:     code,
+            signaled: code < 0,
+            signal:   0,
+        },
+        stdout: std::bytes::from_string(out_s),
+        stderr: std::bytes::from_string(err_s),
+    };
+}
+
+// run_cmd(cmd, args) — convenience wrapper. Equivalent to
+// spawn with the rest of SpawnOpts at defaults (empty
+// cwd/env/stdin, no timeout). Returns the same Output on
+// success.
+//
+// Contract deviation (FRICTION.md): the CONTRACTS.md surface
+// names this `run`, but `run` is a reserved lifecycle keyword
+// in Hale's grammar and a fn-decl named `run` parse-errors.
+// The lib exports `run_cmd` instead. Consumer impact is
+// localised to one identifier change at the call site.
+fn run_cmd(cmd: String, args: String) -> Output fallible(SpawnError) {
+    let opts = SpawnOpts {
+        cmd:        cmd,
+        args:       args,
+        cwd:        "",
+        env:        "",
+        stdin:      std::bytes::from_string(""),
+        timeout_ms: 0,
+    };
+    return spawn(opts) or raise;
+}
+
+// --- G6 cross-payload translation helpers ---
+//
+// Each `wrap_*` fn is a substitute for one `std::process::*` call
+// site: it receives the IoError, re-raises it as a SpawnError of
+// matching inner-success type, then `or raise` at the call site
+// kicks the SpawnError back up through the outer fallible(SpawnError)
+// channel.
+
+fn wrap_run(e: IoError) -> std::process::ProcessOutput fallible(SpawnError) {
+    fail SpawnError {
+        kind:   io_kind_to_spawn(e.kind),
+        detail: e.kind + ": " + e.path,
+        errno:  e.errno,
+    };
+}
+
+fn wrap_spawn(e: IoError) -> std::process::Child fallible(SpawnError) {
+    fail SpawnError {
+        kind:   io_kind_to_spawn(e.kind),
+        detail: e.kind + ": " + e.path,
+        errno:  e.errno,
+    };
+}
+
+fn wrap_pipe_int(e: IoError) -> Int fallible(SpawnError) {
+    fail SpawnError {
+        kind:   "io",
+        detail: e.kind + ": " + e.path,
+        errno:  e.errno,
+    };
+}
+
+fn wrap_pipe_str(e: IoError) -> String fallible(SpawnError) {
+    fail SpawnError {
+        kind:   "io",
+        detail: e.kind + ": " + e.path,
+        errno:  e.errno,
+    };
+}
+
+fn wrap_wait(e: IoError) -> Int fallible(SpawnError) {
+    fail SpawnError {
+        kind:   "io",
+        detail: e.kind + ": " + e.path,
+        errno:  e.errno,
+    };
+}

@@ -1,0 +1,250 @@
+// pond/agent/llm — OpenAiClient locus.
+//
+// Mirrors AnthropicClient's shape — same pattern (3, service
+// locus), same bus topics, same two-channel-rule workaround
+// (method wraps fallible free fn + caches err in last_*).
+// See anthropic.hl for the detailed catalog mapping +
+// deviation rationale; this file just instantiates the same
+// pattern against the OpenAI endpoint.
+
+locus OpenAiClient {
+    params {
+        api_key:       String = "";
+        base_url:      String = "https://api.openai.com";
+        default_model: String = "gpt-4o";
+        max_body:      Int    = 16777216;
+
+        last_kind:   String = "";
+        last_status: Int    = 0;
+        last_detail: String = "";
+    }
+    bus {
+        // Topic-ident publish — see anthropic.hl's bus block
+        // for the full explanation. Same canonical form: the
+        // topic ident is the addressable channel, the wrapper
+        // type (`LlmChunkMsg` / `LlmDoneMsg`) carries the
+        // payload data.
+        publish LlmChunk;
+        publish LlmDone;
+    }
+
+    fn last_error_kind()   -> String { return self.last_kind;   }
+    fn last_error_status() -> Int    { return self.last_status; }
+    fn last_error_detail() -> String { return self.last_detail; }
+
+    fn __record(e: LlmError) -> LlmResponse {
+        self.last_kind   = e.kind;
+        self.last_status = e.status;
+        self.last_detail = e.detail;
+        return LlmResponse { };
+    }
+
+    fn complete(req: LlmRequest) -> LlmResponse {
+        self.last_kind = "";
+        self.last_status = 0;
+        self.last_detail = "";
+
+        let model = req.model;
+        let mut filled = req;
+        if len(model) == 0 {
+            filled = LlmRequest {
+                model:       self.default_model,
+                system:      req.system,
+                messages:    req.messages,
+                max_tokens:  req.max_tokens,
+                temperature: req.temperature
+            };
+        }
+        return openai_complete(
+            self.api_key,
+            self.base_url,
+            filled,
+            self.max_body
+        ) or self.__record(err);
+    }
+
+    fn stream(req: LlmRequest) {
+        self.last_kind = "";
+        self.last_status = 0;
+        self.last_detail = "";
+
+        let model = req.model;
+        let mut filled = req;
+        if len(model) == 0 {
+            filled = LlmRequest {
+                model:       self.default_model,
+                system:      req.system,
+                messages:    req.messages,
+                max_tokens:  req.max_tokens,
+                temperature: req.temperature
+            };
+        }
+        let body = __openai_fetch_sse(
+            self.api_key,
+            self.base_url,
+            filled,
+            self.max_body
+        ) or self.__sse_recover(err);
+        if self.last_kind != "" {
+            LlmDone <- LlmDoneMsg { payload: LlmResponse { } };
+        } else {
+            let mut buf = SseBuffer { buf: body, done: false };
+            let text_buf = std::str::builder_new();
+            let mut stop_reason = "";
+            while !buf.done {
+                let step = next_data_line(buf);
+                buf = step.remaining;
+                if !step.has_line {
+                    if !buf.done { break; }
+                    continue;
+                }
+                let delta = extract_openai_delta(step.line);
+                if len(delta) > 0 {
+                    LlmChunk <- LlmChunkMsg { payload: delta };
+                    std::str::builder_append(text_buf, delta);
+                }
+                let sr = extract_openai_stop_reason(step.line);
+                if len(sr) > 0 {
+                    stop_reason = sr;
+                }
+            }
+            let resp = LlmResponse {
+                text:          std::str::builder_finish(text_buf),
+                stop_reason:   stop_reason,
+                input_tokens:  0,
+                output_tokens: 0
+            };
+            LlmDone <- LlmDoneMsg { payload: resp };
+        }
+    }
+
+    fn __sse_recover(e: LlmError) -> String {
+        self.last_kind   = e.kind;
+        self.last_status = e.status;
+        self.last_detail = e.detail;
+        return "";
+    }
+}
+
+// ===== free-fn kernels ================================================
+//
+// `openai_complete` is the fallible free-fn entry point.
+// OpenAiClient's complete() method wraps it. Same body, same
+// error type — different channel (value vs structural).
+
+// OpenAI's HTTP wire boilerplate. Only differs from Anthropic's
+// in the Authorization header + path; no api-version header.
+fn __openai_build_http(
+    api_key: String,
+    host: String,
+    port: Int,
+    path: String,
+    body_json: String,
+    streaming: Bool
+) -> String {
+    let body_len = len(body_json);
+    let mut accept_header = "Accept: application/json\r\n";
+    if streaming {
+        accept_header = "Accept: text/event-stream\r\n";
+    }
+    return "POST " + path + " HTTP/1.1\r\n"
+        + "Host: " + host + ":" + to_string(port) + "\r\n"
+        + "User-Agent: pond/agent-llm 0.1\r\n"
+        + "Content-Type: application/json\r\n"
+        + "Content-Length: " + to_string(body_len) + "\r\n"
+        + "Connection: close\r\n"
+        + "Authorization: Bearer " + api_key + "\r\n"
+        + accept_header
+        + "\r\n"
+        + body_json;
+}
+
+fn openai_complete(
+    api_key: String,
+    base_url: String,
+    req: LlmRequest,
+    max_body: Int
+) -> LlmResponse fallible(LlmError) {
+    if len(api_key) == 0 {
+        fail LlmError {
+            kind:   "missing_api_key",
+            status: 0,
+            detail: "OpenAiClient: api_key must be non-empty"
+        };
+    }
+    let u = __parse_base_url(base_url) or raise;
+    let s = __connect_or_llm_err(u.scheme, u.host, u.port) or raise;
+
+    let body_json = __build_openai_body(req, false);
+    let wire = __openai_build_http(
+        api_key, u.host, u.port, "/v1/chat/completions", body_json, false
+    );
+    let _ = __stream_send(s, wire);
+
+    let raw = __drain_stream(s, max_body);
+    let _close = __stream_close(s);
+    let split = __split_http(raw);
+    if split.status <= 0 {
+        fail LlmError {
+            kind:   "http",
+            status: 0,
+            detail: "unparseable response"
+        };
+    }
+    if split.status >= 400 {
+        let detail = __extract_error_detail(split.body);
+        fail LlmError {
+            kind:   "vendor_error",
+            status: split.status,
+            detail: detail
+        };
+    }
+    return __parse_openai_response(split.body);
+}
+
+// __openai_fetch_sse — fallible half of the OpenAI streaming
+// surface. See anthropic.hl's __anthropic_fetch_sse for the
+// matching shape + the "eager-buffering deviation" friction
+// note that applies to both vendors.
+fn __openai_fetch_sse(
+    api_key: String,
+    base_url: String,
+    req: LlmRequest,
+    max_body: Int
+) -> String fallible(LlmError) {
+    if len(api_key) == 0 {
+        fail LlmError {
+            kind:   "missing_api_key",
+            status: 0,
+            detail: "OpenAiClient: api_key must be non-empty"
+        };
+    }
+    let u = __parse_base_url(base_url) or raise;
+    let s = __connect_or_llm_err(u.scheme, u.host, u.port) or raise;
+
+    let body_json = __build_openai_body(req, true);
+    let wire = __openai_build_http(
+        api_key, u.host, u.port, "/v1/chat/completions", body_json, true
+    );
+    let _ = __stream_send(s, wire);
+
+    let raw = __drain_stream(s, max_body);
+    let _close = __stream_close(s);
+    let split = __split_http(raw);
+    if split.status <= 0 {
+        fail LlmError {
+            kind:   "http",
+            status: 0,
+            detail: "unparseable response"
+        };
+    }
+    if split.status >= 400 {
+        let detail = __extract_error_detail(split.body);
+        fail LlmError {
+            kind:   "vendor_error",
+            status: split.status,
+            detail: detail
+        };
+    }
+    return split.body;
+}

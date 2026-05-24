@@ -1,0 +1,24 @@
+// util.hl — constant_time_eq.
+//
+// Compares two Bytes for byte-equality in length-of-a constant
+// time. Mismatched lengths short-circuit to false (length is
+// already public). Equal-length comparison ORs together the
+// per-byte XOR diffs and reports whether the accumulator is
+// zero — no early exit on the first mismatch.
+
+fn constant_time_eq(a: Bytes, b: Bytes) -> Bool {
+    let la = len(a);
+    let lb = len(b);
+    if la != lb {
+        return false;
+    }
+    let mut diff = 0;
+    let mut i = 0;
+    while i < la {
+        let av = std::bytes::at(a, i) or 0;
+        let bv = std::bytes::at(b, i) or 0;
+        diff = diff | (av ^ bv);
+        i = i + 1;
+    }
+    return diff == 0;
+}

@@ -1,0 +1,82 @@
+// pond/_util/duration_int -- Duration -> Int ns conversion +
+// monotonic-seconds helper.
+//
+// Consolidates the `__duration_to_int` / `__ns_to_seconds` /
+// `__mono_seconds` helpers that duplicate across
+// pond/tracing, pond/sessions, pond/supervisor, downstream-consumer.
+// See pond/KNOWN_GOTCHAS.md and each lib's FRICTION.md.
+//
+// Background: `std::time::monotonic()` returns a `Duration`
+// (i64 ns since CLOCK_MONOTONIC origin). The ASCII round-trip
+// path (`to_string(d)` → strip `"ns"` → `parse_int`) was the
+// original workaround when no Int-typed primitive existed.
+// Compiler-session 2026-05-21 (`f0857ef`) shipped
+// `std::time::monotonic_ns() -> Int` which exposes the same
+// clock reading typed as Int directly — same syscall, no
+// String allocation. This file now routes through that
+// primitive for the live-clock paths and reserves the
+// ASCII-strip path for `to_ns(d)` callers that still hand us
+// a Duration value (e.g. from `time::sleep` return, future
+// Duration-typed APIs).
+//
+// All callable surface lives on the `DurationInt` namespace
+// lotus (per pond/KNOWN_GOTCHAS.md G11).
+//
+// Consumers:
+//
+//     import "vendor/pond/_util/duration_int" as durint;
+//     let di = durint::DurationInt { };
+//     let ns = di.now_ns();           // monotonic clock as Int ns
+//     let s  = di.now_seconds();      // monotonic clock as Int seconds
+//     let ns = di.to_ns(some_duration);  // Duration -> Int ns
+
+// DurationInt -- namespace lotus.
+locus DurationInt {
+    params { }
+
+    // to_ns(d) -- Duration -> Int nanoseconds. Strips the trailing
+    // "ns" suffix and parses the integer. 0 on parse failure (the
+    // failure modes in the original sites all treat 0 as a benign
+    // "first window" sentinel).
+    //
+    // Note: prefer `now_ns()` over `to_ns(std::time::monotonic())` —
+    // now_ns() goes through `std::time::monotonic_ns()` directly,
+    // skipping the to_string + parse_int round-trip and the
+    // intermediate String allocation that surfaces in
+    // allocation profilers (~410 events/sec at 60fps WS recv).
+    fn to_ns(d: Duration) -> Int {
+        let s     = to_string(d);
+        let s_len = len(s);
+        if s_len < 2 {
+            return 0;
+        }
+        let tail = s[(s_len - 2)..s_len];
+        let mut num = s;
+        if tail == "ns" {
+            num = s[0..(s_len - 2)];
+        }
+        return std::str::parse_int(num) or 0;
+    }
+
+    // to_seconds(d) -- Duration -> whole seconds (integer divide).
+    fn to_seconds(d: Duration) -> Int {
+        return self.to_ns(d) / 1000000000;
+    }
+
+    // now_ns() -- monotonic clock as Int ns. Routes through the
+    // substrate's `std::time::monotonic_ns()` primitive (no
+    // String allocation). Same syscall as
+    // `std::time::monotonic()` (clock_gettime(CLOCK_MONOTONIC));
+    // the only difference is the return type.
+    fn now_ns() -> Int {
+        return std::time::monotonic_ns();
+    }
+
+    // now_seconds() -- monotonic clock as whole seconds. Suitable
+    // for stamping expiry deadlines that need to outlive a single
+    // event-loop step (but NOT across process restarts -- the
+    // monotonic origin resets on reboot/exec).
+    fn now_seconds() -> Int {
+        return self.now_ns() / 1000000000;
+    }
+}

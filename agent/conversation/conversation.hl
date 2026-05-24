@@ -1,0 +1,121 @@
+// pond/agent/conversation — Conversation locus.
+//
+// A state-bearing service locus that holds chat history for one
+// session. The bus topic `ConversationUpdated` fires on every
+// successful append so downstream consumers (LLM clients,
+// transcript loggers, UI mirrors) can react incrementally
+// without polling.
+//
+// Pattern 3 in the six-pattern catalog (Service locus, state-
+// bearing). No `birth() / run() / dissolve()` — the locus is
+// usable immediately after construction; state mutation happens
+// through the `append` surface; nothing needs teardown at scope
+// exit.
+//
+// **Cross-process state-mirroring is out of scope for v1.**
+// Earlier drafts shipped a `version()` / `snapshot_bytes()` /
+// `apply_delta()` surface on this locus so a remote mirror could
+// resync via snapshots + deltas (the "Memory Owner Architecture"
+// shape). That design is on hold — the substrate work it needs
+// (durable version chain, gap-detect, resync protocol) wasn't
+// load-bearing for v1, and the wire-format split between owner-
+// local serialization and consumer-friendly framing pulled the
+// implementation in two directions. Consumers that need cross-
+// process delivery should bind `ConversationUpdated` in `main`'s
+// `bindings` block — the bus substrate handles serialization
+// without the owner having to choose a snapshot format.
+
+locus Conversation {
+    params {
+        // The system prompt for this conversation. Empty string
+        // means "no system prompt" (a Conversation that's just
+        // a turn-by-turn history).
+        system_prompt: String = "";
+
+        // Cap on the number of messages retained in history.
+        // When `append()` would push the count past this cap,
+        // the oldest messages are dropped to keep the count at
+        // exactly `max_messages`. v1 strategy: simple FIFO
+        // eviction.
+        max_messages: Int = 100;
+
+        // -------- Internal state, exposed as params per the
+        //          stateful-locus convention --------
+
+        // Tab-separated `role\tcontent\trole\tcontent...` stream.
+        // Empty when no messages have been appended. The
+        // representation matches the `history()` return shape
+        // exactly so `history()` is a single field read.
+        //
+        // **Tab as delimiter** matches `pond/router::RouteParams`
+        // and `pond/agent/llm::LlmRequest.messages`. Callers
+        // must not embed tabs in `Message.content`; same
+        // convention. A `std::iter::TabFields` helper (logged in
+        // FRICTION.md) would centralize this.
+        history_buf:  String = "";
+
+        // Live message count, for max_messages enforcement.
+        msg_count:    Int    = 0;
+    }
+    bus {
+        // G1 (pond/KNOWN_GOTCHAS.md): when this lib is imported
+        // via `import "../.." as conv;`, the topic decl in
+        // topics.hl gets mangled to
+        // `__lib_conv_topics_ConversationUpdated` but a bare
+        // `publish ConversationUpdated;` here doesn't go through
+        // the same rename, so consumer-side builds report
+        // "unknown topic." Mirror pond/agent/llm and
+        // pond/subprocess: publish on a literal subject string
+        // with an explicit `of type Message`. Subscribers wire
+        // up via `subscribe "conv.updated" as ... of type Message`
+        // or via the topic decl (subscribe-side resolution path
+        // is healthy per G1).
+        publish "conv.updated" of type Message;
+    }
+
+    // --------- Public surface (per CONTRACTS.md) ---------
+
+    // append(m) — record a new message at the end of the
+    // history, fire the `ConversationUpdated` topic.
+    //
+    // If the post-append count would exceed `max_messages`, the
+    // oldest messages are dropped to bring the count back to
+    // `max_messages`. The eviction happens *before* the publish
+    // so subscribers observe an already-bounded state.
+    fn append(m: Message) {
+        // Encode the message into the tab-separated stream.
+        if len(self.history_buf) > 0 {
+            self.history_buf = self.history_buf + "\t";
+        }
+        self.history_buf = self.history_buf + m.role
+                         + "\t" + m.content;
+        self.msg_count = self.msg_count + 1;
+
+        // Evict from the front if we overshot. Use the free-fn
+        // helper so the eviction algorithm is testable in
+        // isolation and the lifecycle body stays straight-line.
+        if self.msg_count > self.max_messages {
+            let to_drop = self.msg_count - self.max_messages;
+            self.history_buf = drop_front_messages(self.history_buf, to_drop);
+            self.msg_count = self.max_messages;
+        }
+
+        // Fire the topic. Subscribers see the just-appended
+        // message; if they're maintaining their own mirror they
+        // fold this onto their prior state. Literal-subject form
+        // per G1 — see the `bus { }` block comment above.
+        "conv.updated" <- m;
+    }
+
+    // history() — return the tab-separated stream of all
+    // currently-retained messages. Shape:
+    //
+    //   "role1\tcontent1\trole2\tcontent2\t..."
+    //
+    // Empty string when no messages have been appended. Matches
+    // the `LlmRequest.messages` encoding so callers can wire
+    // history straight into an LLM request body.
+    fn history() -> String {
+        return self.history_buf;
+    }
+}

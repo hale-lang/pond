@@ -1,0 +1,144 @@
+// pond/_util/kvpack -- tab-separated key=value walker.
+//
+// Consolidates the `get_value` / `set_value` lookup pattern that
+// surfaces with the same shape across:
+//
+//   - pond/sessions::Session.data        (`k1=v1\tk2=v2\t...`)
+//   - pond/router::RouteParams.path_kv   (same wire shape)
+//   - pond/metrics::Labels.kv            (same wire shape)
+//
+// Each lib's user-facing type wraps a single String field, so the
+// kvpack helpers operate on the String directly -- consumers
+// keep their own type wrappers and call through this util.
+//
+// All callable surface lives on the `KvPack` namespace lotus
+// (per pond/KNOWN_GOTCHAS.md G11).
+//
+// Consumers:
+//
+//     import "vendor/pond/_util/kvpack" as kv;
+//     let k = kv::KvPack { };
+//     let v = k.get(packed_str, "user_id");
+//     let packed2 = k.set(packed_str, "user_id", "42");
+
+locus KvPack {
+    params { }
+
+    // get(data, key) -- look up `key` in a tab-separated
+    // `k1=v1\tk2=v2\t...` block. Returns "" if absent
+    // (sentinel-shape; matches every consumer's existing
+    // "couldn't compute" pattern).
+    fn get(data: String, key: String) -> String {
+        let total = len(data);
+        if total <= 0 { return ""; }
+        let needle     = key + "=";
+        let needle_len = len(needle);
+        let mut cursor = 0;
+        while cursor < total {
+            let rest = data[cursor..total];
+            let tab_rel = std::str::index_of(rest, "\t");
+            let mut pair_end = total;
+            if tab_rel >= 0 {
+                pair_end = cursor + tab_rel;
+            }
+            let pair     = data[cursor..pair_end];
+            let pair_len = len(pair);
+            if pair_len >= needle_len {
+                let head = pair[0..needle_len];
+                if head == needle {
+                    return pair[needle_len..pair_len];
+                }
+            }
+            if tab_rel < 0 {
+                return "";
+            }
+            cursor = pair_end + 1;
+        }
+        return "";
+    }
+
+    // set(data, key, val) -- return a new packed String with
+    // `key=val` either replacing the existing pair or appended.
+    fn set(data: String, key: String, val: String) -> String {
+        let total      = len(data);
+        let needle     = key + "=";
+        let needle_len = len(needle);
+        let new_pair   = needle + val;
+
+        if total <= 0 {
+            return new_pair;
+        }
+
+        let mut out    = "";
+        let mut cursor = 0;
+        let mut found  = false;
+        while cursor < total {
+            let rest = data[cursor..total];
+            let tab_rel = std::str::index_of(rest, "\t");
+            let mut pair_end = total;
+            if tab_rel >= 0 {
+                pair_end = cursor + tab_rel;
+            }
+            let pair     = data[cursor..pair_end];
+            let pair_len = len(pair);
+            let mut emit = pair;
+            if !found && pair_len >= needle_len {
+                let head = pair[0..needle_len];
+                if head == needle {
+                    emit  = new_pair;
+                    found = true;
+                }
+            }
+            if len(out) > 0 {
+                out = out + "\t";
+            }
+            out = out + emit;
+            if tab_rel < 0 {
+                cursor = total;
+            } else {
+                cursor = pair_end + 1;
+            }
+        }
+        if !found {
+            out = out + "\t" + new_pair;
+        }
+        return out;
+    }
+
+    // has(data, key) -- predicate variant for `key in data`.
+    fn has(data: String, key: String) -> Bool {
+        return self.get(data, key) != "" || self.__present_empty(data, key);
+    }
+
+    // __present_empty(data, key) -- distinguishes "absent" from
+    // "present with empty value". A `key=` followed by tab or EOL
+    // counts as present.
+    fn __present_empty(data: String, key: String) -> Bool {
+        let total = len(data);
+        if total <= 0 { return false; }
+        let needle     = key + "=";
+        let needle_len = len(needle);
+        let mut cursor = 0;
+        while cursor < total {
+            let rest = data[cursor..total];
+            let tab_rel = std::str::index_of(rest, "\t");
+            let mut pair_end = total;
+            if tab_rel >= 0 {
+                pair_end = cursor + tab_rel;
+            }
+            let pair     = data[cursor..pair_end];
+            let pair_len = len(pair);
+            if pair_len >= needle_len {
+                let head = pair[0..needle_len];
+                if head == needle {
+                    return true;
+                }
+            }
+            if tab_rel < 0 {
+                return false;
+            }
+            cursor = pair_end + 1;
+        }
+        return false;
+    }
+}

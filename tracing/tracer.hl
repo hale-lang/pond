@@ -1,0 +1,394 @@
+// pond/tracing — Tracer locus.
+
+import "../_util/duration_int" as durint;
+import "../_util/rowbuf"       as rb;
+
+//
+// Per CONTRACTS.md:
+//
+//   locus Tracer {                            // one per app; mirrors locus tower
+//       params { service_name: String; }
+//       fn start_span(name: String, parent: SpanId) -> SpanId;
+//       fn end_span(id: SpanId) -> ();
+//       fn add_attr(id: SpanId, key: String, val: String) -> ();
+//       fn export_otlp(endpoint: String) -> () fallible(IoError);
+//   }
+//
+// Catalog placement: pattern 3 (service locus) — long-lived,
+// state-bearing, bus participant (publishes SpanCompleted). One
+// per app; instantiate at process root before any consumer that
+// might call start_span.
+//
+// The recursive-locus principle says spans naturally nest with
+// locus instantiation: a child span's parent is whatever span
+// was open when the child started. v1 has the user thread
+// `parent` explicitly through start_span; a future
+// runtime-injection pass (see FRICTION.md) would walk the locus
+// tower at birth/dissolve and emit start/end_span automatically,
+// removing the explicit-parent argument entirely.
+//
+// =====================================================================
+// Storage shape
+// =====================================================================
+//
+// v1 has no parametric Vec<Span> surface; @form(vec) on a user
+// type composes awkwardly when entries are looked up by an
+// embedded-string id (the synthesized indexing is integer). So
+// the Tracer packs span state as two tab-separated string buffers
+// — one for open spans, one for the export-ready buffer of
+// completed spans. Each "row" is one span, fields tab-separated,
+// rows newline-separated.
+//
+// Open-span row format:
+//
+//     <id>\t<parent_id>\t<name>\t<start_ns>\t<attrs>\n
+//
+// Completed-span row format (export buffer):
+//
+//     <id>\t<parent_id>\t<name>\t<start_ns>\t<end_ns>\t<attrs>\n
+//
+// Lookups are linear scans over the buffer — fine for trace
+// budgets typical of a single request (~10s of spans). When a
+// workload pushes against this, the @form(hashmap) flip is the
+// right substitution; logged in FRICTION.md.
+//
+// The two-channel rule: locus methods on user-declared loci
+// cannot declare `fallible(E)`. `start_span` / `end_span` /
+// `add_attr` are infallible per contract. `export_otlp` is
+// declared `fallible(IoError)` in CONTRACTS.md — that's
+// incompatible with the two-channel rule. We deviate by
+// returning `()` and surfacing the failure via
+// `self.last_error_kind` + `self.last_error_detail`; see
+// FRICTION.md "deviation: export_otlp fallibility".
+
+// =====================================================================
+// Transitive-import gap (see FRICTION.md "export_otlp can't import
+// pond/http/client transitively"). The Hale import resolver
+// does NOT follow imports inside imported seeds (spec/projects.md
+// § "Strict barrier: no re-exports"), so a downstream app that
+// only imports `trace` cannot see `http::HttpError` / `http::post`
+// referenced from this lib. Until cross-seed transitive imports
+// land, `export_otlp` ships as a JSON-only stub: it assembles the
+// OTLP body, records it on self.last_export_body for inspection,
+// and reports a kind="transport_unsupported" error so consumers
+// can detect the gap without taking down their tracer. The
+// exporter integration tests in /examples/ check the body shape
+// directly; full wire delivery flips on when the gap closes.
+// =====================================================================
+
+
+// =====================================================================
+// Bus channel — the SpanCompleted topic.
+//
+// Per CONTRACTS.md: `topic SpanCompleted { payload: Span; }`.
+// Upstream A1 (`f9068fa`) closed the topic-ident mangle gap that
+// previously forced the lib to drop the topic decl in favor of
+// inlined literal subjects throughout. The decl lives in this
+// file (not topics.hl) to dodge the cross-file topic-decl
+// resolution gap noted in FRICTION.md.
+//
+// Subscribers wire up by qualified topic ident:
+//
+//   bus {
+//     subscribe trace::SpanCompleted as on_span;
+//   }
+//
+topic SpanCompleted { payload: Span; subject: "trace.span.completed"; }
+
+locus Tracer {
+    params {
+        // Required: service name reported in OTLP exports.
+        service_name: String = "pond-tracing";
+
+        // Monotonic span counter; assigned to each start_span
+        // call as a decimal-string id. Starts at 1 so id "0"
+        // never collides with the empty-string root sentinel.
+        next_id: Int = 1;
+
+        // Packed buffers — see "Storage shape" above.
+        open_buf:      String = "";
+        completed_buf: String = "";
+
+        // Last-error surface for export_otlp (see two-channel
+        // deviation note above). Empty kind == success.
+        last_error_kind:   String = "";
+        last_error_detail: String = "";
+
+        // Stub-mode capture: export_otlp can't currently reach
+        // pond/http/client transitively (see FRICTION.md), so we
+        // stash the assembled OTLP body on self for inspection.
+        // Test harnesses read this via last_export_body(); the
+        // real HTTP delivery flips on when the transitive-import
+        // gap closes.
+        last_export_body: String = "";
+    }
+
+    bus {
+        // Publish by topic ident; the topic decl above carries
+        // the wire subject. Upstream A1 (`f9068fa`) closed the
+        // mangle-rewrite gap that previously forced the literal-
+        // subject form here.
+        publish SpanCompleted;
+    }
+
+    // start_span — open a new span; return its SpanId.
+    //
+    // `parent.id == ""` flags a root span (no enclosing scope).
+    // The returned SpanId is the handle the caller threads into
+    // add_attr / end_span. The handle is also what a child
+    // start_span call passes as `parent` to nest properly.
+    fn start_span(name: String, parent: SpanId) -> SpanId {
+        let id_str = to_string(self.next_id);
+        self.next_id = self.next_id + 1;
+
+        let di       = durint::DurationInt { };
+        let t0       = std::time::monotonic();
+        let start_ns = di.to_ns(t0);
+
+        // Append one row to open_buf.
+        self.open_buf = self.open_buf
+            + id_str + "\t"
+            + parent.id + "\t"
+            + name + "\t"
+            + to_string(start_ns) + "\t"
+            + "" + "\n";
+
+        return SpanId { id: id_str };
+    }
+
+    // end_span — close an open span. Composes the completed
+    // Span, publishes SpanCompleted, and stashes the span in
+    // the export buffer for export_otlp.
+    //
+    // Silently no-ops if the id isn't found in open_buf (e.g.
+    // double-end_span on the same id) — surfacing that as an
+    // error would be a structural-failure case for a future
+    // closure-violation pass; v1 prefers the silent no-op so
+    // mis-paired calls don't take down the host locus.
+    fn end_span(id: SpanId) {
+        let row = self.__find_open_row(id.id);
+        if len(row) == 0 {
+            // No matching open span — no-op.
+            let _ = id.id;
+        } else {
+            let di     = durint::DurationInt { };
+            let rows   = rb::RowBuf { };
+            let t1     = std::time::monotonic();
+            let end_ns = di.to_ns(t1);
+
+            // Parse the row's fields. Order: id, parent, name,
+            // start_ns, attrs.
+            let parent_id = rows.nth_field(row, 1);
+            let name      = rows.nth_field(row, 2);
+            let start_str = rows.nth_field(row, 3);
+            let attrs     = rows.nth_field(row, 4);
+            let start_ns  = std::str::parse_int(start_str) or 0;
+
+            // Remove the row from open_buf.
+            self.open_buf = rows.remove_row(self.open_buf, id.id);
+
+            // Append the completed-span row to completed_buf.
+            self.completed_buf = self.completed_buf
+                + id.id + "\t"
+                + parent_id + "\t"
+                + name + "\t"
+                + to_string(start_ns) + "\t"
+                + to_string(end_ns) + "\t"
+                + attrs + "\n";
+
+            // Publish the SpanCompleted topic via its ident
+            // (see the bus block above for the A1 note).
+            let span = Span {
+                id:       SpanId { id: id.id },
+                parent:   SpanId { id: parent_id },
+                name:     name,
+                start_ns: start_ns,
+                end_ns:   end_ns,
+                attrs:    attrs,
+            };
+            SpanCompleted <- span;
+        }
+    }
+
+    // add_attr — append `key=val\t` to the open span's attrs.
+    //
+    // Silent no-op if the span isn't open. Order is preserved
+    // (attrs are append-only); duplicate keys are NOT
+    // deduplicated — sinks pick the last-wins or first-wins
+    // policy as they see fit.
+    fn add_attr(id: SpanId, key: String, val: String) {
+        let row = self.__find_open_row(id.id);
+        if len(row) == 0 {
+            let _ = key;
+            let _ = val;
+        } else {
+            let rows = rb::RowBuf { };
+            // Parse existing attrs, append, rebuild row.
+            let parent_id = rows.nth_field(row, 1);
+            let name      = rows.nth_field(row, 2);
+            let start_str = rows.nth_field(row, 3);
+            let attrs     = rows.nth_field(row, 4);
+            let new_attrs = attrs + key + "=" + val + "\t";
+
+            // Remove old row + append updated row.
+            self.open_buf = rows.remove_row(self.open_buf, id.id);
+            self.open_buf = self.open_buf
+                + id.id + "\t"
+                + parent_id + "\t"
+                + name + "\t"
+                + start_str + "\t"
+                + new_attrs + "\n";
+        }
+    }
+
+    // export_otlp — assemble the OTLP/HTTP JSON batch from the
+    // completed-spans buffer and (when the transitive-import
+    // gap closes) POST it to `endpoint`.
+    //
+    // Per the two-channel rule (deviation flagged in
+    // FRICTION.md), this method returns () instead of the
+    // contract's `fallible(IoError)`. Failure surfaces through
+    // `self.last_error_kind` / `self.last_error_detail`.
+    //
+    // v1 stub-mode: the JSON body is assembled and stashed on
+    // `self.last_export_body`; `self.last_error_kind` is set to
+    // "transport_unsupported" to flag the gap. The completed-
+    // span buffer is NOT cleared in stub mode so a retry after
+    // the unblock will exfiltrate the same batch.
+    //
+    // No-op + success when the export buffer is empty.
+    fn export_otlp(endpoint: String) {
+        self.last_error_kind   = "";
+        self.last_error_detail = "";
+
+        if len(self.completed_buf) == 0 {
+            // Nothing to export — success.
+            let _ = endpoint;
+        } else {
+            let body = __build_otlp_json(self.service_name, self.completed_buf);
+            self.last_export_body = body;
+            self.last_error_kind   = "transport_unsupported";
+            self.last_error_detail = "pond/tracing: transitive import of "
+                + "pond/http/client not yet supported; OTLP body assembled "
+                + "and stashed on self.last_export_body but not delivered "
+                + "to " + endpoint + ". See FRICTION.md.";
+            // self.completed_buf intentionally NOT cleared — a
+            // future retry after the unblock should pick up the
+            // same batch.
+        }
+    }
+
+    // last_error_kind_str / last_error_detail_str / last_export_body_str
+    // — read-only accessors so consumers can inspect post-call
+    // state without grepping for field names. Naming mirrors
+    // pond/http/client's Client.last_error_* shape.
+    fn last_error_kind_str()    -> String { return self.last_error_kind; }
+    fn last_error_detail_str()  -> String { return self.last_error_detail; }
+    fn last_export_body_str()   -> String { return self.last_export_body; }
+
+    // __find_open_row — return the full open-buf row for `id`,
+    // empty string if not found. Match is on the leading
+    // `<id>\t` prefix of each newline-delimited row.
+    fn __find_open_row(target_id: String) -> String {
+        let buf = self.open_buf;
+        let buf_len = len(buf);
+        if buf_len == 0 {
+            return "";
+        }
+        let needle = target_id + "\t";
+        let needle_len = len(needle);
+
+        let mut cursor = 0;
+        while cursor < buf_len {
+            let rel = std::str::index_of(buf[cursor..buf_len], "\n");
+            let mut line_end = buf_len;
+            if rel >= 0 {
+                line_end = cursor + rel;
+            }
+            let line_len = line_end - cursor;
+            if line_len >= needle_len {
+                let head = buf[cursor..(cursor + needle_len)];
+                if head == needle {
+                    return buf[cursor..line_end];
+                }
+            }
+            if rel < 0 {
+                return "";
+            }
+            cursor = line_end + 1;
+        }
+        return "";
+    }
+
+}
+
+// =====================================================================
+// Free-fn helpers (catalog pattern 6).
+// =====================================================================
+//
+// The Duration → Int ns conversion (formerly `__duration_to_int`),
+// the tab-separated field extractor (formerly `__nth_field`), and
+// the leading-field row deletion (formerly `__remove_row`) now
+// live in pond/_util/duration_int and pond/_util/rowbuf. Call sites
+// use the `durint` / `rb` aliases declared at the top of this file.
+
+// __build_otlp_json — assemble the OTLP/HTTP JSON body from
+// the completed-spans buffer.
+//
+// v1 produces a *simplified* OTLP shape (real OTLP uses
+// `resourceSpans` / `scopeSpans` / `spans` nesting + base64-
+// encoded trace/span IDs); since pond/tracing's contract bills
+// itself as "Span tree mirroring the locus tower" rather than
+// "OTLP-protocol-perfect", the v1 body uses the same field
+// names OTLP picks for spans (`traceId`, `spanId`, `parentSpanId`,
+// `name`, `startTimeUnixNano`, `endTimeUnixNano`, `attributes`)
+// but flattens the wrapper so an OTLP collector running in
+// permissive-input mode can ingest it. Full nested OTLP is the
+// right v1.x followup once a workload pulls on it; logged in
+// FRICTION.md.
+fn __build_otlp_json(service_name: String, completed_buf: String) -> String {
+    let b    = std::json::Builder { };
+    let rows = rb::RowBuf { };
+    b.begin_object();
+    b.field("service", service_name);
+    b.begin_array_field("spans");
+
+    let buf_len = len(completed_buf);
+    let mut cursor = 0;
+    while cursor < buf_len {
+        let rel = std::str::index_of(completed_buf[cursor..buf_len], "\n");
+        let mut line_end = buf_len;
+        if rel >= 0 {
+            line_end = cursor + rel;
+        }
+        let row = completed_buf[cursor..line_end];
+        if len(row) > 0 {
+            let id_str    = rows.nth_field(row, 0);
+            let parent_id = rows.nth_field(row, 1);
+            let name      = rows.nth_field(row, 2);
+            let start_str = rows.nth_field(row, 3);
+            let end_str   = rows.nth_field(row, 4);
+            let attrs     = rows.nth_field(row, 5);
+            let start_ns  = std::str::parse_int(start_str) or 0;
+            let end_ns    = std::str::parse_int(end_str) or 0;
+
+            b.begin_object();
+            b.field("spanId", id_str);
+            b.field("parentSpanId", parent_id);
+            b.field("name", name);
+            b.int_field("startTimeUnixNano", start_ns);
+            b.int_field("endTimeUnixNano", end_ns);
+            b.field("attributes", attrs);
+            b.end_object();
+        }
+        if rel < 0 {
+            cursor = buf_len;
+        } else {
+            cursor = line_end + 1;
+        }
+    }
+
+    b.end_array();
+    b.end_object();
+    return b.result();
+}

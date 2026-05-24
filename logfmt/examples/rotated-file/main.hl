@@ -1,0 +1,88 @@
+// logfmt/examples/rotated-file — write 100 log events to a
+// FileSink with a tiny max_size_bytes so rotation triggers
+// several times. After the run, walk the rotated chain
+// (`/tmp/logfmt-rotated.log{,.1,.2,...}`) and print which files
+// exist so the demo's success is visible without inspecting
+// disk by hand.
+//
+// Catalog mapping: this is an App locus (pattern 1). The single
+// `run()` body delegates to a free helper because lifecycle
+// methods reject `return` at v0.
+
+import "../.." as logfmt;
+
+locus RotatedFileDemo {
+    run() {
+        drive();
+    }
+}
+
+fn drive() {
+    let log_path = "/tmp/logfmt-rotated.log";
+    // Subscribers must be born before any publisher fires (the
+    // bus-ordering rule in AGENTS.md). Instantiate the FileSink
+    // first so it sees every Logger publish below.
+    //
+    // max_size_bytes is intentionally tiny so 100 events at
+    // ~40 bytes each blow past the cap several times and force
+    // multiple rotations. keep_files=3 means we get at most
+    // .1, .2, .3 alongside the active log.
+    let sink = logfmt::FileSink {
+        path: log_path,
+        max_size_bytes: 512,
+        keep_files: 3
+    };
+
+    // The Logger publishes on `log.<full_path>` which the
+    // FileSink's `subscribe "log.**"` catches.
+    let log = std::log::Logger { name: "rotated-demo" };
+
+    let mut i = 0;
+    while i < 100 {
+        let line = "event-" + to_string(i) + " payload payload payload";
+        log.info(line);
+        i = i + 1;
+    }
+
+    // Verify the chain. file_exists is the only non-fallible fs
+    // predicate; perfect for a "did rotation happen" check
+    // without an error arm at the call site.
+    println("--- rotated chain state ---");
+    print_file_status(log_path, "active log");
+    print_file_status(log_path + ".1", "rotation .1");
+    print_file_status(log_path + ".2", "rotation .2");
+    print_file_status(log_path + ".3", "rotation .3");
+
+    // Verify .1 exists so the demo's primary assertion is
+    // explicit. Surface the sink's last_kind so a silent IO
+    // failure (write permission etc.) doesn't fake a pass.
+    let rotated_one = log_path + ".1";
+    if !std::io::fs::file_exists(rotated_one) {
+        println("ASSERTION FAILED: expected ", rotated_one, " after 100 writes");
+        println("FileSink.last_error_kind=", sink.last_error_kind());
+        println("FileSink.last_error_errno=", to_string(sink.last_error_errno()));
+        std::process::exit(1);
+    }
+    if sink.last_error_kind() != "" {
+        println("ASSERTION FAILED: FileSink reported error mid-run");
+        println("  kind:  ", sink.last_error_kind());
+        println("  errno: ", to_string(sink.last_error_errno()));
+        println("  path:  ", sink.last_error_path());
+        std::process::exit(1);
+    }
+
+    println("rotated-file: rotation verified");
+}
+
+fn print_file_status(path: String, label: String) {
+    if std::io::fs::file_exists(path) {
+        let n = std::io::fs::file_size(path) or 0;
+        println("  ", label, " (", path, "): exists, size=", to_string(n));
+    } else {
+        println("  ", label, " (", path, "): absent");
+    }
+}
+
+fn main() {
+    RotatedFileDemo { };
+}

@@ -1,0 +1,163 @@
+// pond/jobs — the Queue service locus.
+//
+// Pattern 3 (service locus): `birth` opens its own pond/sqlite
+// Db and runs the schema migration (CREATE TABLE IF NOT EXISTS
+// pond_jobs ...). `dissolve` closes the connection. The four
+// public methods (enqueue / dequeue / ack / fail_job) live in
+// `query.hl` as free fns per the two-channel rule (see deviation
+// note below). The Queue's only state is the configured table
+// name + db path.
+//
+// CONTRACTS.md sketches:
+//
+//   locus Queue {
+//       params { db: Db; table: String = "pond_jobs"; }
+//       fn enqueue(...) -> Int fallible(JobError);
+//       fn dequeue() -> Job   fallible(JobError);
+//       fn ack(id)    -> ()   fallible(JobError);
+//       fn fail(id,r) -> ()   fallible(JobError);
+//   }
+//
+// **Two deviations from CONTRACTS.md, both logged in FRICTION.md:**
+//
+//  1. **Locus methods can't be `fallible(E)`** (two-channel rule,
+//     spec/semantics.md § "Where each channel lives"). The four
+//     queue methods migrate to free fns taking a `Queue` ref in
+//     `query.hl`. Call sites read `jobs::enqueue(q, kind, ...)`
+//     instead of `q.enqueue(kind, ...)`. Same shape as
+//     pond/sqlite's `db::exec(conn, sql)` translation.
+//
+//  2. **Locus refs can't sit in locus params** (per
+//     spec/types.md § F.20 Phase B and the slot-restriction
+//     extending to ordinary params — a Db passed as a Queue
+//     param would orphan the Db's lifecycle when the Queue
+//     dissolves). Queue holds `db_path: String` directly,
+//     mirroring a future store-pattern lib's `SqliteStore { params { db_path;
+//     ... } }`.
+//
+// Status (2026-05-16): BLOCKED on pond/sqlite. The Queue.birth()
+// body is a no-op stub today — invoking `db::*` from a built
+// binary would trip codegen v0's "qualified type / qualified
+// struct literal not in stdlib path-renames table" gap
+// (FRICTION.md item 11). The schema-bringup that birth() will
+// own once unblocked is documented in __schema_up()'s comment;
+// the function body itself is a stub.
+
+import "../sqlite" as db;
+
+locus Queue {
+    params {
+        // SQLite path. ":memory:" picks an ephemeral DB once the
+        // upstream stdlib primitive lands; default lets a caller
+        // construct a throwaway Queue with no flags.
+        db_path: String = ":memory:";
+
+        // Table name for the queue rows. Default matches
+        // CONTRACTS.md so cross-lib code agrees on the schema
+        // identifier without per-call configuration.
+        table:   String = "pond_jobs";
+
+        // SQLite handle, stashed by birth() once unblocked.
+        // Sentinel semantics mirror pond/sqlite::Db.conn_handle:
+        //   -1 → not yet birthed
+        //    0 → birthed-but-stub (BLOCKED — no real handle)
+        //   >0 → real SQLite handle
+        conn_handle: Int = -1;
+
+        // Last-seen error detail, populated when birth() can't
+        // bring the schema up. Captured by the inline closure so
+        // the parent's on_failure handler can read the diagnostic
+        // through the child handle.
+        last_error: String = "";
+    }
+
+    // Inline closure for the structural-failure escalation path
+    // (styleguide § 7). Today `violate fatal_schema` is
+    // unreachable because birth() doesn't actually run a schema
+    // migration. Once unblocked, a real failure (disk full,
+    // permissions, schema conflict) routes here and the parent's
+    // on_failure sees a ClosureViolation with `c.last_error`
+    // populated.
+    closure fatal_schema { captures: last_error; epoch inline; }
+
+    // birth() — open the Db + run the schema migration.
+    //
+    // Stub today (BLOCKED on pond/sqlite + codegen). Once
+    // unblocked the body calls `__schema_up(self.db_path,
+    // self.table)` which runs the CREATE TABLE IF NOT EXISTS
+    // documented below.
+    birth() {
+        self.conn_handle = 0;
+    }
+
+    // dissolve() — no resource to release at the Queue level
+    // (per-call Dbs in query.hl dissolve at their own call
+    // scopes, once unblocked). Placeholder so the body isn't
+    // empty (empty bodies parse-fail per spec/styleguide.md §
+    // Current language gaps).
+    dissolve() {
+        let _ = self.conn_handle;
+    }
+
+    // handle_db_kd — error-check fn (styleguide § 7) wrapping a
+    // db error into the structural channel. Takes (kind, detail)
+    // by value rather than the typed `db::DbError` because codegen
+    // v0 rejects qualified type names in user-fn signatures
+    // (FRICTION.md item 11). Currently unreachable (stub mode
+    // never trips a fatal_schema), declared so the shape is in
+    // place for the unblock.
+    fn handle_db_kd(kind: String, detail: String) -> Int {
+        self.last_error = detail;
+        if kind == "open_failed" || kind == "io" {
+            violate fatal_schema;
+        }
+        return 0;
+    }
+}
+
+// __schema_up — would run CREATE TABLE IF NOT EXISTS for the
+// queue table. Stubbed today; the proposed body lives in the
+// comments below. Once pond/sqlite + codegen are unblocked, the
+// function body becomes the documented sequence and Queue.birth()
+// calls it.
+//
+// Schema (post-unblock):
+//   CREATE TABLE IF NOT EXISTS <table> (
+//       id            INTEGER PRIMARY KEY AUTOINCREMENT,
+//       kind          TEXT    NOT NULL,
+//       payload       TEXT    NOT NULL,
+//       attempt       INTEGER NOT NULL DEFAULT 0,
+//       max_attempts  INTEGER NOT NULL DEFAULT 3,
+//       state         TEXT    NOT NULL DEFAULT 'ready',
+//       claimed_at    INTEGER,
+//       last_error    TEXT
+//   );
+//   CREATE INDEX IF NOT EXISTS <table>_state_id
+//       ON <table>(state, id);
+//
+// The state column drives the row state machine:
+//   'ready'     → claimable by dequeue
+//   'in_flight' → claimed (worker is running)
+//   'done'      → acked (kept for audit, sweepable)
+//   'failed'    → max_attempts exhausted (dead-letter)
+//
+// dequeue() flips ready→in_flight; ack() flips in_flight→done;
+// fail_job(retry=true) flips in_flight→ready (with attempt++);
+// fail_job(retry=false) flips in_flight→failed. The `state, id`
+// index makes the dequeue scan ("SELECT id, ... WHERE state =
+// 'ready' ORDER BY id LIMIT 1") an index range scan.
+//
+// Once unblocked:
+//
+//   fn __schema_up(db_path: String, table: String) {
+//       let conn = db::Db { path: db_path };
+//       let create = "CREATE TABLE IF NOT EXISTS " + table + " (...)";
+//       let _ = db::exec(conn, create) or db::ExecResult { };
+//       let idx = "CREATE INDEX IF NOT EXISTS " + table + "_state_id ON "
+//           + table + "(state, id)";
+//       let _ = db::exec(conn, idx) or db::ExecResult { };
+//   }
+fn __schema_up(db_path: String, table: String) {
+    let _ = db_path;
+    let _ = table;
+}

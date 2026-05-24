@@ -1,0 +1,20 @@
+// pond/_util/kvpack/examples/smoke -- minimal demo.
+
+import "../.." as kv;
+
+fn main() {
+    let k = kv::KvPack { };
+    let data0 = "";
+    let data1 = k.set(data0, "user_id", "42");
+    let data2 = k.set(data1, "role",    "admin");
+    let data3 = k.set(data2, "role",    "user");
+
+    println("kvpack: data1 = ", data1);
+    println("kvpack: data2 = ", data2);
+    println("kvpack: data3 = ", data3);
+    println("kvpack: get(data3, 'user_id') = ", k.get(data3, "user_id"));
+    println("kvpack: get(data3, 'role')    = ", k.get(data3, "role"));
+    println("kvpack: get(data3, 'missing') = '", k.get(data3, "missing"), "'");
+    println("kvpack: has(data3, 'role')    = ", k.has(data3, "role"));
+    println("kvpack: has(data3, 'missing') = ", k.has(data3, "missing"));
+}

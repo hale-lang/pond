@@ -1,0 +1,112 @@
+==================
+Range expression in index
+==================
+
+fn slice_demo(s: String) -> String {
+    return s[3..7];
+}
+
+---
+
+(source_file
+  (function_decl
+    name: (identifier)
+    (parameter name: (identifier) type: (primitive_type))
+    return_type: (primitive_type)
+    (block
+      (return_stmt
+        (index_expr
+          object: (identifier)
+          index: (range_expr
+            start: (integer_literal)
+            end: (integer_literal)))))))
+
+==================
+Range with identifier endpoints
+==================
+
+fn slice2(s: String, from: Int, to: Int) -> String {
+    return s[from..to];
+}
+
+---
+
+(source_file
+  (function_decl
+    name: (identifier)
+    (parameter name: (identifier) type: (primitive_type))
+    (parameter name: (identifier) type: (primitive_type))
+    (parameter name: (identifier) type: (primitive_type))
+    return_type: (primitive_type)
+    (block
+      (return_stmt
+        (index_expr
+          object: (identifier)
+          index: (range_expr
+            start: (identifier)
+            end: (identifier)))))))
+
+==================
+Inclusive range
+==================
+
+fn iota(n: Int) -> String {
+    return repeat("x")[0..=n];
+}
+
+---
+
+(source_file
+  (function_decl
+    name: (identifier)
+    (parameter name: (identifier) type: (primitive_type))
+    return_type: (primitive_type)
+    (block
+      (return_stmt
+        (index_expr
+          object: (call_expr
+            callee: (identifier)
+            (string_literal))
+          index: (range_expr
+            start: (integer_literal)
+            end: (identifier)))))))
+
+==================
+Unit return type
+==================
+
+fn write_bytes(b: Bytes) -> () fallible(IoError) {
+    return;
+}
+
+---
+
+(source_file
+  (function_decl
+    name: (identifier)
+    (parameter name: (identifier) type: (primitive_type))
+    return_type: (unit_type)
+    (fallible_marker payload_type: (named_type (qualified_name (identifier))))
+    (block
+      (return_stmt))))
+
+==================
+Generic params on locus
+==================
+
+@form(vec)
+locus ItemList<T> {
+    capacity { heap items of T; }
+}
+
+---
+
+(source_file
+  (locus_decl
+    (form_annotation form_name: (identifier))
+    name: (identifier)
+    (generic_params (generic_param name: (identifier)))
+    (capacity_block
+      (capacity_slot
+        name: (identifier)
+        cell_type: (named_type (qualified_name (identifier)))))))

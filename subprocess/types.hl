@@ -1,0 +1,80 @@
+// pond/subprocess — types
+//
+// Shape records for the subprocess surface. Per CONTRACTS.md the
+// public surface is:
+//
+//   type SpawnOpts  { cmd, args, cwd, env, stdin, timeout_ms }
+//   type ExitStatus { code, signaled, signal }
+//   type Output     { status, stdout, stderr }
+//   type SpawnError { kind, detail, errno }
+//
+// All four are pure data — returnable from fns by value, no
+// lifecycle. SpawnError is the synthesized fallible(...) payload
+// for every fallible surface in this lib.
+//
+// Status (2026-05-18): UNBLOCKED + WIRED. The bodies in
+// spawn.hl / process.hl route through `std::process::run` /
+// `std::process::spawn` (shipped 2026-05-17); see FRICTION.md
+// for the small set of forwarded no-ops (cwd, env, timeout_ms).
+
+// SpawnOpts — input descriptor for a single subprocess invocation.
+//
+// `args` is whitespace-separated rather than a parametric list
+// because v1 has no Vec<T> / String[] surface. The (future)
+// stdlib spawn primitive will parse it into an argv[] under the
+// hood. `env` is "k1=v1\tk2=v2\t..." for the same reason — tab-
+// separated key=value pairs. Empty `env` means inherit the
+// parent's environment.
+//
+// `stdin` is the bytes piped to the child's stdin before close;
+// empty `stdin` closes stdin immediately. `timeout_ms <= 0`
+// means no timeout (block until child exits naturally).
+type SpawnOpts {
+    cmd:        String;
+    args:       String = "";
+    cwd:        String = "";
+    env:        String = "";
+    stdin:      Bytes;
+    timeout_ms: Int    = 0;
+}
+
+// ExitStatus — how a child terminated.
+//
+// `signaled` distinguishes "exited via _exit(code)" (false) from
+// "killed by signal N" (true). When signaled, `code` carries the
+// signal number too (matching POSIX WTERMSIG); when not signaled
+// `signal` is 0.
+type ExitStatus {
+    code:     Int  = 0;
+    signaled: Bool = false;
+    signal:   Int  = 0;
+}
+
+// Output — the full result of a one-shot `spawn(opts)` call.
+//
+// `stdout` / `stderr` carry the complete captured streams as
+// Bytes (binary-safe, NUL-preserving). Consumers convert to
+// String via std::str::from_bytes when the streams are known to
+// be text.
+type Output {
+    status: ExitStatus;
+    stdout: Bytes;
+    stderr: Bytes;
+}
+
+// SpawnError — fallible(SpawnError) payload across the surface.
+//
+// `kind` is one of: "spawn_failed" (fork/exec didn't take —
+// maps from upstream IoError kinds "not_found", "permission_
+// denied", "invalid"), "io" (pipe read/write failure), "timeout"
+// (timeout_ms hit — currently reserved, see FRICTION.md),
+// "killed" (signaled with no exit code recovered). The
+// "unsupported" tag from the pre-2026-05-17 blocked era is no
+// longer produced.
+// `errno` carries the raw platform errno where applicable;
+// `detail` is a human-readable explanation.
+type SpawnError {
+    kind:   String = "";
+    detail: String = "";
+    errno:  Int    = 0;
+}

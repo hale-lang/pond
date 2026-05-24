@@ -1,0 +1,61 @@
+{
+  "name": "tree-sitter-hale",
+  "version": "0.0.1",
+  "description": "Tree-sitter grammar for the Hale programming language",
+  "main": "bindings/node",
+  "types": "bindings/node",
+  "keywords": [
+    "parsing",
+    "incremental",
+    "tree-sitter",
+    "hale",
+    "hale"
+  ],
+  "files": [
+    "grammar.js",
+    "binding.gyp",
+    "prebuilds/**",
+    "bindings/node/*",
+    "queries/*",
+    "src/**"
+  ],
+  "author": "hale-lang",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hale-lang/pond.git",
+    "directory": "heron"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.hale",
+      "file-types": [
+        "hl"
+      ],
+      "highlights": "queries/highlights.scm",
+      "injection-regex": "^(hale|ap|lotus)$"
+    }
+  ],
+  "devDependencies": {
+    "tree-sitter-cli": "^0.22.0",
+    "prebuildify": "^6.0.0"
+  },
+  "scripts": {
+    "build": "tree-sitter generate",
+    "test": "tree-sitter test",
+    "parse": "tree-sitter parse",
+    "install": "node-gyp-build",
+    "prebuildify": "prebuildify --napi --strip"
+  },
+  "dependencies": {
+    "node-gyp-build": "^4.8.0"
+  },
+  "peerDependencies": {
+    "tree-sitter": "^0.21.0"
+  },
+  "peerDependenciesMeta": {
+    "tree_sitter": {
+      "optional": true
+    }
+  }
+}

@@ -1,0 +1,18 @@
+// pond/_util/rowbuf/examples/smoke -- minimal demo.
+
+import "../.." as rb;
+
+fn main() {
+    let rows = rb::RowBuf { };
+    let buf = "a\t1\tone\nb\t2\ttwo\nc\t3\tthree\n";
+
+    println("rowbuf: row_count = ", rows.row_count(buf));
+    println("rowbuf: nth_row(buf, 1) = ", rows.nth_row(buf, 1));
+    println("rowbuf: nth_field(row 1, 0) = ", rows.nth_field(rows.nth_row(buf, 1), 0));
+    println("rowbuf: nth_field(row 1, 2) = ", rows.nth_field(rows.nth_row(buf, 1), 2));
+
+    let dropped = rows.remove_row(buf, "b");
+    println("rowbuf: after remove_row 'b':");
+    println(dropped);
+    println("rowbuf: row_count after = ", rows.row_count(dropped));
+}
