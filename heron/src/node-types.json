@@ -4553,6 +4553,27 @@
     }
   },
   {
+    "type": "locality_annotation",
+    "named": true,
+    "fields": {
+      "tier": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "locality_tier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "locality_tier",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "locus_annotation",
     "named": true,
     "fields": {},
@@ -4658,6 +4679,10 @@
           "named": true
         },
         {
+          "type": "locality_annotation",
+          "named": true
+        },
+        {
           "type": "locus_annotations",
           "named": true
         },
@@ -4667,6 +4692,10 @@
         },
         {
           "type": "params_block",
+          "named": true
+        },
+        {
+          "type": "placement_block",
           "named": true
         },
         {
@@ -6329,6 +6358,73 @@
     }
   },
   {
+    "type": "placement_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "placement_entry",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "placement_entry",
+    "named": true,
+    "fields": {
+      "field": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "spec": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "placement_spec",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "placement_spec",
+    "named": true,
+    "fields": {
+      "core": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "integer_literal",
+            "named": true
+          }
+        ]
+      },
+      "pool": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "primitive_type",
     "named": true,
     "fields": {}
@@ -7449,6 +7545,7 @@
   {
     "type": "source_file",
     "named": true,
+    "root": true,
     "fields": {},
     "children": {
       "multiple": true,
@@ -8908,6 +9005,18 @@
     "named": false
   },
   {
+    "type": "L1",
+    "named": false
+  },
+  {
+    "type": "L2",
+    "named": false
+  },
+  {
+    "type": "L3",
+    "named": false
+  },
+  {
     "type": "Recognition",
     "named": false
   },
@@ -8952,6 +9061,10 @@
     "named": false
   },
   {
+    "type": "any",
+    "named": false
+  },
+  {
     "type": "approx",
     "named": false
   },
@@ -8981,7 +9094,8 @@
   },
   {
     "type": "block_comment",
-    "named": true
+    "named": true,
+    "extra": true
   },
   {
     "type": "break",
@@ -9069,7 +9183,8 @@
   },
   {
     "type": "doc_comment",
-    "named": true
+    "named": true,
+    "extra": true
   },
   {
     "type": "drain",
@@ -9205,10 +9320,15 @@
   },
   {
     "type": "line_comment",
-    "named": true
+    "named": true,
+    "extra": true
   },
   {
     "type": "listen",
+    "named": false
+  },
+  {
+    "type": "locality",
     "named": false
   },
   {
@@ -9273,6 +9393,10 @@
   },
   {
     "type": "pinned",
+    "named": false
+  },
+  {
+    "type": "placement",
     "named": false
   },
   {

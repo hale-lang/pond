@@ -110,3 +110,153 @@ locus ItemList<T> {
       (capacity_slot
         name: (identifier)
         cell_type: (named_type (qualified_name (identifier)))))))
+
+==================
+Placement block on main locus
+==================
+
+main locus App {
+    params {
+        worker: Worker = Worker { };
+        cache: Cache = Cache { };
+    }
+    placement {
+        worker: cooperative(pool = io);
+        cache: pinned;
+    }
+}
+
+---
+
+(source_file
+  (locus_decl
+    name: (identifier)
+    (params_block
+      (param_decl
+        name: (identifier)
+        type: (named_type (qualified_name (identifier)))
+        default: (struct_literal
+          name: (qualified_name (identifier))))
+      (param_decl
+        name: (identifier)
+        type: (named_type (qualified_name (identifier)))
+        default: (struct_literal
+          name: (qualified_name (identifier)))))
+    (placement_block
+      (placement_entry
+        field: (identifier)
+        spec: (placement_spec
+          pool: (identifier)))
+      (placement_entry
+        field: (identifier)
+        spec: (placement_spec)))))
+
+==================
+@locality on locus declaration
+==================
+
+@locality(L1)
+locus HotPath {
+    params { x: Int = 0; }
+}
+
+---
+
+(source_file
+  (locus_decl
+    (locality_annotation
+      tier: (locality_tier))
+    name: (identifier)
+    (params_block
+      (param_decl
+        name: (identifier)
+        type: (primitive_type)
+        default: (integer_literal)))))
+
+==================
+@form + @locality stack (form first)
+==================
+
+@form(hashmap, sync = lockfree, cap = 64)
+@locality(L2)
+locus Reg {
+    capacity { pool entries of Entry indexed_by k; }
+}
+
+---
+
+(source_file
+  (locus_decl
+    (form_annotation
+      form_name: (identifier)
+      (form_arg
+        key: (identifier)
+        value: (identifier))
+      (form_arg
+        key: (identifier)
+        value: (integer_literal)))
+    (locality_annotation
+      tier: (locality_tier))
+    name: (identifier)
+    (capacity_block
+      (capacity_slot
+
+        name: (identifier)
+        cell_type: (named_type
+          (qualified_name (identifier)))
+        indexed_by: (identifier)))))
+
+==================
+@form + @locality stack (locality first)
+==================
+
+@locality(L1)
+@form(hashmap, sync = lockfree, cap = 32)
+locus Hot {
+    capacity { pool entries of Entry indexed_by k; }
+}
+
+---
+
+(source_file
+  (locus_decl
+    (locality_annotation
+      tier: (locality_tier))
+    (form_annotation
+      form_name: (identifier)
+      (form_arg
+        key: (identifier)
+        value: (identifier))
+      (form_arg
+        key: (identifier)
+        value: (integer_literal)))
+    name: (identifier)
+    (capacity_block
+      (capacity_slot
+
+        name: (identifier)
+        cell_type: (named_type
+          (qualified_name (identifier)))
+        indexed_by: (identifier)))))
+
+==================
+@locality with `any` tier
+==================
+
+@locality(any)
+locus Unconstrained {
+    params { x: Int = 0; }
+}
+
+---
+
+(source_file
+  (locus_decl
+    (locality_annotation
+      tier: (locality_tier))
+    name: (identifier)
+    (params_block
+      (param_decl
+        name: (identifier)
+        type: (primitive_type)
+        default: (integer_literal)))))
