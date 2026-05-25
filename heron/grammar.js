@@ -149,7 +149,12 @@ module.exports = grammar({
     // ===========================================================
 
     locus_decl: $ => seq(
-      optional($.form_annotation),
+      // F.32-2 v0.2 (2026-05-25): `@form(...)` and
+      // `@locality(...)` may both decorate the same locus,
+      // in either order; each may appear at most once. Real
+      // arity is enforced by the host typechecker; the
+      // grammar accepts the looser shape.
+      repeat($._locus_decorator),
       optional('main'),
       'locus',
       field('name', $.identifier),
@@ -158,6 +163,11 @@ module.exports = grammar({
       '{',
       repeat($._locus_member),
       '}',
+    ),
+
+    _locus_decorator: $ => choice(
+      $.form_annotation,
+      $.locality_annotation,
     ),
 
     // @form(name, key=value, ...)
@@ -174,6 +184,26 @@ module.exports = grammar({
       field('key', $.identifier),
       '=',
       field('value', $._expression),
+    ),
+
+    // F.32-2 v0.2 (2026-05-25): @locality(L1|L2|L3|any)
+    // pins a per-locus cache-tier budget that the host's
+    // working-set estimator evaluates against. See
+    // spec/types.md § "Working-set estimator (F.32-2)" for
+    // the budget precedence rules.
+    locality_annotation: $ => seq(
+      '@',
+      'locality',
+      '(',
+      field('tier', $.locality_tier),
+      ')',
+    ),
+
+    locality_tier: $ => choice(
+      'L1',
+      'L2',
+      'L3',
+      'any',
     ),
 
     locus_annotations: $ => seq(
@@ -229,7 +259,56 @@ module.exports = grammar({
       $.const_decl,
       $.type_decl,
       $.bindings_block,
+      $.placement_block,
       $.birth_check_decl,
+    ),
+
+    // F.31 (2026-05-23): `placement { field: <spec>; ... }`
+    // declares where each main-locus param field's locus
+    // runs. Only valid on a `main locus`; the typechecker
+    // enforces "field exists in params" and "no duplicate
+    // field keys." The grammar accepts placement entries on
+    // any locus; the typechecker rejects on non-main.
+    placement_block: $ => seq(
+      'placement',
+      '{',
+      repeat($.placement_entry),
+      '}',
+    ),
+
+    placement_entry: $ => seq(
+      field('field', $.identifier),
+      ':',
+      field('spec', $.placement_spec),
+      ';',
+    ),
+
+    // Placement specs reuse the same surface as the legacy
+    // `schedule_class` annotation, with the addition of an
+    // optional named pool on cooperative: `cooperative(pool
+    // = io)` opts a field's locus onto a named cooperative
+    // pool worker thread instead of the default main pool.
+    placement_spec: $ => choice(
+      seq(
+        'cooperative',
+        optional(seq(
+          '(',
+          'pool',
+          '=',
+          field('pool', $.identifier),
+          ')',
+        )),
+      ),
+      seq(
+        'pinned',
+        optional(seq(
+          '(',
+          'core',
+          '=',
+          field('core', $.integer_literal),
+          ')',
+        )),
+      ),
     ),
 
     // F.27 v2 birth_check.

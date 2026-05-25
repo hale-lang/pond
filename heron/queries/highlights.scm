@@ -59,6 +59,7 @@
   "bus"
   "capacity"
   "bindings"
+  "placement"
 ] @keyword
 
 ; Lifecycle + mode keywords
@@ -194,7 +195,7 @@
 ; if desired.
 
 ; ============================================================
-; Annotation decorators (@form, @ffi)
+; Annotation decorators (@form, @ffi, @locality)
 ; ============================================================
 
 (form_annotation
@@ -204,6 +205,14 @@
 (ffi_annotation
   "@" @attribute
   "ffi" @attribute)
+
+; F.32-2 v0.2 (2026-05-25): @locality(L1|L2|L3|any). Tier
+; names get constant.builtin so they read as named values
+; rather than identifiers.
+(locality_annotation
+  "@" @attribute
+  "locality" @attribute
+  tier: (locality_tier) @constant.builtin)
 
 ; ============================================================
 ; Types
