@@ -172,43 +172,6 @@ arg-shape but elide the unit return.
 fallible variant) to the non-fallible variant too. Both should
 codegen to a void return without tripping the tuple-arity check.
 
-## ~~gap: Duration → Int conversion shim~~
-
-**Resolved 2026-05-17** by pond pass D5 — the shim consolidated into
-`pond/_util/duration_int` (post-A4 transitive-import unblock). The
-supervisor's restart-window arithmetic now calls
-`durint::DurationInt.now_seconds()` directly. The deeper language-
-level ask (`Int(d: Duration)` or `std::time::monotonic_seconds()
--> Int`) still stands as a stdlib followup; the pond consolidation
-just stops every consumer reinventing the round-trip. Original
-entry retained below.
-
-## gap: Duration → Int conversion shim (pre-D5 context)
-
-`std::time::monotonic()` returns `Duration` (i64 ns). v1 has no
-language-level `Int(d: Duration)` conversion and codegen rejects
-mixed Duration/Int arithmetic ("binary op operands of mixed types
-Duration and Int"). The restart-intensity gate compares
-`now - window_start` against `window_seconds * 1e9`, all in Int
-math.
-
-Workaround mirrors `pond/sessions/clock.hl::__now_seconds`:
-`to_string(Duration)` formats as `"<n>ns"`; strip the trailing
-`"ns"`, parse to Int, divide by `1_000_000_000`. The
-supervisor ships a private `__mono_seconds()` helper at the end of
-`supervisor.hl` that does this.
-
-**duplicate-suspected:** at least three pond libs now ship the
-same Duration → whole-seconds shim
-(`pond/sessions/clock.hl::__now_seconds`,
-`pond/supervisor/supervisor.hl::__mono_seconds`, and the implied
-shape inside `pond/tracing/tracer.hl`'s start/end span timestamp
-handling). Candidate to lift into a `pond/time/` micro-lib once a
-workload pushes for it. The cleaner fix is at the language level
-— add `Int(d: Duration)` (truncating cast) or
-`std::time::monotonic_seconds() -> Int` so consumers don't need
-to stringify-and-parse.
-
 ## gap: `return` rejected inside `on_failure` / lifecycle bodies
 
 `on_failure` and lifecycle methods (`birth`, `run`, `dissolve`,

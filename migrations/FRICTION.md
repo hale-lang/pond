@@ -5,29 +5,17 @@ building this lib.
 
 ---
 
-## 1. deviation: fallible-on-locus-methods
+## 1. deviation: fallible-on-locus-methods — [CLOSABLE]
 
-`pond/CONTRACTS.md § pond/migrations/` declares the four
-operations as locus methods on `Runner`:
+**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
+v0.2, commits `d565d6f` + `98910b9`); user-declared `fn` member
+fns now carry `fallible(E)` directly. The next source pass
+restores `Runner`'s four ops to locus methods. Clean breaking
+change. Source migration stays on hold pending sqlite F.1 — the
+chain is gated on the stdlib primitive.
 
-```hale
-locus Runner {
-    ...
-    fn current_version() -> Int fallible(MigrationError);
-    fn pending() -> Rows fallible(MigrationError);
-    fn migrate_up(target_version: Int) -> () fallible(MigrationError);
-    fn migrate_down(target_version: Int) -> () fallible(MigrationError);
-}
-```
-
-Per `spec/semantics.md § Fallible call semantics` and AGENTS.md's
-two-channel rule, **user-declared locus methods cannot declare
-`fallible(E)`**. The four operations all genuinely need that
-channel (filesystem I/O, SQL exec, version-table conflicts), so
-hosting them as locus methods is type-illegal.
-
-**Adopted shape**: the operations live in `migrate.hl` as free
-fns whose first argument is the `Runner`:
+**Current source shape (still in place).** The operations live
+in `migrate.hl` as free fns whose first argument is the `Runner`:
 
 ```hale
 fn current_version(r: Runner) -> Int fallible(MigrationError);
@@ -38,17 +26,6 @@ fn migrate_down(r: Runner, t: Int) -> Int fallible(MigrationError);
 
 Call sites read `migs::migrate_up(r, -1)` instead of
 `r.migrate_up(-1)` — functionally identical.
-
-**duplicate-suspected**: every pond lib whose CONTRACTS.md surface
-lists `fn METHOD(...) -> T fallible(E)` on a locus body hits the
-same wall (sqlite, subprocess, jobs, sessions, http/client,
-logfmt, tracing, every downstream-consumer lib, every agent/* lib, ml/neural).
-The wider fix is either (a) CONTRACTS.md uniformly drops the
-`fallible(...)` marker from locus methods and documents the
-free-fn-with-locus-arg shape as canonical, or (b) Hale relaxes
-the two-channel rule for an "infrastructure" subset of locus
-methods. pond/subprocess::FRICTION.md already enumerates the full
-list and calls for this revision.
 
 ---
 
@@ -104,30 +81,22 @@ pass ordering, not in each lib; worth a single upstream issue.
 
 ---
 
-## 3. codegen quirk: `-> ()` rejected on fallible fns
+## 3. codegen quirk: `-> ()` rejected on fallible fns — [CLOSABLE]
 
-A first pass had `migrate_up` and `migrate_down` declared as
+**2026-05-27 update.** Closed by `6beb1be` (FUv0.8.2 #6,
+unit-return normalization). The next source pass restores
+`migrate_up` / `migrate_down` to `-> ()` shape. The `Int`-count
+semantic could survive as a useful return signal if we want — the
+contract amendment is now elective rather than forced.
 
-```hale
-fn migrate_up(r: Runner, target: Int) -> () fallible(MigrationError);
-fn migrate_down(r: Runner, target: Int) -> () fallible(MigrationError);
-```
-
-(matching CONTRACTS.md's `-> ()` shape). Codegen rejects:
+**Current source shape (still in place).** Both fns declared
+`-> Int` (the count of migrations applied / rolled back) because
+the old codegen rejected `-> ()` on fallible fns:
 
 ```
 codegen error: unsupported in codegen v0:
 fn `migrate_up`: v1 requires fallible(E) fns to declare a return type
 ```
-
-So `-> ()` is parse-valid but codegen-invalid for a fallible fn.
-Bumped to `-> Int` (returning the count of migrations
-applied / rolled back, which is genuinely useful info for the
-caller). The `Int`-return success type also unblocks the
-`or fallback` substitute at call sites — see entry 4.
-
-This is a tiny CONTRACTS.md amendment opportunity: change the two
-return types to `Int` and document the count semantic.
 
 ---
 
@@ -158,41 +127,6 @@ free-fn substitute at the `migrate_up(...) or __log_err_int(err)`
 call site in `cli.hl`. The free-fn shape sidesteps the
 `or self.method(err)` quirk; the `-> Int` return type matches the
 fallible's `-> Int` success type.
-
----
-
-## ~~5. duplicate-suspected: tab+newline buffer iteration helpers~~
-
-**Resolved 2026-05-17** (partial) by pond pass D5 — the matching
-two helpers (`__row_count`, `__row_at`) consolidated into
-`pond/_util/rowbuf`; both migrate.hl and cli.hl now call
-`rb::RowBuf.row_count` / `rb::RowBuf.nth_row`. The migration-specific
-helpers (`__insert_sorted`, `__rows_through`, `__rows_from`,
-`__version_of`) stay in `migrate.hl` — they're not in rowbuf's
-generic surface. Original entry retained below.
-
-## 5. duplicate-suspected: tab+newline buffer iteration helpers (pre-D5 context)
-
-`migrate.hl` defines `__row_count`, `__row_at`, `__insert_sorted`,
-`__rows_through`, `__rows_from` over a newline-separated buffer of
-tab-separated rows — exactly the same shape `db::Rows.csv` uses
-and the same shape `RouteParams.path_kv` (`pond/router`) and
-`Labels.kv` (`pond/metrics`) use. Every consumer of the
-"tab-separated kv" / "newline-separated rows" convention reinvents
-these helpers.
-
-Candidate lift: a `pond/buf/` or `pond/text/rows/` namespace
-lotus with `count(buf) / at(buf, i) / insert_sorted(buf, row) /
-split_kv(row) / get_field(row, name)`. Held off here per the
-"only edit pond/migrations/" rule.
-
-`cli.hl` further duplicates `__row_count` as `__row_count_local`
-because v1 has no per-file visibility modifier and the seed-wide
-top-level scope makes "same name in two files" a conflict; rather
-than rename, the local copy keeps the migrate.hl version private to
-its file's mental boundary. Solving this properly wants either
-per-file privacy or a project-wide convention for "private to
-file X."
 
 ---
 

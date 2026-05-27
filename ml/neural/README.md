@@ -105,8 +105,8 @@ locus Model {
     fn load_weights(layer: Layer) -> Matrix;
     fn load_biases(layer: Layer) -> Matrix;
 
-    // state-mirroring surface (non-fallible per two-channel rule;
-    // errors land on `self.last_error`).
+    // state-mirroring surface (non-fallible under the pre-v0.8.1
+    // two-channel rule; errors land on `self.last_error`).
     fn version() -> NnVersion;
     fn snapshot_bytes() -> Bytes;
     fn apply_delta(d: Bytes);
@@ -117,7 +117,11 @@ locus Model {
 (`mat::Mat.is_error(out)`) on shape mismatch and stashes a
 populated `last_error`. `train_step(x, y, lr)` does forward +
 backward + per-sample SGD update; returns the sample's MSE loss
-(or `mat::Mat.nan_sentinel()` on shape mismatch).
+(or `mat::Mat.nan_sentinel()` on shape mismatch). → **Closable
+per v0.8.1 #24 v0.2** (commits `d565d6f` + `98910b9`); next
+source pass restores `forward` / `apply_delta` / `Trainer.fit`
+to `fallible(NnError)` directly and retires the sentinel +
+`last_error` pattern.
 
 ### `nn::Trainer` — service locus, publishes TrainStepEvent
 
@@ -136,10 +140,14 @@ implementation is per-sample SGD (effective batch_size=1) —
 see FRICTION.md "batch-size-stub".
 
 CONTRACTS.md declares `params { model: Model; ... }` and
-`fit(xs, ys, epochs) -> () fallible(NnError)`. Both deviated:
+`fit(xs, ys, epochs) -> () fallible(NnError)`. Both deviated.
 `model` moved to a fit-arg (locus refs can't sit in another
-locus's params), and the fallible(E) marker dropped (locus
-methods can't carry fallible per the two-channel rule). Full
+locus's params — still open). The fallible(E) marker dropped
+under the pre-v0.8.1 two-channel rule → **now closable per
+v0.8.1 #24 v0.2**; next source pass restores `fit` to
+`() fallible(NnError)` (the `() fallible(E)` lowering also
+shipped, `6beb1be`). The `model: Model` param deviation stays
+until cross-seed locus-refs-in-locus-params lands. Full
 context in FRICTION.md.
 
 ### `nn::TrainStep` + `nn::TrainStepEvent` — per-epoch metric

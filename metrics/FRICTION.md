@@ -39,33 +39,6 @@ file before signature lookup; the lib should then re-split
 without source changes other than the file-stem-affecting
 mangled symbol names.
 
-## ~~blocked-on: cross-seed free-fn call rejection~~
-
-**Resolved 2026-05-17** by upstream `f9068fa` (A3). The `Lab`
-namespace lotus is gone; consumers call `metrics::labels_empty`,
-`metrics::labels_one`, `metrics::labels_two`,
-`metrics::labels_append` directly. See `metrics.hl`.
-
-Free fns declared in an imported lib can't be called from a
-consumer:
-
-```
-codegen error: unsupported in codegen v0:
-  path call `metrics::labels_one` in expression position
-```
-
-This applies even at clean let-RHS sites where the importer's
-own bare free fns work fine. Sister lib `pond/math/matrix` hit
-this and lifted its factory vocabulary onto a `Mat` namespace
-lotus (the matmul-demo's `let mx = mat::Mat { };
-mx.from_rows(...)` shape). I applied the same pattern: the
-labels-constructor vocabulary lives on `metrics::Lab` per
-pattern 2 (namespace lotus). Consumers instantiate once and
-dispatch via method-call, which the codegen handles cleanly.
-
-Lift the bare free fns back to top-level once cross-seed path
-calls codegen.
-
 ## blocked-on: default-init of locus-typed param field
 
 `params { foo: Foo = Foo { }; }` segfaults at first access to
@@ -258,14 +231,6 @@ the first bound `>= v`. O(B) per observe. The Prometheus
 convention is B in the 5–20 range so linear is the right
 shape; if a workload demands large-B histograms, a binary
 search would slot in cleanly here.
-
-## ~~deviation: labels API uses `Lab.empty/one/two/append` instead of bare free fns~~
-
-**Resolved 2026-05-17** by upstream `f9068fa` (A3). The labels
-constructor vocabulary is now bare free fns
-(`metrics::labels_empty`, `metrics::labels_one`,
-`metrics::labels_two`, `metrics::labels_append`) — the original
-pre-A3 shape from CONTRACTS.md. The `Lab` namespace lotus is gone.
 
 ## design-question: render() doesn't sort metric series
 

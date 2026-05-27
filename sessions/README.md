@@ -138,13 +138,15 @@ the `SessionStore.read` method surfaces the same kinds on
 
 ## Contract deviations
 
-- `SessionStore.read` is declared without `fallible(SessionError)`.
-  Per `spec/semantics.md § Fallible call semantics`, locus methods
-  on user-declared loci may not declare `fallible(E)` — that
-  channel is reserved for free fns. The companion free fn
-  `verify_cookie(secret, header, now)` IS fallible and is the
-  recommended surface for consumers that want `or` addressing.
-  See `FRICTION.md` for the wider trend across `pond/CONTRACTS.md`.
+- `SessionStore.read` is declared without `fallible(SessionError)`
+  under the pre-v0.8.1 two-channel rule. → **v0.8.1 #24 v0.2**
+  (commits `d565d6f` + `98910b9`) narrows the rule so
+  user-declared `fn` member fns carry `fallible(E)` directly;
+  the next source pass restores the contract signature on
+  `SessionStore.read` and collapses the `last_error` accessor.
+  The companion free fn `verify_cookie(secret, header, now)`
+  stays available for callers that prefer not to instantiate the
+  locus.
 
 - TTL uses `std::time::monotonic()` (process-local) because the
   v1 stdlib has no wall-clock `time::now()`. Cookies don't

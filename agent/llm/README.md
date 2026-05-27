@@ -89,14 +89,12 @@ fn openai_complete(api_key, base_url, req, max_body)
     -> LlmResponse fallible(LlmError);
 ```
 
-### Two-channel deviation
+### Two-channel deviation — CLOSABLE
 
-Per `spec/semantics.md § Fallible call semantics`, user-declared
-locus methods cannot declare `fallible(E)`. CONTRACTS.md lists
+Under the pre-v0.8.1 two-channel rule, user-declared locus
+methods could not declare `fallible(E)`. CONTRACTS.md lists
 `complete()` and `stream()` as locus methods with fallible
-returns; the implementation deviates in the standard way (see
-`pond/subprocess/process.hl`, `pond/http/client/client.hl` —
-same pattern across pond):
+returns; the implementation deviates in the standard way:
 
 - Methods are non-fallible. They wrap the matching free-fn
   kernel (`anthropic_complete`, `openai_complete`,
@@ -110,6 +108,13 @@ same pattern across pond):
 - Consumers that want hard fallible semantics call the free
   fns directly: `let r = llm::anthropic_complete(key, url,
   req, max_body) or raise;`.
+
+→ **v0.8.1 #24 v0.2** (commits `d565d6f` + `98910b9`) narrows
+the rule; user-declared `fn` member fns now carry `fallible(E)`.
+Next source pass restores `AnthropicClient.complete` /
+`OpenAiClient.complete` to `-> LlmResponse fallible(LlmError)`
+on the locus directly and retires the `__record` /
+`last_error_*` accessor triple.
 
 ### Bus subjects
 

@@ -49,79 +49,6 @@ threading so the auto-injection arc, when it lands, can be a
 strict extension (default `parent` to current-span, not
 require it).
 
-## ~~blocked-on-compiler-gap: topic-ident publish import-mangling~~
-
-**Resolved 2026-05-17** by upstream `f9068fa` (A1). Tracer now uses
-the topic-ident form (`publish SpanCompleted; SpanCompleted <- span;`)
-and the trace-tree example subscribes via `trace::SpanCompleted`.
-Original entry retained below for context.
-
-The cleanest expression of the contract uses a `topic` decl:
-
-```hale
-topic SpanCompleted { payload: Span; }
-
-locus Tracer {
-    bus { publish SpanCompleted; }
-    fn end_span(id: SpanId) {
-        // ...
-        SpanCompleted <- span;
-    }
-}
-```
-
-This trips a compiler-side gap during cross-seed imports. The
-mangle pass at `crates/hale-codegen/src/mangle.rs:203-221`
-(`walk_locus_member` arm for `LocusMember::Bus`) walks the
-optional `of type T` clause but does NOT rewrite the
-`BusSubject` field on `BusMember::Subscribe` / `BusMember::
-Publish`. So when this lib is imported as `import "..." as trace;`:
-
-- `topic SpanCompleted { ... }` → mangled to
-  `__lib_trace_tracer_SpanCompleted` (correct).
-- `publish SpanCompleted;` → stays as `publish SpanCompleted;`
-  (the subject ident wasn't rewritten).
-
-The typechecker resolves topic references through the *mangled*
-name map, so the publish-site sees no topic of the unmangled
-name and fails with:
-
-```
-publish references unknown topic `SpanCompleted` (no `topic
-SpanCompleted` declaration in scope)
-```
-
-And the bus send (`SpanCompleted <- span;`) goes through expr-
-position resolution which DOES get mangled, producing a separate
-"bus send subject `__lib_trace_tracer_SpanCompleted` is not
-declared in locus ...'s bus block" error.
-
-**Workaround applied:** skip the `topic` decl, use literal-
-string subject form everywhere:
-
-```hale
-bus { publish "trace.span.completed" of type Span; }
-"trace.span.completed" <- span;          // send
-subscribe "trace.span.completed" as on_span of type trace::Span;
-```
-
-Literal-string subjects bypass the topic-ident lookup and
-survive mangling intact. Cost is that downstream subscribers
-have to pin the wire subject by literal — but that's also the
-shape the bus has at the runtime layer anyway (subjects are
-strings; topics are a parse-time convenience).
-
-The CONTRACTS.md surface still says `topic SpanCompleted { payload:
-Span; }` because that's what consumers should see *once the
-compiler gap closes*. The lib's source is the temporary deviation
-the v1 substrate forces.
-
-**Fix shape (compiler side, not done here):** extend
-`walk_locus_member`'s `LocusMember::Bus` arm to call
-`self.rewrite_ident` on each member's `subject` field when
-`matches!(subject, BusSubject::Topic(_))`. Same arm should also
-not need any changes for Literal subjects.
-
 ## blocked-on-compiler-gap: topic decl + cross-file publish mangling
 
 Even WITHIN one seed (lib's `tracer.hl` + lib's `topics.hl`),
@@ -139,36 +66,20 @@ This forced collapsing topics + locus into a single file
 convention (separate `topics.hl` like `pond/subprocess/`) would
 keep them apart; deviation flagged.
 
-## deviation: export_otlp fallibility (two-channel rule)
+## deviation: export_otlp fallibility (two-channel rule) — [CLOSABLE]
 
-CONTRACTS.md declares:
+**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
+v0.2, commits `d565d6f` + `98910b9`); user-declared `fn` member
+fns now carry `fallible(E)`. The next source pass restores
+`Tracer.export_otlp` to `() fallible(IoError)`; the
+`last_error_kind_str()` / `last_error_detail_str()` accessors
+collapse. Clean breaking change. The transport stub (next entry
+below) remains the blocker on whether the method does real work.
 
-```hale
-fn export_otlp(endpoint: String) -> () fallible(IoError);
-```
-
-User-declared locus methods cannot declare `fallible(E)` per
-`spec/semantics.md § Fallible call semantics` (the channel is
-reserved for free fns + `@form(...)`-synthesized methods so
-locus-structural failures route through the closure-violation
-channel). This is the same gap `pond/http/client/Client`,
-`pond/subprocess/Process`, and the contract's other
-`fn ... fallible(E)`-on-locus entries hit.
-
-**Workaround applied:** return `()` and surface failure through
-sibling fields:
-
-```hale
-tr.export_otlp(endpoint);
-let kind = tr.last_error_kind_str();
-if kind != "" {
-    println("export failed: ", kind, " — ", tr.last_error_detail_str());
-}
-```
-
-Same shape `pond/http/client/Client` settled on. Consumers that
-want hard fallible behavior can wrap the call in a free fn that
-re-fails based on the recorded `last_error_kind`.
+**Current source shape (still in place).** CONTRACTS.md declares
+`export_otlp(endpoint: String) -> () fallible(IoError)`. Under
+the old (pre-v0.8.1) rule, the lib returned `()` and surfaced
+failure via `last_error_kind_str()` / `last_error_detail_str()`.
 
 ## deviation: export_otlp doesn't actually POST (transitive import gap)
 
@@ -214,80 +125,6 @@ top of CONTRACTS.md Tier-2. The v1.x tracing followup is
 ferries spans across the http boundary in the consumer's own
 import graph." This deviation logs the shape; the cut hasn't
 landed in CONTRACTS.md yet.
-
-## ~~deviation: skip the `topic SpanCompleted` decl~~
-
-**Resolved 2026-05-17** by upstream `f9068fa` (A1). The topic decl
-is back in tracer.hl and the lib publishes by topic ident.
-Original entry retained below for context.
-
-See "blocked-on-compiler-gap: topic-ident publish
-import-mangling" above. CONTRACTS.md declares the topic; this
-lib's source ships the wire subject as a literal-string instead.
-The contract surface stays as-is (it's what consumers should see
-after the compiler gap closes); the source deviates.
-
-## ~~duplicate-suspected: __duration_to_int~~
-
-**Resolved 2026-05-17** by pond pass D5 — consolidated into
-`pond/_util/duration_int`; `tracer.hl` now calls `durint::DurationInt.to_ns(...)`.
-Original entry retained below.
-
-## duplicate-suspected: __duration_to_int (pre-D5 context)
-
-`pond/tracing/tracer.hl` rolls its own `__duration_to_int(d)`
-to bridge a `std::time::monotonic()` Duration into the Int field
-the CONTRACTS-locked `Span.start_ns` / `Span.end_ns` shape
-demands. Implementation: `to_string(d)` → strip trailing `ns` →
-`std::str::parse_int(...) or 0`.
-
-Every pond lib that wants to stash an elapsed Duration in an
-Int field will re-derive this same dance:
-
-- `pond/jobs/` storing per-job latency
-- `pond/metrics/Histogram.observe` (well, observe takes Float —
-  but a Duration→Float bridge has the same problem)
-- `downstream-consumer` tracking event-time deltas
-- any contract that types its time fields as Int
-
-Lift candidate: `std::time::to_int(d: Duration) -> Int` (or
-`std::time::duration_ns(d) -> Int`) in `runtime/stdlib/time.hl`.
-v1.x-11 ships Float → Int via `Int(...)`; the symmetric
-`std::time::to_int` is the minimal addition. Not lifted here —
-the rule is to stay inside `pond/tracing/`.
-
-## ~~duplicate-suspected: __nth_field / __remove_row / __find_open_row~~
-
-**Resolved 2026-05-17** by pond pass D5 — `__nth_field` and
-`__remove_row` consolidated into `pond/_util/rowbuf`; `tracer.hl`
-now calls `rb::RowBuf.nth_field(...)` / `rb::RowBuf.remove_row(...)`.
-`__find_open_row` is a tracing-specific search and stays in-lib.
-Original entry retained below.
-
-## duplicate-suspected: __nth_field / __remove_row / __find_open_row (pre-D5 context)
-
-These three helpers operate on a "newline-delimited rows of
-tab-separated fields, indexed by leading field" buffer shape
-that `pond/tracing` settled on because v1 lacks `@form(vec)`-of-
-record ergonomics for `Map<id, span>` storage.
-
-The same shape would naturally fit:
-
-- `pond/http/client/Client`'s pool-of-cached-fds tracking
-  (currently hand-rolled as parallel `pool_host0` /
-  `pool_host1` / ... fields with manual index arithmetic);
-- `pond/jobs/Queue`'s pending-job buffer between SQLite ack
-  and worker dispatch;
-- `pond/sessions/SessionStore`'s in-memory session cache;
-- any per-request-scoped "small N entries, look up by string
-  key" store the language can't yet express via
-  `@form(hashmap)` at the call-site convenience point.
-
-Lift candidate: `pond/util/rowbuf/` (or `std::text::rowbuf` if
-the cluster is small enough for stdlib) shipping
-`append(buf, id, fields[])`, `find_by_id(buf, id)`,
-`remove_by_id(buf, id)`, and `iter` shape. Logged here; the
-substrate-rule is the same as above — stay inside this lib.
 
 ## duplicate-suspected: __row_field in trace-tree example
 

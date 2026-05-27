@@ -89,13 +89,14 @@ let st = p.wait();
 ## Contract deviations
 
 - `Process.send_stdin` / `signal` / `wait` are declared without
-  `fallible(SpawnError)`. Per `spec/semantics.md § Fallible call
-  semantics`, locus methods on user-declared loci may not declare
-  `fallible(E)` — that channel is reserved for free fns and
-  `@form(...)`-synthesized methods. Errors surface via
-  `self.last_error: SpawnError` and via the inline-`violate`
-  pattern from `spec/styleguide.md § 7`. See `FRICTION.md`
-  for the wider trend across `pond/CONTRACTS.md`.
+  `fallible(SpawnError)` under the pre-v0.8.1 two-channel rule.
+  Errors currently surface via `self.last_error: SpawnError`
+  and via the inline-`violate` pattern from
+  `spec/styleguide.md § 7`. → **Closable per v0.8.1 #24 v0.2**
+  (commits `d565d6f` + `98910b9`); next source pass restores
+  the three methods to `() fallible(SpawnError)` (the
+  `() fallible(E)` lowering also shipped, `6beb1be`) and
+  retires the `last_error` + closure-violate pair.
 
 ## Building
 

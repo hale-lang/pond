@@ -106,7 +106,10 @@ Five v1 language gaps force the as-built shape:
    `spec/semantics.md` § "Where each channel lives"). The four
    queue methods migrate to **free fns** taking a `Queue` ref
    in `query.hl`. Same translation pond/sqlite did for its
-   `exec` / `query_one` / `prepare` etc. surface.
+   `exec` / `query_one` / `prepare` etc. surface. → **v0.8.1
+   #24 v0.2 narrows this rule** (commits `d565d6f` + `98910b9`);
+   the next source pass folds the queue methods back onto
+   `Queue` directly, gated on the sqlite F.1 unblock.
 
 2. **Locus refs can't sit in another locus's params/fields**
    (`spec/types.md` § F.20 Phase B notes the gap for interfaces;

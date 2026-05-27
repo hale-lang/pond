@@ -53,12 +53,25 @@ the free fn's frame. Only locus methods get the m90 heap-alloc
 treatment that lets the returned handle outlive the call. So
 the factories had to move onto a locus.
 
-#### Wall 2: locus methods can't carry `fallible(E)`
+#### Wall 2: locus methods can't carry `fallible(E)` — [CLOSABLE]
 
-Two-channel rule (`spec/semantics.md` § "Where each channel
-lives"). Once the binary ops moved onto a locus (per Wall 1),
-they could no longer declare `fallible(MatrixError)`. The
-adopted shape is the sentinel-pair pattern:
+**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
+v0.2, commits `d565d6f` + `98910b9`) so user-declared `fn` member
+fns on a locus now carry `fallible(E)` with heap-bearing payloads.
+The next source pass flips `Mat.matmul` / `Mat.add` /
+`Mat.dot` (and `at_checked` / `set_at_checked`) to
+`fallible(MatrixError)` directly; the sentinel-pair pattern
+(`error_matrix()` / `is_error(...)` / `nan_sentinel()` /
+`is_nan(...)`) retires. Clean breaking change — callers move from
+`if mx.is_error(r) { ... }` to `or raise` / `or handler(err)`
+addressing. **Wall 1 (free fns can't return LocusRef) stays open**,
+so `Mat` remains a namespace lotus; only the sentinel-pair shape
+goes away.
+
+**Current source shape (still in place).** Once the binary ops
+moved onto a locus (per Wall 1), they could no longer declare
+`fallible(MatrixError)` under the old (pre-v0.8.1) two-channel
+rule. The adopted shape is the sentinel-pair pattern:
 
 - `matmul` / `add` return `Matrix`; on shape mismatch they
   return `error_matrix()` (a `rows=-1, cols=-1` `Matrix`).
@@ -69,31 +82,21 @@ adopted shape is the sentinel-pair pattern:
 The fully-typed `fallible(MatrixError)` shape lives in free
 fns that validate but don't return Matrix — `check_matmul_shapes`,
 `check_same_shape`, `check_dot_shapes`. The `Mat` methods consume
-these and translate to sentinels at the boundary.
+these and translate to sentinels at the boundary; the next source
+pass collapses both surfaces into a single fallible method set.
 
-The cleanest fix at the language level would be **allowing free
-fns to return loci** with the same m90 heap-alloc treatment that
-already exists for methods. Once a free fn can return a locus,
-the contract's natural shape becomes admissible directly: free
-fns, fallible(E) when needed, returning Matrix. The current
-restriction collapses two failure-routing surfaces into one
-sentinel-pair workaround.
+### `at` / `set_at` are not `fallible(IndexError)` — [CLOSABLE]
 
-CONTRACTS.md should be updated to reflect either:
-- the `Mat` namespace + sentinel-pair shape (status quo), OR
-- a "deferred until free-fn-locus-return ships" note.
+**2026-05-27 update.** Same two-channel-rule narrowing as Wall 2
+above. Next source pass: `Matrix.at` and `Matrix.set_at` regain
+`fallible(IndexError)` directly; the `_checked` free-fn pair
+retires. Also: `set_at` returning `() fallible(IndexError)` lowers
+post-`6beb1be` (FUv0.8.2 #6), closing the no-`-> ()` gap that
+forced the Float-return workaround.
 
-### `at` / `set_at` are not `fallible(IndexError)`
-
-CONTRACTS.md declares:
-
-```hale
-fn at(r: Int, c: Int) -> Float fallible(IndexError);
-fn set_at(r: Int, c: Int, v: Float) -> () fallible(IndexError);
-```
-
-These are locus methods → can't declare `fallible(E)` per the
-two-channel rule. The shipped shape:
+**Current source shape (still in place).** These are locus methods
+→ couldn't declare `fallible(E)` under the old (pre-v0.8.1) rule.
+The shipped shape:
 
 - `Matrix.at(r, c) -> Float` — substitutes `0.0` on OOB.
 - `Matrix.set_at(r, c, v: Float)` — silent no-op on OOB.
@@ -103,38 +106,7 @@ The fallible surface lives in sibling free fns:
 - `at_checked(m, r, c) -> Float fallible(IndexError)`.
 - `set_at_checked(m, r, c, v) -> Float fallible(IndexError)`.
 
-The agent instructions called this out directly ("factor the
-bounds check + index translation into a `fallible` FREE fn,
-then call from the user method"), so this isn't surprising —
-just worth noting that the CONTRACTS.md text is misleading on
-its face for anyone reading the locus block alone.
-
 ## Language / stdlib gaps
-
-### `-> ()` parse-rejects in free fns
-
-```hale
-fn set_at_checked(m: Matrix, r, c: Int, v: Float) -> () fallible(IndexError) { ... }
-//                                                  ^^
-// codegen error: unsupported in codegen v0:
-// tuple type must have at least 2 elements; got 0
-```
-
-`-> ()` reads naturally as "returns Unit" but lexes / parses as
-a zero-tuple-type, which v0 rejects. Workaround: omit the
-return arrow entirely for Unit-returning fns. But fallible fns
-**must** declare a non-Unit return type:
-
-```
-codegen error: unsupported in codegen v0: fn `set_at_checked`:
-v1 requires fallible(E) fns to declare a return type
-```
-
-Combined: there is no way to write `-> () fallible(E)` in v1.
-The workaround was to invent a non-Unit return (Float, returning
-the new value) so the fn could be fallible. Adding a real `Unit`
-or `Void` primitive (or admitting `-> ()` syntax) would close
-this gap.
 
 ### Free fns can't return LocusRef (Wall 1 above)
 

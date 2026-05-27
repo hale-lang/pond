@@ -6,8 +6,12 @@ for one-shot calls, plus a `Client` locus with a connection-
 pool slot set and retry-with-backoff for callers that want a
 stable per-host handle. Returns `Response` or
 `fallible(HttpError)` on the free-fn surface; the `Client`
-methods route value-channel errors into `self.last_error_*()`
-accessors per the two-channel rule.
+methods currently route value-channel errors into
+`self.last_error_*()` accessors per the pre-v0.8.1 two-channel
+rule. → **Closable per v0.8.1 #24 v0.2** (commits `d565d6f` +
+`98910b9`); next source pass flips `Client.get` / `.post` /
+`.request` to `fallible(HttpError)` directly and retires the
+last-error accessors.
 
 Both `http://` and `https://` URLs work — the scheme picks
 between plain TCP and TLS at connect time, and the

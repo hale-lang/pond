@@ -3,10 +3,18 @@
 Gaps, suspicions, and deviations from CONTRACTS.md surfaced while
 building this lib.
 
-## deviation: fallible-on-locus-method
+## deviation: fallible-on-locus-method — [CLOSABLE]
 
-`pond/CONTRACTS.md § pond/logfmt/` declares the Sink-shape methods
-as `fallible(IoError)`:
+**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
+v0.2, commits `d565d6f` + `98910b9`) so user-declared `fn` member
+fns now carry `fallible(E)`. The next source pass restores
+`FileSink.write` / `line` / `newline` (and `OtlpSink`'s parallel
+trio) to `() fallible(IoError)` directly. The `__handle_io`
+error-check fn + `last_kind` / `last_errno` / `last_path` capture
+fields collapse. Clean breaking change.
+
+**Current source shape (still in place).** CONTRACTS.md declares
+the Sink-shape methods as `fallible(IoError)`:
 
 ```hale
 locus FileSink {
@@ -16,17 +24,8 @@ locus FileSink {
 }
 ```
 
-AGENTS.md "What's NOT in the language" pins the rule:
-
-> **No `fallible(E)` on locus methods.** Free fns and
-> `@form(...)`-synthesized methods are the only fallible surfaces.
-> Locus methods communicate failure structurally via the `↑`
-> channel (closures + `on_failure`). Two-channel rule, locked.
-
-Per the rule, the surface in CONTRACTS.md cannot be implemented
-verbatim. This lib follows the same workaround `pond/http/client`
-adopted for its `Client` locus (see that lib's FRICTION.md, same
-section title):
+Under the old (pre-v0.8.1) rule, the surface couldn't be
+implemented verbatim. The lib shipped:
 
 - methods declared with `-> ()` (not `fallible(IoError)`)
 - the body addresses the value channel from inside via
@@ -35,18 +34,6 @@ section title):
   `self.last_kind` / `self.last_errno` / `self.last_path`
 - public accessors `last_error_kind()`, `last_error_errno()`,
   `last_error_path()` expose the captured state
-
-The shape composes well with the F.27 error-check-fn pattern
-(`spec/styleguide.md § 7`) — `__handle_io` is exactly that
-shape, sans the `violate` because none of the IO errors here
-warrant draining the locus.
-
-Either the contract needs to flip the methods' return shape to
-`-> ()` + capture-and-accessor (matching the http::Client
-deviation already in the wild), or the language needs to lift
-the two-channel rule for stdlib-style Sink-shaped loci. v1
-declines to invent either option; this lib follows the existing
-http::Client deviation.
 
 ## blocking: otlp-transport-stubbed
 
@@ -148,60 +135,6 @@ heavy for. Candidates for centralization:
 For now each lib re-implements the triple. Flagged here per
 AGENTS.md's "If a helper looks reusable, log
 'duplicate-suspected' in FRICTION.md."
-
-## ~~blocking: no-rename-no-unlink-in-fs-stdlib~~
-
-**Resolved 2026-05-17** by upstream `cc94a1b` (C9: `std::io::fs::
-{rename, unlink, mktemp}`). pond pass C9 swapped `FileSink.__rotate`
-from the read-then-write copy shim to atomic `rename`. The eviction
-of the oldest backup is now implicit (Linux `rename(2)` overwrites
-the destination atomically). `__handle_io_read` deleted; the read
-side is no longer touched. Behavioral note: the active log file is
-absent briefly between rotation and the next append (the file is
-recreated by `write_file_append`'s `O_CREAT` on the following
-write). This matches the standard rename-based rotation pattern;
-the prior truncate-in-place behavior was the workaround. Original
-entry retained below.
-
-## blocking: no-rename-no-unlink-in-fs-stdlib (pre-C9 context)
-
-`FileSink`'s rotation policy is the standard "shift `.N-1` → `.N`,
-overwrite the oldest, truncate the active path." On every
-filesystem this is normally implemented with `rename(2)` (or
-`renameat2`) for the in-place shifts plus `unlink(2)` for the
-oldest. `std::io::fs::*` ships neither at v1:
-
-```
-$ grep -n "lotus_fs_" crates/hale-codegen/src/codegen.rs | grep -E "rename|unlink|remove"
-(no output)
-```
-
-Available primitives (per `spec/stdlib.md § "shipped module surface"`):
-
-| primitive | shape |
-|-----------|-------|
-| `read_file(path) -> String fallible(IoError)` | yes |
-| `write_file(path, content) -> () fallible(IoError)` | yes — truncates |
-| `write_file_append(path, content) -> () fallible(IoError)` | yes |
-| `file_size(path) -> Int fallible(IoError)` | yes |
-| `file_exists(path) -> Bool` | yes |
-| `rename(src, dst)` | **missing** |
-| `remove_file(path)` / `unlink(path)` | **missing** |
-
-The lib's workaround: each shift is a `read_file(src) →
-write_file(dst, buf)` pair. The "oldest gets dropped" step is the
-natural consequence of the chain — when `.N` is overwritten by
-`.N-1`'s content, the previous `.N` is gone. Correctness holds; the
-cost is one extra read+write per rotation per shifted slot, and
-peak memory is `O(max_size_bytes)` because the read pulls the
-whole file into a String before the write goes out.
-
-For a 10 MB cap that's 10 MB resident during the shift — fine for
-log rotation, painful if the same trick had to scale further. The
-real fix is `std::io::fs::rename(src, dst) -> () fallible(IoError)`
-and `std::io::fs::remove_file(path) -> () fallible(IoError)`, both
-trivial libc wrappers (`rename(2)` and `unlink(2)` already linked
-by the runtime). Filed here for the stdlib backlog.
 
 ## design-question: empty active log post-rotation
 

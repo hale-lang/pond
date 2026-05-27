@@ -35,15 +35,20 @@ locus Registry {
 
 ## v1 deviations
 
-One deviation remains; see `FRICTION.md` for the full audit.
+One deviation remains in source; see `FRICTION.md` for the full
+audit. As of v0.8.1, this deviation is **closable** by a source
+edit (no remaining upstream gap).
 
 - **`dispatch(call) -> ToolResult fallible(ToolError)` is split
   into `Registry.dispatch_call(call) -> ToolResult` (non-fallible
   method, returns an `is_error` ToolResult on miss) plus a
   fallible free fn `tools::dispatch(reg, call) -> ToolResult
-  fallible(ToolError)`.** Per the two-channel rule
-  (`KNOWN_GOTCHAS.md` § G4), user-declared locus methods may not
-  declare `fallible(E)`. Both paths share the same lookup kernel.
+  fallible(ToolError)`.** Under the pre-v0.8.1 two-channel rule,
+  user-declared locus methods could not declare `fallible(E)`.
+  → **v0.8.1 #24 v0.2** (commits `d565d6f` + `98910b9`) narrows
+  the rule; the next source pass folds the two surfaces back into
+  the contract's single `dispatch(call) -> ToolResult
+  fallible(ToolError)` method.
 
 The previous fn-pointer/`Entry`-wrapper deviation is gone:
 F.20 Phase B (G20) shipped interface values in `@form(vec)`
@@ -151,10 +156,12 @@ wired across seeds (the free-fn arg site is wired).
   as the public registration surface.
 - `ToolSpec / ToolCall / ToolResult / ToolError` — pattern 5
   shape types; the public wire surface.
-- `dispatch / register` — pattern 6 free fns. Free because
-  lifecycle methods can't declare `fallible(E)` (two-channel
-  rule) and because cross-seed locus-method arg coercion
-  `LocusRef → Interface` isn't yet wired (free-fn arg site is).
+- `dispatch / register` — pattern 6 free fns. Free under the
+  pre-v0.8.1 two-channel rule (user-declared locus methods
+  couldn't carry `fallible(E)`) and because cross-seed
+  locus-method arg coercion `LocusRef → Interface` isn't yet
+  wired (free-fn arg site is). The first half is closable per
+  v0.8.1 #24 v0.2; the coercion half is still open.
 
 ## Cross-lib pairings
 

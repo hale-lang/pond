@@ -30,28 +30,17 @@ synthesize a Job per iteration so the handler still fires. The
 demo (`examples/email-worker/`) uses this. The switch goes away
 when pond/sqlite unblocks.
 
-## 2. Deviation: Locus methods can't declare `fallible(E)`
+## 2. Deviation: Locus methods can't declare `fallible(E)` — [CLOSABLE]
 
-**CONTRACTS.md sketches:**
+**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
+v0.2, commits `d565d6f` + `98910b9`) so user-declared `fn` member
+fns now carry `fallible(E)`. The next source pass restores the
+contract verbatim: `Queue.enqueue` / `dequeue` / `ack` / `fail`
+become locus methods again. Clean breaking change. Source
+migration stays on hold until sqlite F.1 lands — the chain is
+gated on the stdlib primitive, not on the rule narrowing.
 
-```hale
-locus Queue {
-    params { db: Db; table: String = "pond_jobs"; }
-    fn enqueue(...) -> Int fallible(JobError);
-    fn dequeue() -> Job fallible(JobError);
-    fn ack(id) -> () fallible(JobError);
-    fn fail(id, retry) -> () fallible(JobError);
-}
-```
-
-**Reality (spec/semantics.md § "Where each channel lives"):**
-user-declared locus methods may not declare `fallible(E)` — that
-channel is reserved for free fns and @form-synthesized methods.
-The two-channel rule keeps recovery legible: structural failures
-flow through closures + `on_failure`; value errors flow through
-`fallible(E)`.
-
-**As built (legal):**
+**Current source shape (still in place).**
 
 ```hale
 locus Queue { params { … }; birth(); dissolve(); }
@@ -62,15 +51,7 @@ fn fail(q: Queue, id, r) -> () fallible(JobError);
 ```
 
 Same translation pond/sqlite did (`db::exec(conn, sql)` vs
-`conn.exec(sql)`). **Proposed CONTRACTS.md amendment**: move
-the four queue methods to free fns to match the type-legal shape
-that's actually built.
-
-**duplicate-suspected**: this is exactly the same pattern
-pond/sqlite already logged. pond/migrations will hit it too. A
-catalog-level resolution (e.g., the CONTRACTS.md style guide
-notes "every fallible operation is a free fn, by rule") would
-prevent the per-lib relitigation.
+`conn.exec(sql)`).
 
 ## 3. Deviation: Locus refs can't sit in another locus's params
 
@@ -116,49 +97,6 @@ will hit this. pond/metrics (`MetricsEndpoint.params.registry:
 Registry`) will hit this. pond/agent/conversation similar. A
 catalog-level note in the styleguide would short-circuit the
 investigation for the next consumer.
-
-## ~~4. Deviation: Interface values can't sit in locus params/fields~~
-
-**closed 2026-05-18** by F.20 Phase B interface storage landing
-in upstream (G20). Interface values are now legal in locus
-params/fields. The fn-pointer workaround in `pool.hl`
-(`handler: fn(Job) -> JobResult = default_handler`) can collapse
-back to the contract surface — see "Source-level cleanup
-pending" near the top of this file (TBD). Original entry retained
-below for context.
-
-**CONTRACTS.md sketches:**
-
-```hale
-locus Pool { params { …; handler: JobHandler; } }
-```
-
-**Reality (spec/types.md § F.20 Phase B, 2026-05-11):**
-> Returning an interface value from a fn, storing one in a locus
-> param/field, or putting interfaces in arrays/tuples is not yet
-> supported — deep-copy across arena boundaries for the fat
-> pointer is a Phase B follow-up.
-
-**As built**: `handler: fn(Job) -> JobResult = default_handler`.
-The `interface JobHandler` declaration stays in `interfaces.hl`
-as forward-compat scaffolding (mirrors pond/router/'s `Handler`
-/ `Middleware` interface decls used purely for the v1.next
-swap-in).
-
-**duplicate-suspected**: pond/router/ already hit this exact
-pattern with `Route.handler` and `MwEntry.before`/`after`. Three
-consumers running into it is the catalog signal — see
-pond/router/'s FRICTION.md for the same entry.
-
-**Source-level cleanup pending (G20 follow-up).** With Phase B
-landed, `Pool.params.handler: JobHandler = default_handler`
-becomes legal; the fn-pointer field collapses to the interface.
-Affects `pool.hl` only — `interfaces.hl`'s `JobHandler` decl is
-already real (it just wasn't reachable from storage before).
-The cleanup is gated on the broader question of whether
-`pond/jobs` keeps the sqlite-stub shape (the lib stays STUB
-until sqlite unblocks per the pond plan) — once the
-implementation pass lands, the handler flip rides along.
 
 ## 5. Stub-mode worker shape
 
@@ -312,29 +250,24 @@ implement everything above honestly against the stubs" approach
 from working end-to-end. pond/jobs's body is a layer thinner
 than it would otherwise be, almost entirely because of this.
 
-## 12. Codegen v0 rejects `-> () fallible(E)` return type
+## 12. Codegen v0 rejects `-> () fallible(E)` return type — [CLOSABLE]
 
-Original `ack` / `fail_job` signatures (matching CONTRACTS.md):
+**2026-05-27 update.** Closed by `6beb1be` (FUv0.8.2 #6, unit-return
+normalization for fallible locus method bodies). The next source
+pass restores `ack` / `fail` to `() fallible(JobError)`. Same
+hold-on-sqlite as item 2; source migration rides with the F.1
+unblock pass.
 
-```hale
-fn ack(q: Queue, job_id: Int) -> () fallible(JobError);
-fn fail(q: Queue, job_id: Int, retry: Bool) -> () fallible(JobError);
+**Current source shape (still in place).** Original `ack` /
+`fail_job` signatures (matching CONTRACTS.md) tripped codegen v0:
+
+```
+unsupported in codegen v0: tuple type must have at least 2
+ elements; got 0
 ```
 
-Codegen v0:
-    `unsupported in codegen v0: tuple type must have at least 2
-     elements; got 0`
-
-The fallible-return calling convention needs a non-unit success
-slot. As built both return `Bool` (always `true` on success,
-divergent on failure). Same workaround a future store pattern's `sqlite_put`
-uses (returns `Int` rows-affected). Callers can `or false` to
-discard.
-
-**Proposed CONTRACTS.md amendment**: spell ack / fail_job with
-a non-unit return that carries a useful signal. `Bool` works;
-`Int` (rows_affected, matching the underlying SQL UPDATE) is
-arguably more useful.
+As built both return `Bool` (always `true` on success, divergent
+on failure). Callers can `or false` to discard.
 
 ## 13. `fail` keyword vs `fn fail()` shadowing
 

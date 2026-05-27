@@ -95,11 +95,8 @@ underlying `sub::SpawnError.detail`.
 ## Contract deviations
 
 - `Sandbox.run_code` / `Sandbox.run_file` are declared *without*
-  `fallible(SandboxError)`. Per `spec/semantics.md § Fallible
-  call semantics` (and KNOWN_GOTCHAS.md G4) user-declared locus
-  methods may not declare `fallible(E)` — that channel is
-  reserved for free fns and `@form(...)`-synthesized methods.
-  Failures surface via:
+  `fallible(SandboxError)` under the pre-v0.8.1 two-channel rule.
+  Failures currently surface via:
   1. `self.last_error: SandboxError` — populated by every call.
      `kind == ""` means success.
   2. The free-fn helpers `run_code_at(sb, code)` /
@@ -109,9 +106,10 @@ underlying `sub::SpawnError.detail`.
      inline; } / violate fatal_sandbox` pair for structural
      drain via `on_failure`.
 
-  See `FRICTION.md` for the wider trend across `pond/CONTRACTS.md`
-  — `pond/subprocess` flagged the same pattern as
-  duplicate-suspected.
+  → **Closable per v0.8.1 #24 v0.2** (commits `d565d6f` +
+  `98910b9`); next source pass flips both methods to
+  `-> SandboxResult fallible(SandboxError)` and retires the
+  `last_error` field + paired free fns.
 
 - `memory_limit_mb` is plumbed on the surface but currently a
   no-op. `pond/subprocess` has no rlimit-style hook in its

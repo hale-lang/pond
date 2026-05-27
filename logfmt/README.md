@@ -143,16 +143,22 @@ rule blocks the direct dep).
 so a consumer with its own HTTP surface can ship the batch
 externally in the meantime.
 
-## Two-channel deviation from CONTRACTS.md
+## Two-channel deviation from CONTRACTS.md — CLOSABLE
 
 `pond/CONTRACTS.md` lists every Sink method as
-`fallible(IoError)`. Per AGENTS.md's two-channel rule, locus methods
-on user-declared loci **cannot** declare `fallible(E)` — the value
-channel for IO errors has to be wrapped via `or self.method(err)`
-inside the method body. Each sink captures the last failure into a
-`last_kind` / `last_errno` (or `last_status`) / `last_path` (or
-`last_detail`) triple readable through accessor methods, matching
-the shape `pond/http/client::Client` uses. See FRICTION.md
+`fallible(IoError)`. Under the pre-v0.8.1 two-channel rule,
+locus methods on user-declared loci could not declare
+`fallible(E)` — the value channel for IO errors had to be
+wrapped via `or self.method(err)` inside the method body. Each
+sink captures the last failure into a `last_kind` /
+`last_errno` (or `last_status`) / `last_path` (or `last_detail`)
+triple readable through accessor methods.
+
+→ **v0.8.1 #24 v0.2** (commits `d565d6f` + `98910b9`) narrows
+the rule; user-declared `fn` member fns now carry `fallible(E)`.
+The next source pass restores `FileSink` / `OtlpSink`
+`write` / `line` / `newline` to `() fallible(IoError)` directly
+and retires the last_error accessor triple. See FRICTION.md
 `fallible-on-locus-method`.
 
 ## Files
