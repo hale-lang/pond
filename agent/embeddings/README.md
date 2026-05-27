@@ -56,10 +56,14 @@ FRICTION.md.
 | `remove(id: String)`                      | —       | silent no-op when id not found                    |
 | `count()`                                 | `Int`   | infallible                                        |
 
-Methods are infallible per the two-channel rule
-(`KNOWN_GOTCHAS G4` — locus methods can't declare `fallible(E)`).
-Sentinel-substitute on bad input; the typed-error surface lives
-in sibling free fns.
+Methods are currently infallible per the pre-v0.8.1 two-channel
+rule (`KNOWN_GOTCHAS G4` — old form: locus methods can't declare
+`fallible(E)`). Sentinel-substitute on bad input; the typed-error
+surface lives in sibling free fns (`_checked` variants).
+→ **v0.8.1 #24 v0.2 narrows the rule** (commits `d565d6f` +
+`98910b9`); user-declared `fn` member fns now carry
+`fallible(E)`. Next source pass flips `add` / `search` / `remove`
+to `fallible(EmbError)` directly and retires the `_checked` pairs.
 
 ## Free-fn fallible surface
 

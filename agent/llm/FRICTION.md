@@ -3,141 +3,34 @@
 Gaps, suspicions, and deviations from CONTRACTS.md surfaced while
 building this lib.
 
-## ~~blocked-on-stdlib: no TLS substrate~~
+## two-channel-rule: locus methods can't declare fallible(E) — [CLOSABLE]
 
-**closed 2026-05-18** by upstream `e9a99df` (TLS client surface +
-m105 adapter inbound dispatch). `std::io::tls::*` ships:
-`connect(host, port) -> Int fallible(IoError)` (TLS 1.2+ with
-SNI + system trust store), `send_bytes(handle, b)`,
-`recv_bytes(handle, max)`, `close(handle)`. Lib-level wire-up
-landed same day:
+**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
+v0.2, commits `d565d6f` + `98910b9`); user-declared `fn` member
+fns now carry `fallible(E)`. The next source pass restores
+`AnthropicClient.complete` / `OpenAiClient.complete` to
+`-> LlmResponse fallible(LlmError)`; the `__record` error-check
+fn + `last_error_*` accessor triple collapses. The paired
+`anthropic_complete` / `openai_complete` free fns can stay or
+collapse — design choice.
 
-- `__parse_base_url` now accepts both `http` and `https`
-  schemes; only unknown schemes fail with a `bad_url` /
-  "unsupported scheme" diagnostic.
-- `__connect_or_llm_err` takes the parsed scheme and routes
-  `https` → `std::io::tls::connect`, anything else →
-  `std::io::tcp::connect`. Returns an `__LlmStream` wrapper
-  carrying the transport kind + the right handle.
-- New `__stream_send` / `__stream_recv_bytes` /
-  `__stream_close` helpers dispatch on `__LlmStream.kind`.
-  `__drain_stream` was reshaped to take `__LlmStream` (was:
-  `std::io::tcp::Stream`).
-- The `"unsupported_scheme"` LlmError kind is gone; URL parse
-  rejects pre-connect with `"bad_url"` if anything other than
-  `http` / `https` is given.
-
-Public surface unchanged — both clients accept the
-`https://api.{anthropic,openai}.com` default base_urls without
-config changes. `LlmError.kind` documentation in `types.hl`
-was updated to reflect the dropped `"unsupported_scheme"`.
-
-## two-channel-rule: locus methods can't declare fallible(E)
-
-CONTRACTS.md lists the public surface as:
+**Current source shape (still in place).** CONTRACTS.md lists:
 
 ```hale
 fn complete(req: LlmRequest) -> LlmResponse fallible(LlmError);
 fn stream(req: LlmRequest) -> ();
 ```
 
-The `complete` shape is type-illegal under v1 — locus methods
-cannot declare `fallible(E)` per `spec/semantics.md §
-Fallible call semantics`. The implementation deviates in the
-exact same way pond/subprocess, pond/sqlite, pond/http/client
-already do:
+Under the old (pre-v0.8.1) rule the `complete` shape was
+type-illegal as a locus method. The implementation deviated:
 
 - Method declared non-fallible. Body wraps a fallible free fn
-  via `or self.__record(err)` — the error-check-fn pattern
-  from `spec/styleguide.md § 7`.
+  via `or self.__record(err)`.
 - Errors surface through `last_error_kind()` /
   `last_error_status()` / `last_error_detail()` accessors.
 - The fallible free fns (`anthropic_complete`,
   `openai_complete`) are public for consumers that want the
   value-channel `fallible(LlmError)` path directly.
-
-**duplicate-suspected**: this same deviation now lives in
-pond/sqlite (db.hl), pond/http/client (client.hl),
-pond/subprocess (process.hl), and pond/agent/llm (here). Four
-hits = strong signal CONTRACTS.md needs a sweep: either
-- flip every such method to a free fn, or
-- accept the wrapper pattern as the v1 canonical shape and
-  lift it into the catalog as pattern 7 ("fallible-method
-  wrapper").
-
-Logged here as the fourth datapoint; the lift-or-flip decision
-is upstream.
-
-## ~~topic-rename-asymmetry: publish-side topic refs don't survive cross-seed import~~
-
-**closed 2026-05-17** by upstream `f9068fa` (A1 + A7). The
-publish-side topic-ident mangle is wired, and `bus_subject`
-admits qualified names. **Source-level cleanup landed
-2026-05-18** alongside the TLS wire-up:
-
-- `wire_topics.hl` now declares `topic LlmChunk` /
-  `topic LlmDone` with `subject: "agent.llm.chunk"` /
-  `subject: "agent.llm.done"` (canonical topic-decl form per
-  spec/semantics.md § Topic declarations).
-- Bus payloads stay wrapped in a user-defined `type` (codegen
-  still rejects raw String payloads); the wrappers were
-  renamed to `LlmChunkMsg` / `LlmDoneMsg` to avoid colliding
-  with the topic-ident names in the same namespace.
-- Both clients' bus blocks now read `publish LlmChunk;
-  publish LlmDone;` and publish sites are `LlmChunk <-
-  LlmChunkMsg { payload: delta };` / `LlmDone <- LlmDoneMsg
-  { payload: resp };`.
-
-Subscribers wire up via `subscribe llm::LlmChunk as h;` (no
-`of type T` — the topic carries the payload type, which is the
-wrapper struct `llm::LlmChunkMsg`). Original entry retained
-below for context.
-
-CONTRACTS.md declares:
-
-```hale
-locus AnthropicClient {
-    bus { publish LlmChunk; publish LlmDone; }
-}
-
-topic LlmChunk { payload: String;      }
-topic LlmDone  { payload: LlmResponse; }
-```
-
-When this lib is imported via `import ".." as llm;`, the seed-
-rename map rewrites `topic LlmChunk { }` in `topics.hl` to
-`__lib_llm_topics_LlmChunk` but leaves the publish-side ident
-inside the AnthropicClient locus untouched — `publish LlmChunk;`
-resolves to "unknown topic" at consumer build time:
-
-```
-type error: publish references unknown topic `LlmChunk`
-  (no `topic LlmChunk` declaration in scope)
-```
-
-Identical to the rename-asymmetry pond/subprocess hit (see
-`pond/subprocess/process.hl`'s bus block comment). Worked
-around the same way:
-
-```hale
-bus {
-    publish "agent.llm.chunk" of type LlmChunk;
-    publish "agent.llm.done"  of type LlmDone;
-}
-
-// Inside the run body:
-"agent.llm.chunk" <- LlmChunk { payload: delta };
-"agent.llm.done"  <- LlmDone  { payload: resp  };
-```
-
-Literal-string subjects + explicit `of type T` work because
-the subject is data (a String) not a name that needs
-resolution against the renamed topic-decl table.
-
-**duplicate-suspected**: this is the second pond lib hitting
-this exact issue with the same workaround. A fix in the
-compiler's seed-rename pass that ALSO rewrites publish-side
-topic-ref idents would let CONTRACTS.md ship as-written.
 
 ## topic-vs-type-duality: bus payload can't be raw String
 
@@ -278,60 +171,6 @@ helpers don't descend into. The stdlib helper isn't exported.
 `std::json::find_object_field(json, name) -> String` and
 `std::json::find_array_field(json, name) -> String` so the
 nested case has a typed surface. Same code, exported name.
-
-## ~~dependency-on-http-client: pond/http/client doesn't currently build~~
-
-**closed 2026-05-17.** `pond/http/client` builds clean now —
-the parse errors below were artefacts of an older snapshot.
-The lib still inlines the URL parse / dial / drain helpers
-rather than importing `pond/http/client`, but that's a
-no-transitive-import architectural choice (every consumer of
-`pond/agent/llm` would also need to vendor `pond/http/client`),
-not a build-failure workaround. The fold-back to importing
-`pond/http/client` remains the suggested v1.x cleanup if the
-no-transitive-import rule relaxes. Original entry retained below
-for context.
-
-Per the assignment, this lib *should* depend on
-`pond/http/client` for URL parsing + the
-`Request` / `Response` / `HttpError` shapes. As of the build
-attempt:
-
-```
-$ hale build pond/http/client/
-http/client/client.hl: 42:56: parse error: expected ;, got Ident("HttpError")
-http/client/client.hl: 147:16: parse error: expected }, got StringLit("")
-http/client/types.hl:  30:20: parse error: expected ;, got StringLit("")
-...
-```
-
-`pond/http/client` is a parallel build. It uses `or fail
-HttpError { ... }` as a disposition, which the parser doesn't
-accept (`spec/semantics.md § or disposition` lists
-`or raise`, `or <value>`, `or handler(err)`, `or discard` —
-no `or fail`). It also uses `Bytes = b""` as a default value,
-which the parser also doesn't accept.
-
-We deviated by inlining what we need:
-
-- A minimal `__parse_base_url` in `anthropic.hl` (same
-  algorithm as `pond/http/client/url.hl`'s `parse_url`).
-- Direct `std::io::tcp::connect` + `Stream.send` for the
-  HTTP exchange — no `http::request(req)` indirection.
-- An inline `__connect_or_llm_err` translator from `IoError`
-  to `LlmError`.
-
-Once `pond/http/client` builds cleanly, the inline pieces here
-should fold back into:
-
-```hale
-import "../../http/client" as http;
-
-// __parse_base_url → http::parse_url
-// __dial + __drain → http::request(http::Request { ... })
-```
-
-That's a future cleanup pass; not breaking anything today.
 
 ## design-question: LlmRequest.messages encoding
 

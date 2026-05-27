@@ -62,15 +62,18 @@ fn step(stmt: Int) -> Row                   fallible(DbError);
 
 Three independent forcing functions land the shape above:
 
-1. **Two-channel rule** (`spec/semantics.md` § "Where each channel
-   lives"). CONTRACTS.md lists the eight SQL ops as locus methods
-   on `Db` with `fallible(DbError)` returns. That declaration
-   shape is type-illegal: user locus methods cannot declare
-   `fallible(E)`. The fix is to migrate the fallible SQL surface
-   to free fns taking a `Db` ref — call sites read
-   `db::exec(conn, sql)` instead of `conn.exec(sql)`.
+1. **Two-channel rule (pre-v0.8.1)** (`spec/semantics.md`
+   § "Where each channel lives"). CONTRACTS.md lists the eight
+   SQL ops as locus methods on `Db` with `fallible(DbError)`
+   returns. Under the pre-v0.8.1 rule that declaration shape was
+   type-illegal; the implementation migrated the fallible SQL
+   surface to free fns taking a `Db` ref — call sites read
+   `db::exec(conn, sql)` instead of `conn.exec(sql)`. → **v0.8.1
+   #24 v0.2 narrows the rule**; the contract surface is now
+   type-legal again and folds back into `Db` methods on the F.1
+   unblock pass.
 
-2. **Codegen v0 can't lower `() fallible(E)`.** Three of
+2. **Codegen v0 can't lower `() fallible(E)` (pre-v0.8.1).** Three of
    CONTRACTS.md's eight ops return unit (`bind_text` /
    `bind_int` / `finalize`); the `() fallible(E)` shape hits a
    codegen-v0 limitation (`tuple type must have at least 2
@@ -79,20 +82,27 @@ Three independent forcing functions land the shape above:
    pre-2026-05-16 `std::io::fs::mkdir`.
 
 3. **Codegen v0 can't lower non-fallible cross-seed path calls
-   in expression position.** `let n = db::bind_text(...)` from a
-   consumer file fails with `unsupported in codegen v0: path
-   call db::bind_text in expression position`. Locus methods on
-   imported loci DO codegen, so bind/finalize migrate from free
-   fns to Db methods: `conn.bind_text(stmt, 1, "...")`.
+   in expression position (pre-A3).** `let n = db::bind_text(...)`
+   from a consumer file failed with `unsupported in codegen v0:
+   path call db::bind_text in expression position`. Locus methods
+   on imported loci DO codegen, so bind/finalize migrated from
+   free fns to Db methods. → **Closed 2026-05-17 (A3,
+   `f9068fa`)**; the historic workaround stays in source until
+   the F.1 unblock pass.
 
 The three combine to put `exec` / `query_one` / `query_all` /
 `prepare` / `step` as free fns (fallible, codegen accepts those
 cross-seed) and `bind_text` / `bind_int` / `finalize` as Db
 methods (non-fallible Int-status, codegen accepts those cross-
-seed). Once the codegen restrictions lift, the latter three
-graduate back to free fns with `() fallible(DbError)` per
-CONTRACTS.md. See FRICTION.md § F.2 (two-channel deviation), § F.5
-(unit-fallible codegen), § F.6 (cross-seed path-call codegen).
+seed). **As of v0.8.1 the F.5 + F.6 codegen restrictions both
+lifted** — `() fallible(E)` lowers (`6beb1be`), and cross-seed
+non-fallible path-calls work (A3 closed pre-window). The F.2
+two-channel deviation is also type-legal again post-#24 v0.2. The
+entire SQL surface collapses back into `Db` methods declaring
+`fallible(DbError)` on the F.1 unblock pass; the deviation
+described above is the still-shipped source shape, not a forward
+constraint. See FRICTION.md § F.2, § F.5 (both tagged CLOSABLE
+on F.1) and the Resolution checklist.
 
 The Service-locus shape of `Db` (params + birth + dissolve) is
 preserved; only the SQL surface migrates.

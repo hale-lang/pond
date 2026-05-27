@@ -29,49 +29,9 @@ the underlying SpawnError until the gap closes.
 
 ---
 
-## ~~1. The blocker (transitive): no stdlib spawn primitive~~
+## Contract deviations from `pond/CONTRACTS.md`
 
-**closed 2026-05-17** by upstream `std::process::run` +
-`std::process::Child`. `std::io::fs::mktemp` (referenced in
-§2.5 below as also-needed) also shipped 2026-05-17. The lib's
-own stubs persist pending `pond/subprocess`'s implementation
-pass (or a direct cut-over to `std::process::run`). Original
-section retained below for context.
-
-## 1. The blocker (transitive): no stdlib spawn primitive (pre-2026-05-17 context)
-
-Re-stated from `../../subprocess/FRICTION.md § 1`:
-
-The Hale stdlib's `std::process::*` surface today is exactly:
-
-| Symbol                          | Surface |
-|---------------------------------|---------|
-| `std::process::pid() -> Int`    | `getpid()` wrapper (m71) |
-| `std::process::exit(code: Int)` | `exit()` wrapper (m79)   |
-
-There is no `spawn`, `fork`, `exec`, `popen`, `system`, or
-`Command` analog anywhere in the shipped stdlib. The
-`pond/subprocess` FRICTION proposes a Phase A / Phase B / Phase C
-plan that lands a `std::process::run(cmd, args, cwd, env, stdin,
-timeout_ms)` path-call and a `std::process::Child` streaming
-locus. Until at least Phase A ships, no Hale code can launch
-a child process, and `pond/agent/sandbox` has nothing to wrap.
-
-**Reiterating the ask** (so downstream consumers of this
-FRICTION can grep it independent of subprocess's): the upstream
-change needed is a `std::process::run(...) -> ProcOutput
-fallible(ProcError)` path-call backed by `lotus_proc_run`
-(fork/execvp/pipe2/waitpid orchestration) in the C runtime,
-plus a path-rewrite arm in `lower_stdlib_path_call_expr` and a
-`STDLIB_PATH_RENAMES` entry for the synthesized `ProcError`
-type. See `../../subprocess/FRICTION.md § 2` for the full
-proposed signature, behavior, and C-runtime symbol table.
-
----
-
-## 2. Contract deviations from `pond/CONTRACTS.md`
-
-### 2.1 `Sandbox.run_code` / `Sandbox.run_file` drop `fallible(SandboxError)`
+### 2.1 `Sandbox.run_code` / `Sandbox.run_file` drop `fallible(SandboxError)` — [CLOSABLE]
 
 `CONTRACTS.md § pond/agent/sandbox/` declares:
 
@@ -84,32 +44,27 @@ locus Sandbox {
 }
 ```
 
-Per `spec/semantics.md § Fallible call semantics` (and
-`KNOWN_GOTCHAS.md G4`), user-declared locus methods may NOT
-declare `fallible(E)`. The methods in `sandbox.hl` therefore
-drop the `fallible(SandboxError)` marker and surface failures via:
+**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
+v0.2, commits `d565d6f` + `98910b9`); user-declared `fn` member
+fns now carry `fallible(E)`. The next source pass restores
+`Sandbox.run_code` / `run_file` to
+`-> SandboxResult fallible(SandboxError)`; the `last_error` field,
+the `fatal_sandbox` closure + `handle_err` error-check fn, and
+the paired `run_code_at` / `run_file_at` free fns all collapse.
+Clean breaking change.
+
+**Current source shape (still in place).** Under the old
+(pre-v0.8.1) rule, locus methods could not declare `fallible(E)`.
+The methods drop the marker and surface failures via:
 
 1. `self.last_error: SandboxError` — populated by every method
    call; `last_error.kind == ""` means success.
 2. A `closure fatal_sandbox { captures: last_error; epoch
    inline; }` + the error-check fn `handle_err(e: SandboxError)
-   -> Int` (per `spec/styleguide.md § 7`) that `violate`s for
-   unrecoverable failures.
+   -> Int` that `violate`s for unrecoverable failures.
 3. The free-fn companions `run_code_at(sb, code)` /
-   `run_file_at(sb, path)` in `helpers.hl` that wrap the
-   methods and surface SandboxError via the value channel for
-   callers that want `or raise` / `or default` / `or
-   handler(err)`.
-
-**duplicate-suspected**: this is the same wall every CONTRACTS.md
-"X locus method -> T fallible(E)" entry trips. The full list is
-catalogued in `../../subprocess/FRICTION.md § 3.1`; this lib is
-on that list. The wider fix is either (a) `CONTRACTS.md` gets
-revised to drop the `fallible(...)` marker from locus methods
-uniformly and document the `last_error` + `violate` + paired
-free-fn shape as the canonical replacement, or (b) Hale
-relaxes the two-channel rule for a designated subset of
-"infrastructure" locus methods.
+   `run_file_at(sb, path)` in `helpers.hl` for value-channel
+   addressing.
 
 ### 2.2 `memory_limit_mb` is plumbed but unenforced
 
@@ -197,38 +152,6 @@ in the bridging seed), the body flips to actually invoke
 and that build fails with the analogous diagnostic). Every
 "wrap another pond lib's fallible surface" lib trips this.
 Worth a path-rename-table generalization for nested imports.
-
-### ~~2.5 `run_code`'s temp file lifecycle~~
-
-**closed 2026-05-17** for the stdlib half — `std::io::fs::mktemp`
-shipped (C9). The pid-derived-temp-path workaround documented
-below can collapse to a real `mktemp(...)` call when the lib's
-implementation pass lands. Original entry retained below.
-
-### 2.5 `run_code`'s temp file lifecycle (pre-C9 context)
-
-CONTRACTS.md's `fn run_code(code: String)` doesn't specify
-where the temp file lives or how it's cleaned up. The v1 plan
-(documented in the `// TODO` block inside `sandbox.hl`):
-
-1. Pid-derived path under `/tmp` (e.g.
-   `/tmp/hale-sandbox-{pid}-{counter}.{ext}`). The extension
-   is derived from `self.runtime` (".py" for python3, ".js" for
-   node, etc.); fallback is no extension.
-2. `std::io::fs::write_file(path, code)` — fallible, surfaces
-   as kind="io" through `self.report(err)`.
-3. Sandbox spawns the runtime against the path.
-4. Best-effort delete after the spawn returns; cleanup errors
-   are silent (no fallible addressing).
-
-**Missing stdlib**: `std::io::fs::mktemp(prefix, suffix) ->
-String fallible(IoError)` would be the right primitive — a
-race-free `mkstemp(3)` wrapper. Worth a separate stdlib ask
-parallel to the spawn primitive. Documented here so the day
-the gap closes, the upgrade path is "swap pid-derived names
-for mktemp".
-
----
 
 ## 3. Desired shape for sandbox-specific extensions (long-term)
 

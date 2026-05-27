@@ -57,8 +57,9 @@ The CONTRACTS.md surface, plus two documented deviations (see
 `FRICTION.md`).
 
 ### Free-fn surface (the four CONTRACTS.md `Runner.*` methods,
-translated to take a `Runner` first argument per the two-channel
-rule):
+translated to take a `Runner` first argument under the
+pre-v0.8.1 two-channel rule; → **closable per v0.8.1 #24 v0.2**,
+to be folded back onto `Runner` in the F.1 unblock pass):
 
 ```hale
 fn current_version(r: Runner) -> Int fallible(MigrationError);

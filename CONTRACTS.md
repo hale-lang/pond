@@ -14,38 +14,130 @@ choose their own aliases per F.25.
 
 ---
 
-## 2026-05-18 status note — contract deviations now closable
+## 2026-05-27 status note — v0.8.1 closables
 
-The following contract deviations (flagged across pond FRICTION
-logs) are **closable** with the 2026-05-17 stdlib ships and the
-2026-05-18 F.20 Phase B landing. Source has not been migrated
-yet for all of them; cleanup is per-lib in subsequent passes.
+Upstream Hale shipped v0.8.1 on the 2026-05-18 → 2026-05-27
+window. The release narrows several rules pond was authored
+against and adds primitives that retire pond friction. The
+contract surfaces below are still the binding declarations; per-lib
+FRICTION.md tracks the source-side migration status.
 
-- **`pond/router/Router.add(h: Handler)` and `use(m: Middleware)`**
-  — F.20 Phase B (G20) close lets the interface storage land.
-  The lib currently ships `fn(Context) -> Response` cells; the
-  `use_mw(before, after)` two-half deviation can fold back to
-  the original `use(m: Middleware)` shape (modulo the `use`
-  reserved-keyword question — G22 still applies).
-- **`pond/agent/tools/Registry.register(t: Tool)`** — G20 close
-  lets the interface storage land. The lib currently uses an
-  `Entry { spec, invoke_fn }` wrapper + fn-pointer storage.
-- **`pond/jobs/Pool.params.handler: JobHandler`** — G20 close
-  lets the interface storage land. The lib currently uses
-  `fn(Job) -> JobResult`. (Cleanup gated on the sqlite-stub
-  unwrap.)
-- **`pond/subprocess/`** — stdlib `std::process::run` +
-  `std::process::Child` shipped 2026-05-17; the lib bodies
-  remain on `"unsupported"` pending the v1 implementation pass.
-- **`pond/agent/sandbox/`** — transitive on subprocess; same
-  shape.
-- **`pond/crypto/`** — `std::crypto::sha256` /
-  `hmac_sha256` (C3) and `std::os::getrandom` (C4) shipped
-  2026-05-17; the lib delegates to them.
+### v0.8.1 ships that affect pond contracts
 
-Contract surfaces below are the original v1 declarations.
-Active deviations from those surfaces in implementation are
-catalogued in each lib's FRICTION.md.
+- **`fallible(E)` on user-declared locus member fns** (open-question
+  #24 v0.2, commits `d565d6f` + `98910b9`). The blanket "locus
+  methods can't be fallible" rule narrowed to "substrate-facing
+  surfaces can't" — lifecycle (`birth` / `run` / `accept` / `drain`
+  / `dissolve` / `on_failure`), mode (`bulk` / `harmonic` /
+  `resolution`), closure assertions, and bus-subscribed handlers.
+  Everything else (user-declared `fn` member fns) carries
+  `fallible(E)` with value + heap-bearing payloads and the full `or
+  raise` / `or <substitute>` / `or handler(err)` / `or discard`
+  disposition surface. See `spec/semantics.md § "Where each channel
+  lives"`.
+- **`() fallible(E)` lowering** (commit `6beb1be`, FUv0.8.2 #6).
+  Unit-return fallible signatures now compile. The pre-`6beb1be`
+  workaround of returning `Int` status codes (sqlite F.5, jobs item
+  12, migrations item 3) is no longer needed.
+- **`@locality(L1|L2|L3|any)` annotation** (F.32-2 v0.2). Per-locus
+  cache-tier budget pin against the working-set estimator;
+  `--target-cache lN [--strict]` builds gate on it. Pond does not
+  currently annotate any loci; opportunistic uptake is per-lib.
+- **Bus routing keys** (commits `7a12dc4` → `2dcc51d`). `keyed_by
+  FIELD` on topic decls + `where key == EXPR` on bus_subscribe +
+  `on_unmatched: swallow|fail|fallback` disposition + synthesized
+  `BusUnmatchedKey` type. Replaces fanout-and-filter-in-userspace
+  patterns with per-symbol routing.
+- **UDP bus transport** (commit `b820c76` + jumbo-aware `dee2342`).
+  Unified `udp://addr:port:listen` scheme covering unicast +
+  multicast; payloads spill to heap past 512 B with `LOTUS_PAYLOAD_MAX`
+  bumped to 64 KB.
+- **`std::io::tcp::set_recv_timeout` / `set_send_timeout`** (commit
+  `1ab9f71`). Closes pond/websocket's pong-deadline gap.
+- **`std::crypto::crc32`** (commit `48f5b5c`). Available for
+  frame-level checksums alongside sha256 / hmac.
+- **Bus-routed http / tcp observability** (commits `5ca8beb` +
+  `4afbc34`). `std::http::Server` and `std::io::tcp::Stream` now
+  publish `io.tcp.**` / `io.http.**` `LogEvent`s when given a
+  `log_subject`. Pond/tracing + pond/metrics can subscribe to these
+  instead of wrapping their own observability layer.
+
+### Newly-closable contract deviations (source migration pending)
+
+The following libs ship a "non-fallible method + `last_error_*`
+accessor + paired fallible free fn" workaround that v0.8.1's
+narrowed two-channel rule retires. Source migrations are not yet
+performed; FRICTION.md tracks each lib individually. We're going for
+clean breaking changes — no transitional shape, the next source pass
+flips each lib's methods to `fallible(E)`.
+
+- `pond/http/client/` — `Client.{get, post, request, send_*}` will
+  carry `fallible(HttpError)` directly.
+- `pond/sessions/` — `SessionStore.read` to `fallible(SessError)`.
+- `pond/logfmt/` — `FileSink` / `OtlpSink` `write`/`line`/`newline`
+  to `fallible(LogError)`.
+- `pond/tracing/` — `Tracer.export_otlp` to `fallible(TraceError)`.
+- `pond/agent/llm/` — `AnthropicClient` / `OpenAiClient` request
+  methods to `fallible(LlmError)`.
+- `pond/agent/tools/` — `Registry.dispatch_call` to
+  `fallible(ToolError)`; the parallel free fn `tools::dispatch`
+  collapses into the method.
+- `pond/agent/sandbox/` — `Sandbox.run_*` to
+  `fallible(SandboxError)`; the paired `_at` free fns collapse.
+- `pond/agent/embeddings/` — `Store.{add, search, remove}` to
+  `fallible(EmbError)`; the `_checked` free-fn pairs collapse.
+- `pond/ml/neural/` — `Trainer.forward` / `apply_delta` to
+  `fallible(NnError)`.
+- `pond/websocket/` — `WsClient.send_*` / `close` to
+  `fallible(WsError)`.
+
+### Sqlite chain — hold
+
+`pond/sqlite/`, `pond/jobs/`, `pond/migrations/` remain on stub
+bodies pending `std::db::sqlite::*` from the compiler team
+(`sqlite/FRICTION.md § F.1`). Their *other* deviations are
+mechanically closable today:
+
+- F.5 (`() fallible(E)` not lowering) — closed by `6beb1be`. F.6
+  (cross-seed non-fallible path-call in expression position) — was
+  closed by A3 (2026-05-17). Both retire from the chain's deviation
+  list. The "bind methods return Int" workaround in sqlite + the
+  matching workarounds in jobs / migrations flip back to
+  `() fallible(E)` in the F.1 unblock pass.
+- The contract surfaces for `pond/sqlite/`'s `Db` member fns can be
+  declared as `fallible(DbError)` again (matching the original
+  CONTRACTS.md text) when F.1 lands, without the free-fn shadowing
+  the methods.
+
+### Still blocked
+
+Carry-forward inventory of friction with no upstream movement:
+
+- **F.1** — `std::db::sqlite::*` primitive. Gates the sqlite chain.
+- **Cross-seed qualified types in struct / locus fields** — affects
+  `agent/embeddings/Store`, `ml/neural/{Layer, Trainer}`,
+  `jobs/Pool`, `migrations/Runner`. Workaround: flatten cross-seed
+  locus refs to scalar fields (`db_path: String`,
+  `weights_offset: Int`).
+- **G34 two-hop `_util` imports** — `_util/*` libs are consumable
+  from end-apps and other `_util` libs but not from inside the
+  tier-0..5 pond libs. Tier libs keep local copies of helpers.
+- **G3 / G4 `@form(vec)` factory must be namespace-lotus method**
+  — free fns can't return `LocusRef`. See `math/matrix/` Mat
+  namespace lotus.
+- **`or discard` on Unit-return fallible** — accepts only at parse
+  level; codegen rejects the disposition for `() fallible(E)`.
+- **`or <substitute>` LocusRef → Interface coercion** — see
+  `agent/tools/FRICTION.md § or-fallback-no-locus-to-interface-coerce`.
+- **No transitive imports in v1** — pond's architectural rule, not a
+  compiler block. `pond/logfmt::OtlpSink` and `pond/tracing` cannot
+  POST OTLP because they can't import `pond/http/client`. Workaround
+  ships the assembled OTLP/JSON bytes via `pending_payload()` for an
+  outboard exporter.
+
+Contract surfaces below are the original v1 declarations. Active
+deviations from those surfaces in source are catalogued in each
+lib's FRICTION.md.
 
 ---
 

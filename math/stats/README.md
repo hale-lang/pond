@@ -75,11 +75,12 @@ let mu  = m.current_mean();   // 2.0
 let var = m.current_var();    // 0.6666...  (population, /n)
 ```
 
-Per AGENTS.md's two-channel rule, locus methods can't declare
-`fallible(E)` — `observe` / `current_mean` / `current_var` are
-infallible. Reading `current_mean()` / `current_var()` before any
-`observe(...)` returns `0.0` (no error). That matches the
-empty-as-zero convention the free fns use.
+`observe` / `current_mean` / `current_var` are infallible by
+design — `observe` can't fail (it's just accumulator updates),
+and the readers fall back to `0.0` before any `observe(...)` to
+match the empty-as-zero convention. (v0.8.1's narrowed
+two-channel rule would now permit fallible locus methods, but
+this lib has no errors to surface, so the shape stays.)
 
 ## Files
 

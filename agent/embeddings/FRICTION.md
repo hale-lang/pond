@@ -66,18 +66,22 @@ Two walls block this verbatim:
   accept a cross-seed locus ref as a parameter, so the natural
   API is the method form.
 
-### Locus methods can't be `fallible(EmbError)` (G4)
+### Locus methods can't be `fallible(EmbError)` (G4) — [CLOSABLE]
 
-CONTRACTS.md declares the four `Store` methods as
-`fallible(EmbError)`. Per `KNOWN_GOTCHAS G4` (two-channel rule),
-locus methods on user-declared loci can't carry a
-`fallible(E)` return type.
+**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
+v0.2, commits `d565d6f` + `98910b9`); user-declared `fn` member
+fns now carry `fallible(E)`. The next source pass restores
+`Store.add` / `search` / `remove` to `fallible(EmbError)`
+directly; the sentinel-substitute methods + `add_checked` /
+`search_checked` / `remove_checked` paired free fns collapse.
+Clean breaking change.
 
-**Shipped shape:** locus methods substitute sentinels on bad
-input (silent no-op, empty `Rows`); paired free fns
-`add_checked`, `search_checked`, `remove_checked` carry the
-fallible(EmbError) surface. Same workaround pattern as
-`pond/math/matrix`'s `at` / `at_checked` split.
+**Current source shape (still in place).** CONTRACTS.md declares
+the four `Store` methods as `fallible(EmbError)`. Under the old
+(pre-v0.8.1) rule, locus methods couldn't carry the marker.
+Locus methods substitute sentinels on bad input (silent no-op,
+empty `Rows`); paired free fns `add_checked`, `search_checked`,
+`remove_checked` carry the fallible(EmbError) surface.
 
 ### `SearchHit` declared but not the Store-surface return type
 

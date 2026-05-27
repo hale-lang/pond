@@ -170,8 +170,11 @@ demo prints a `FAIL:` line before exiting.
   `__duration_to_int` (string round-trip — see `FRICTION.md`).
 - Two-channel rule: every Tracer method is infallible. The
   contract's `export_otlp(endpoint) -> () fallible(IoError)`
-  deviation (locus methods can't declare `fallible`) is logged
-  in `FRICTION.md` with the same "deviate to `last_error_kind` +
-  `last_error_detail`" pattern `pond/http/client/Client` uses.
+  deviation is logged in `FRICTION.md` with the same "deviate to
+  `last_error_kind` + `last_error_detail`" pattern
+  `pond/http/client/Client` uses. → **Closable per v0.8.1 #24
+  v0.2** (commits `d565d6f` + `98910b9`): user-declared `fn`
+  member fns now carry `fallible(E)`. Next source pass restores
+  `export_otlp` to the contract signature.
 - Six-pattern catalog: the entire lib stays inside patterns 3 / 5
   / 6. No invented categories.

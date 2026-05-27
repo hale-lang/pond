@@ -148,33 +148,20 @@ surface is the minimum primitive that lets pond do the layering.
 
 ---
 
-## F.2 — `contracts-md-locus-methods-fallible` (deviation)
+## F.2 — `contracts-md-locus-methods-fallible` (deviation) — [CLOSABLE on F.1 unblock]
 
-**Tag:** `contracts-md-locus-methods-fallible`
-**Severity:** type-illegal as written; deviated in this lib.
+**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
+v0.2, commits `d565d6f` + `98910b9`) so user-declared `fn` member
+fns now carry `fallible(E)`. CONTRACTS.md's original declaration
+(SQL surface as locus methods on `Db`) is now type-legal. The F.1
+unblock pass will restore the contract verbatim: drop the free-fn
+shim, fold the SQL surface into `Db.exec` / `query_one` /
+`query_all` / `prepare` / `bind_*` / `step` / `finalize` methods
+that declare `fallible(DbError)` directly. Clean breaking change.
 
-**Description.**
-CONTRACTS.md § `pond/sqlite/` declares the SQL surface as locus
-methods on `Db`:
-
-```hale
-locus Db {
-    fn exec(sql: String) -> ExecResult fallible(DbError);
-    fn query_one(sql: String) -> Row fallible(DbError);
-    ...
-}
-```
-
-This **cannot compile** under the two-channel rule
-(`spec/semantics.md` § "Where each channel lives"): user
-locus methods may not declare `fallible(E)`. The typechecker
-rejects the declaration with a diagnostic naming the rule. The
-prompt explicitly anticipated this and instructed the lib to
-prefer free fns — which is what this lib ships.
-
-**Deviation in this lib.**
+**Current source shape (still in place — gated on F.1).**
 - `Db` remains a Service locus with `params`, `birth()`,
-  `dissolve()` — exactly the contract's lifecycle shape.
+  `dissolve()`.
 - The eight methods (`exec`, `query_one`, `query_all`, `prepare`,
   `bind_text`, `bind_int`, `step`, `finalize`) are free fns
   taking a `Db` ref (or, for the post-prepare ones, the stmt
@@ -186,34 +173,9 @@ prefer free fns — which is what this lib ships.
   conn.query_one(sql) or raise;          // db::query_one(conn, sql) or raise;
   ```
 
-- The call site adds one positional argument (`conn`); no other
-  shape changes. The cost is minimal and the win is type-legality.
-
-**Proposed CONTRACTS.md amendment.**
-Update CONTRACTS.md to spell the SQL surface as free fns under the
-`Db` locus rather than as methods. Suggested text:
-
-```hale
-locus Db {
-    params { path: String = ":memory:"; conn_handle: Int = -1; }
-    // birth opens the connection; dissolve closes it.
-}
-
-fn exec(db: Db, sql: String) -> ExecResult fallible(DbError);
-fn query_one(db: Db, sql: String) -> Row fallible(DbError);
-fn query_all(db: Db, sql: String) -> Rows fallible(DbError);
-fn prepare(db: Db, sql: String) -> Int fallible(DbError);
-fn bind_text(stmt: Int, idx: Int, val: String) -> () fallible(DbError);
-fn bind_int (stmt: Int, idx: Int, val: Int)    -> () fallible(DbError);
-fn step(stmt: Int) -> Row fallible(DbError);
-fn finalize(stmt: Int) -> () fallible(DbError);
-```
-
-The same rewrite applies to `pond/jobs/`'s `Queue` and `Pool` if
-they grow fallible methods; the rule is general. CONTRACTS.md
-authors writing future tier-1+ libs should sanity-check that any
-locus method declared `fallible(E)` is moved to a free fn before
-publishing.
+CONTRACTS.md does not need amending: the original surface is
+canonical again post-v0.8.1. The implementation just needs to
+catch up when F.1 lands.
 
 ---
 
@@ -269,142 +231,17 @@ picks up the slack while the stdlib primitive is in flight.
 
 ---
 
-## F.5 — `codegen-v0-unit-fallible-unlowered`
+## F.5 — `codegen-v0-unit-fallible-unlowered` — [CLOSABLE on F.1 unblock]
 
-**Tag:** `codegen-v0-unit-fallible-unlowered`
-**Severity:** blocking for three specific signatures (`bind_text`,
-`bind_int`, `finalize`); workaround in place.
+**2026-05-27 update.** Closed by `6beb1be` (FUv0.8.2 #6, unit-return
+normalization for fallible locus method bodies). The next source
+pass restores `bind_text` / `bind_int` / `finalize` to
+`() fallible(DbError)` — folds together with the F.2 method-fallible
+restoration and the F.1 stdlib primitive landing.
 
-**Description.**
-A function with the signature `fn f(...) -> () fallible(E)`
-declared at top level — even unused, even with no consumer call
-site — triggers a codegen error:
-
-```
-codegen error: unsupported in codegen v0: tuple type must have
-at least 2 elements; got 0
-```
-
-The error fires during full-program codegen (all decls are
-lowered, not just reachable ones). For `pond/sqlite/`, this means
-any of the three unit-fallible signatures CONTRACTS.md specifies
-(`bind_text`, `bind_int`, `finalize`) makes the lib unbuildable
-*for consumers* even when the lib itself type-checks.
-
-**Reproducer.**
-```hale
-// /tmp/repro.hl
-type E { kind: String; }
-fn f() -> () fallible(E) {
-    fail E { kind: "x" };
-}
-fn main() { println("hi"); }
-```
-```bash
-hale build /tmp/repro.hl
-# codegen error: unsupported in codegen v0: tuple type must have at least 2 elements; got 0
-```
-
-The error reproduces with `or raise`, `or discard`, `or
-handler(err)`, or no call site at all — the declaration itself
-is what trips codegen.
-
-**Workaround in this lib.**
-Switch the three unit-fallible signatures to non-fallible
-`-> Int` returning a SQLite result code (0 = SQLITE_OK; non-zero
-= sqlite3 error code). This is the same shape the stdlib used
-for `std::io::fs::mkdir` / `std::io::fs::write_file` /
-`std::io::fs::write_file_append` *before* the 2026-05-16
-`IoError` flip — well-traveled idiom, easy to migrate back from.
-Combined with F.6 (cross-seed non-fallible path-call codegen
-gap), this also forces these three to live as `Db` methods
-rather than free fns; see F.6.
-
-**Proposed resolution.**
-Lower unit-fallible (`() fallible(E)`) in codegen. The shape is
-spec'd as valid (`spec/stdlib.md` documents
-`std::io::fs::mkdir(path) -> () fallible(IoError)` as the
-post-flip signature; `spec/semantics.md` § "`or` disposition"
-discusses `or discard` specifically with the unit success case
-in mind) but the v0 lowering doesn't yet produce a sensible
-return-by-value layout for the zero-tuple type. Two approaches:
-either synthesize a one-element "Ok" sentinel struct for the
-success path, or special-case unit in the fallible ABI to skip
-the success-slot entirely.
-
-The fix unblocks (in pond): `pond/sqlite/`'s three bind/finalize
-methods, plus any future pond lib spec'ing
-`-> () fallible(E)` (which CONTRACTS.md does in at least eight
-places: `pond/sqlite/`, `pond/subprocess/`, `pond/jobs/`,
-`pond/migrations/`, a future store-pattern lib).
-
----
-
-## F.6 — `codegen-v0-cross-seed-nonfallible-pathcall`
-
-**Tag:** `codegen-v0-cross-seed-nonfallible-pathcall`
-**Severity:** blocking for any non-fallible free-fn export
-called from a consumer in expression position; workaround in
-place.
-
-**Description.**
-A consumer that calls an imported lib's non-fallible free fn in
-expression position fails to codegen:
-
-```
-codegen error: unsupported in codegen v0: path call `alias::fn`
-in expression position
-```
-
-Cross-seed *fallible* path calls work (`import-fallible-consumer`
-fixture is green) — the `or` disposition pipeline lowers them
-correctly. Non-fallible cross-seed path calls don't have an
-equivalent lowering path in v0.
-
-**Reproducer.**
-```hale
-// /tmp/libnn/x.hl
-fn add(a: Int, b: Int) -> Int { return a + b; }
-```
-```hale
-// /tmp/appnn/main.hl
-import "../libnn" as l;
-fn main() {
-    let n = l::add(1, 2);
-    println(to_string(n));
-}
-```
-```bash
-hale build /tmp/appnn
-# codegen error: unsupported in codegen v0: path call `l::add` in expression position
-```
-
-**Workaround in this lib.**
-Locus methods on imported loci DO lower correctly cross-seed
-(`import-toy-consumer` fixture exercises exactly this with
-`g.format("world")` returning `Formatted`). So `bind_text` /
-`bind_int` / `finalize` — already forced non-fallible by F.5 —
-live as methods on the `Db` locus rather than as free fns.
-Consumers write `conn.bind_text(stmt, 1, "...")` instead of
-`db::bind_text(stmt, 1, "...")`. The two-channel rule (F.2)
-permits this because the methods are non-fallible.
-
-**Proposed resolution.**
-Codegen needs a lowering path for non-fallible cross-seed path
-calls in expression position. The mangled symbol is already
-emitted (`__lib_db_query_bind_text`); the consumer-side call
-just needs to dispatch to it without going through the fallible
-ABI. The fallible path-call dispatch already handles the
-cross-seed mangling correctly — the non-fallible case is
-parallel structure that hasn't been written yet.
-
-The fix unblocks (in pond): every non-fallible free fn export
-that consumers want to call in expression position. Audit
-points: `pond/sqlite/Db.bind_*` migrate back to free fns;
-`pond/router/`'s `path_param` / `query_param`; `pond/crypto/`'s
-`hex_encode` / `sha256` / etc.; `pond/sessions/`'s `get_value` /
-`set_value`. Today every one of those would need a method-on-locus
-workaround.
+**Current source shape (still in place — gated on F.1).** The
+three signatures return non-fallible `-> Int` (SQLite result
+code; 0 = SQLITE_OK) instead of `() fallible(DbError)`.
 
 ---
 
@@ -446,26 +283,24 @@ right scope only becomes visible when there are >1 consumer.
 
 ## Resolution checklist (track when each blocker lifts)
 
+The F.5 + F.6 codegen items are now closed upstream (`6beb1be` for
+F.5, A3 for F.6); the F.2 deviation is type-legal again post-#24
+v0.2. The entire chain collapses into a single F.1-driven cleanup
+pass:
+
 - [ ] `std::db::sqlite::*` primitive surface lands in
       `runtime/stdlib/` (F.1).
 - [ ] `pond/sqlite/db.hl`'s `birth()` / `dissolve()` swap stubs
-      for real primitive calls (F.1).
-- [ ] `pond/sqlite/query.hl`'s five free-fn bodies swap stubs for
-      real primitive calls (F.1).
-- [ ] `pond/sqlite/db.hl`'s three `bind_text` / `bind_int` /
-      `finalize` methods replace `return -1;` stubs with real
-      primitive calls (F.1).
-- [ ] `pond/CONTRACTS.md § pond/sqlite/` rewritten to spell the
-      SQL surface as free fns where naturally fallible, and as
-      methods where unit-fallible (F.2 + F.5 + F.6).
+      for real primitive calls.
+- [ ] `pond/sqlite/query.hl`'s free-fn bodies swap stubs for
+      real primitive calls — and fold back into `Db` methods
+      declared `fallible(DbError)` (per the original CONTRACTS.md
+      surface, now type-legal via #24 v0.2).
+- [ ] `bind_text` / `bind_int` / `finalize` graduate back to
+      `() fallible(DbError)` on `Db` (the `() fallible(E)`
+      lowering is closed by `6beb1be`).
 - [ ] `pond/sqlite/examples/kv-demo/main.hl` re-run end-to-end;
       stub-branch `println("[kv-demo] db error ...")` lines stop
       firing.
-- [ ] Codegen v0 gains `() fallible(E)` lowering (F.5); the three
-      bind/finalize methods graduate back to free fns with
-      `-> () fallible(DbError)` per the original CONTRACTS.md.
-- [ ] Codegen v0 gains cross-seed non-fallible path-call
-      expression-position lowering (F.6); pre-condition for the
-      F.5 graduation above.
 - [ ] `pond/sqlite/rows.hl` exported helpers OR `pond/text/tabular/`
       promotion decision (F.4).

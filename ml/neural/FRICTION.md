@@ -57,18 +57,22 @@ Suggested CONTRACTS.md amendment: amend the Trainer signature to
 `model: Model` from `params`.
 
 ### CONTRACTS.md `fn forward(x) -> Matrix fallible(NnError)` →
-### shipped `fn forward(x) -> Matrix` (sentinel + last_error)
+### shipped `fn forward(x) -> Matrix` (sentinel + last_error) — [CLOSABLE]
 
-Two-channel rule (KNOWN_GOTCHAS G4): locus methods cannot
-declare `fallible(E)`. Shipped shape returns the matrix error
-sentinel (`mat::Mat.is_error(out)` is the predicate) on shape
-mismatch and stashes a populated `NnError` on `self.last_error`.
-Same pattern `pond/math/matrix`'s `Mat.matmul` uses.
+**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
+v0.2, commits `d565d6f` + `98910b9`); user-declared `fn` member
+fns now carry `fallible(E)`. The next source pass restores
+`Model.forward` / `apply_delta` and `Trainer.fit` to
+`fallible(NnError)` directly; the matrix-error-sentinel +
+`last_error`-populate pattern collapses. Same flip pond/math/matrix
+plans for `Mat.matmul`.
 
-The same deviation lands on `Model.apply_delta(d)`
-(state-mirroring surface-interface satisfaction; non-fallible, last_error
-populated on decode failure) and `Trainer.fit(...)` (publishes
-nothing on shape mismatch; last_error populated).
+**Current source shape (still in place).** Under the old
+(pre-v0.8.1) rule, locus methods couldn't declare `fallible(E)`.
+Shipped shape returns the matrix error sentinel
+(`mat::Mat.is_error(out)` is the predicate) on shape mismatch and
+stashes a populated `NnError` on `self.last_error`. The same
+deviation lands on `Model.apply_delta` and `Trainer.fit`.
 
 ### CONTRACTS.md `topic TrainStep { payload: TrainStep; }` →
 ### shipped `topic TrainStepEvent { payload: TrainStep; subject: "nn.TrainStep"; }`
@@ -184,14 +188,6 @@ that seed in isolation). Logged as
 "int-to-float-ascription-rejected" alongside the `int_to_float`
 ASCII-roundtrip workaround.
 
-### `-> ()` parse + codegen gap on fallible — see pond/math/matrix FRICTION
-
-Same gap as the matrix lib's `set_at_checked` — fallible(E) free
-fns must declare a non-Unit return type. The neural lib didn't
-need fallible free fns in the final shape (the lib's two-channel
-choice puts every fallibility on `last_error` instead), so the
-gap didn't bite. Mentioned here to triangulate it across libs.
-
 ### Topic-decl + payload-type name collision
 
 `topic TrainStep { payload: TrainStep; }` (verbatim CONTRACTS.md)
@@ -205,34 +201,6 @@ is the canonical shape.
 A cleaner fix at the typecheck level: topics and types should
 live in disjoint scopes (the grammar already keeps them
 syntactically distinct).
-
-### ~~Cross-seed topic-by-name publish + subscribe — KNOWN_GOTCHAS G1~~
-
-**Resolved 2026-05-17** by upstream `f9068fa` (A1 + A7).
-trainer.hl publishes by topic ident (`publish TrainStepEvent;
-TrainStepEvent <- payload;`) and the xor-trainer demo subscribes
-via `nn::TrainStepEvent`. Original entry retained below for
-context.
-
-The lib's `Trainer.publish TrainStepEvent` was working in-seed
-but firing "unknown topic" when consumers imported `nn` and
-referenced the topic by name. The literal-string subject form is
-the documented workaround (per KNOWN_GOTCHAS G1):
-
-```hale
-// In trainer.hl:
-bus { publish "nn.TrainStep" of type TrainStep; }
-"nn.TrainStep" <- payload;
-
-// In the consumer (example main.hl):
-subscribe "nn.TrainStep" as on_step of type nn::TrainStep;
-```
-
-The lib reaches for this both in `topics.hl` (the topic itself
-carries `subject: "nn.TrainStep"`) and in `trainer.hl` (the
-publish uses the literal-string form). Once the mangler learns
-to rewrite topic idents in BusMember::Publish / BusMember::Subscribe
-the bare-name form will compose.
 
 ### Cross-seed qualified-type codegen — `the version shape` rejected
 
@@ -278,41 +246,14 @@ let mean_loss = epoch_loss / n_samples_f;
 the same reason (lines 25 / 37 / 83). Logged for the float-
 widening pass.
 
-### ~~No `std::math::tanh`~~
+### Memory-footprint anomaly under tight V-memory ulimit
 
-**Resolved 2026-05-17** by upstream `d946ae2` (C8: std::math tanh
-/ nan / is_nan / inf). pond pass D12 swapped model.hl's
-`tanh_float` for `std::math::tanh` and trainer.hl's `mx.is_nan`
-for `std::math::is_nan`. Follow-up **2026-05-18**: model.hl's
-three `mx.nan_sentinel()` sites in `train_step` (the
-shape-mismatch / empty-model early returns) now call
-`std::math::nan()` directly — the `mat::Mat` instantiation was a
-pre-C8 workaround for the missing quiet-NaN primitive. Original
-entry retained below.
-
-Note: under tight V-memory ulimit (≤ 6 GB) the xor-trainer demo
-binary aborts with the libm-backed tanh in use; under default
-ulimit it converges normally. Worth investigating why libm tanh
-inflates the binary's address space in this lib's hot loop —
-not a correctness issue, but a memory-footprint anomaly that
-shows up only on a 2-3-1 MLP × 5000 epochs scale.
-
-`std::math::{sqrt, exp, log, floor, ceil, pow}` ship per
-spec/stdlib.md, but `tanh` doesn't. The lib synthesizes it from
-`exp`:
-
-```hale
-fn tanh_float(x: Float) -> Float {
-    let ex = std::math::exp(x);
-    let enx = std::math::exp(0.0 - x);
-    return (ex - enx) / (ex + enx);
-}
-```
-
-Candidate stdlib add: `std::math::tanh(x) -> Float` (libm
-primitive — same path-call shape as `exp`). Also `std::math::nan()`
-and `std::math::is_nan(f)` reach for the same primitives the
-matrix lib synthesizes itself.
+Under tight V-memory ulimit (≤ 6 GB) the xor-trainer demo
+binary aborts with the libm-backed tanh in use (post-C8); under
+default ulimit it converges normally. Worth investigating why
+libm tanh inflates the binary's address space in this lib's hot
+loop — not a correctness issue, but a memory-footprint anomaly
+that shows up only on a 2-3-1 MLP × 5000 epochs scale.
 
 ### No batched / mini-batch primitives in mat::
 
