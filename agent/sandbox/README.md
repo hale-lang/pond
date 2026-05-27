@@ -6,41 +6,30 @@ Suggested import alias: **`sandbox`**
 import "vendor/pond/agent/sandbox" as sandbox;
 ```
 
-## Status (2026-05-16): BLOCKED
+## Status
 
-This library cannot ship a real implementation at v1. Its sole
-runtime dependency `pond/subprocess` is itself **BLOCKED** on a
-missing stdlib spawn primitive — the Hale stdlib's
-`std::process::*` surface only ships `pid()` and `exit(code)`,
-and `AGENTS.md` forbids editing `crates/` to add a fork/exec
-primitive from a lib-build session. See
-`../../subprocess/FRICTION.md` for the proposed `std::process::run`
-spec and the C-runtime / codegen additions it needs.
+Unblocked + wired. `Sandbox.run_code` and `Sandbox.run_file`
+match the CONTRACTS.md surface verbatim — both declare
+`fallible(SandboxError)` and dispatch through pond/subprocess
+(which itself routes through `std::process::run`). For
+`run_code`, the snippet lands in a `/tmp/hale_sb_*.script` path
+via `std::io::fs::mktemp` (C9), is written via
+`std::io::fs::write_file`, run via `run_file`, and unlinked on a
+best-effort basis afterwards.
 
-Until both lower libs unblock, every fallible surface in this
-lib resolves to:
-
-```
-SandboxError { kind: "spawn_failed",
-               detail: "pond/subprocess: stdlib spawn primitive not yet available; see FRICTION.md" }
-```
-
-The contract from `pond/CONTRACTS.md § pond/agent/sandbox/` is
-fully realized at the type / interface / signature level, so
-consumer code that compiles against this lib today will compile
-unchanged against the real implementation tomorrow. The day
-`pond/subprocess::spawn(...)` ships real behavior, the bodies
-in `sandbox.hl` flip from forwarding the stub error to
-forwarding the actual captured stdout/stderr — without touching
-any signature.
+`memory_limit_mb` is plumbed for forward compat but currently a
+documented no-op (no upstream rlimit hook). `timeout_ms` likewise
+isn't enforced because `std::process::run` has no wall-clock
+cutoff — see FRICTION.md for both.
 
 ## Surface
 
 A single `Sandbox` Service locus (pattern 3) carries the runtime
 binary + resource limits across a series of runs; two methods
-execute code either inline or from a pre-existing file. Two
-free-fn companions wrap the methods for callers that prefer the
-value channel.
+execute code either inline or from a pre-existing file. Both
+carry `fallible(SandboxError)` directly, so call sites use the
+value channel — `or raise` to propagate, `or self.handler(err)`
+to recover, `or discard` if unit.
 
 ```hale
 // Construct once, reuse across runs.
@@ -50,19 +39,12 @@ let sb = sandbox::Sandbox {
     memory_limit_mb: 256,
 };
 
-// Run an inline snippet. (Today: returns the BLOCKED sentinel.)
-let r = sb.run_code("print('hello')");
-if sb.last_error.kind != "" {
-    println("sandbox failed: ", sb.last_error.kind, " — ", sb.last_error.detail);
-} else {
-    println("exit ", r.exit_code, ": ", r.stdout);
-}
+// Run an inline snippet.
+let r = sb.run_code("print('hello')") or self.report(err);
+println("exit ", r.exit_code, ": ", r.stdout);
 
 // Run a script from disk.
-let r2 = sb.run_file("/srv/agent/scripts/probe.py");
-
-// Or use the fallible free-fn wrappers (value channel).
-let r3 = sandbox::run_code_at(sb, "print(2 + 2)") or self.report(err);
+let r2 = sb.run_file("/srv/agent/scripts/probe.py") or raise;
 ```
 
 ## Types
@@ -78,14 +60,12 @@ let r3 = sandbox::run_code_at(sb, "print(2 + 2)") or self.report(err);
 `SandboxError.kind` is one of:
 
 - `"timeout"`      — wall-clock `timeout_ms` elapsed; the runtime
-                     was killed before completing.
+                     was killed before completing (RESERVED — not
+                     yet enforced, see FRICTION.md).
 - `"oom"`          — RESERVED for future use; surfaced once
                      `pond/subprocess` plumbs rlimit-style memory
                      enforcement.
-- `"spawn_failed"` — the underlying subprocess couldn't start
-                     (covers the current "lib is blocked" state,
-                     where `detail` forwards the SpawnError's
-                     "unsupported" detail string verbatim).
+- `"spawn_failed"` — the underlying subprocess invocation failed.
 - `"io"`           — failed to write the temp file for `run_code`,
                      or failed to read back the captured output.
 
@@ -93,23 +73,6 @@ let r3 = sandbox::run_code_at(sb, "print(2 + 2)") or self.report(err);
 underlying `sub::SpawnError.detail`.
 
 ## Contract deviations
-
-- `Sandbox.run_code` / `Sandbox.run_file` are declared *without*
-  `fallible(SandboxError)` under the pre-v0.8.1 two-channel rule.
-  Failures currently surface via:
-  1. `self.last_error: SandboxError` — populated by every call.
-     `kind == ""` means success.
-  2. The free-fn helpers `run_code_at(sb, code)` /
-     `run_file_at(sb, path)` for callers that want the value
-     channel (`or raise`, etc.).
-  3. The `closure fatal_sandbox { captures: last_error; epoch
-     inline; } / violate fatal_sandbox` pair for structural
-     drain via `on_failure`.
-
-  → **Closable per v0.8.1 #24 v0.2** (commits `d565d6f` +
-  `98910b9`); next source pass flips both methods to
-  `-> SandboxResult fallible(SandboxError)` and retires the
-  `last_error` field + paired free fns.
 
 - `memory_limit_mb` is plumbed on the surface but currently a
   no-op. `pond/subprocess` has no rlimit-style hook in its
@@ -119,22 +82,13 @@ underlying `sub::SpawnError.detail`.
 ## Building
 
 ```
-$ hale build \
-    pond/agent/sandbox/
-```
+$ hale check pond/agent/sandbox/
+ok: 2 file(s) typechecked
 
-Type-checks cleanly. Runtime calls are stubs until both
-`pond/subprocess` and the underlying stdlib spawn primitive
-ship.
+$ hale build pond/agent/sandbox/examples/run-python/
+built: agent/sandbox/examples/run-python/run-python
 
-## Example
-
-`examples/run-python/main.hl` constructs a Sandbox targeting
-`python3`, runs `print('hello')`, and prints the result (which
-today is the BLOCKED sentinel; tomorrow is `hello`):
-
-```
-$ hale build \
-    pond/agent/sandbox/examples/run-python/
-$ ./examples/run-python/run-python
+$ ./agent/sandbox/examples/run-python/run-python
+run-python: exit 0
+run-python: stdout: hello
 ```

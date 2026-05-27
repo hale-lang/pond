@@ -8,14 +8,11 @@
 //
 // In-tree the example reaches the lib via a relative path.
 //
-// Status (2026-05-16): the lib is BLOCKED on pond/subprocess
-// which is itself BLOCKED on a stdlib spawn primitive (see
-// ../../FRICTION.md). Every fallible call below resolves to
-// `SandboxError { kind: "spawn_failed", detail: "...stdlib
-// spawn primitive not yet available..." }`. The shape is
-// exactly what consumer code will look like the day both
-// lower libs unblock; only the printed values flip from
-// "BLOCKED" to "hello\n".
+// Status: UNBLOCKED. `Sandbox.run_code` / `run_file` are
+// fallible(SandboxError) directly per CONTRACTS.md
+// (v0.8.1 #24 v0.2 narrowing). Call sites use the value
+// channel — `or self.report(err)` for recoverable substitution,
+// or `or raise` to propagate.
 
 import "../.." as sandbox;
 
@@ -32,29 +29,16 @@ locus RunPython {
             memory_limit_mb: 256,
         };
 
-        // Inline-snippet path. Method form (canonical surface):
-        // surfaces failure on sb.last_error per the two-channel
-        // rule deviation (FRICTION.md § 2.1).
-        let r = sb.run_code(self.code);
-        if sb.last_error.kind != "" {
-            println("run-python: BLOCKED — ", sb.last_error.kind);
-            println("run-python: detail: ", sb.last_error.detail);
-        } else {
-            // The happy path. Today unreachable; tomorrow this
-            // prints "exit 0: hello".
+        // Inline-snippet path. The fallible method surfaces
+        // failure on the value channel; we recover via the
+        // error-check fn `report` so the demo can continue.
+        let r = sb.run_code(self.code) or self.report(err);
+        if r.exit_code >= 0 {
             println("run-python: exit ", r.exit_code);
             println("run-python: stdout: ", r.stdout);
             if len(r.stderr) > 0 {
                 println("run-python: stderr: ", r.stderr);
             }
-        }
-
-        // Value-channel path (free-fn wrapper). Demonstrates
-        // the alternative surface for consumers that prefer
-        // `or raise` / `or default` / `or self.report(err)`.
-        let r2 = sandbox::run_code_at(sb, self.code) or self.report(err);
-        if r2.exit_code >= 0 {
-            println("run-python: (value-channel) exit ", r2.exit_code);
         }
     }
 
@@ -63,7 +47,7 @@ locus RunPython {
     // exit_code = -1 so the caller can detect "we recovered
     // from an error" without re-inspecting err.
     fn report(e: sandbox::SandboxError) -> sandbox::SandboxResult {
-        println("run-python: (value-channel) ", e.kind, ": ", e.detail);
+        println("run-python: ", e.kind, ": ", e.detail);
         return sandbox::SandboxResult {
             exit_code: -1,
             stdout:    "",
