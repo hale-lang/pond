@@ -115,8 +115,20 @@ type HistogramData {
 // `fallible(KeyError)` / `fallible(IndexError)` which user-
 // declared locus methods elsewhere in the lib address via
 // `or` at the call site.
+//
+// `sync = serialized` on MetricMap (hale `1aed8fc` F.32-1α,
+// 2026-05-25): metrics consumers like fathom's mdgw run the
+// gateway recv loop on one cooperative pool and the
+// `std::http::Server` /metrics scrape on another. The hashmap
+// is read across pools, so F.32-0 requires an opt-in sync
+// discipline. α (per-map pthread mutex) is the right pick:
+// single-writer-many-reader, low contention, and the per-op
+// work (counter increments + Prometheus render walks) is
+// cheap enough that the striped variant's CAS overhead would
+// be net-negative on small core counts. F.32-1∞ will flag if
+// the inference disagrees in a specific call topology.
 
-@form(hashmap)
+@form(hashmap, sync = serialized)
 locus MetricMap {
     capacity { pool entries of MetricEntry indexed_by key; }
 }
