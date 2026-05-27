@@ -19,52 +19,9 @@ Remaining gaps (none block v1 ship):
 - `timeout_ms`      — no upstream wall-clock cutoff; ignored.
 - `memory_limit_mb` — no upstream rlimit hook; ignored.
 
-The primary deliverable of this lib at v1 is this document.
-`pond/agent/sandbox` is **architecturally blocked** behind
-`pond/subprocess`, which is in turn blocked on a missing stdlib
-spawn primitive. The lib ships with the CONTRACTS.md surface
-fully realized at the type / signature level so consumers can
-compile against it today, but every fallible surface forwards
-the underlying SpawnError until the gap closes.
-
 ---
 
 ## Contract deviations from `pond/CONTRACTS.md`
-
-### 2.1 `Sandbox.run_code` / `Sandbox.run_file` drop `fallible(SandboxError)` — [CLOSABLE]
-
-`CONTRACTS.md § pond/agent/sandbox/` declares:
-
-```
-locus Sandbox {
-    params { runtime: String = "python3"; timeout_ms: Int = 30000;
-             memory_limit_mb: Int = 512; }
-    fn run_code(code: String) -> SandboxResult fallible(SandboxError);
-    fn run_file(path: String) -> SandboxResult fallible(SandboxError);
-}
-```
-
-**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
-v0.2, commits `d565d6f` + `98910b9`); user-declared `fn` member
-fns now carry `fallible(E)`. The next source pass restores
-`Sandbox.run_code` / `run_file` to
-`-> SandboxResult fallible(SandboxError)`; the `last_error` field,
-the `fatal_sandbox` closure + `handle_err` error-check fn, and
-the paired `run_code_at` / `run_file_at` free fns all collapse.
-Clean breaking change.
-
-**Current source shape (still in place).** Under the old
-(pre-v0.8.1) rule, locus methods could not declare `fallible(E)`.
-The methods drop the marker and surface failures via:
-
-1. `self.last_error: SandboxError` — populated by every method
-   call; `last_error.kind == ""` means success.
-2. A `closure fatal_sandbox { captures: last_error; epoch
-   inline; }` + the error-check fn `handle_err(e: SandboxError)
-   -> Int` that `violate`s for unrecoverable failures.
-3. The free-fn companions `run_code_at(sb, code)` /
-   `run_file_at(sb, path)` in `helpers.hl` for value-channel
-   addressing.
 
 ### 2.2 `memory_limit_mb` is plumbed but unenforced
 
@@ -81,77 +38,20 @@ exec, and have pond/agent/sandbox forward `memory_limit_mb *
 1024 * 1024` into the spawn opts. Once the primitive lands the
 Sandbox body change is a single line.
 
-### 2.3 `Sandbox.last_error` needs an explicit `= SandboxError { }` default
+### 2.4 Codegen rejects qualified cross-seed types in locus-method signatures (cleared)
 
-`CONTRACTS.md`'s Sandbox params block doesn't include
-`last_error` at all — it's added here only because the
-two-channel-rule deviation needs somewhere to stash the failure
-state. The natural shape `last_error: SandboxError;` (with the
-type's own defaults filling in) is rejected at instantiation
-with:
-
-```
-codegen error: locus `...Sandbox` instantiation: param
-`last_error` is required (no default) — supply it as
-`...Sandbox { last_error: ... }`
-```
-
-The current workaround: `last_error: SandboxError =
-SandboxError { };`. Less surprising once you see it; surprises
-agents the first time. **duplicate-suspected**: every locus
-following the "sentinel last_error per two-channel rule"
-pattern (subprocess::Process, jobs::Queue, sandbox::Sandbox, …
-the full list at `../../subprocess/FRICTION.md § 3.1`) hits
-this. Either type-shape params should default to their type's
-all-defaults instance automatically, or the codegen diagnostic
-should suggest the `= T { }` form rather than the bare
-"supply it" wording.
-
-### 2.4 Codegen rejects qualified cross-seed types in locus-method signatures
-
-The natural shape for the error-bridge fn inside `Sandbox` is:
-
-```hale
-fn bridge_spawn_err(e: sub::SpawnError) -> sub::Output {
-    self.last_error = SandboxError {
-        kind:   map_kind(e.kind),
-        detail: e.detail,
-    };
-    return sub::Output { /* zeros */ };
-}
-```
-
-invoked at the call site as `let out = sub::spawn(opts) or
-self.bridge_spawn_err(err);`. Codegen rejects the signature:
-
-```
-codegen error: unsupported in codegen v0: qualified type
-`sub::SpawnError` not in stdlib path-renames table
-```
-
-The same shape works fine when written **as a locus method
-inside the example** (see `../../subprocess/examples/run-demo/
-main.hl`'s `fn report(e: sub::SpawnError) -> sub::Output`) but
-fails when the locus is itself in a library file that's then
-imported by another seed. The codegen v0 path-rename table is
-populated for the *example*'s import set but not for nested-
-importer cases.
-
-**Workaround in this lib**: since `sub::spawn` always fails
-with kind="unsupported" today anyway, `run_file` short-circuits
-without making the call — it populates `self.last_error`
-preemptively and returns the sentinel. Once the underlying
-spawn primitive ships AND the codegen-v0 limitation is
-resolved (or once we find a way to bridge through a free fn
-in the bridging seed), the body flips to actually invoke
-`sub::spawn` and the bridge fn comes back online.
-
-**duplicate-suspected**: same wall `pond/jobs` hits when wrapping
-`db::DbError` (`pond/jobs/query.hl` declares
-`fn __bridge_db_exec(e: db::DbError) -> db::ExecResult fallible(JobError)`
-and that build fails with the analogous diagnostic). Every
-"wrap another pond lib's fallible surface" lib trips this.
-Worth a path-rename-table generalization for nested imports.
+Previously documented: a locus-method body that declared an
+error-check fn like `fn bridge_spawn_err(e: sub::SpawnError) ->
+sub::Output { ... }` would trip
+`codegen error: unsupported in codegen v0: qualified type
+\`sub::SpawnError\` not in stdlib path-renames table` when the
+lib was cross-seed-imported. As of v0.8.1's user-declared-locus-
+method fallible support (#24 v0.2), the migrated source shape uses
+`fn raise_spawn(e: sub::SpawnError) -> sub::Output fallible(SandboxError)`
+inside `Sandbox` and `hale build` accepts it cross-seed. The
+sibling claim that `pond/jobs/query.hl` hits the analogous
+issue is preserved in `pond/jobs/FRICTION.md`; this lib doesn't
+hit it on the migrated path.
 
 ## 3. Desired shape for sandbox-specific extensions (long-term)
 
@@ -238,25 +138,6 @@ This is a v2 surface — the locus would internally hold a
 `sub::Process` child and forward its bus topics. Requires
 pond/subprocess Phase B (the streaming Process locus) which is
 itself blocked.
-
----
-
-## 4. What's stubbed, what works
-
-| Surface                                                                   | Status |
-|---------------------------------------------------------------------------|--------|
-| `type SandboxResult`                                                      | declared, complete |
-| `type SandboxError`                                                       | declared, complete |
-| `locus Sandbox` shape (params, closure, lifecycle)                        | declared, complete |
-| `Sandbox.run_code / run_file`                                             | stubs; delegate to `sub::spawn` which always fails "unsupported" today |
-| `Sandbox.report / handle_err`                                             | declared, wired |
-| `run_code_at / run_file_at` (free-fn fallible wrappers)                   | declared, wired |
-| `examples/run-python/main.hl`                                             | exercises the full shape; runs and prints the BLOCKED sentinel today |
-
-When `pond/subprocess` unblocks, the work needed in this lib is
-purely body-substitution inside `Sandbox.run_code` (the temp-file
-write path) — every signature, every other body, every error
-mapping stays put.
 
 ---
 
