@@ -499,80 +499,16 @@ locus Registry {
         histograms: HistogramList;
     }
 
-    // `counter(name, labels) -> Counter` — register-or-fetch a
-    // counter series. Idempotent: a second call with the same
-    // (name, labels) returns a handle pointing at the same
-    // entry without resetting the value.
-    fn counter(name: String, labels: Labels) -> Counter {
-        let k = metric_key(name, labels);
-        if !self.store.has(k) {
-            self.store.set(MetricEntry {
-                key:      k,
-                name:     name,
-                labels:   labels.kv,
-                kind:     0,
-                value:    0.0,
-                hist_idx: -1
-            });
-        }
-        return Counter { store: self.store, key: k };
-    }
-
-    // `gauge(name, labels) -> Gauge` — register-or-fetch a
-    // gauge series. Same idempotent shape as `counter()`.
-    fn gauge(name: String, labels: Labels) -> Gauge {
-        let k = metric_key(name, labels);
-        if !self.store.has(k) {
-            self.store.set(MetricEntry {
-                key:      k,
-                name:     name,
-                labels:   labels.kv,
-                kind:     1,
-                value:    0.0,
-                hist_idx: -1
-            });
-        }
-        return Gauge { store: self.store, key: k };
-    }
-
-    // `histogram(name, buckets, labels) -> Histogram` —
-    // register a histogram. `buckets` is a flat Matrix of
-    // bucket upper bounds in ascending order; the +Inf bucket
-    // is implicit (one extra count slot per Prometheus
-    // convention).
-    fn histogram(name: String, buckets: mat::Matrix, labels: Labels) -> Histogram {
-        let k = metric_key(name, labels);
-        if !self.store.has(k) {
-            let nb = buckets.len();
-            let bounds_csv = floats_to_csv(buckets);
-            let counts_csv = zero_counts_csv(nb + 1);
-            self.histograms.push(HistogramData {
-                name:       name,
-                labels:     labels.kv,
-                bounds_csv: bounds_csv,
-                counts_csv: counts_csv,
-                sum:        0.0,
-                count:      0
-            });
-            let new_idx = self.histograms.len() - 1;
-            self.store.set(MetricEntry {
-                key:      k,
-                name:     name,
-                labels:   labels.kv,
-                kind:     2,
-                value:    0.0,
-                hist_idx: new_idx
-            });
-        }
-        let e = self.store.get(k) or MetricEntry { };
-        return Histogram {
-            store:        self.store,
-            histograms:   self.histograms,
-            key:          k,
-            hist_idx:     e.hist_idx,
-            bucket_count: buckets.len()
-        };
-    }
+    // Factory methods (counter / gauge / histogram) moved to
+    // free fns below per hale v0.8.2's m90 enforcement —
+    // methods on loci may not return locus values. The free-fn
+    // entity-creation pattern (`std::io::file::open`-shaped)
+    // stays compliant; the call site changes from
+    //   reg.counter("name", labels)
+    // to
+    //   metrics::counter(reg, "name", labels)
+    // and the rest of the API surface (Counter.inc / Gauge.set /
+    // Histogram.observe + Registry.render) is unchanged.
 
     // `render() -> String` — emit Prometheus text exposition
     // format. Iterates store in hash-table order (deterministic
@@ -640,6 +576,79 @@ locus Registry {
 // clauses. State changes that would constitute a structural
 // failure (e.g. monotonicity violation on histogram buckets)
 // route through the inline closure + `violate` channel.
+
+// =====================================================================
+// Factory free fns — entity-creation pattern per hale v0.8.2 m90
+// enforcement. Take Registry as an explicit first arg (since
+// methods on loci may not return locus values). Idempotent on
+// (name, labels): a second call with the same key returns a
+// handle pointing at the same MetricEntry without resetting.
+// =====================================================================
+
+fn counter(reg: Registry, name: String, labels: Labels) -> Counter {
+    let k = metric_key(name, labels);
+    if !reg.store.has(k) {
+        reg.store.set(MetricEntry {
+            key:      k,
+            name:     name,
+            labels:   labels.kv,
+            kind:     0,
+            value:    0.0,
+            hist_idx: -1
+        });
+    }
+    return Counter { store: reg.store, key: k };
+}
+
+fn gauge(reg: Registry, name: String, labels: Labels) -> Gauge {
+    let k = metric_key(name, labels);
+    if !reg.store.has(k) {
+        reg.store.set(MetricEntry {
+            key:      k,
+            name:     name,
+            labels:   labels.kv,
+            kind:     1,
+            value:    0.0,
+            hist_idx: -1
+        });
+    }
+    return Gauge { store: reg.store, key: k };
+}
+
+fn histogram(reg: Registry, name: String,
+             buckets: mat::Matrix, labels: Labels) -> Histogram {
+    let k = metric_key(name, labels);
+    if !reg.store.has(k) {
+        let nb = buckets.len();
+        let bounds_csv = floats_to_csv(buckets);
+        let counts_csv = zero_counts_csv(nb + 1);
+        reg.histograms.push(HistogramData {
+            name:       name,
+            labels:     labels.kv,
+            bounds_csv: bounds_csv,
+            counts_csv: counts_csv,
+            sum:        0.0,
+            count:      0
+        });
+        let new_idx = reg.histograms.len() - 1;
+        reg.store.set(MetricEntry {
+            key:      k,
+            name:     name,
+            labels:   labels.kv,
+            kind:     2,
+            value:    0.0,
+            hist_idx: new_idx
+        });
+    }
+    let e = reg.store.get(k) or MetricEntry { };
+    return Histogram {
+        store:        reg.store,
+        histograms:   reg.histograms,
+        key:          k,
+        hist_idx:     e.hist_idx,
+        bucket_count: buckets.len()
+    };
+}
 
 locus Counter {
     params {

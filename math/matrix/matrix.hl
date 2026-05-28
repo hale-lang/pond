@@ -73,32 +73,8 @@ locus Matrix {
         self.set(idx, v) or discard;
     }
 
-    // Return a freshly-allocated transpose. Per spec/semantics.md
-    // § "Method-returning-locus heap allocation (m90)" the returned
-    // Matrix lives in the lazy global payload arena and outlives
-    // the caller frame.
-    fn transpose() -> Matrix {
-        let out = Matrix { rows: self.cols, cols: self.rows };
-        // Fill the underlying vec with zeros first so `set` is
-        // legal at every (r, c) slot.
-        let n = out.rows * out.cols;
-        let mut z = 0;
-        while z < n {
-            out.push(0.0);
-            z = z + 1;
-        }
-        let mut tr = 0;
-        while tr < out.rows {
-            let mut tc = 0;
-            while tc < out.cols {
-                // out[tr, tc] = self[tc, tr]
-                out.set_at(tr, tc, self.at(tc, tr));
-                tc = tc + 1;
-            }
-            tr = tr + 1;
-        }
-        return out;
-    }
+    // transpose() removed as a method per hale v0.8.2 m90
+    // enforcement; lives below as a free fn.
 }
 
 // ===== free fns: bounds-check + index translation =====
@@ -182,176 +158,193 @@ fn check_dot_shapes(a_rows: Int, a_cols: Int, b_rows: Int, b_cols: Int)
 
 locus Mat {
     params { }
+    // Factory methods extracted to module-level free fns below
+    // per hale v0.8.2 m90 enforcement. The Mat locus is now an
+    // empty namespace placeholder kept for backwards-source-compat
+    // (callers that do `mat::Mat { }` still typecheck).
+}
 
-    // Sentinel "error" matrix. Callers check `is_error(m)` after
-    // any binary op whose contract claims `fallible(MatrixError)`.
-    fn error_matrix() -> Matrix {
-        return Matrix { rows: -1, cols: -1 };
+// ===== Free-fn factory + algebra surface =====
+
+// transpose(m) — freshly-allocated transpose. Replaces
+// Matrix.transpose().
+fn transpose(m: Matrix) -> Matrix {
+    let out = Matrix { rows: m.cols, cols: m.rows };
+    let n = out.rows * out.cols;
+    let mut z = 0;
+    while z < n {
+        out.push(0.0);
+        z = z + 1;
     }
-
-    fn is_error(m: Matrix) -> Bool {
-        if m.rows < 0 {
-            return true;
+    let mut tr = 0;
+    while tr < out.rows {
+        let mut tc = 0;
+        while tc < out.cols {
+            out.set_at(tr, tc, m.at(tc, tr));
+            tc = tc + 1;
         }
-        if m.cols < 0 {
-            return true;
-        }
-        return false;
+        tr = tr + 1;
     }
+    return out;
+}
 
-    // NaN-shaped Float for dot-product mismatch. IEEE 754 NaN is
-    // the only Float that compares unequal to itself; the helper
-    // is `is_nan(f) -> Bool`.
-    fn nan_sentinel() -> Float {
-        let a = 0.0;
-        let b = 0.0;
-        return a / b;
-    }
+// Sentinel "error" matrix. Callers check `is_error(m)` after
+// any binary op whose contract claims `fallible(MatrixError)`.
+fn error_matrix() -> Matrix {
+    return Matrix { rows: -1, cols: -1 };
+}
 
-    fn is_nan(f: Float) -> Bool {
-        // NaN is the only Float not equal to itself.
-        if f == f {
-            return false;
-        }
+fn is_error(m: Matrix) -> Bool {
+    if m.rows < 0 {
         return true;
     }
+    if m.cols < 0 {
+        return true;
+    }
+    return false;
+}
 
-    fn zeros(rows: Int, cols: Int) -> Matrix {
-        let m = Matrix { rows: rows, cols: cols };
-        let n = rows * cols;
-        let mut i = 0;
-        while i < n {
+// NaN-shaped Float for dot-product mismatch.
+fn nan_sentinel() -> Float {
+    let a = 0.0;
+    let b = 0.0;
+    return a / b;
+}
+
+fn is_nan(f: Float) -> Bool {
+    if f == f {
+        return false;
+    }
+    return true;
+}
+
+fn zeros(rows: Int, cols: Int) -> Matrix {
+    let m = Matrix { rows: rows, cols: cols };
+    let n = rows * cols;
+    let mut i = 0;
+    while i < n {
+        m.push(0.0);
+        i = i + 1;
+    }
+    return m;
+}
+
+fn eye(n: Int) -> Matrix {
+    let m = zeros(n, n);
+    let mut i = 0;
+    while i < n {
+        m.set_at(i, i, 1.0);
+        i = i + 1;
+    }
+    return m;
+}
+
+// Build from a comma-separated, row-by-row literal:
+// "1,2,3,4,5,6" with rows=2, cols=3 yields [[1,2,3],[4,5,6]].
+fn from_rows(rows: Int, cols: Int, data: String) -> Matrix {
+    let m = Matrix { rows: rows, cols: cols };
+    let n = rows * cols;
+    let total_len = len(data);
+    let mut filled = 0;
+    let mut i = 0;
+    while filled < n {
+        if i >= total_len {
             m.push(0.0);
-            i = i + 1;
-        }
-        return m;
-    }
-
-    fn eye(n: Int) -> Matrix {
-        let m = self.zeros(n, n);
-        let mut i = 0;
-        while i < n {
-            m.set_at(i, i, 1.0);
-            i = i + 1;
-        }
-        return m;
-    }
-
-    // Build from a comma-separated, row-by-row literal:
-    // "1,2,3,4,5,6" with rows=2, cols=3 yields [[1,2,3],[4,5,6]].
-    // Unparseable entries substitute 0.0; missing entries pad
-    // with 0.0 to `rows*cols`. Non-fallible.
-    fn from_rows(rows: Int, cols: Int, data: String) -> Matrix {
-        let m = Matrix { rows: rows, cols: cols };
-        let n = rows * cols;
-        let total_len = len(data);
-        let mut filled = 0;
-        let mut i = 0;
-        while filled < n {
-            if i >= total_len {
-                m.push(0.0);
-                filled = filled + 1;
-            } else {
-                let mut j = i;
-                let mut tok_end = total_len;
-                while j < total_len {
-                    let s = std::str::substring(data, j, j + 1);
-                    if s == "," {
-                        tok_end = j;
-                        j = total_len; // break
-                    } else {
-                        j = j + 1;
-                    }
+            filled = filled + 1;
+        } else {
+            let mut j = i;
+            let mut tok_end = total_len;
+            while j < total_len {
+                let s = std::str::substring(data, j, j + 1);
+                if s == "," {
+                    tok_end = j;
+                    j = total_len;
+                } else {
+                    j = j + 1;
                 }
-                let raw = std::str::substring(data, i, tok_end);
-                let trimmed = std::str::trim(raw);
-                let v = std::str::parse_float(trimmed) or 0.0;
-                m.push(v);
-                filled = filled + 1;
-                i = tok_end + 1;
             }
+            let raw = std::str::substring(data, i, tok_end);
+            let trimmed = std::str::trim(raw);
+            let v = std::str::parse_float(trimmed) or 0.0;
+            m.push(v);
+            filled = filled + 1;
+            i = tok_end + 1;
         }
-        return m;
     }
+    return m;
+}
 
-    // Naive triple-loop matmul. O(rows_a * cols_b * cols_a).
-    // Future perf passes can do tiling / SIMD without changing
-    // the surface. On shape mismatch returns the error sentinel
-    // (see `is_error`).
-    fn matmul(a: Matrix, b: Matrix) -> Matrix {
-        let _check = check_matmul_shapes(a.rows, a.cols, b.rows, b.cols)
-            or -1;
-        if _check < 0 {
-            return self.error_matrix();
-        }
-        let out = self.zeros(a.rows, b.cols);
-        let mut i = 0;
-        while i < a.rows {
-            let mut j = 0;
-            while j < b.cols {
-                let mut acc = 0.0;
-                let mut k = 0;
-                while k < a.cols {
-                    acc = acc + a.at(i, k) * b.at(k, j);
-                    k = k + 1;
-                }
-                out.set_at(i, j, acc);
-                j = j + 1;
+fn matmul(a: Matrix, b: Matrix) -> Matrix {
+    let _check = check_matmul_shapes(a.rows, a.cols, b.rows, b.cols)
+        or -1;
+    if _check < 0 {
+        return error_matrix();
+    }
+    let out = zeros(a.rows, b.cols);
+    let mut i = 0;
+    while i < a.rows {
+        let mut j = 0;
+        while j < b.cols {
+            let mut acc = 0.0;
+            let mut k = 0;
+            while k < a.cols {
+                acc = acc + a.at(i, k) * b.at(k, j);
+                k = k + 1;
             }
-            i = i + 1;
+            out.set_at(i, j, acc);
+            j = j + 1;
         }
-        return out;
+        i = i + 1;
     }
+    return out;
+}
 
-    fn add(a: Matrix, b: Matrix) -> Matrix {
-        let _check = check_same_shape(a.rows, a.cols, b.rows, b.cols)
-            or -1;
-        if _check < 0 {
-            return self.error_matrix();
-        }
-        let out = self.zeros(a.rows, a.cols);
-        let mut i = 0;
-        while i < a.rows {
-            let mut j = 0;
-            while j < a.cols {
-                out.set_at(i, j, a.at(i, j) + b.at(i, j));
-                j = j + 1;
-            }
-            i = i + 1;
-        }
-        return out;
+fn add(a: Matrix, b: Matrix) -> Matrix {
+    let _check = check_same_shape(a.rows, a.cols, b.rows, b.cols)
+        or -1;
+    if _check < 0 {
+        return error_matrix();
     }
+    let out = zeros(a.rows, a.cols);
+    let mut i = 0;
+    while i < a.rows {
+        let mut j = 0;
+        while j < a.cols {
+            out.set_at(i, j, a.at(i, j) + b.at(i, j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return out;
+}
 
-    fn scale(a: Matrix, k: Float) -> Matrix {
-        let out = self.zeros(a.rows, a.cols);
-        let mut i = 0;
-        while i < a.rows {
-            let mut j = 0;
-            while j < a.cols {
-                out.set_at(i, j, a.at(i, j) * k);
-                j = j + 1;
-            }
-            i = i + 1;
+fn scale(a: Matrix, k: Float) -> Matrix {
+    let out = zeros(a.rows, a.cols);
+    let mut i = 0;
+    while i < a.rows {
+        let mut j = 0;
+        while j < a.cols {
+            out.set_at(i, j, a.at(i, j) * k);
+            j = j + 1;
         }
-        return out;
+        i = i + 1;
     }
+    return out;
+}
 
-    // Vector dot product. On shape mismatch returns NaN (check
-    // with `is_nan`). On empty returns NaN as well.
-    fn dot(a: Matrix, b: Matrix) -> Float {
-        let na = check_dot_shapes(a.rows, a.cols, b.rows, b.cols)
-            or -1;
-        if na < 0 {
-            return self.nan_sentinel();
-        }
-        let mut acc = 0.0;
-        let mut i = 0;
-        while i < na {
-            let av = a.get(i) or 0.0;
-            let bv = b.get(i) or 0.0;
-            acc = acc + av * bv;
-            i = i + 1;
-        }
-        return acc;
+fn dot(a: Matrix, b: Matrix) -> Float {
+    let na = check_dot_shapes(a.rows, a.cols, b.rows, b.cols)
+        or -1;
+    if na < 0 {
+        return nan_sentinel();
     }
+    let mut acc = 0.0;
+    let mut i = 0;
+    while i < na {
+        let av = a.get(i) or 0.0;
+        let bv = b.get(i) or 0.0;
+        acc = acc + av * bv;
+        i = i + 1;
+    }
+    return acc;
 }
