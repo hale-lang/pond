@@ -1,0 +1,328 @@
+// pond/websocket/server — server-side WebSocket connection wrapper.
+//
+// The inverse of `client.hl`'s WsClient. Wraps one accepted TCP
+// connection, drives the server-side RFC 6455 handshake, and
+// exposes the same `read_msg` / `send_text` / `send_binary`
+// surface for the connection's lifetime.
+//
+// **Driver model**: owner-driven, exactly like WsClient. The
+// owning locus's run() body calls `read_msg()` in a loop and
+// inspects `last_message` via the contract. Async I/O parking
+// (when placed on a `where async_io` pool) happens transparently
+// inside the recv path; user code stays synchronous-shaped.
+//
+// **Single connection**: this locus is the per-connection state.
+// An accept-loop locus (typically pinned) accepts inbound TCP
+// connections, publishes the fd on a bus topic, and a dispatcher
+// locus inline-instantiates one `WsServerConn` per event in a
+// handler that runs on the async_io pool — the F.35-shaped
+// pattern.
+//
+// **Surface (mirrors WsClient)**:
+//   birth(fd)        — wraps the accepted fd; no I/O yet
+//   handshake()      — read upgrade request, send 101 response
+//                      (returns false if handshake invalid)
+//   read_msg()       — block (or park) until next message
+//   send_text(s)     — send a text frame (unmasked, server-shape)
+//   send_binary(b)   — send a binary frame
+//   close()          — send close frame + tear down
+
+// Same-seed siblings (types/frame/handshake/loggers) are
+// referenced bare per the pond/websocket multi-file
+// convention — see client.hl for the same pattern.
+
+locus WsServerConn {
+    params {
+        // ---- inputs ----
+        conn_fd: Int = -1;
+
+        // ---- internal state ----
+        handshake_done: Bool = false;
+        connected:      Bool = false;
+
+        rx_buf: std::bytes::BytesBuilder
+              = std::bytes::BytesBuilder { initial_cap: 8192 };
+
+        frag_kind: String = "";
+        frag_buf:  std::bytes::BytesBuilder
+                 = std::bytes::BytesBuilder { initial_cap: 1024 };
+
+        scratch_buf: std::bytes::BytesBuilder
+                   = std::bytes::BytesBuilder { initial_cap: 128 };
+
+        // ---- exposed via contract ----
+        last_message: WsMessage;
+        last_error:   WsError;
+
+        frames_received: Int = 0;
+        frames_sent:     Int = 0;
+
+        // ---- diagnostic logger ----
+        logger: WsLogger =   StderrWsLogger { };
+
+        // recv chunk size
+        recv_chunk: Int = 4096;
+    }
+
+    contract {
+        expose connected:        Bool;
+        expose last_message:     WsMessage;
+        expose last_error:       WsError;
+        expose frames_received:  Int;
+        expose frames_sent:      Int;
+    }
+
+    birth() {
+        // No I/O at birth — the caller has already accepted the
+        // connection. `handshake()` does the protocol exchange.
+        self.connected = true;
+    }
+
+    // handshake — read the client's HTTP/1.1 upgrade request,
+    // validate the Sec-WebSocket-Key, send the 101 response.
+    // Returns true on success; false on malformed / non-upgrade
+    // requests (a 400 response is sent before tearing down).
+    fn handshake() -> Bool {
+        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd };
+
+        // Read until we have a full HTTP request (terminated by
+        // \r\n\r\n). Cap at 16 KB — anything bigger isn't a
+        // real handshake.
+        self.rx_buf.clear();
+        let mut total = 0;
+        let cap = 16384;
+        while total < cap {
+            let chunk = stream.recv_bytes(self.recv_chunk);
+            let got = len(chunk);
+            if got <= 0 {
+                self.last_error = WsError {
+                    kind:   "handshake",
+                    detail: "peer closed before upgrade headers complete",
+                };
+                self.logger.on_event(WsLogEvent {
+                    phase:  "handshake",
+                    detail: "peer closed",
+                    bytes:  total,
+                    op:     -1,
+                });
+                self.connected = false;
+                return false;
+            }
+            self.rx_buf.append(chunk);
+            total = total + got;
+            let snap = self.rx_buf.snapshot();
+            let s = std::str::from_bytes(snap);
+            if std::str::index_of(s, "\r\n\r\n") >= 0 {
+                total = cap;     // exit loop
+            }
+        }
+
+        let req_bytes = self.rx_buf.snapshot();
+        println("[ws.server] handshake recv len=", len(req_bytes));
+        let req_str = std::str::from_bytes(req_bytes);
+        println("[ws.server] request first 200 chars:");
+        println(req_str);
+        let req =   parse_request(req_bytes);
+        println("[ws.server] parsed: path=", req.path,
+                " key=", req.key,
+                " has_upgrade=", req.has_upgrade,
+                " version=", req.version);
+
+        if !req.has_upgrade || req.key == "" {
+            let body =   build_400_response("missing Upgrade or Sec-WebSocket-Key");
+            stream.send_bytes(body);
+            self.last_error = WsError {
+                kind:   "handshake",
+                detail: "not a websocket upgrade",
+            };
+            self.connected = false;
+            return false;
+        }
+
+        let accept_key =   compute_accept(req.key);
+        let resp       =   build_101_response(accept_key);
+        stream.send_bytes(resp);
+
+        self.handshake_done = true;
+        self.rx_buf.clear();
+
+        self.logger.on_event(WsLogEvent {
+            phase:  "handshake",
+            detail: "101 sent for path " + req.path,
+            bytes:  len(resp),
+            op:     -1,
+        });
+        return true;
+    }
+
+    // read_msg — block (or park on async_io) until the next
+    // application-level message arrives. Continuation frames
+    // are reassembled into frag_buf; control frames (ping/close)
+    // are handled inline. Returns false on EOF / framing error;
+    // caller inspects `self.last_error` and `self.last_message`.
+    fn read_msg() -> Bool {
+        if !self.handshake_done {
+            self.last_error = WsError {
+                kind:   "framing",
+                detail: "read_msg before handshake",
+            };
+            return false;
+        }
+        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd };
+
+        while true {
+            // Ensure we have at least 2 bytes (min frame header).
+            while self.rx_buf.len() < 2 {
+                let chunk = stream.recv_bytes(self.recv_chunk);
+                let got = len(chunk);
+                if got <= 0 {
+                    self.last_error = WsError {
+                        kind:   "io",
+                        detail: "peer closed",
+                    };
+                    self.connected = false;
+                    return false;
+                }
+                self.rx_buf.append(chunk);
+            }
+
+            let buf = self.rx_buf.snapshot();
+            let hdr =   peek_header(buf, 0) or __raise_framing(err, self);
+            if hdr.total <= 0 {
+                return false;
+            }
+
+            // Wait until we have the full frame.
+            while self.rx_buf.len() < hdr.total {
+                let chunk = stream.recv_bytes(self.recv_chunk);
+                let got = len(chunk);
+                if got <= 0 {
+                    self.last_error = WsError {
+                        kind:   "io",
+                        detail: "peer closed mid-frame",
+                    };
+                    self.connected = false;
+                    return false;
+                }
+                self.rx_buf.append(chunk);
+            }
+
+            let full = self.rx_buf.snapshot();
+            self.frames_received = self.frames_received + 1;
+
+            // Unmask payload into scratch (client-to-server is
+            // always masked per RFC 6455 § 5.1).
+            self.scratch_buf.clear();
+              unmask_into(self.scratch_buf, full,
+                            hdr.payload_off, hdr.payload_len,
+                            hdr.masked,
+                            hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
+            let payload = self.scratch_buf.snapshot();
+
+            // Consume the frame from rx_buf.
+            self.rx_buf.shift_front(hdr.total);
+
+            let kind =   opcode_to_kind(hdr.opcode);
+
+            // Control frames: handle inline, then loop for the
+            // next frame.
+            if kind == "ping" {
+                let pong =   emit_server_frame(true, 10, payload);
+                stream.send_bytes(pong);
+                self.frames_sent = self.frames_sent + 1;
+            } else if kind == "close" {
+                let close =   emit_server_frame(true, 8, payload);
+                stream.send_bytes(close);
+                self.frames_sent = self.frames_sent + 1;
+                self.connected = false;
+                self.last_error = WsError {
+                    kind:   "close",
+                    detail: "peer requested close",
+                };
+                return false;
+            } else if kind == "pong" {
+                // Drop silently.
+            } else {
+                // Data frame: handle fragmentation.
+                if !hdr.fin {
+                    if kind != "continuation" {
+                        self.frag_kind = kind;
+                        self.frag_buf.clear();
+                    }
+                    self.frag_buf.append(payload);
+                } else {
+                    if kind == "continuation" {
+                        self.frag_buf.append(payload);
+                        self.last_message = WsMessage {
+                            kind:  self.frag_kind,
+                            text:  self.frag_buf.text_view(),
+                            bytes: self.frag_buf.view(),
+                        };
+                        self.frag_kind = "";
+                    } else {
+                        // Single-frame message — stash into
+                        // frag_buf so the view outlives this
+                        // method's stack frame (consumer reads
+                        // last_message.{text,bytes} after we
+                        // return).
+                        self.frag_buf.clear();
+                        self.frag_buf.append(payload);
+                        self.last_message = WsMessage {
+                            kind:  kind,
+                            text:  self.frag_buf.text_view(),
+                            bytes: self.frag_buf.view(),
+                        };
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    fn send_text(s: String) -> Bool {
+        return self.send_frame(1, std::bytes::from_string(s));
+    }
+
+    fn send_binary(b: Bytes) -> Bool {
+        return self.send_frame(2, b);
+    }
+
+    fn send_frame(opcode: Int, payload: Bytes) -> Bool {
+        if !self.connected {
+            return false;
+        }
+        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd };
+        let frame =   emit_server_frame(true, opcode, payload);
+        stream.send_bytes(frame);
+        self.frames_sent = self.frames_sent + 1;
+        return true;
+    }
+
+    fn close() {
+        if !self.connected {
+            return;
+        }
+        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd };
+        let close =   emit_server_frame(true, 8, b"");
+        stream.send_bytes(close);
+        self.frames_sent = self.frames_sent + 1;
+        self.connected = false;
+    }
+}
+
+// ===== free-fn helpers =====
+
+fn __raise_framing(e: WsError, c: WsServerConn) ->   FrameHeader {
+    c.last_error = WsError {
+        kind:   "framing",
+        detail: e.detail,
+    };
+    c.connected = false;
+    return   FrameHeader {
+        fin:    false,
+        opcode: 0,
+        total:  -1,
+    };
+}
+

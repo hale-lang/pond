@@ -98,3 +98,171 @@ fn ends_with_crlf(s: String) -> Bool {
     let tail = s[n-2..n];
     return tail == "\r\n";
 }
+
+// ===== server-side handshake =====
+//
+// Mirror of the client side: parse the inbound HTTP/1.1 upgrade
+// request, compute Sec-WebSocket-Accept per RFC 6455 § 4.2.2,
+// and assemble the 101 Switching Protocols response.
+//
+// Now that std::crypto::sha1 + std::text::base64::encode exist
+// (verified 2026-05-28 against compiler tests
+// crates/hale-codegen/tests/sha1_base64.rs), the FRICTION note
+// at the head of this file is stale for the server side: the
+// math is fully expressible.
+//
+// Per RFC 6455 § 4.2.2:
+//   Sec-WebSocket-Accept = base64(sha1(client_key + WS_MAGIC_GUID))
+
+// WS_MAGIC_GUID — fixed string defined by RFC 6455 § 1.3.
+fn ws_magic_guid() -> String {
+    return "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+}
+
+// WsUpgradeRequest — fields extracted from the client's HTTP/1.1
+// upgrade request. All strings are zero-default; callers check
+// `key != ""` to detect "no key header found, not a real upgrade".
+type WsUpgradeRequest {
+    path:        String = "/";
+    key:         String = "";
+    version:     String = "";    // expect "13"
+    has_upgrade: Bool   = false; // true if Upgrade: websocket present
+}
+
+// parse_request — pull the upgrade-relevant headers out of an
+// inbound HTTP/1.1 request blob. Tolerant of header order and
+// the LWS / case-insensitivity rules per RFC 7230 (header names
+// matched case-insensitively).
+//
+// Returns a zero-default WsUpgradeRequest on parse error (no
+// Sec-WebSocket-Key found) — caller checks `req.key != ""` to
+// gate the upgrade response.
+fn parse_request(b: Bytes) -> WsUpgradeRequest {
+    let s = std::str::from_bytes(b);
+    let total = len(s);
+
+    // Find end-of-headers — \r\n\r\n. If absent we treat the
+    // whole buffer as still-headers and try anyway; callers
+    // should ensure they've read at least one full request.
+    let mut head_end = std::str::index_of(s, "\r\n\r\n");
+    if head_end < 0 {
+        head_end = total;
+    }
+
+    let mut out = WsUpgradeRequest {
+        path:        "/",
+        key:         "",
+        version:     "",
+        has_upgrade: false,
+    };
+
+    // Request line: "GET <path> HTTP/1.1\r\n"
+    let first_crlf = std::str::index_of(s, "\r\n");
+    if first_crlf > 4 {
+        let request_line = s[0..first_crlf];
+        // Strip "GET " prefix and " HTTP/x.x" suffix to leave path.
+        let after_method = std::str::index_of(request_line, " ");
+        if after_method > 0 {
+            let rest = request_line[after_method+1..len(request_line)];
+            let space2 = std::str::index_of(rest, " ");
+            if space2 > 0 {
+                out.path = rest[0..space2];
+            } else {
+                out.path = rest;
+            }
+        }
+    }
+
+    // Walk header lines.
+    let mut cursor = first_crlf + 2;
+    while cursor < head_end {
+        let line_end = std::str::index_of(s[cursor..head_end], "\r\n");
+        if line_end < 0 {
+            cursor = head_end;
+        } else {
+            let line = s[cursor..cursor+line_end];
+            __apply_header(line, out);
+            cursor = cursor + line_end + 2;
+        }
+    }
+
+    return out;
+}
+
+// __apply_header — recognize one header line and update the
+// passed-by-locus-ref WsUpgradeRequest. Header name match is
+// case-insensitive (per RFC 7230 § 3.2). Skips leading LWS in
+// the value.
+fn __apply_header(line: String, out: WsUpgradeRequest) {
+    let colon = std::str::index_of(line, ":");
+    if colon < 1 {
+        return;
+    }
+    let name_lc = std::str::lower(line[0..colon]);
+    let line_len = len(line);
+    let mut vs = colon + 1;
+    while vs < line_len {
+        let ch = line[vs..vs+1];
+        if ch != " " && ch != "\t" {
+            __set_header_field(name_lc, line[vs..line_len], out);
+            return;
+        }
+        vs = vs + 1;
+    }
+    __set_header_field(name_lc, "", out);
+}
+
+fn __set_header_field(name_lc: String, value: String, out: WsUpgradeRequest) {
+    if name_lc == "sec-websocket-key" {
+        out.key = value;
+        return;
+    }
+    if name_lc == "sec-websocket-version" {
+        out.version = value;
+        return;
+    }
+    if name_lc == "upgrade" {
+        if std::str::lower(value) == "websocket" {
+            out.has_upgrade = true;
+        }
+        return;
+    }
+}
+
+// compute_accept — RFC 6455 § 4.2.2 derivation.
+// accept = base64(sha1(client_key + WS_MAGIC_GUID))
+fn compute_accept(client_key: String) -> String {
+    let concat = client_key + ws_magic_guid();
+    let digest = std::crypto::sha1(std::bytes::from_string(concat));
+    return std::text::base64::encode(digest);
+}
+
+// build_101_response — server's HTTP/1.1 101 Switching Protocols
+// reply. After sending these bytes the socket is in WebSocket
+// framed mode.
+fn build_101_response(accept_key: String) -> Bytes {
+    let mut s = "HTTP/1.1 101 Switching Protocols\r\n";
+    s = s + "Upgrade: websocket\r\n";
+    s = s + "Connection: Upgrade\r\n";
+    s = s + "Sec-WebSocket-Accept: " + accept_key + "\r\n";
+    s = s + "\r\n";
+    return std::bytes::from_string(s);
+}
+
+// build_400_response — fallback when the inbound request isn't a
+// valid WS upgrade. Used by WsServer to return a basic HTTP error
+// so clients don't hang waiting for a response on a misrouted
+// request.
+fn build_400_response(reason: String) -> Bytes {
+    // Connection: close lets the client detect end-of-body on
+    // socket close, dodging the need for a Content-Length header
+    // (which would require Int-to-String — codegen v0 doesn't
+    // surface `std::str::from_int` yet).
+    let body = "400 Bad Request: " + reason + "\r\n";
+    let mut s = "HTTP/1.1 400 Bad Request\r\n";
+    s = s + "Content-Type: text/plain; charset=utf-8\r\n";
+    s = s + "Connection: close\r\n";
+    s = s + "\r\n";
+    s = s + body;
+    return std::bytes::from_string(s);
+}

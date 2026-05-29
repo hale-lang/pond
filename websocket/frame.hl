@@ -275,6 +275,51 @@ fn emit_frame(fin: Bool, opcode: Int, payload: Bytes, mask_seed: Int) -> Bytes {
     return bldr.finish();
 }
 
+// emit_server_frame — serialize one outbound frame for server-
+// to-client transmission. Per RFC 6455 § 5.1 server-to-client
+// frames MUST NOT be masked, so we omit the masking key and
+// XOR step entirely. Same length-prefix encoding as
+// `emit_frame`; just the MASK bit (high bit on byte 1) stays
+// clear.
+fn emit_server_frame(fin: Bool, opcode: Int, payload: Bytes) -> Bytes {
+    let n = len(payload);
+    let bldr = std::bytes::BytesBuilder { initial_cap: n + 10 };
+
+    // Byte 0: FIN bit (high) | RSV1/2/3 (0) | opcode (low 4).
+    let mut b0 = opcode;
+    if fin { b0 = b0 + 128; }
+    bldr.append(std::bytes::from_int(b0));
+
+    // Byte 1: MASK bit (0 for server) | length code.
+    if n < 126 {
+        bldr.append(std::bytes::from_int(n));
+    } else {
+        if n < 65536 {
+            bldr.append(std::bytes::from_int(126));
+            bldr.append(std::bytes::from_int(n / 256));
+            bldr.append(std::bytes::from_int(n - (n / 256) * 256));
+        } else {
+            bldr.append(std::bytes::from_int(127));
+            bldr.append(std::bytes::from_int(0));
+            bldr.append(std::bytes::from_int(0));
+            bldr.append(std::bytes::from_int(0));
+            bldr.append(std::bytes::from_int(0));
+            let a = (n / 16777216) - ((n / 16777216) / 256) * 256;
+            let b1 = (n / 65536)   - ((n / 65536)   / 256) * 256;
+            let c = (n / 256)      - ((n / 256)      / 256) * 256;
+            let d = n - (n / 256) * 256;
+            bldr.append(std::bytes::from_int(a));
+            bldr.append(std::bytes::from_int(b1));
+            bldr.append(std::bytes::from_int(c));
+            bldr.append(std::bytes::from_int(d));
+        }
+    }
+
+    // Unmasked payload, copied verbatim.
+    bldr.append(payload);
+    return bldr.finish();
+}
+
 // byte_at — wrapper around std::bytes::at that surfaces a 0 on
 // out-of-bounds (all real fault detection happens in the
 // explicit guards above). Same shape every binary parser in

@@ -92,15 +92,17 @@ fn __build_request_headers(req: Request, user_agent: String) -> String {
 // `max_total` is hit. Caller has already sent the request; this
 // reads the whole response in one go.
 //
-// Accumulates via std::bytes::builder_* (binary-safe). Previous
+// Accumulates via std::bytes::BytesBuilder (binary-safe). Earlier
 // v1 shape round-tripped through the str-builder, which strlen-
 // truncates at the first embedded NUL — fatal for binary response
 // bodies (images, gRPC frames, etc). The bytes-builder primitive
-// (C10, upstream 894f393) preserves embedded NULs end-to-end.
+// preserves embedded NULs end-to-end. Migrated to the locus-shaped
+// surface after hale dropped the free-fn surface in favor of a
+// long-lived locus (runtime/stdlib/bytes_builder.hl).
 fn __recv_response_bytes(s: __HttpConn, max_total: Int) -> Bytes {
     let chunk_size = 8192;
     let mut total = 0;
-    let buf = std::bytes::builder_new();
+    let buf = std::bytes::BytesBuilder { initial_cap: 4096 };
 
     while total < max_total {
         let want = max_total - total;
@@ -110,13 +112,13 @@ fn __recv_response_bytes(s: __HttpConn, max_total: Int) -> Bytes {
         let n = len(piece);
         if n <= 0 {
             // Peer closed (or error). Done.
-            return std::bytes::builder_finish(buf);
+            return buf.snapshot();
         }
         // Append the raw Bytes chunk; embedded NULs preserved.
-        std::bytes::builder_append(buf, piece);
+        buf.append(piece);
         total = total + n;
     }
-    return std::bytes::builder_finish(buf);
+    return buf.snapshot();
 }
 
 // Parse status line "HTTP/1.1 NNN PHRASE\r\n" — returns the
