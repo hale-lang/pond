@@ -118,15 +118,13 @@ locus WsServerConn {
         }
 
         let req_bytes = self.rx_buf.snapshot();
-        println("[ws.server] handshake recv len=", len(req_bytes));
-        let req_str = std::str::from_bytes(req_bytes);
-        println("[ws.server] request first 200 chars:");
-        println(req_str);
-        let req =   parse_request(req_bytes);
-        println("[ws.server] parsed: path=", req.path,
-                " key=", req.key,
-                " has_upgrade=", req.has_upgrade,
-                " version=", req.version);
+        let req = parse_request(req_bytes);
+        self.logger.on_event(WsLogEvent {
+            phase:  "handshake",
+            detail: "recv upgrade path=" + req.path,
+            bytes:  len(req_bytes),
+            op:     -1,
+        });
 
         if !req.has_upgrade || req.key == "" {
             let body =   build_400_response("missing Upgrade or Sec-WebSocket-Key");
