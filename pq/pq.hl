@@ -39,6 +39,10 @@ locus PgConn {
         sock:      Int  = -1;
         connected: Bool = false;
 
+        // Transaction state, tracked from the backend's
+        // ReadyForQuery indicator: "idle" | "in_tx" | "aborted".
+        txn_state: String = "idle";
+
         rx_buf: std::bytes::BytesBuilder
               = std::bytes::BytesBuilder { initial_cap: 8192 };
 
@@ -126,6 +130,51 @@ locus PgConn {
         return db::Rows { ok: true, csv: r.csv, n: r.n };
     }
 
+    // ===== parameterized (extended-query) surface =====
+
+    fn exec_params(sql: String, args: db::Args) -> db::ExecResult {
+        let r = self.__run_ext(sql, args);
+        if !r.ok {
+            return db::ExecResult { ok: false,
+                err: db::DbError { kind: r.err_kind, engine_code: 0, detail: r.err_detail } };
+        }
+        return db::ExecResult { ok: true, rows_affected: __tag_rows(r.cmd_tag), last_insert_rowid: 0 };
+    }
+
+    fn query_params(sql: String, args: db::Args) -> db::Rows {
+        let r = self.__run_ext(sql, args);
+        if !r.ok {
+            return db::Rows { ok: false,
+                err: db::DbError { kind: r.err_kind, engine_code: 0, detail: r.err_detail } };
+        }
+        return db::Rows { ok: true, csv: r.csv, n: r.n };
+    }
+
+    fn __run_ext(sql: String, args: db::Args) -> __PgResult {
+        if !self.connected {
+            return __PgResult { ok: false, err_kind: "io", err_detail: "not connected" };
+        }
+        let stream = std::io::tcp::Stream { conn_fd: self.sock };
+        stream.send_bytes(build_extended(sql, args));
+        return self.__pump();
+    }
+
+    // ===== transactions =====
+
+    fn begin()    -> db::Status { return self.__tx_cmd("BEGIN"); }
+    fn commit()   -> db::Status { return self.__tx_cmd("COMMIT"); }
+    fn rollback() -> db::Status { return self.__tx_cmd("ROLLBACK"); }
+    fn tx_status() -> String    { return self.txn_state; }
+
+    fn __tx_cmd(cmd: String) -> db::Status {
+        let r = self.__run(cmd);
+        if !r.ok {
+            return db::Status { ok: false,
+                err: db::DbError { kind: r.err_kind, engine_code: 0, detail: r.err_detail } };
+        }
+        return db::Status { ok: true };
+    }
+
     // __run — one simple-query round trip.
     fn __run(sql: String) -> __PgResult {
         if !self.connected {
@@ -170,7 +219,10 @@ locus PgConn {
             }
             let msg = self.rx_buf.snapshot();
             __handle_msg(mtype, msg, total, res);
-            if mtype == 90 { done = true; }    // 'Z' ReadyForQuery
+            if mtype == 90 {                   // 'Z' ReadyForQuery
+                done = true;
+                self.txn_state = __zstatus(byte_at(msg, 5));
+            }
             self.rx_buf.shift_front(total);
         }
         return res;
@@ -181,6 +233,77 @@ locus PgConn {
 
 fn __on_connect_fail(e: IoError) -> Int {
     return -1;
+}
+
+// __zstatus — map the ReadyForQuery indicator byte to a name.
+//   'I' (73) idle   'T' (84) in transaction   'E' (69) aborted
+fn __zstatus(b: Int) -> String {
+    if b == 84 { return "in_tx"; }
+    if b == 69 { return "aborted"; }
+    return "idle";
+}
+
+// build_extended — Parse + Bind + Execute + Sync for one
+// parameterized statement (unnamed prepared stmt + portal, text
+// param format, text result format). The backend replies
+// ParseComplete/BindComplete (ignored by __handle_msg) then the
+// usual DataRow*/CommandComplete/ErrorResponse/ReadyForQuery.
+fn build_extended(sql: String, args: db::Args) -> Bytes {
+    let out = std::bytes::BytesBuilder { initial_cap: 256 };
+
+    // Parse 'P': dest"" query num_param_oids(0=infer)
+    let pb = std::bytes::BytesBuilder { initial_cap: 128 };
+    pb.append(std::bytes::from_int(0));               // unnamed dest
+    pb.append(std::bytes::from_string(sql));
+    pb.append(std::bytes::from_int(0));               // query NUL
+    be16_append(pb, 0);                               // 0 param-type oids
+    let pp = pb.snapshot();
+    out.append(std::bytes::from_int(80));             // 'P'
+    be32_append(out, len(pp) + 4);
+    out.append(pp);
+
+    // Bind 'B': portal"" stmt"" fmtcodes(0=text) nparams params... rfmt(0=text)
+    let bb = std::bytes::BytesBuilder { initial_cap: 128 };
+    bb.append(std::bytes::from_int(0));               // unnamed portal
+    bb.append(std::bytes::from_int(0));               // unnamed stmt
+    be16_append(bb, 0);                               // 0 param format codes -> all text
+    let nargs = args.count();
+    be16_append(bb, nargs);
+    let mut i = 0;
+    while i < nargs {
+        if args.null_at(i) {
+            // Int32 -1 (NULL) = four 0xFF bytes
+            bb.append(std::bytes::from_int(255));
+            bb.append(std::bytes::from_int(255));
+            bb.append(std::bytes::from_int(255));
+            bb.append(std::bytes::from_int(255));
+        } else {
+            let v = std::bytes::from_string(args.val_at(i));
+            be32_append(bb, len(v));
+            bb.append(v);
+        }
+        i = i + 1;
+    }
+    be16_append(bb, 0);                               // 0 result format codes -> all text
+    let bbs = bb.snapshot();
+    out.append(std::bytes::from_int(66));             // 'B'
+    be32_append(out, len(bbs) + 4);
+    out.append(bbs);
+
+    // Execute 'E': portal"" maxrows(0=all)
+    let eb = std::bytes::BytesBuilder { initial_cap: 8 };
+    eb.append(std::bytes::from_int(0));               // unnamed portal
+    be32_append(eb, 0);                               // all rows
+    let ebs = eb.snapshot();
+    out.append(std::bytes::from_int(69));             // 'E'
+    be32_append(out, len(ebs) + 4);
+    out.append(ebs);
+
+    // Sync 'S'
+    out.append(std::bytes::from_int(83));             // 'S'
+    be32_append(out, 4);
+
+    return out.finish();
 }
 
 // __handle_msg — dispatch one complete backend message. Mutates
