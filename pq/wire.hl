@@ -1,0 +1,101 @@
+// pond/pq/wire — PostgreSQL frontend/backend protocol v3 codec.
+//
+// Pure-Hale pgwire over std::io::tcp — no FFI. Covers the subset
+// the DbDriver surface needs: StartupMessage, simple Query ('Q'),
+// and parsing the backend's RowDescription ('T') / DataRow ('D')
+// / CommandComplete ('C') / ErrorResponse ('E') / ReadyForQuery
+// ('Z') / Authentication ('R') / ParameterStatus ('S') /
+// BackendKeyData ('K') / NoticeResponse ('N').
+//
+// v0 assumptions:
+//   - trust auth only (server sends AuthenticationOk immediately;
+//     no password / MD5 / SCRAM). Enforced by the docker
+//     POSTGRES_HOST_AUTH_METHOD=trust. SCRAM is a follow-up.
+//   - simple query protocol (text result format). Values come
+//     back as text; we join columns with \t, rows with \n.
+//   - no bitwise ops in Hale v1 → BE ints via arithmetic
+//     (x - (x/256)*256 for mod 256), same idiom as
+//     pond/websocket/frame.hl.
+
+// ===== big-endian int helpers =====
+
+// be32_append — append `n` as 4 big-endian bytes to a builder.
+fn be32_append(b: std::bytes::BytesBuilder, n: Int) {
+    let b3 = (n / 16777216) - ((n / 16777216) / 256) * 256;
+    let b2 = (n / 65536)    - ((n / 65536)    / 256) * 256;
+    let b1 = (n / 256)      - ((n / 256)      / 256) * 256;
+    let b0 = n - (n / 256) * 256;
+    b.append(std::bytes::from_int(b3));
+    b.append(std::bytes::from_int(b2));
+    b.append(std::bytes::from_int(b1));
+    b.append(std::bytes::from_int(b0));
+}
+
+fn be16_append(b: std::bytes::BytesBuilder, n: Int) {
+    let b1 = (n / 256) - ((n / 256) / 256) * 256;
+    let b0 = n - (n / 256) * 256;
+    b.append(std::bytes::from_int(b1));
+    b.append(std::bytes::from_int(b0));
+}
+
+fn byte_at(buf: Bytes, i: Int) -> Int {
+    return std::bytes::at(buf, i) or 0;
+}
+
+fn read_be32(buf: Bytes, off: Int) -> Int {
+    return byte_at(buf, off) * 16777216
+         + byte_at(buf, off + 1) * 65536
+         + byte_at(buf, off + 2) * 256
+         + byte_at(buf, off + 3);
+}
+
+fn read_be16(buf: Bytes, off: Int) -> Int {
+    return byte_at(buf, off) * 256 + byte_at(buf, off + 1);
+}
+
+// ===== outbound messages =====
+
+// build_startup — the v3.0 StartupMessage. No type byte (startup
+// is special): [Int32 len][Int32 196608][k\0v\0...\0].
+fn build_startup(user: String, database: String) -> Bytes {
+    let body = std::bytes::BytesBuilder { initial_cap: 128 };
+    // protocol 3.0 = 196608 (0x00030000)
+    be32_append(body, 196608);
+    __append_cstr(body, "user");
+    __append_cstr(body, user);
+    __append_cstr(body, "database");
+    __append_cstr(body, database);
+    body.append(std::bytes::from_int(0));   // terminating empty key
+    let payload = body.snapshot();
+    let total = len(payload) + 4;            // +4 for the length field itself
+
+    let out = std::bytes::BytesBuilder { initial_cap: total + 4 };
+    be32_append(out, total);
+    out.append(payload);
+    return out.finish();
+}
+
+// build_query — simple Query: [Byte 'Q'][Int32 len][sql\0].
+fn build_query(sql: String) -> Bytes {
+    let sql_bytes = std::bytes::from_string(sql);
+    let body_len = len(sql_bytes) + 1 + 4;   // sql + NUL + length field
+    let out = std::bytes::BytesBuilder { initial_cap: body_len + 1 };
+    out.append(std::bytes::from_int(81));     // 'Q' = 0x51 = 81
+    be32_append(out, body_len);
+    out.append(sql_bytes);
+    out.append(std::bytes::from_int(0));      // NUL terminator
+    return out.finish();
+}
+
+// build_terminate — [Byte 'X'][Int32 4]. Graceful close.
+fn build_terminate() -> Bytes {
+    let out = std::bytes::BytesBuilder { initial_cap: 5 };
+    out.append(std::bytes::from_int(88));     // 'X' = 88
+    be32_append(out, 4);
+    return out.finish();
+}
+
+fn __append_cstr(b: std::bytes::BytesBuilder, s: String) {
+    b.append(std::bytes::from_string(s));
+    b.append(std::bytes::from_int(0));
+}

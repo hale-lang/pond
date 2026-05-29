@@ -1,0 +1,291 @@
+// pond/pq — PostgreSQL driver (pgwire v3 over std::io::tcp).
+//
+// `PgConn` structurally satisfies `pond/db::DbDriver` (F.20): a
+// pure-Hale postgres backend, no FFI. Built for the refstore
+// relational store. v0 scope: trust auth + simple-query protocol
+// (text results). See wire.hl for the codec; SCRAM + extended
+// query (binary params/results) are follow-ups.
+//
+// Lifecycle: birth() parses config only; open() dials + does the
+// startup handshake (reads to the first ReadyForQuery); close()
+// sends Terminate. Each exec/query is one simple-query round trip
+// that reads the backend stream up to ReadyForQuery.
+//
+// Placement: intended for an ordinary cooperative pool (e.g.
+// refstore on `main`), so the blocking recv in __pump is fine —
+// NOT an async_io connection-handler shape.
+
+import "vendor/pond/db" as db;
+
+// __PgResult — internal parse accumulator for one query's
+// backend response (everything up to ReadyForQuery).
+type __PgResult {
+    ok:         Bool   = true;
+    err_kind:   String = "";
+    err_code:   String = "";
+    err_detail: String = "";
+    csv:        String = "";
+    n:          Int    = 0;
+    cmd_tag:    String = "";   // CommandComplete tag, e.g. "INSERT 0 1"
+}
+
+locus PgConn {
+    params {
+        host:     String = "127.0.0.1";
+        port:     Int    = 55432;
+        user:     String = "fathom";
+        database: String = "fathom";
+
+        sock:      Int  = -1;
+        connected: Bool = false;
+
+        rx_buf: std::bytes::BytesBuilder
+              = std::bytes::BytesBuilder { initial_cap: 8192 };
+
+        recv_chunk: Int = 8192;
+    }
+
+    fn backend() -> String { return "postgres"; }
+
+    // open — dial + StartupMessage + read to first ReadyForQuery.
+    fn open() -> db::Status {
+        let fd = std::io::tcp::connect(self.host, self.port)
+            or __on_connect_fail(err);
+        if fd < 0 {
+            return db::Status {
+                ok:  false,
+                err: db::DbError { kind: "open_failed", engine_code: 0,
+                    detail: "connect failed to " + self.host },
+            };
+        }
+        self.sock = fd;
+        self.rx_buf.clear();
+
+        let stream = std::io::tcp::Stream { conn_fd: self.sock };
+        stream.send_bytes(build_startup(self.user, self.database));
+
+        // Read until ReadyForQuery; the startup phase has no rows.
+        let r = self.__pump();
+        if !r.ok {
+            self.connected = false;
+            return db::Status {
+                ok:  false,
+                err: db::DbError { kind: "open_failed", engine_code: 0,
+                    detail: "startup: " + r.err_detail },
+            };
+        }
+        self.connected = true;
+        return db::Status { ok: true };
+    }
+
+    fn close() {
+        if self.connected && self.sock >= 0 {
+            let stream = std::io::tcp::Stream { conn_fd: self.sock };
+            stream.send_bytes(build_terminate());
+            std::io::tcp::__close_fd(self.sock);
+        }
+        self.connected = false;
+        self.sock = -1;
+    }
+
+    fn exec(sql: String) -> db::ExecResult {
+        let r = self.__run(sql);
+        if !r.ok {
+            return db::ExecResult { ok: false,
+                err: db::DbError { kind: r.err_kind, engine_code: 0, detail: r.err_detail } };
+        }
+        return db::ExecResult {
+            ok: true,
+            rows_affected: __tag_rows(r.cmd_tag),
+            last_insert_rowid: 0,           // postgres: use RETURNING + query_one
+        };
+    }
+
+    fn query_one(sql: String) -> db::Row {
+        let r = self.__run(sql);
+        if !r.ok {
+            return db::Row { ok: false,
+                err: db::DbError { kind: r.err_kind, engine_code: 0, detail: r.err_detail } };
+        }
+        if r.n == 0 {
+            return db::Row { ok: false,
+                err: db::DbError { kind: "no_row", engine_code: 0, detail: "query returned no rows" } };
+        }
+        // first row = csv up to the first newline
+        let nl = std::str::index_of(r.csv, "\n");
+        let first = if nl < 0 { r.csv } else { r.csv[0..nl] };
+        return db::Row { ok: true, data: first };
+    }
+
+    fn query_all(sql: String) -> db::Rows {
+        let r = self.__run(sql);
+        if !r.ok {
+            return db::Rows { ok: false,
+                err: db::DbError { kind: r.err_kind, engine_code: 0, detail: r.err_detail } };
+        }
+        return db::Rows { ok: true, csv: r.csv, n: r.n };
+    }
+
+    // __run — one simple-query round trip.
+    fn __run(sql: String) -> __PgResult {
+        if !self.connected {
+            return __PgResult { ok: false, err_kind: "io", err_detail: "not connected" };
+        }
+        let stream = std::io::tcp::Stream { conn_fd: self.sock };
+        stream.send_bytes(build_query(sql));
+        return self.__pump();
+    }
+
+    // __pump — read + parse backend messages until ReadyForQuery
+    // ('Z'). Accumulates DataRows into csv. Captures ErrorResponse.
+    fn __pump() -> __PgResult {
+        let stream = std::io::tcp::Stream { conn_fd: self.sock };
+        let mut res = __PgResult { ok: true };
+        let mut done = false;
+
+        while !done {
+            // ensure a full message header (type + Int32 len).
+            while self.rx_buf.len() < 5 {
+                let chunk = stream.recv_bytes(self.recv_chunk);
+                if len(chunk) <= 0 {
+                    res.ok = false; res.err_kind = "io";
+                    res.err_detail = "peer closed mid-response";
+                    return res;
+                }
+                self.rx_buf.append(chunk);
+            }
+            let hdr = self.rx_buf.snapshot();
+            let mtype = byte_at(hdr, 0);
+            let mlen  = read_be32(hdr, 1);     // length includes itself, excludes type byte
+            let total = mlen + 1;              // + type byte
+
+            while self.rx_buf.len() < total {
+                let chunk = stream.recv_bytes(self.recv_chunk);
+                if len(chunk) <= 0 {
+                    res.ok = false; res.err_kind = "io";
+                    res.err_detail = "peer closed mid-message";
+                    return res;
+                }
+                self.rx_buf.append(chunk);
+            }
+            let msg = self.rx_buf.snapshot();
+            __handle_msg(mtype, msg, total, res);
+            if mtype == 90 { done = true; }    // 'Z' ReadyForQuery
+            self.rx_buf.shift_front(total);
+        }
+        return res;
+    }
+}
+
+// ===== free-fn helpers (fallible / parsing) =====
+
+fn __on_connect_fail(e: IoError) -> Int {
+    return -1;
+}
+
+// __handle_msg — dispatch one complete backend message. Mutates
+// `res` (passed by locus-ref — __PgResult is a type, but Hale
+// passes records by value; so we RETURN-via-fields won't work).
+// Instead this is structured to mutate through the res handle.
+// NOTE: __PgResult is threaded by reference here via the
+// type-as-mutable-record convention used elsewhere in pond.
+fn __handle_msg(mtype: Int, msg: Bytes, total: Int, res: __PgResult) {
+    // 'D' (68) DataRow
+    if mtype == 68 {
+        let ncols = read_be16(msg, 5);
+        let mut off = 7;
+        let mut row = "";
+        let mut c = 0;
+        while c < ncols {
+            let collen = read_be32(msg, off);
+            off = off + 4;
+            if c > 0 { row = row + "\t"; }
+            if collen == 4294967295 {
+                row = row + "";                // NULL
+            } else {
+                let cell = std::bytes::slice(msg, off, off + collen);
+                row = row + std::str::from_bytes(cell);
+                off = off + collen;
+            }
+            c = c + 1;
+        }
+        if res.n > 0 { res.csv = res.csv + "\n"; }
+        res.csv = res.csv + row;
+        res.n = res.n + 1;
+        return;
+    }
+    // 'C' (67) CommandComplete — tag is a cstr at offset 5
+    if mtype == 67 {
+        res.cmd_tag = __cstr_at(msg, 5);
+        return;
+    }
+    // 'E' (69) ErrorResponse — field-typed cstrs until 0
+    if mtype == 69 {
+        res.ok = false;
+        res.err_kind = "query_failed";
+        let mut off = 5;
+        while off < total {
+            let ftype = byte_at(msg, off);
+            if ftype == 0 { off = total; } else {
+                let val = __cstr_at(msg, off + 1);
+                if ftype == 77 { res.err_detail = val; }      // 'M' message
+                if ftype == 67 { res.err_code = val; }        // 'C' SQLSTATE
+                off = off + 1 + len(std::bytes::from_string(val)) + 1;
+            }
+        }
+        return;
+    }
+    // 'R' (82) Authentication — only AuthenticationOk (code 0) ok
+    if mtype == 82 {
+        let code = read_be32(msg, 5);
+        if code != 0 {
+            res.ok = false;
+            res.err_kind = "unsupported";
+            res.err_detail = "auth method " + to_string(code)
+                + " not supported (v0 = trust only)";
+        }
+        return;
+    }
+    // 'S' param status, 'K' backend key, 'Z' ready, 'T' rowdesc,
+    // 'N' notice, 'I' empty-query: nothing to accumulate.
+}
+
+// __cstr_at — read a NUL-terminated string starting at `off`.
+fn __cstr_at(buf: Bytes, off: Int) -> String {
+    let total = len(buf);
+    let mut end = off;
+    while end < total {
+        if byte_at(buf, end) == 0 { end = total + 1000000; }   // sentinel break
+        else { end = end + 1; }
+    }
+    // recover the real end (we jumped by a big sentinel to break)
+    let mut e = off;
+    while e < total {
+        if byte_at(buf, e) == 0 {
+            let s = std::bytes::slice(buf, off, e);
+            return std::str::from_bytes(s);
+        }
+        e = e + 1;
+    }
+    return std::str::from_bytes(std::bytes::slice(buf, off, total));
+}
+
+// __tag_rows — parse rows-affected from a CommandComplete tag.
+// "INSERT 0 5" -> 5, "UPDATE 3" -> 3, "DELETE 2" -> 2,
+// "SELECT 7" -> 7. Takes the trailing integer.
+fn __tag_rows(tag: String) -> Int {
+    let sp = __last_space(tag);
+    if sp < 0 { return 0; }
+    let num = tag[sp+1..len(tag)];
+    return std::str::parse_int(num) or 0;
+}
+
+fn __last_space(s: String) -> Int {
+    let n = len(s);
+    let mut i = n - 1;
+    let mut found = -1;
+    while i >= 0 {
+        if s[i..i+1] == " " { found = i; i = -1; } else { i = i - 1; }
+    }
+    return found;
+}
