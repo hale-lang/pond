@@ -1,0 +1,188 @@
+// pond/pq — PgPool: a fixed-size connection pool over PgConn.
+//
+// Why an fd pool, not a locus pool: Hale `@form(*)` cells can't
+// hold loci and methods can't return loci, so a classic
+// "checkout a connection object" pool isn't expressible. Instead
+// the pool owns a vec of opened socket fds (Ints) + a parallel
+// busy vec; each operation acquires a free fd, wraps it in a
+// TRANSIENT PgConn { sock, connected: true } (PgConn has no
+// dissolve, so the fd stays open), runs the op, and releases.
+//
+// PgPool itself satisfies db::DbDriver, so it's interchangeable
+// with a single PgConn at the slot — pick the pool for concurrent
+// AUTOCOMMIT query workloads (e.g. an async_io read API fanning
+// out queries), a single PgConn for serial / transactional use
+// (e.g. refstore).
+//
+// **Concurrency model.** acquire() (find-free + mark-busy) has no
+// yield point between the scan and the set, so on a cooperative
+// pool (fathom's only kind) two interleaved coros never grab the
+// same fd — exclusion holds for the duration of one pooled op.
+// Acquire→use→release is internal to each method; a caller never
+// holds a checked-out fd across calls. That's also why
+// transactions can't run on the pool (a txn must pin one
+// connection across begin..commit, which means holding it across
+// calls): begin/commit/rollback return an error directing the
+// caller to a dedicated PgConn.
+
+import "vendor/pond/db" as db;
+
+@form(vec)
+locus __FdVec {
+    capacity { heap data of Int; }
+}
+
+locus PgPool {
+    params {
+        host:     String = "127.0.0.1";
+        port:     Int    = 55432;
+        user:     String = "fathom";
+        database: String = "fathom";
+        size:     Int    = 4;
+
+        opened: Bool = false;
+        fds:    __FdVec = __FdVec { };
+        busy:   __FdVec = __FdVec { };   // 0 = free, 1 = in use
+        n:      Int  = 0;                // opened connection count
+        rr:     Int  = 0;                // round-robin cursor for fairness
+    }
+
+    fn backend() -> String { return "postgres"; }
+
+    // open — dial + handshake `size` connections, stash their fds.
+    fn open() -> db::Status {
+        let mut i = 0;
+        while i < self.size {
+            let c = PgConn { host: self.host, port: self.port,
+                             user: self.user, database: self.database };
+            let st = c.open();
+            if !st.ok {
+                self.opened = (self.n > 0);
+                return db::Status { ok: self.n > 0, err: st.err };
+            }
+            self.fds.push(c.sock);
+            self.busy.push(0);
+            self.n = self.n + 1;
+            i = i + 1;
+        }
+        self.opened = true;
+        return db::Status { ok: true };
+    }
+
+    fn close() {
+        let mut i = 0;
+        while i < self.n {
+            let fd = self.fds.get(i) or -1;
+            if fd >= 0 {
+                let c = PgConn { sock: fd, connected: true };
+                c.close();
+            }
+            i = i + 1;
+        }
+        self.opened = false;
+    }
+
+    // __acquire — index of a free connection (marks it busy), or
+    // -1 if all busy. Round-robin start for fairness. No yield
+    // between scan + mark → safe on cooperative pools.
+    fn __acquire() -> Int {
+        let mut tries = 0;
+        let mut idx = self.rr;
+        while tries < self.n {
+            if idx >= self.n { idx = 0; }
+            let b = self.busy.get(idx) or 1;
+            if b == 0 {
+                self.busy.set(idx, 1) or discard;
+                self.rr = idx + 1;
+                return idx;
+            }
+            idx = idx + 1;
+            tries = tries + 1;
+        }
+        return -1;
+    }
+
+    fn __release(idx: Int) {
+        if idx >= 0 { self.busy.set(idx, 0) or discard; }
+    }
+
+    fn exec(sql: String) -> db::ExecResult {
+        let idx = self.__acquire();
+        if idx < 0 { return __pool_exhausted_exec(); }
+        let fd = self.fds.get(idx) or -1;
+        let c = PgConn { sock: fd, connected: true };
+        let r = c.exec(sql);
+        self.__release(idx);
+        return r;
+    }
+
+    fn query_one(sql: String) -> db::Row {
+        let idx = self.__acquire();
+        if idx < 0 { return __pool_exhausted_row(); }
+        let fd = self.fds.get(idx) or -1;
+        let c = PgConn { sock: fd, connected: true };
+        let r = c.query_one(sql);
+        self.__release(idx);
+        return r;
+    }
+
+    fn query_all(sql: String) -> db::Rows {
+        let idx = self.__acquire();
+        if idx < 0 { return __pool_exhausted_rows(); }
+        let fd = self.fds.get(idx) or -1;
+        let c = PgConn { sock: fd, connected: true };
+        let r = c.query_all(sql);
+        self.__release(idx);
+        return r;
+    }
+
+    fn exec_params(sql: String, args: db::Args) -> db::ExecResult {
+        let idx = self.__acquire();
+        if idx < 0 { return __pool_exhausted_exec(); }
+        let fd = self.fds.get(idx) or -1;
+        let c = PgConn { sock: fd, connected: true };
+        let r = c.exec_params(sql, args);
+        self.__release(idx);
+        return r;
+    }
+
+    fn query_params(sql: String, args: db::Args) -> db::Rows {
+        let idx = self.__acquire();
+        if idx < 0 { return __pool_exhausted_rows(); }
+        let fd = self.fds.get(idx) or -1;
+        let c = PgConn { sock: fd, connected: true };
+        let r = c.query_params(sql, args);
+        self.__release(idx);
+        return r;
+    }
+
+    // Transactions can't span pooled acquire/release cycles — a
+    // txn needs one pinned connection across begin..commit. Route
+    // callers to a dedicated PgConn instead of corrupting a shared
+    // one.
+    fn begin()    -> db::Status { return __pool_no_tx(); }
+    fn commit()   -> db::Status { return __pool_no_tx(); }
+    fn rollback() -> db::Status { return __pool_no_tx(); }
+    fn tx_status() -> String    { return "n/a (pool)"; }
+}
+
+fn __pool_no_tx() -> db::Status {
+    return db::Status { ok: false,
+        err: db::DbError { kind: "unsupported", engine_code: 0,
+            detail: "transactions require a dedicated PgConn, not PgPool" } };
+}
+
+fn __pool_exhausted_exec() -> db::ExecResult {
+    return db::ExecResult { ok: false,
+        err: db::DbError { kind: "busy", engine_code: 0, detail: "pool exhausted" } };
+}
+
+fn __pool_exhausted_row() -> db::Row {
+    return db::Row { ok: false,
+        err: db::DbError { kind: "busy", engine_code: 0, detail: "pool exhausted" } };
+}
+
+fn __pool_exhausted_rows() -> db::Rows {
+    return db::Rows { ok: false,
+        err: db::DbError { kind: "busy", engine_code: 0, detail: "pool exhausted" } };
+}
