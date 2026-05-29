@@ -47,4 +47,21 @@ interface DbDriver {
 
     // SELECT many rows. `.csv` newline/tab delimited, `.n` count.
     fn query_all(sql: String) -> Rows;
+
+    // ===== parameterized (extended-query) surface =====
+    // $1/$2/... placeholders bound from `args` — the safe path for
+    // any externally-sourced value (escaping + injection handled
+    // by the protocol, not string interpolation). Same result
+    // shapes as the non-param variants.
+    fn exec_params(sql: String, args: Args)  -> ExecResult;
+    fn query_params(sql: String, args: Args) -> Rows;
+
+    // ===== transactions =====
+    // begin/commit/rollback as first-class ops; tx_status reports
+    // "idle" | "in_tx" | "aborted" (from the backend's
+    // ReadyForQuery indicator) so callers can reason about state.
+    fn begin()    -> Status;
+    fn commit()   -> Status;
+    fn rollback() -> Status;
+    fn tx_status() -> String;
 }
