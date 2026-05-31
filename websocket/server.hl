@@ -83,7 +83,7 @@ locus WsServerConn {
     // Returns true on success; false on malformed / non-upgrade
     // requests (a 400 response is sent before tearing down).
     fn handshake() -> Bool {
-        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd };
+        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd, owns_fd: false };
 
         // Read until we have a full HTTP request (terminated by
         // \r\n\r\n). Cap at 16 KB — anything bigger isn't a
@@ -166,7 +166,7 @@ locus WsServerConn {
             };
             return false;
         }
-        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd };
+        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd, owns_fd: false };
 
         while true {
             // Ensure we have at least 2 bytes (min frame header).
@@ -290,7 +290,7 @@ locus WsServerConn {
         if !self.connected {
             return false;
         }
-        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd };
+        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd, owns_fd: false };
         let frame =   emit_server_frame(true, opcode, payload);
         let n = stream.send_bytes(frame);
         // EPIPE / closed peer: lotus_tcp_send_bytes returns -1 on
@@ -317,7 +317,7 @@ locus WsServerConn {
         if !self.connected {
             return;
         }
-        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd };
+        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd, owns_fd: false };
         let close =   emit_server_frame(true, 8, b"");
         stream.send_bytes(close);
         self.frames_sent = self.frames_sent + 1;
