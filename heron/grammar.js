@@ -101,6 +101,7 @@ module.exports = grammar({
       $.ffi_function_decl,
       $.interface_decl,
       $.topic_decl,
+      $.ring_layout_decl,
       $.module_decl,
     ),
 
@@ -142,6 +143,77 @@ module.exports = grammar({
     topic_field: $ => choice(
       seq('payload', ':', field('payload_type', $._type_expr), ';'),
       seq('subject', ':', field('subject', $.string_literal), ';'),
+    ),
+
+    // shm-ring-interop Proposal B: `ring_layout Name { ... }` declares
+    // the byte layout of an externally-defined SHM broadcast ring so a
+    // `shm_ring(..., layout: Name)` binding can read/write it. Members
+    // are keyword-led + `;`-terminated; attribute values are bare
+    // identifiers or integer literals (`ring_word` admits the few
+    // keyword-spelled words like `release`).
+    ring_layout_decl: $ => seq(
+      'ring_layout',
+      field('name', $.identifier),
+      '{',
+      repeat($._ring_layout_member),
+      '}',
+    ),
+
+    _ring_layout_member: $ => choice(
+      $.ring_magic,
+      $.ring_data_at,
+      $.ring_overflow,
+      $.ring_scalar_field,
+      $.ring_cursor_block,
+      $.ring_framing_block,
+    ),
+
+    ring_magic: $ => seq('magic', $.integer_literal, ';'),
+    ring_data_at: $ => seq('data_at', $.integer_literal, ';'),
+    ring_overflow: $ => seq('overflow', $.ring_word, ';'),
+
+    // `version 1 at 8 : u32;` — name, optional expected value, offset,
+    // width repr.
+    ring_scalar_field: $ => seq(
+      field('name', $.identifier),
+      optional($.integer_literal),
+      'at',
+      field('offset', $.integer_literal),
+      ':',
+      field('repr', $.ring_word),
+      ';',
+    ),
+
+    ring_cursor_block: $ => seq(
+      'cursor',
+      optional(field('name', $.identifier)),
+      '{',
+      repeat($.ring_attr),
+      '}',
+    ),
+
+    ring_framing_block: $ => seq(
+      'framing',
+      field('kind', $.ring_word),
+      '{',
+      repeat($.ring_attr),
+      '}',
+    ),
+
+    ring_attr: $ => seq(
+      field('key', $.identifier),
+      choice($.ring_word, $.integer_literal),
+      ';',
+    ),
+
+    // A layout token: an identifier, or one of the few keyword-spelled
+    // words that can appear in a layout value position.
+    ring_word: $ => choice(
+      $.identifier,
+      'release',
+      'drop',
+      'fail',
+      'block',
     ),
 
     // ===========================================================
@@ -366,6 +438,8 @@ module.exports = grammar({
     shm_ring_kwarg: $ => choice(
       seq('slot_count', ':', $.integer_literal),
       seq('on_overflow', ':', $.overflow_policy),
+      seq('layout', ':', $.identifier),
+      seq('buffer_size', ':', $.integer_literal),
     ),
 
     overflow_policy: $ => choice('block', 'drop', 'fail'),

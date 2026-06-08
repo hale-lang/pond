@@ -11,7 +11,9 @@ fn slice_demo(s: String) -> String {
 (source_file
   (function_decl
     name: (identifier)
-    (parameter name: (identifier) type: (primitive_type))
+    (parameter
+      name: (identifier)
+      type: (primitive_type))
     return_type: (primitive_type)
     (block
       (return_stmt
@@ -34,9 +36,15 @@ fn slice2(s: String, from: Int, to: Int) -> String {
 (source_file
   (function_decl
     name: (identifier)
-    (parameter name: (identifier) type: (primitive_type))
-    (parameter name: (identifier) type: (primitive_type))
-    (parameter name: (identifier) type: (primitive_type))
+    (parameter
+      name: (identifier)
+      type: (primitive_type))
+    (parameter
+      name: (identifier)
+      type: (primitive_type))
+    (parameter
+      name: (identifier)
+      type: (primitive_type))
     return_type: (primitive_type)
     (block
       (return_stmt
@@ -59,7 +67,9 @@ fn iota(n: Int) -> String {
 (source_file
   (function_decl
     name: (identifier)
-    (parameter name: (identifier) type: (primitive_type))
+    (parameter
+      name: (identifier)
+      type: (primitive_type))
     return_type: (primitive_type)
     (block
       (return_stmt
@@ -84,9 +94,14 @@ fn write_bytes(b: Bytes) -> () fallible(IoError) {
 (source_file
   (function_decl
     name: (identifier)
-    (parameter name: (identifier) type: (primitive_type))
+    (parameter
+      name: (identifier)
+      type: (primitive_type))
     return_type: (unit_type)
-    (fallible_marker payload_type: (named_type (qualified_name (identifier))))
+    (fallible_marker
+      payload_type: (named_type
+        (qualified_name
+          (identifier))))
     (block
       (return_stmt))))
 
@@ -103,13 +118,18 @@ locus ItemList<T> {
 
 (source_file
   (locus_decl
-    (form_annotation form_name: (identifier))
+    (form_annotation
+      form_name: (identifier))
     name: (identifier)
-    (generic_params (generic_param name: (identifier)))
+    (generic_params
+      (generic_param
+        name: (identifier)))
     (capacity_block
       (capacity_slot
         name: (identifier)
-        cell_type: (named_type (qualified_name (identifier)))))))
+        cell_type: (named_type
+          (qualified_name
+            (identifier)))))))
 
 ==================
 Placement block on main locus
@@ -134,14 +154,20 @@ main locus App {
     (params_block
       (param_decl
         name: (identifier)
-        type: (named_type (qualified_name (identifier)))
+        type: (named_type
+          (qualified_name
+            (identifier)))
         default: (struct_literal
-          name: (qualified_name (identifier))))
+          name: (qualified_name
+            (identifier))))
       (param_decl
         name: (identifier)
-        type: (named_type (qualified_name (identifier)))
+        type: (named_type
+          (qualified_name
+            (identifier)))
         default: (struct_literal
-          name: (qualified_name (identifier)))))
+          name: (qualified_name
+            (identifier)))))
     (placement_block
       (placement_entry
         field: (identifier)
@@ -200,10 +226,10 @@ locus Reg {
     name: (identifier)
     (capacity_block
       (capacity_slot
-
         name: (identifier)
         cell_type: (named_type
-          (qualified_name (identifier)))
+          (qualified_name
+            (identifier)))
         indexed_by: (identifier)))))
 
 ==================
@@ -233,10 +259,10 @@ locus Hot {
     name: (identifier)
     (capacity_block
       (capacity_slot
-
         name: (identifier)
         cell_type: (named_type
-          (qualified_name (identifier)))
+          (qualified_name
+            (identifier)))
         indexed_by: (identifier)))))
 
 ==================
@@ -260,3 +286,71 @@ locus Unconstrained {
         name: (identifier)
         type: (primitive_type)
         default: (integer_literal)))))
+
+==================
+ring_layout declaration + layout/buffer_size shm_ring kwargs
+==================
+
+ring_layout ForeignRing {
+    magic 0x52494E47464D5431;
+    version 1 at 8 : u32;
+    buffer_size at 12 : u32;
+    data_at 128;
+    cursor published { at 64; repr atomic_u64; load acquire; unit bytes; }
+    framing byte_records { len_prefix u32; align 8; pad_sentinel 0xFFFFFFFF; }
+    overflow lap_detect;
+}
+
+---
+
+(source_file
+  (ring_layout_decl
+    (identifier)
+    (ring_magic
+      (integer_literal))
+    (ring_scalar_field
+      (identifier)
+      (integer_literal)
+      (integer_literal)
+      (ring_word
+        (identifier)))
+    (ring_scalar_field
+      (identifier)
+      (integer_literal)
+      (ring_word
+        (identifier)))
+    (ring_data_at
+      (integer_literal))
+    (ring_cursor_block
+      (identifier)
+      (ring_attr
+        (identifier)
+        (integer_literal))
+      (ring_attr
+        (identifier)
+        (ring_word
+          (identifier)))
+      (ring_attr
+        (identifier)
+        (ring_word
+          (identifier)))
+      (ring_attr
+        (identifier)
+        (ring_word
+          (identifier))))
+    (ring_framing_block
+      (ring_word
+        (identifier))
+      (ring_attr
+        (identifier)
+        (ring_word
+          (identifier)))
+      (ring_attr
+        (identifier)
+        (integer_literal))
+      (ring_attr
+        (identifier)
+        (integer_literal)))
+    (ring_overflow
+      (ring_word
+        (identifier)))))

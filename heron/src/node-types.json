@@ -5346,6 +5346,10 @@
           "named": true
         },
         {
+          "type": "ring_layout_decl",
+          "named": true
+        },
+        {
           "type": "topic_decl",
           "named": true
         },
@@ -7251,6 +7255,240 @@
     }
   },
   {
+    "type": "ring_attr",
+    "named": true,
+    "fields": {
+      "key": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "integer_literal",
+          "named": true
+        },
+        {
+          "type": "ring_word",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "ring_cursor_block",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "ring_attr",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "ring_data_at",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "integer_literal",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "ring_framing_block",
+    "named": true,
+    "fields": {
+      "kind": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "ring_word",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "ring_attr",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "ring_layout_decl",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "ring_cursor_block",
+          "named": true
+        },
+        {
+          "type": "ring_data_at",
+          "named": true
+        },
+        {
+          "type": "ring_framing_block",
+          "named": true
+        },
+        {
+          "type": "ring_magic",
+          "named": true
+        },
+        {
+          "type": "ring_overflow",
+          "named": true
+        },
+        {
+          "type": "ring_scalar_field",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "ring_magic",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "integer_literal",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "ring_overflow",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "ring_word",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "ring_scalar_field",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "offset": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "integer_literal",
+            "named": true
+          }
+        ]
+      },
+      "repr": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "ring_word",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "integer_literal",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "ring_word",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "schedule_class",
     "named": true,
     "fields": {},
@@ -7513,6 +7751,10 @@
       "required": true,
       "types": [
         {
+          "type": "identifier",
+          "named": true
+        },
+        {
           "type": "integer_literal",
           "named": true
         },
@@ -7581,6 +7823,10 @@
         },
         {
           "type": "perspective_decl",
+          "named": true
+        },
+        {
+          "type": "ring_layout_decl",
           "named": true
         },
         {
@@ -9077,6 +9323,10 @@
     "named": false
   },
   {
+    "type": "at",
+    "named": false
+  },
+  {
     "type": "bindings",
     "named": false
   },
@@ -9103,6 +9353,10 @@
   },
   {
     "type": "bubble",
+    "named": false
+  },
+  {
+    "type": "buffer_size",
     "named": false
   },
   {
@@ -9167,6 +9421,14 @@
   },
   {
     "type": "cross_machine",
+    "named": false
+  },
+  {
+    "type": "cursor",
+    "named": false
+  },
+  {
+    "type": "data_at",
     "named": false
   },
   {
@@ -9259,6 +9521,10 @@
     "named": false
   },
   {
+    "type": "framing",
+    "named": false
+  },
+  {
     "type": "fstring_literal",
     "named": true
   },
@@ -9315,6 +9581,10 @@
     "named": false
   },
   {
+    "type": "layout",
+    "named": false
+  },
+  {
     "type": "let",
     "named": false
   },
@@ -9333,6 +9603,10 @@
   },
   {
     "type": "locus",
+    "named": false
+  },
+  {
+    "type": "magic",
     "named": false
   },
   {
@@ -9373,6 +9647,10 @@
   },
   {
     "type": "or",
+    "named": false
+  },
+  {
+    "type": "overflow",
     "named": false
   },
   {
@@ -9428,6 +9706,10 @@
     "named": false
   },
   {
+    "type": "release",
+    "named": false
+  },
+  {
     "type": "reorganize",
     "named": false
   },
@@ -9453,6 +9735,10 @@
   },
   {
     "type": "rich",
+    "named": false
+  },
+  {
+    "type": "ring_layout",
     "named": false
   },
   {
