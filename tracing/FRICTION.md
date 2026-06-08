@@ -31,9 +31,9 @@ What runtime auto-injection would need (sketched, not built):
 3. **A `tracing { enabled: Bool }` capacity-slot-ish locus
    declaration.** Per-locus opt-in so the runtime isn't paying
    the span-emit cost on every locus instantiation. The Design
-   already has `: schedule cooperative` / `: schedule pinned`
-   as similar locus-level discipline markers; `: traced` would
-   slot in alongside.
+   already has locus-level discipline markers (`: projection ...`,
+   and the `placement { }` deployment seam, F.31); a per-locus
+   `: traced` opt-in would slot in alongside.
 4. **A subject-binding `tracer:` field on the runtime root.**
    Today the Tracer is instantiated in `main` like any other
    locus. With auto-injection, the runtime would need a stable

@@ -8,7 +8,8 @@
 // This matches The Design's I3/H4/H10 for blocking I/O:
 //
 //   - The locus that owns the connection lives on its own scheduler
-//     (typically `: schedule pinned`).
+//     (typically placed `pinned` via the app's `placement { }`
+//     block, F.31).
 //   - Frames are recv'd into the locus's own arena (rx_buf, reused
 //     per recv).
 //   - Parsed messages land in `self.last_message`, exposed via the

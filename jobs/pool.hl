@@ -7,8 +7,9 @@
 //            (db_path, table), the handler fn pointer, and the
 //            worker fan-out. Spawns N Workers in birth() so they
 //            attach as Pool children and dissolve when Pool does.
-//   Worker : pinned (`: schedule pinned`) child of Pool. Owns its
-//            own OS thread; its run() loop is the dequeue → invoke
+//   Worker — child of Pool, placed `pinned` by the consuming app's
+//            main-locus `placement { }` block (F.31). Owns its own
+//            OS thread; its run() loop is the dequeue → invoke
 //            → ack/fail cycle. Pinned because the SQLite roundtrip
 //            and the user-supplied handler are exactly the kind of
 //            "work that genuinely shouldn't share a scheduler with
