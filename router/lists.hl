@@ -20,8 +20,9 @@
 // shadow from the pre-G20 era is gone. Method + pattern
 // metadata travel in parallel String vecs (MethodList /
 // PatternList) since v1 has no struct-field interface-coerce at
-// the literal init site (see pond/tower/FRICTION.md
-// `v1-cross-seed-struct-field-interface-coerce`) — a
+// the literal init site
+// (`v1-cross-seed-struct-field-interface-coerce`; see this lib's
+// FRICTION.md § interface-in-struct-field) — a
 // `RouteEntry { handler: Handler }` literal won't coerce a
 // concrete handler locus into the Handler field. Three vecs
 // pushed in lockstep is the v1 shape that compiles.

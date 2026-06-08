@@ -616,23 +616,29 @@ locus Migrator {
 
 ### `pond/logfmt/` — alias `logfmt`
 
+**Updated 2026-06-08.** These loci structurally satisfy the
+**`std::text::Sink`** interface (`write`/`line`/`newline`) — there is
+no `std::log::Sink`. That interface is **non-fallible**, so the sink
+methods stay non-fallible (making them `fallible(E)` would break
+interface satisfaction); failures ride the structural channel. This
+lib is EXEMPT from the v0.8.1 fallible flip, not a pending migration.
+
 ```hale
-// Implements std::log's Sink interface; consumers reference Sink as
-// std::log::Sink. These loci satisfy that structurally.
+// FileSink / OtlpSink satisfy std::text::Sink (non-fallible).
 
 locus FileSink {
     params { path: String; max_size_bytes: Int = 10000000;
              keep_files: Int = 5; }
-    fn write(s: String) -> () fallible(IoError);
-    fn line(s: String) -> () fallible(IoError);
-    fn newline() -> () fallible(IoError);
+    fn write(s: String) -> ();
+    fn line(s: String) -> ();
+    fn newline() -> ();
 }
 
 locus OtlpSink {                          // OTLP over HTTP
     params { endpoint: String; service_name: String; }
-    fn write(s: String) -> () fallible(IoError);
-    fn line(s: String) -> () fallible(IoError);
-    fn newline() -> () fallible(IoError);
+    fn write(s: String) -> ();
+    fn line(s: String) -> ();
+    fn newline() -> ();
 }
 ```
 
