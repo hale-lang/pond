@@ -26,6 +26,7 @@
   "interface"
   "module"
   "topic"
+  "ring_layout"
   "type"
   "const"
   "fn"
