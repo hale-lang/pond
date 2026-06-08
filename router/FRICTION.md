@@ -239,8 +239,8 @@ that lands.
 locus methods, even though the natural call shape would have
 been `r.add(method, pattern, h)`.
 
-The reason is the same gap pond/tower hit at
-`v1-cross-seed-method-arg-coerce-missing`: v1 codegen doesn't
+The reason is the same gap other interface-arg pond libs hit
+(`v1-cross-seed-method-arg-coerce-missing`): v1 codegen doesn't
 apply the `LocusRef → Interface` coercion at user-declared
 locus-method arg sites. So `r.add("GET", "/", Root { })` —
 where `add`'s `h` param is typed `Handler` and `Root { }` is a
@@ -256,7 +256,7 @@ Free-fn arg sites DO coerce (the standard F.20 Phase B path),
 and the synthesized `@form(vec).push` DOES coerce (G20). So
 routing every interface-arg entry point through a free fn that
 forwards to the vec's push is the v1 shape that compiles. This
-mirrors `pond/tower::add(reg, t)` / `pond/jobs::enqueue(q, j)`
+mirrors `pond/jobs::enqueue(q, j)` / `pond/agent/tools::register(reg, t)`
 — the established pond house style for `Interface`-arg ops.
 
 Public call shape:
@@ -270,8 +270,7 @@ router::use_mw(r, LogMw { });
 **Closes when:** Codegen extends `lower_user_method_call`'s
 arg-prep to apply `coerce_to_interface` on `LocusRef → Interface`
 mismatches the same way `lower_user_fn_call` does. Same A10
-extension, different lowering site (see pond/tower/FRICTION.md
-for the same entry).
+extension, different lowering site.
 
 ---
 
@@ -291,8 +290,7 @@ codegen error: unsupported in codegen v0:
 ```
 
 i.e. struct-literal field-init isn't a `LocusRef → Interface`
-coerce site. Same shape as pond/tower's
-`v1-cross-seed-struct-field-interface-coerce`.
+coerce site (`v1-cross-seed-struct-field-interface-coerce`).
 
 **Worked around by:** Three parallel `@form(vec)` storage loci
 — `MethodList` (String), `PatternList` (String), `HandlerList`
