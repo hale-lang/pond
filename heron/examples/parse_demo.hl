@@ -27,7 +27,7 @@ fn main() {
         return;
     }
 
-    let tree = parser.parse(content);
+    let tree = heron::parse(parser, content);
     if !tree.is_valid() {
         println("parse returned invalid tree");
         return;
@@ -49,7 +49,7 @@ fn main() {
         let c = heron::node_named_child(root, i);
         let kind = heron::node_kind(c);
         let name_node = heron::node_field(c, "name");
-        let name = "";
+        let mut name = "";
         if !heron::node_is_null(name_node) {
             name = heron::node_text(name_node);
         }

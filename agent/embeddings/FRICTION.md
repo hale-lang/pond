@@ -66,22 +66,28 @@ Two walls block this verbatim:
   accept a cross-seed locus ref as a parameter, so the natural
   API is the method form.
 
-### Locus methods can't be `fallible(EmbError)` (G4) — [CLOSABLE]
+### Locus methods can't be `fallible(EmbError)` (G4) — [CLOSED 2026-06-08]
 
-**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
-v0.2, commits `d565d6f` + `98910b9`); user-declared `fn` member
-fns now carry `fallible(E)`. The next source pass restores
-`Store.add` / `search` / `remove` to `fallible(EmbError)`
-directly; the sentinel-substitute methods + `add_checked` /
-`search_checked` / `remove_checked` paired free fns collapse.
-Clean breaking change.
+**2026-06-08 — RESOLVED.** Migrated to the v0.8.1 two-channel
+rule (#24 v0.2). `Store.add` / `search` / `remove` are now
+`fallible(EmbError)` methods directly, matching CONTRACTS.md
+verbatim. The pre-v0.8.1 workaround (non-fallible sentinel-
+substitute methods + paired `add_checked` / `search_checked` /
+`remove_checked` free fns) has been removed: each pair collapsed
+into the single fallible method. `count()` stays non-fallible.
+The example's call sites were updated to dispose the new fallible
+surface (`or discard` for `add`/`remove`, `or emb::Rows { csv: "" }`
+substitute for `search`, and the deliberate dim-mismatch query now
+calls `store.search` + `or report_dim_mismatch(err)` instead of
+the removed `search_checked`). Lib and example both typecheck.
+No remaining two-channel deviation. (Original note retained below
+for context.)
 
-**Current source shape (still in place).** CONTRACTS.md declares
-the four `Store` methods as `fallible(EmbError)`. Under the old
-(pre-v0.8.1) rule, locus methods couldn't carry the marker.
-Locus methods substitute sentinels on bad input (silent no-op,
-empty `Rows`); paired free fns `add_checked`, `search_checked`,
-`remove_checked` carry the fallible(EmbError) surface.
+**Original deviation (pre-v0.8.1).** CONTRACTS.md declared the
+four `Store` methods as `fallible(EmbError)`, but under the old
+blanket two-channel rule locus methods couldn't carry the marker,
+so the lib shipped sentinel-substitute methods plus paired
+`*_checked` free fns for the typed-error surface.
 
 ### `SearchHit` declared but not the Store-surface return type
 

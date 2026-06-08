@@ -15,7 +15,10 @@
 
 import "../.." as ws;
 
-locus EchoTap : schedule pinned {
+// F.31 removed the per-locus `: schedule` annotation; thread
+// placement now lives in a `main locus`'s `placement { }` block.
+// This single-locus demo just runs on the main thread.
+locus EchoTap {
     params {
         limit: Int = 5;
     }
@@ -45,9 +48,11 @@ locus EchoTap : schedule pinned {
         } else {
             println("[echo] connected");
 
-            let _ = conn.send_text("hello from pond/websocket");
-            let _ = conn.send_text("frame 2");
-            let _ = conn.send_text("frame 3");
+            // send_* / close now carry fallible(WsError) (v0.8.1).
+            // Best-effort here: drop a failed send with `or discard`.
+            conn.send_text("hello from pond/websocket") or discard;
+            conn.send_text("frame 2") or discard;
+            conn.send_text("frame 3") or discard;
 
             let mut seen = 0;
             while seen < self.limit && !bail {
@@ -67,7 +72,7 @@ locus EchoTap : schedule pinned {
                 }
             }
 
-            conn.close();
+            conn.close() or discard;
             println("[echo] done; frames_received=", conn.frames_received,
                     " frames_sent=", conn.frames_sent,
                     " reconnects=", conn.reconnects);

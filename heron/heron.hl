@@ -6,7 +6,7 @@
 //   import "vendor/pond/heron" as heron;
 //
 //   let parser = heron::Parser { };
-//   let tree   = parser.parse(source_code);
+//   let tree   = heron::parse(parser, source_code);
 //   let root   = tree.root();
 //   println(heron::node_kind(root));
 //
@@ -60,12 +60,15 @@
 //
 // Two parse APIs:
 //
-// 1. parse(source) -> Tree — returns an externally-managed
-//    Tree locus. Caller binds the result and lets it
-//    dissolve at scope. **Hits the M90 issue** (see
-//    STATUS.md): returned-locus is program-lifetime
-//    allocated; every parse() call leaks the previous
-//    Tree. Acceptable for one-shot uses; not safe for
+// 1. parse(parser, source) -> Tree — a FREE fn (not a Parser
+//    method) that returns an externally-managed Tree locus.
+//    Locus methods may not return locus values (CQRS / no
+//    locus-return rule), so the Tree-returning entry point is
+//    a top-level fn — the same shape std::io::file::open uses.
+//    Caller binds the result and lets it dissolve at scope.
+//    **Hits the M90 issue** (see STATUS.md): returned-locus is
+//    program-lifetime allocated; every parse() call leaks the
+//    previous Tree. Acceptable for one-shot uses; not safe for
 //    long-running re-parse loops.
 //
 // 2. parse_into_self(source) -> Bool — parses and stores
@@ -97,15 +100,6 @@ locus Parser {
     }
     fn is_ready() -> Bool { return self.handle != 0; }
 
-    // External-Tree parse. Hits M90 — see locus header.
-    fn parse(source: String) -> Tree {
-        if self.handle == 0 {
-            return Tree { handle: 0 };
-        }
-        let h = tsa_parser_parse(self.handle, source, len(source));
-        return Tree { handle: h };
-    }
-
     // Parser-owned parse. Replaces any previously-owned tree.
     // Returns true on success; false if parser isn't ready or
     // the parse failed (current_tree stays unchanged on failure).
@@ -131,6 +125,18 @@ locus Parser {
         }
         return Node { handle: tsa_tree_root(self.current_tree) };
     }
+}
+
+// External-Tree parse. Free fn (not a Parser method) because
+// locus methods may not return loci. Hits M90 — see Parser
+// locus header. Returns a Tree with handle = 0 if the parser
+// isn't ready.
+fn parse(parser: Parser, source: String) -> Tree {
+    if parser.handle == 0 {
+        return Tree { handle: 0 };
+    }
+    let h = tsa_parser_parse(parser.handle, source, len(source));
+    return Tree { handle: h };
 }
 
 // ---- Tree locus ----

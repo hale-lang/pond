@@ -11,7 +11,7 @@
 //      coerces the Calculator locus into a `Tool` interface
 //      value and the Registry stores it directly.
 //   3. Build a ToolCall with `{"op":"add","a":2,"b":3}`, hand
-//      it to `tools::dispatch(reg, call)`, verify the result is
+//      it to `reg.dispatch(call)`, verify the result is
 //      "5".
 //   4. Exercise the other ops (sub / mul / div), the
 //      divide-by-zero branch, an unknown op, and an
@@ -119,7 +119,7 @@ locus CalcDemo {
         println("registered tools: ", reg.count());
 
         // ----- 1. Primary contract path: add(2,3) -------------
-        // Fallible `tools::dispatch(reg, call) or <handler>` is
+        // Fallible `reg.dispatch(call) or <handler>` is
         // the value-channel surface — `unknown_tool` (registry-
         // level) and `empty_name` are addressable via `or`;
         // tool-internal failures (bad args, division by zero)
@@ -130,7 +130,7 @@ locus CalcDemo {
             args_json: "{\"op\":\"add\",\"a\":2,\"b\":3}",
             call_id:   "call_001"
         };
-        let add_res = tools::dispatch(reg, add_call) or err_to_result(err);
+        let add_res = reg.dispatch(add_call) or err_to_result(err);
         println("add(2,3)        = ", add_res.content,
                 "  is_error=", add_res.is_error);
         if add_res.content != "5" {
@@ -145,7 +145,7 @@ locus CalcDemo {
             args_json: "{\"op\":\"sub\",\"a\":10,\"b\":4}",
             call_id:   "call_002"
         };
-        let sub_res = tools::dispatch(reg, sub_call) or err_to_result(err);
+        let sub_res = reg.dispatch(sub_call) or err_to_result(err);
         println("sub(10,4)       = ", sub_res.content);
 
         let mul_call = tools::ToolCall {
@@ -153,7 +153,7 @@ locus CalcDemo {
             args_json: "{\"op\":\"mul\",\"a\":6,\"b\":7}",
             call_id:   "call_003"
         };
-        let mul_res = tools::dispatch(reg, mul_call) or err_to_result(err);
+        let mul_res = reg.dispatch(mul_call) or err_to_result(err);
         println("mul(6,7)        = ", mul_res.content);
 
         let div_call = tools::ToolCall {
@@ -161,7 +161,7 @@ locus CalcDemo {
             args_json: "{\"op\":\"div\",\"a\":20,\"b\":4}",
             call_id:   "call_004"
         };
-        let div_res = tools::dispatch(reg, div_call) or err_to_result(err);
+        let div_res = reg.dispatch(div_call) or err_to_result(err);
         println("div(20,4)       = ", div_res.content);
 
         // ----- 3. In-tool failure: divide by zero -------------
@@ -172,7 +172,7 @@ locus CalcDemo {
             args_json: "{\"op\":\"div\",\"a\":5,\"b\":0}",
             call_id:   "call_005"
         };
-        let dz_res = tools::dispatch(reg, dz_call) or err_to_result(err);
+        let dz_res = reg.dispatch(dz_call) or err_to_result(err);
         println("div(5,0)        = ", dz_res.content,
                 "  is_error=", dz_res.is_error);
 
@@ -182,12 +182,12 @@ locus CalcDemo {
             args_json: "{\"op\":\"pow\",\"a\":2,\"b\":8}",
             call_id:   "call_006"
         };
-        let uo_res = tools::dispatch(reg, uo_call) or err_to_result(err);
+        let uo_res = reg.dispatch(uo_call) or err_to_result(err);
         println("pow(2,8)        = ", uo_res.content,
                 "  is_error=", uo_res.is_error);
 
         // ----- 5. Unknown tool (Registry-side failure) --------
-        // The fallible free fn `tools::dispatch` raises
+        // The fallible method `reg.dispatch` raises
         // ToolError { kind: "unknown_tool", ... } here; the `or`
         // handler converts it into the same ToolResult shape the
         // demo printed before so the contract surface stays
@@ -197,7 +197,7 @@ locus CalcDemo {
             args_json: "{}",
             call_id:   "call_007"
         };
-        let bad_res = tools::dispatch(reg, bad_call) or err_to_result(err);
+        let bad_res = reg.dispatch(bad_call) or err_to_result(err);
         println("nonexistent     = ", bad_res.content,
                 "  is_error=", bad_res.is_error);
 

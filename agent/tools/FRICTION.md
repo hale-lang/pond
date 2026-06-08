@@ -5,80 +5,84 @@ smallest reproducer that forced the call.
 
 ---
 
-## 2026-05-18 — or-fallback-no-locus-to-interface-coerce
+## 2026-06-08 — or-fallback-interface-same-name-structural-trap — [CLOSED]
 
-**Status:** [GAP — WORKAROUND-DOCUMENTED]
+**Status:** [CLOSED — FIXED IN-LIB]
 
-`@form(vec).get(i)` returns `T fallible(IndexError)`. When `T`
-is an interface (here `Tool`), the natural proof-of-unreachable
-shape is
+**Root cause of the `type Tool cannot satisfy interface Tool`
+build break.** The previous source routed the proof-of-
+unreachable `@form(vec).get` fallback through a helper fn whose
+return type was the *interface*:
+
+```hale
+fn __noop_tool() -> Tool { return __NoopTool { }; }
+let t = entries.get(i) or __noop_tool();
+```
+
+By 2026-06 the typechecker's `or <substitute>` arm *does* run
+LocusRef → Interface coercion (the 2026-05-18 gap below is
+closed). But that coercion path also fires a structural-impl
+check, and — unlike the fn-arg call-site — the `or <substitute>`
+arm has no `rhs_name != iface_name` identity guard
+(`hale-types/src/check.rs`, the `interface_satisfied` block in
+the `Or::Substitute` checker). When the substitute is *already*
+the interface type `Tool`, the checker calls
+`check_structural_impl("Tool", "Tool")`, which looks up the
+first `Tool` as a *locus*, finds the interface instead, and
+emits `type \`Tool\` cannot satisfy interface \`Tool\` — only
+loci satisfy interfaces`. The helper-fn indirection was the
+direct cause: it made the substitute's success type name
+collide with the interface's name.
+
+**Fix taken (smallest correct change).** Drop the `__noop_tool()`
+helper and use the locus literal directly:
 
 ```hale
 let t = entries.get(i) or __NoopTool { };
 ```
 
-but the typechecker rejects with:
-
-```
-type error: `or <substitute>`: fallback type
-  `__lib_tools_registry___NoopTool` does not match success type
-  `__lib_tools_interfaces_Tool`
-```
-
-The `or <substitute>` checker (`hale-types/src/check.rs`
-around line 2579) calls `success.assignable_from(&rhs_ty)` —
-it doesn't fire the standard LocusRef → Interface coercion the
-way fn-arg and fn-return sites do.
-
-**Workaround taken.** Route the sentinel through a tiny
-returning free fn whose return type is the interface:
-
-```hale
-fn __noop_tool() -> Tool { return __NoopTool { }; }
-// callers:
-let t = entries.get(i) or __noop_tool();
-```
-
-The fn-return-site coercion converts the locus to a Tool fat
-pointer; the `or` fallback then matches the success type
-directly. Cheap, but it's the kind of one-line indirection F.20
-Phase B was meant to eliminate.
-
-**Suggested upstream resolution.** Plumb
-`coerce_to_interface` (or the typechecker's equivalent) into
-the `or <substitute>` arm of the fallible-expr checker — same
-pattern fn-arg and return-site coercion already use. Then `or
-__NoopTool { }` types directly and the helper fn collapses.
+The substitute's type name is now `__NoopTool`, distinct from
+the interface `Tool`, so the structural-impl check takes the
+intended LocusRef → Interface path and succeeds. This is the
+shape the 2026-05-18 entry *wanted* once coercion landed — the
+helper was a stale workaround that became actively wrong.
 
 ---
 
-## 2026-05-16 — locus-method-cannot-be-fallible — [CLOSABLE]
+## 2026-05-18 — or-fallback-no-locus-to-interface-coerce — [CLOSED]
 
-**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
-v0.2, commits `d565d6f` + `98910b9`); user-declared `fn` member
-fns now carry `fallible(E)`. The next source pass restores
-`Registry.dispatch(call) -> ToolResult fallible(ToolError)`
-directly; the `dispatch_call` non-fallible variant + the
-`tools::dispatch` paired free fn collapse into the single
-fallible method. Clean breaking change. The shared
-`__lookup_invoke` kernel stays — it's the same logic either way.
+**Status:** [CLOSED — coercion landed upstream]
 
-**Current source shape (still in place).** CONTRACTS.md declares
-`Registry.dispatch(call: ToolCall) -> ToolResult fallible(ToolError)`.
-Under the old (pre-v0.8.1) rule, locus methods couldn't carry
-`fallible(E)`. The split:
+`@form(vec).get(i)` returns `T fallible(IndexError)`. When `T`
+is an interface (here `Tool`), the natural proof-of-unreachable
+shape `let t = entries.get(i) or __NoopTool { };` once failed
+because the `or <substitute>` checker didn't fire the standard
+LocusRef → Interface coercion. That coercion has since been
+plumbed into the `or <substitute>` arm, so the locus literal
+now types directly. See the 2026-06-08 entry above for the
+follow-on same-name trap that the *workaround* (a
+`-> Tool`-returning helper) introduced and how it was removed.
 
-1. **Non-fallible locus method** —
-   `Registry.dispatch_call(call) -> ToolResult`. Returns a
-   ToolResult with `is_error: true` and
-   `content == "unknown_tool: <name>"` on miss.
-2. **Fallible free fn** —
-   `tools::dispatch(reg, call) -> ToolResult fallible(ToolError)`.
-   Callers that want hard value-channel error semantics use
-   this. ToolError carries `kind: "unknown_tool"` or `"empty_name"`.
+---
 
-Both paths share `__lookup_invoke(entries, call, not_found_marker)`
-as the lookup kernel.
+## 2026-05-16 — locus-method-cannot-be-fallible — [CLOSED]
+
+**Status:** [CLOSED — migrated 2026-06-08]
+
+v0.8.1 narrowed the two-channel rule (#24 v0.2); user-declared
+`fn` member fns now carry `fallible(E)`. The source pass on
+2026-06-08 collapsed the old workaround: the non-fallible
+`Registry.dispatch_call(call) -> ToolResult` method and the
+paired fallible free fn `tools::dispatch(reg, call)` are gone,
+replaced by the single
+`fn dispatch(call: ToolCall) -> ToolResult fallible(ToolError)`
+method on `Registry` (matching CONTRACTS.md verbatim).
+"tool not found" / empty name now surface as
+`fail ToolError { ... }`; tool-internal failures still ride back
+in the returned ToolResult with `is_error: true`. The shared
+`__lookup_invoke(entries, call)` kernel stays (its
+`not_found_marker` param collapsed away — it always returned the
+`__not_found__` sentinel for the one remaining caller).
 
 ---
 
@@ -109,12 +113,13 @@ Seen in: `pond/agent/llm::AnthropicClient` /
 `pond/agent/llm::OpenAiClient`, `pond/sqlite::Db` (per its file
 header), `pond/subprocess::Process` (per CONTRACTS.md sketch).
 
-`pond/agent/tools::Registry` deliberately does NOT do this — it
-takes the second branch of the two-channel-rule workaround
-(non-fallible method returns `is_error: true` ToolResult, free
-fn is the fallible path) because the Registry's "errors" are a
-small closed set (unknown_tool / empty_name) and the LLM-facing
-flow naturally wants them inline in the ToolResult content.
+`pond/agent/tools::Registry` does NOT do this — since the
+2026-06-08 migration its `dispatch` is a real fallible method
+(`fn dispatch(call) -> ToolResult fallible(ToolError)`), so it
+has no `last_error_*` cache and no non-fallible-method/fallible-
+free-fn split. The Registry's "errors" are a small closed set
+(unknown_tool / empty_name) and tool-internal failures still
+ride back inline in the ToolResult content.
 
 But the pattern is clearly the v1 idiom for locus methods that
 *want* to wrap a fallible free-fn kernel without exposing
@@ -228,24 +233,16 @@ populates.
 
 ---
 
-## 2026-05-16 — interface-shape-no-direct-storage
+## 2026-05-16 — interface-direct-storage — [RESOLVED]
 
-**Status:** [DESIGN-NOTE — forward-compat]
+**Status:** [DESIGN-NOTE — resolved]
 
-The `Tool` interface declaration in `interfaces.hl` is currently
-unused at the storage layer (the Registry stores Entries with
-fn-pointers instead). It IS still useful at every fn signature
-that accepts a Tool inline:
-
-```hale
-// Future helper (not in CONTRACTS.md but obvious next step):
-fn invoke_inline(t: Tool, call: ToolCall) -> ToolResult {
-    return t.invoke(call);
-}
-```
-
-Once F.20 Phase B unblocks (see entry 1 above), the Registry
-will re-widen `register(t: Tool)` and consumers writing
-Calculator-as-locus continue to work without source changes.
-Documenting here so future maintainers don't delete the
-interface decl as "dead code."
+The `Tool` interface (`interfaces.hl`) is the storage element
+type: the internal `@form(vec) locus ToolList { capacity { heap
+items of Tool; } }` stores coerced `Tool` interface values
+directly (no Entry / fn-pointer wrapper). `register(t: Tool)`
+coerces a Tool-shaped locus at the arg site; `dispatch` /
+`list` walk the vec and call `t.spec()` / `t.invoke()` through
+the interface fat pointer. The interface is load-bearing at the
+storage layer and at every fn/method signature typed `Tool` —
+do not delete it as "dead code."
