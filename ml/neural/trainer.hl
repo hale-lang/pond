@@ -15,14 +15,7 @@
 //      `fit(model, xs, ys, epochs)` takes the model handle as a
 //      fn-arg instead.
 //
-//   2. CONTRACTS.md declares
-//        fn fit(xs, ys, epochs) -> () fallible(NnError);
-//      Locus methods can't carry fallible(E) per the two-channel
-//      rule (KNOWN_GOTCHAS G4). Shipped non-fallible; errors
-//      stash on `self.last_error`. Callers branch on
-//      `tr.last_error.kind != ""` to detect failures.
-//
-//   3. `batch_size` is parsed and recorded but the v0
+//   2. `batch_size` is parsed and recorded but the v0
 //      implementation is per-sample SGD (effective batch_size=1).
 //      A true mini-batch loop would accumulate grads across
 //      `batch_size` samples before each update — straight-line
@@ -33,16 +26,32 @@
 
 import "../../math/matrix" as mat;
 
+// Per-epoch training-progress channel. The topic decl lives in
+// THIS file (not a sibling) because `bus { publish T; }` / `T <- v`
+// only resolve a `topic T` declared in the same file as the
+// publishing locus (codegen v0: bus-block topic resolution is
+// file-local, not seed-global — payload-type resolution IS
+// seed-global). Trainer below is the lib's single publisher.
+//
+// Deliberate type-vs-topic name split: the payload `type TrainStep`
+// lives in metrics.hl; the channel is named `TrainStepEvent`
+// because a topic decl + a type decl of the same name register in
+// one shared top-level namespace ("duplicate top-level name" at
+// typecheck). The `XxxEvent` suffix matches the
+// `downstream-consumer/topics.hl` convention. The explicit
+// `subject` gives cross-seed subscribers a stable wire name to
+// bind to.
+topic TrainStepEvent { payload: TrainStep; subject: "nn.TrainStep"; }
+
 locus Trainer {
     params {
         lr:         Float       = 0.01;
         batch_size: Int         = 32;
-        last_error: NnError;
     }
     bus {
-        // Publish by topic ident; the topic decl in `topics.hl`
-        // carries the wire subject. Upstream A1 (`f9068fa`) closed
-        // the mangle-rewrite gap that previously forced the
+        // Publish by topic ident; the topic decl above carries the
+        // wire subject. Upstream A1 (`f9068fa`) closed the
+        // mangle-rewrite gap that previously forced the
         // literal-subject form here.
         publish TrainStepEvent;
     }
@@ -53,29 +62,29 @@ locus Trainer {
     // xs.cols and the last-layer output_dim must match ys.cols.
     //
     // Publishes one TrainStep per epoch with the epoch's mean
-    // loss. Returns nothing; inspect `self.last_error` after the
-    // call to detect a structural failure.
-    fn fit(model: Model, xs: mat::Matrix, ys: mat::Matrix, epochs: Int) {
+    // loss. Returns Unit; a shape mismatch (here or surfaced from
+    // `model.train_step`) routes through `fail`/`or raise` on the
+    // value channel.
+    fn fit(model: Model, xs: mat::Matrix, ys: mat::Matrix, epochs: Int)
+        -> () fallible(NnError)
+    {
         if epochs <= 0 {
-            self.last_error = NnError {
+            fail NnError {
                 kind:   "shape_mismatch",
                 detail: "epochs must be > 0",
             };
-            return;
         }
         if xs.rows != ys.rows {
-            self.last_error = NnError {
+            fail NnError {
                 kind:   "shape_mismatch",
                 detail: "xs and ys have different row counts",
             };
-            return;
         }
         if xs.rows == 0 {
-            self.last_error = NnError {
+            fail NnError {
                 kind:   "shape_mismatch",
                 detail: "empty training set",
             };
-            return;
         }
 
         let n_samples = xs.rows;
@@ -91,14 +100,9 @@ locus Trainer {
             while sample < n_samples {
                 let x_row = ops.extract_row(xs, sample, in_dim);
                 let y_row = ops.extract_row(ys, sample, out_dim);
-                let loss = model.train_step(x_row, y_row, self.lr);
-                // Skip NaN losses (shape mismatch surfaced from
-                // train_step). Set our own last_error from the
-                // model's so the caller has one place to look.
-                if std::math::is_nan(loss) {
-                    self.last_error = model.last_error;
-                    return;
-                }
+                // A shape mismatch in train_step propagates its
+                // own NnError up this call's value channel.
+                let loss = model.train_step(x_row, y_row, self.lr) or raise;
                 epoch_loss = epoch_loss + loss;
                 step = step + 1;
                 sample = sample + 1;
@@ -113,7 +117,6 @@ locus Trainer {
             TrainStepEvent <- payload;
             e_idx = e_idx + 1;
         }
-        self.last_error = NnError { };
     }
 }
 

@@ -27,11 +27,14 @@
 //   `search` take the Matrix directly.
 //
 // Failure shapes:
-//   `Store` is a user-declared locus → its methods CAN'T declare
-//   fallible(E) (two-channel rule, KNOWN_GOTCHAS G4). The methods
-//   substitute sentinels on bad input (empty / wrong-dim); paired
-//   free fns (`add_checked`, `search_checked`, `remove_checked`)
-//   carry the fallible surface for callers that want typed errors.
+//   Two-channel rule (v0.8.1 #24 v0.2): user-declared `fn` member
+//   methods carry `fallible(E)` directly. `add` / `search` /
+//   `remove` are `fallible(EmbError)` (bad k, dim mismatch,
+//   zero-magnitude query, not-found); the pre-v0.8.1
+//   "non-fallible method + paired `*_checked` free fn" workaround is
+//   retired. `count` stays non-fallible. Callers address the
+//   fallible methods with `or raise` / `or <substitute>` /
+//   `or handler(err)`.
 //
 // Six-pattern catalog placement:
 //   - `Store`                — pattern 3 (service-shaped; no explicit
@@ -42,8 +45,8 @@
 //     `FloatBuf`               for the parallel-arrays shape).
 //   - `Embedding` / `SearchHit`
 //                            — pattern 5 (shape types).
-//   - `add_checked`, `search_checked`, `remove_checked`, `cosine`,
-//     `format_hit_row`        — pattern 6 (free fns).
+//   - `cosine_from_parts`, `format_hit_row`, `mat_nan`, etc.
+//                            — pattern 6 (pure helper free fns).
 //   - The `Mat` namespace lotus from pond/math/matrix supplies all
 //     matrix factory ops.
 
@@ -118,12 +121,12 @@ locus Store {
         return self.ids.len();
     }
 
-    // Insert (id, vector, metadata). Silent no-op if `vector.len()
-    // != self.dim` — use `add_checked` for the fallible surface.
-    fn add(id: String, vector: mat::Matrix, metadata: String) {
+    // Insert (id, vector, metadata). Fails with EmbError on dim
+    // mismatch (vector.len() != self.dim).
+    fn add(id: String, vector: mat::Matrix, metadata: String) -> () fallible(EmbError) {
         let n = vector.len();
         if n != self.dim {
-            return;
+            fail EmbError { kind: "dim_mismatch" };
         }
         self.ids.push(id);
         self.metas.push(metadata);
@@ -137,13 +140,12 @@ locus Store {
 
     // Top-k cosine search. Returns Rows whose `csv` is newline-
     // separated; each row is `id\tscore\tmetadata`. The result is
-    // sorted descending by score. Empty input or `k <= 0` returns
-    // an empty `Rows { csv: "" }`. If the query's length doesn't
-    // match `self.dim` the result is empty. Use `search_checked`
-    // for typed failure.
-    fn search(query: mat::Matrix, k: Int) -> Rows {
+    // sorted descending by score. Fails with EmbError on bad `k`
+    // (k <= 0), dim mismatch, or zero-magnitude query. An empty
+    // store (count == 0) returns an empty `Rows { csv: "" }`.
+    fn search(query: mat::Matrix, k: Int) -> Rows fallible(EmbError) {
         if k <= 0 {
-            return Rows { csv: "" };
+            fail EmbError { kind: "bad_k" };
         }
         let cnt = self.count();
         if cnt == 0 {
@@ -151,11 +153,11 @@ locus Store {
         }
         let qn = query.len();
         if qn != self.dim {
-            return Rows { csv: "" };
+            fail EmbError { kind: "dim_mismatch" };
         }
         let q_mag = vector_magnitude_from_matrix(query);
         if q_mag == 0.0 {
-            return Rows { csv: "" };
+            fail EmbError { kind: "zero_magnitude" };
         }
         // Compute per-row scores into a parallel Float vec. The
         // loop sits inline rather than in a free helper because
@@ -199,14 +201,14 @@ locus Store {
         return Rows { csv: out };
     }
 
-    // Remove the first row whose id equals `id`. No-op if not
-    // found. Removal preserves order of the remaining rows
-    // (O(N) shift on each of the three parallel buffers). Use
-    // `remove_checked` for typed not-found.
-    fn remove(id: String) {
+    // Remove the first row whose id equals `id`. Fails with
+    // EmbError { kind: "not_found" } when no row matches. Removal
+    // preserves order of the remaining rows (O(N) shift on each of
+    // the three parallel buffers).
+    fn remove(id: String) -> () fallible(EmbError) {
         let idx = self.find_id(id);
         if idx < 0 {
-            return;
+            fail EmbError { kind: "not_found" };
         }
         self.remove_at(idx);
     }
@@ -422,54 +424,6 @@ fn csv_field_count(s: String) -> Int {
         i = i + 1;
     }
     return count;
-}
-
-// ----- fallible free fns (the typed-error surface) -----
-
-// `add_checked(s, id, vector, metadata)` — typed-error version of
-// `Store.add`. Returns 1 on success (non-Unit per v1's "fallible
-// fns need a return type" rule). Fails with EmbError on dim
-// mismatch.
-fn add_checked(s: Store, id: String, vector: mat::Matrix, metadata: String)
-    -> Int fallible(EmbError)
-{
-    let n = vector.len();
-    if n != s.dim {
-        fail EmbError { kind: "dim_mismatch" };
-    }
-    s.add(id, vector, metadata);
-    return 1;
-}
-
-// `search_checked(s, query, k)` — typed-error version of
-// `Store.search`. Fails with EmbError on bad k, dim mismatch, or
-// zero-magnitude query.
-fn search_checked(s: Store, query: mat::Matrix, k: Int)
-    -> Rows fallible(EmbError)
-{
-    if k <= 0 {
-        fail EmbError { kind: "bad_k" };
-    }
-    let qn = query.len();
-    if qn != s.dim {
-        fail EmbError { kind: "dim_mismatch" };
-    }
-    let q_mag = vector_magnitude_from_matrix(query);
-    if q_mag == 0.0 {
-        fail EmbError { kind: "zero_magnitude" };
-    }
-    return s.search(query, k);
-}
-
-// `remove_checked(s, id)` — typed-error version of `Store.remove`.
-// Fails with EmbError { kind: "not_found" } when no row matches.
-fn remove_checked(s: Store, id: String) -> Int fallible(EmbError) {
-    let idx = s.find_id(id);
-    if idx < 0 {
-        fail EmbError { kind: "not_found" };
-    }
-    s.remove_at(idx);
-    return 1;
 }
 
 // ----- EmbeddingOps namespace lotus (pattern 2) -----

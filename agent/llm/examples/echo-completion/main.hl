@@ -5,10 +5,13 @@
 //
 //   1. Construct AnthropicClient (or OpenAiClient — symmetric).
 //   2. Build an LlmRequest with a small prompt.
-//   3. Call client.complete(req); inspect the LlmResponse.
-//   4. Check last_error_kind() to distinguish success vs the
-//      common v1 failure modes (missing api_key, unsupported
-//      scheme, http error envelope).
+//   3. Call client.complete(req) — a fallible(LlmError) method.
+//   4. Disposition the value channel with `or` to distinguish
+//      success vs the common failure modes (missing api_key,
+//      unsupported scheme, http error envelope). `run()` is a
+//      lifecycle method (non-fallible), so we substitute an
+//      empty-defaults LlmResponse and read the diagnosis from a
+//      local error sink.
 //
 // Vendored normally the import looks like:
 //
@@ -39,6 +42,24 @@ locus EchoCompletion {
         base_url:  String = "http://localhost:1234";
         model:     String = "claude-opus-4-7";
         prompt:    String = "Say hello in 3 words.";
+
+        // Error sink for the fallible complete() call. `run()`
+        // is a lifecycle method (can't be fallible), so we
+        // disposition complete()'s value channel with `or
+        // self.__on_err(err)` and read the diagnosis back here.
+        err_kind:   String = "";
+        err_status: Int    = 0;
+        err_detail: String = "";
+    }
+
+    // Error-check fn (spec/styleguide.md § 7): records the
+    // LlmError into the sink params and returns an empty-defaults
+    // LlmResponse as the substitute value for the value channel.
+    fn __on_err(e: llm::LlmError) -> llm::LlmResponse {
+        self.err_kind   = e.kind;
+        self.err_status = e.status;
+        self.err_detail = e.detail;
+        return llm::LlmResponse { };
     }
 
     run() {
@@ -82,13 +103,13 @@ locus EchoCompletion {
             temperature: 0.7
         };
 
-        let resp = client.complete(req);
+        let resp = client.complete(req) or self.__on_err(err);
 
-        let kind = client.last_error_kind();
+        let kind = self.err_kind;
         if len(kind) > 0 {
             println("echo-completion: error kind   = ", kind);
-            println("echo-completion: error status = ", client.last_error_status());
-            println("echo-completion: error detail = ", client.last_error_detail());
+            println("echo-completion: error status = ", self.err_status);
+            println("echo-completion: error detail = ", self.err_detail);
             println("echo-completion: (see README for the local-proxy / HTTPS workaround)");
         } else {
             println("echo-completion: response text   = ", resp.text);

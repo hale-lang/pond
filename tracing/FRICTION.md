@@ -66,20 +66,27 @@ This forced collapsing topics + locus into a single file
 convention (separate `topics.hl` like `pond/subprocess/`) would
 keep them apart; deviation flagged.
 
-## deviation: export_otlp fallibility (two-channel rule) — [CLOSABLE]
+## deviation: export_otlp fallibility (two-channel rule) — [CLOSED 2026-06-08]
 
-**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
-v0.2, commits `d565d6f` + `98910b9`); user-declared `fn` member
-fns now carry `fallible(E)`. The next source pass restores
-`Tracer.export_otlp` to `() fallible(IoError)`; the
-`last_error_kind_str()` / `last_error_detail_str()` accessors
-collapse. Clean breaking change. The transport stub (next entry
-below) remains the blocker on whether the method does real work.
+**2026-06-08 close.** Migrated to the v0.8.1 two-channel rule (#24
+v0.2, commits `d565d6f` + `98910b9`). `Tracer.export_otlp` now
+carries `() fallible(TraceError)` directly. Per CONTRACTS.md's
+status note the payload is a `TraceError { kind; detail; }` type
+declared in this seed (`types.hl`) rather than `IoError` — when
+the transport stub (next entry) flips on, the underlying
+`http`/`IoError` is translated via `... or fail TraceError { kind:
+"io", ... }`. The workaround state (`last_error_kind` /
+`last_error_detail` / `last_export_body` params) and its accessors
+(`last_error_kind_str()` / `last_error_detail_str()` /
+`last_export_body_str()`) are deleted. `start_span` / `end_span` /
+`add_attr` stay non-fallible per contract. Seed type-checks clean
+(`ok: 2 file(s) typechecked`). The example has no `export_otlp`
+call site, so no consumer fix was needed. Closed.
 
-**Current source shape (still in place).** CONTRACTS.md declares
-`export_otlp(endpoint: String) -> () fallible(IoError)`. Under
-the old (pre-v0.8.1) rule, the lib returned `()` and surfaced
-failure via `last_error_kind_str()` / `last_error_detail_str()`.
+**Prior shape (pre-v0.8.1).** Under the old blanket rule the lib
+returned `()` and surfaced failure via `last_error_kind_str()` /
+`last_error_detail_str()`; CONTRACTS.md declared
+`export_otlp(endpoint: String) -> () fallible(IoError)`.
 
 ## deviation: export_otlp doesn't actually POST (transitive import gap)
 
@@ -98,11 +105,11 @@ trips on `qualified type \`http::HttpError\` not in stdlib
 path-renames table`.
 
 **Workaround applied:** strip the http import entirely. The
-`export_otlp` method assembles the OTLP/HTTP JSON batch into
-`self.last_export_body` and reports
-`self.last_error_kind = "transport_unsupported"`. The
-`completed_buf` is NOT cleared in stub mode so a retry after the
-unblock picks up the same batch.
+`export_otlp` method assembles the OTLP/HTTP JSON batch and then
+`fail`s with `TraceError { kind: "transport_unsupported", ... }`
+on the value channel (post-v0.8.1 fallible surface — see the
+deviation above). The `completed_buf` is NOT cleared in stub mode
+so a retry after the unblock picks up the same batch.
 
 **Fix shape (architectural, not done here):** any of
 1. relax the no-re-exports rule; allow imports of imported libs

@@ -100,9 +100,18 @@ investigation for the next consumer.
 
 ## 5. Stub-mode worker shape
 
-Workers are pinned (per the assignment brief and spec/runtime.md
-§ Schedule classes — work that shouldn't share a scheduler with
-cooperative siblings). Pinned-class constraints:
+Workers want pinned placement (per the assignment brief and
+spec/runtime.md § Schedule classes — work that shouldn't share a
+scheduler with cooperative siblings).
+
+**Note (F.31)**: the per-locus `: schedule pinned` annotation was
+removed. Thread placement now lives only in the consuming
+binary's `main` locus `placement { }` block. A library seed has
+no `main`, so this lib no longer pins `Worker` itself — the app
+that instantiates the worker-pool field declares
+`placement { worker_field: pinned(core = N); }` in ITS main
+locus. The pinned-class *constraints* below still describe the
+behavior that placement selects:
 
 - Pinned loci cannot declare `accept()` (spec/runtime.md § m28b
   gating: "children of pinned would need cross-thread

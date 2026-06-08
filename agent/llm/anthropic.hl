@@ -1,11 +1,11 @@
 // pond/agent/llm — AnthropicClient locus.
 //
-// Catalog mapping: pattern 3 (service locus). Carries
-// per-client mutable scratch state (`last_error_*` fields for
-// the two-channel-rule workaround on the streaming method) +
-// participates in the bus via `publish LlmChunk` /
-// `publish LlmDone`. No birth/dissolve work — the underlying
-// TCP connections are per-call, not per-client.
+// Catalog mapping: pattern 3 (service locus). No per-client
+// mutable scratch state — `complete()` is a fallible method
+// that routes errors through the value channel directly.
+// Participates in the bus via the streaming topics. No
+// birth/dissolve work — the underlying TCP connections are
+// per-call, not per-client.
 //
 // Public surface (per CONTRACTS.md):
 //   locus AnthropicClient {
@@ -15,33 +15,24 @@
 //       bus { publish LlmChunk; publish LlmDone; }
 //   }
 //
-// Two-channel rule (spec/semantics.md § Fallible call
-// semantics): user-declared locus methods may NOT declare
-// `fallible(E)`. The contract surface lists
-// `complete(req) -> LlmResponse fallible(LlmError)` as a
-// method — that's type-illegal under v1. We deviate:
-//   - `complete()` is a method, declared non-fallible. It
-//     wraps the fallible free fn `__anthropic_complete` and
-//     captures any error onto `last_error` so the caller
-//     reads error state via `last_error_kind()` /
-//     `last_error_detail()`. On success the LlmResponse is
-//     returned directly; on failure the returned LlmResponse
-//     is the empty-defaults sentinel.
-//   - For callers that *do* want hard `fallible` semantics,
-//     the free fn `anthropic_complete(api_key, base_url, req)`
-//     in the same lib offers the same surface as a fallible
-//     free fn. Same body, same error type — just a different
-//     channel.
-// Logged in FRICTION.md.
-
-// FRICTION: nearly every CONTRACTS.md "locus method ->
-// T fallible(E)" entry across pond/ trips this rule; the
-// pattern of "method wraps fallible free fn + caches err in
-// last_*" recurs in pond/sqlite/Db, pond/http/client/Client,
-// pond/subprocess/Process, and now this lib. Strong signal
-// the contract needs a sweep — either flip every such method
-// to a free fn or accept the wrapper pattern as the v1 idiom
-// and lift it into a helper macro. Logged in FRICTION.md.
+// Two-channel rule (spec/semantics.md, v0.8.1): user-declared
+// `fn` member methods MAY declare `fallible(E)`, so `complete`
+// carries `fallible(LlmError)` directly — no more "non-fallible
+// method + self.last_* + paired fallible free fn" workaround.
+// `stream` returns `()` (it surfaces results over the bus, not
+// a return value); on failure it publishes a sentinel `LlmDone`
+// carrying the partial text assembled before the failure.
+//
+// Bus topic note: this lib has TWO publisher files (anthropic.hl
+// + openai.hl) both publishing the chunk/done channels. Codegen
+// v0 only resolves a `topic T` ident from the SAME .hl file as
+// the publishing locus, so a shared `topic LlmChunk` decl in
+// wire_topics.hl can't be ident-referenced from here. We use the
+// literal-subject form (`publish "agent.llm.chunk" of type ...`
+// / `"agent.llm.chunk" <- ...`), whose subjects are kept in lock-
+// step with the `topic LlmChunk`/`LlmDone` decls in
+// wire_topics.hl so cross-seed subscribers still wire `llm::
+// LlmChunk`. Logged in FRICTION.md.
 
 locus AnthropicClient {
     params {
@@ -49,50 +40,15 @@ locus AnthropicClient {
         base_url:      String = "https://api.anthropic.com";
         default_model: String = "claude-opus-4-7";
         max_body:      Int    = 16777216;  // 16 MiB response cap
-
-        // Last-error scratch (see two-channel deviation above).
-        last_kind:   String = "";
-        last_status: Int    = 0;
-        last_detail: String = "";
     }
     bus {
-        // Topic-ident publish (canonical form per spec §
-        // Topic declarations). The seed-rename pass now
-        // rewrites publish-side topic refs alongside the
-        // topic decls themselves, so the workaround that
-        // forced literal-subject publishes (`"agent.llm.
-        // chunk" of type LlmChunk`) is gone. Subscribers
-        // wire up symmetrically via `subscribe llm::LlmChunk
-        // as h;` — no `of type T`, the topic carries the
-        // payload type.
-        publish LlmChunk;
-        publish LlmDone;
-    }
-
-    // ===== error inspection ============================================
-
-    fn last_error_kind()   -> String { return self.last_kind;   }
-    fn last_error_status() -> Int    { return self.last_status; }
-    fn last_error_detail() -> String { return self.last_detail; }
-
-    // Error-check fn for the value channel (the substitute-and-record
-    // half of the spec/styleguide.md § 7 pattern). The structural
-    // channel half (violate fatal) isn't wired here because a single
-    // bad request shouldn't drain the whole client locus.
-    fn __record(e: LlmError) -> LlmResponse {
-        self.last_kind   = e.kind;
-        self.last_status = e.status;
-        self.last_detail = e.detail;
-        return LlmResponse { };
+        publish "agent.llm.chunk" of type LlmChunkMsg;
+        publish "agent.llm.done"  of type LlmDoneMsg;
     }
 
     // ===== complete() — non-streaming, one-shot ========================
 
-    fn complete(req: LlmRequest) -> LlmResponse {
-        self.last_kind = "";
-        self.last_status = 0;
-        self.last_detail = "";
-
+    fn complete(req: LlmRequest) -> LlmResponse fallible(LlmError) {
         let model = req.model;
         let mut filled = req;
         if len(model) == 0 {
@@ -109,32 +65,23 @@ locus AnthropicClient {
             self.base_url,
             filled,
             self.max_body
-        ) or self.__record(err);
+        ) or raise;
     }
 
     // ===== stream() — SSE, fires LlmChunk per delta, LlmDone at end ===
 
-    // Per the two-channel rule, stream() is non-fallible. Errors
-    // surface on self.last_* (same as complete), and on a failed
-    // stream the locus emits an `LlmDone` carrying the partial
-    // text that was assembled before the failure plus an empty
-    // stop_reason. Consumers that need hard error semantics check
-    // `last_error_kind() != ""` after the call.
+    // stream() returns `()` — results surface over the bus. On a
+    // connect/HTTP/vendor failure the locus emits a sentinel
+    // `LlmDone` (empty LlmResponse) so subscribers learn the
+    // stream finished. Hard error semantics belong on `complete`.
     //
     // Implementation note: the connect+send+drain phase lives
     // in a fallible free fn (`__anthropic_fetch_sse`) so the
     // error channel composes the usual way. The SSE-line walk
-    // is INLINE here because `publish LlmChunk` / `LlmDone`
-    // is only legal inside a locus body with the matching
-    // `bus { publish ... }` declaration (spec/semantics.md §
-    // bus). Calling a free-fn kernel that does the publish
-    // would fail typecheck with "bus send only valid inside
-    // a locus body" — verified during initial build.
+    // is INLINE here because a bus send is only legal inside a
+    // locus body with the matching `bus { publish ... }`
+    // declaration (spec/semantics.md § bus).
     fn stream(req: LlmRequest) {
-        self.last_kind = "";
-        self.last_status = 0;
-        self.last_detail = "";
-
         let model = req.model;
         let mut filled = req;
         if len(model) == 0 {
@@ -147,17 +94,20 @@ locus AnthropicClient {
             };
         }
 
+        // On a fetch failure substitute the failure-sentinel
+        // string (`__SSE_FAIL`), which a real SSE body never
+        // begins with, so the branch below can distinguish a
+        // failed stream from a valid (possibly empty) one.
         let body = __anthropic_fetch_sse(
             self.api_key,
             self.base_url,
             filled,
             self.max_body
-        ) or self.__sse_recover(err);
-        if self.last_kind != "" {
+        ) or "__SSE_FAIL";
+        if body == "__SSE_FAIL" {
             // Connect/HTTP/vendor failure — publish a sentinel
-            // LlmDone so subscribers learn the stream finished
-            // (the body of last_* carries the diagnosis).
-            LlmDone <- LlmDoneMsg { payload: LlmResponse { } };
+            // LlmDone so subscribers learn the stream finished.
+            "agent.llm.done" <- LlmDoneMsg { payload: LlmResponse { } };
         } else {
             // Walk the SSE body inline (bus publish must be
             // lexically inside the locus). Same loop the
@@ -174,7 +124,7 @@ locus AnthropicClient {
                 }
                 let delta = extract_anthropic_delta(step.line);
                 if len(delta) > 0 {
-                    LlmChunk <- LlmChunkMsg { payload: delta };
+                    "agent.llm.chunk" <- LlmChunkMsg { payload: delta };
                     std::str::builder_append(text_buf, delta);
                 }
                 let sr = extract_anthropic_stop_reason(step.line);
@@ -188,18 +138,8 @@ locus AnthropicClient {
                 input_tokens:  0,
                 output_tokens: 0
             };
-            LlmDone <- LlmDoneMsg { payload: resp };
+            "agent.llm.done" <- LlmDoneMsg { payload: resp };
         }
-    }
-
-    // Error-check fn for the streaming path. Behaves like
-    // __record but returns an empty String (the success type
-    // of the connect-fetch kernel) rather than an LlmResponse.
-    fn __sse_recover(e: LlmError) -> String {
-        self.last_kind   = e.kind;
-        self.last_status = e.status;
-        self.last_detail = e.detail;
-        return "";
     }
 }
 

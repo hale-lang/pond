@@ -89,9 +89,10 @@ locus LoginFlow {
             or self.expect_err("missing-among-others", err);
 
         // ---- (6) SessionStore locus surface -----------------
-        // The locus path drops `fallible` per the two-channel
-        // rule and surfaces failures on `last_error`. Demo both
-        // shapes so consumers see the parity.
+        // `read` is now `fallible(SessionError)` per the v0.8.1
+        // two-channel rule. Inside this lifecycle `run()` body we
+        // can't `or raise`, so we address failures with an
+        // error-check fn (spec/styleguide.md § 7).
         let store = sess::SessionStore {
             secret:      secret,
             ttl_seconds: 60
@@ -99,28 +100,20 @@ locus LoginFlow {
         let issued_via_store = store.write(issued2);
         println("store-issued: ", issued_via_store);
 
-        let recovered = store.read(issued_via_store);
-        // Note: SessionStore.read uses now_seconds() (monotonic),
+        let recovered = store.read(issued_via_store)
+            or self.note_unexpected_err(err);
+        // Note: SessionStore.read uses now_seconds() (wall clock),
         // not the deterministic clock above, so the round-trip
         // here is the realistic path.
         self.check_eq_str("store round-trip id", recovered.id, "u-42");
-        self.check_eq_str("store last_error empty after good read",
-            store.last_error.kind, "");
 
         // base64("garbage") decodes to bytes but HMAC won't match;
         // depending on what base64 produces, the verifier may
-        // report either "tampered" (decode succeeded, mac
-        // mismatch) or "malformed" (decode produced zero bytes).
-        // Accept either — both signal "definitely not authentic."
-        let _ = store.read("session=garbage.garbage");
-        let bad_kind = store.last_error.kind;
-        if bad_kind == "tampered" || bad_kind == "malformed" {
-            self.passes = self.passes + 1;
-            println("  PASS store last_error after bad cookie -> ", bad_kind);
-        } else {
-            self.fails = self.fails + 1;
-            println("  FAIL store last_error after bad cookie -> ", bad_kind);
-        }
+        // fail "tampered" (decode succeeded, mac mismatch) or
+        // "malformed" (decode produced zero bytes). Accept either
+        // — both signal "definitely not authentic."
+        let _ = store.read("session=garbage.garbage")
+            or self.expect_bad_cookie(err);
 
         // ---- summary ----------------------------------------
         println("");
@@ -160,6 +153,21 @@ locus LoginFlow {
             self.fails = self.fails + 1;
             println("  FAIL expected-err ", want_kind_label,
                 " -> wanted <", want, "> got <", e.kind, ">");
+        }
+        return sess::Session { id: "", data: "" };
+    }
+
+    // Error-check fn for the garbage-cookie store.read path: a
+    // bad cookie must fail "tampered" or "malformed". Either kind
+    // is a pass; anything else (incl. a success that never lands
+    // here) is a fail.
+    fn expect_bad_cookie(e: sess::SessionError) -> sess::Session {
+        if e.kind == "tampered" || e.kind == "malformed" {
+            self.passes = self.passes + 1;
+            println("  PASS store read after bad cookie -> ", e.kind);
+        } else {
+            self.fails = self.fails + 1;
+            println("  FAIL store read after bad cookie -> ", e.kind);
         }
         return sess::Session { id: "", data: "" };
     }

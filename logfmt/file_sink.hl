@@ -38,14 +38,19 @@
 //   destination in a single syscall, so the oldest slot is evicted
 //   implicitly and no read-into-memory round-trip is needed.
 //
-// Two-channel deviation (logged in FRICTION.md): CONTRACTS.md
-// declares `write` / `line` / `newline` as
-// `fallible(IoError)`. Per AGENTS.md's two-channel rule, locus
-// methods cannot declare fallible(E). The methods here address the
-// underlying `std::io::fs::write_file_append` fallible via
-// `or self.__handle_io(err)` instead — value errors are captured
-// into a `last_*` triple readable through accessors, matching
-// pond/http/client::Client's shape.
+// Interface-binding exemption (logged in FRICTION.md): CONTRACTS.md
+// declares `write` / `line` / `newline` as `fallible(IoError)`, but
+// these methods must structurally satisfy `std::text::Sink`, whose
+// `write`/`line`/`newline` are NON-fallible
+// (`stdlib/text.hl interface __StdTextSink`). Under v0.8.1 a
+// `fallible(E)` signature would no longer match the interface and
+// would break coerce-to-interface at every consumer that passes a
+// FileSink where a `std::text::Sink` is expected — so these stay
+// non-fallible. Being interface-bound, they keep the structural
+// channel: the body addresses the underlying
+// `std::io::fs::write_file_append` fallible via
+// `or self.__handle_io(err)`, capturing value errors into a `last_*`
+// triple readable through accessors, matching pond/http/client::Client.
 
 locus FileSink {
     params {

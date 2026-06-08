@@ -84,29 +84,53 @@ same workaround pond/subprocess and pond/http/client document.
 
 Logged as G5 elsewhere; nothing this lib can do on its own.
 
-## deviation from CONTRACTS.md: no `fallible(WsError)` on locus methods — [CLOSABLE]
+## deviation from CONTRACTS.md: no `fallible(WsError)` on locus methods — [CLOSED 2026-06-08]
 
-**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
-v0.2, commits `d565d6f` + `98910b9`); user-declared `fn` member
-fns now carry `fallible(E)`. The next source pass restores
-`WsClient.send_text` / `send_bytes` / `close` to
-`fallible(WsError)` directly; the `last_error` field and the
-Bool-return-plus-sentinel pattern collapse. Clean breaking
-change — `or raise` / `or handler(err)` addressing is the new
-shape.
+**2026-06-08 resolution.** Migrated to the v0.8.1 two-channel rule
+(#24 v0.2). The owner-called outbound send surface now carries
+`fallible(WsError)` directly; callers address with
+`or raise` / `or fail ...` / `or <substitute>` / `or discard`:
 
-**Current source shape (still in place).** Per the old (pre-v0.8.1)
-two-channel rule, `send_text` / `send_bytes` / `close` are
-Bool-returning rather than fallible. Failure surfaces via the
-value channel:
+- `WsClient.send_text` / `send_bytes` / `close` →
+  `() fallible(WsError)`. The internal `send_frame_internal`
+  helper is also `fallible(WsError)` so the user-facing fns
+  bubble it via `or raise` (and `close`'s best-effort write via
+  `or discard`).
+- `WsServerConn.send_text` / `send_binary` / `close` (and the
+  shared `send_frame` helper) → `() fallible(WsError)`, same
+  shape.
+
+New caller pattern:
 
 ```hale
-let ok = client.send_text("hello");
-if !ok {
-    let e = client.last_error;
-    println("send failed: kind=", e.kind, " detail=", e.detail);
-}
+client.send_text("hello") or raise;        // bubble to enclosing fallible scope
+client.send_text("hello") or discard;      // best-effort, drop the error
+conn.close() or discard;
 ```
+
+**Stayed non-fallible (substrate-facing surfaces).** Per the
+v0.8.1 narrowing these keep the Bool-return + `self.last_error`
+value-channel shape rather than `fallible(E)`:
+
+- Lifecycle: `WsClient.birth` / `dissolve`, `WsServerConn.birth`.
+- The owner-driven blocking pumps `WsClient.open` / `read_msg`
+  and `WsServerConn.handshake` / `read_msg` — these report a
+  rich `WsError` via `self.last_error` while returning `Bool`
+  for the loop predicate (`while conn.read_msg() { ... }`), the
+  recv-loop shape the contract documents. They are intentionally
+  left on the value channel; flipping them would force every
+  run-loop predicate through an `or` disposition.
+- The structural-channel error-check fns
+  (`io_substitute_int` / `handshake_fail` / `framing_fail_hdr`
+  in client.hl, `__raise_framing` in server.hl) and the
+  `try_peel_one` inbound control path remain — `try_peel_one`'s
+  ping-reply send is addressed with `or discard` (it is not an
+  owner-called send). There are no bus-subscribed handler fns in
+  this lib.
+
+`self.last_error` / the `expose last_error` contract field are
+retained: still the channel for `open` / `read_msg` / handshake
+failures.
 
 ## RFC 6455 conformance scope
 

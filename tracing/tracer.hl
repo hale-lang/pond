@@ -11,7 +11,7 @@ import "../_util/rowbuf"       as rb;
 //       fn start_span(name: String, parent: SpanId) -> SpanId;
 //       fn end_span(id: SpanId) -> ();
 //       fn add_attr(id: SpanId, key: String, val: String) -> ();
-//       fn export_otlp(endpoint: String) -> () fallible(IoError);
+//       fn export_otlp(endpoint: String) -> () fallible(TraceError);
 //   }
 //
 // Catalog placement: pattern 3 (service locus) — long-lived,
@@ -52,14 +52,14 @@ import "../_util/rowbuf"       as rb;
 // workload pushes against this, the @form(hashmap) flip is the
 // right substitution; logged in FRICTION.md.
 //
-// The two-channel rule: locus methods on user-declared loci
-// cannot declare `fallible(E)`. `start_span` / `end_span` /
-// `add_attr` are infallible per contract. `export_otlp` is
-// declared `fallible(IoError)` in CONTRACTS.md — that's
-// incompatible with the two-channel rule. We deviate by
-// returning `()` and surfacing the failure via
-// `self.last_error_kind` + `self.last_error_detail`; see
-// FRICTION.md "deviation: export_otlp fallibility".
+// The two-channel rule (v0.8.1 #24 v0.2): user-declared `fn`
+// member methods carry `fallible(E)` directly. `start_span` /
+// `end_span` / `add_attr` are infallible per contract.
+// `export_otlp` is `fallible(TraceError)` per CONTRACTS.md's
+// status note — the pre-v0.8.1 "non-fallible method +
+// self.last_error_* + paired accessor fns" workaround is
+// retired. Callers address it with `or raise` / `or <substitute>`
+// / `or handler(err)`.
 
 // =====================================================================
 // Transitive-import gap (see FRICTION.md "export_otlp can't import
@@ -69,11 +69,11 @@ import "../_util/rowbuf"       as rb;
 // only imports `trace` cannot see `http::HttpError` / `http::post`
 // referenced from this lib. Until cross-seed transitive imports
 // land, `export_otlp` ships as a JSON-only stub: it assembles the
-// OTLP body, records it on self.last_export_body for inspection,
-// and reports a kind="transport_unsupported" error so consumers
-// can detect the gap without taking down their tracer. The
-// exporter integration tests in /examples/ check the body shape
-// directly; full wire delivery flips on when the gap closes.
+// OTLP body and `fail`s with a `TraceError { kind:
+// "transport_unsupported", ... }` so consumers can detect the gap
+// via the value channel (`or handler(err)`). Full wire delivery
+// flips on when the gap closes — at which point the body is POSTed
+// and an `io`-kind TraceError is raised on transport failure.
 // =====================================================================
 
 
@@ -108,19 +108,6 @@ locus Tracer {
         // Packed buffers — see "Storage shape" above.
         open_buf:      String = "";
         completed_buf: String = "";
-
-        // Last-error surface for export_otlp (see two-channel
-        // deviation note above). Empty kind == success.
-        last_error_kind:   String = "";
-        last_error_detail: String = "";
-
-        // Stub-mode capture: export_otlp can't currently reach
-        // pond/http/client transitively (see FRICTION.md), so we
-        // stash the assembled OTLP body on self for inspection.
-        // Test harnesses read this via last_export_body(); the
-        // real HTTP delivery flips on when the transitive-import
-        // gap closes.
-        last_export_body: String = "";
     }
 
     bus {
@@ -245,46 +232,41 @@ locus Tracer {
     // completed-spans buffer and (when the transitive-import
     // gap closes) POST it to `endpoint`.
     //
-    // Per the two-channel rule (deviation flagged in
-    // FRICTION.md), this method returns () instead of the
-    // contract's `fallible(IoError)`. Failure surfaces through
-    // `self.last_error_kind` / `self.last_error_detail`.
+    // Per the v0.8.1 two-channel rule, this method carries
+    // `fallible(TraceError)` directly: failure routes through the
+    // value channel as a `TraceError { kind; detail; }`. Callers
+    // address it with `or raise` / `or handler(err)`.
     //
-    // v1 stub-mode: the JSON body is assembled and stashed on
-    // `self.last_export_body`; `self.last_error_kind` is set to
-    // "transport_unsupported" to flag the gap. The completed-
-    // span buffer is NOT cleared in stub mode so a retry after
-    // the unblock will exfiltrate the same batch.
+    // v1 stub-mode: the JSON body is assembled, then the method
+    // `fail`s with `kind: "transport_unsupported"` to flag the
+    // transitive-import gap. The completed-span buffer is NOT
+    // cleared so a retry after the unblock will exfiltrate the
+    // same batch.
     //
-    // No-op + success when the export buffer is empty.
-    fn export_otlp(endpoint: String) {
-        self.last_error_kind   = "";
-        self.last_error_detail = "";
-
+    // No-op + success (Unit) when the export buffer is empty.
+    fn export_otlp(endpoint: String) -> () fallible(TraceError) {
         if len(self.completed_buf) == 0 {
             // Nothing to export — success.
             let _ = endpoint;
         } else {
             let body = __build_otlp_json(self.service_name, self.completed_buf);
-            self.last_export_body = body;
-            self.last_error_kind   = "transport_unsupported";
-            self.last_error_detail = "pond/tracing: transitive import of "
-                + "pond/http/client not yet supported; OTLP body assembled "
-                + "and stashed on self.last_export_body but not delivered "
-                + "to " + endpoint + ". See FRICTION.md.";
+            // Body assembled; transport not yet reachable (see the
+            // transitive-import note above). Surface the gap on the
+            // value channel. When the unblock lands this becomes an
+            // `http::post(...) or fail TraceError { kind: "io", ... }`.
+            let _ = body;
+            fail TraceError {
+                kind:   "transport_unsupported",
+                detail: "pond/tracing: transitive import of "
+                    + "pond/http/client not yet supported; OTLP body "
+                    + "assembled but not delivered to " + endpoint
+                    + ". See FRICTION.md.",
+            };
             // self.completed_buf intentionally NOT cleared — a
             // future retry after the unblock should pick up the
             // same batch.
         }
     }
-
-    // last_error_kind_str / last_error_detail_str / last_export_body_str
-    // — read-only accessors so consumers can inspect post-call
-    // state without grepping for field names. Naming mirrors
-    // pond/http/client's Client.last_error_* shape.
-    fn last_error_kind_str()    -> String { return self.last_error_kind; }
-    fn last_error_detail_str()  -> String { return self.last_error_detail; }
-    fn last_export_body_str()   -> String { return self.last_export_body; }
 
     // __find_open_row — return the full open-buf row for `id`,
     // empty string if not found. Match is on the leading

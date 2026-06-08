@@ -2,33 +2,25 @@
 
 ## Contract deviations
 
-### `SessionStore.read` drops `fallible(SessionError)` — [CLOSABLE]
+### `SessionStore.read` drops `fallible(SessionError)` — [CLOSED 2026-06-08]
 
-**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
-v0.2, commits `d565d6f` + `98910b9`) so user-declared `fn` member
-fns now carry `fallible(E)`. The next source pass restores
-`SessionStore.read` to its original
-`-> Session fallible(SessionError)` signature; `last_error` and
-the paired free fn collapse. Clean breaking change — `verify_cookie`
-stays as a standalone free fn for callers that prefer not to
-instantiate the locus.
+**2026-06-08 resolution.** Migrated to the v0.8.1 two-channel
+rule (#24 v0.2, commits `d565d6f` + `98910b9`). `SessionStore.read`
+now carries `-> Session fallible(SessionError)` directly, matching
+`pond/CONTRACTS.md § pond/sessions/`. The pre-v0.8.1 workaround is
+fully retired:
 
-**Current source shape (still in place).** `pond/CONTRACTS.md §
-pond/sessions/` declares:
+- the `last_error: SessionError` param is gone;
+- the `handle_verify` error-check fn is gone;
+- the never-fired `fatal_secret` closure is deleted — it was a pure
+  value-error workaround (every `read` failure is recoverable; there
+  was no genuine structural birth-time invariant to guard), so it had
+  no reason to remain on the structural channel.
 
-```hale
-fn read(cookie_header: String) -> Session fallible(SessionError);
-```
-
-on the `SessionStore` locus. Under the old (pre-v0.8.1) rule,
-user-declared locus methods couldn't declare `fallible(E)`. The
-implementation drops the marker and surfaces failures via:
-
-- `self.last_error: SessionError` — readable after every call;
-  `kind == ""` means success.
-- The companion free fn `verify_cookie(secret, header, now)`
-  in `sign.hl` *is* fallible(SessionError) — consumers that want
-  `or` addressing call it directly without an instantiated locus.
+`read` is a one-liner over `verify_cookie(...) or raise`. `write` /
+`invalidate` stay non-fallible per the contract. `verify_cookie`
+remains a standalone free fn in `sign.hl` for callers that prefer
+not to instantiate the locus.
 
 ## Duplicate-suspected
 
@@ -53,7 +45,7 @@ real cross-lib util, not yet a lib.
 ## Build status
 
 Type-checks cleanly under
-`hale build
-pond/sessions/`. The example
+`hale check pond/sessions` (`ok: 6 file(s) typechecked`). The example
 `examples/login-flow/main.hl` exercises sign → read → tamper →
-expire end-to-end via the free-fn surface.
+expire end-to-end via both the free-fn surface and the
+`SessionStore` locus (`store.read(...) or ...`).
