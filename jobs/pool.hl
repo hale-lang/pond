@@ -7,8 +7,9 @@
 //            (db_path, table), the handler fn pointer, and the
 //            worker fan-out. Spawns N Workers in birth() so they
 //            attach as Pool children and dissolve when Pool does.
-//   Worker : pinned (`: schedule pinned`) child of Pool. Owns its
-//            own OS thread; its run() loop is the dequeue → invoke
+//   Worker — child of Pool, placed `pinned` by the consuming app's
+//            main-locus `placement { }` block (F.31). Owns its own
+//            OS thread; its run() loop is the dequeue → invoke
 //            → ack/fail cycle. Pinned because the SQLite roundtrip
 //            and the user-supplied handler are exactly the kind of
 //            "work that genuinely shouldn't share a scheduler with
@@ -191,16 +192,20 @@ locus Pool {
     }
 }
 
-// Worker — one pinned background thread executing the
+// Worker — one background thread executing the
 // dequeue → invoke → ack/fail loop.
 //
-// Pinned because the SQLite I/O (post-unblock) plus the user-
-// supplied handler are exactly the "doesn't share a scheduler
-// with cooperative siblings" case from spec/runtime.md §
-// Schedule classes. The pinned class restricts away accept() and
-// closures — both already irrelevant for Worker (no children, no
-// closure-test audit), so the constraint costs nothing here.
-locus Worker : schedule pinned {
+// Pinned placement is the natural fit here: the SQLite I/O
+// (post-unblock) plus the user-supplied handler are exactly the
+// "doesn't share a scheduler with cooperative siblings" case from
+// spec/runtime.md § Schedule classes. As of F.31 the per-locus
+// `: schedule pinned` annotation no longer exists — thread
+// placement lives only in the consuming binary's `main` locus
+// `placement { }` block. A library seed has no `main`, so this
+// lib no longer pins the worker itself; the app that instantiates
+// the worker-pool field declares `placement { worker_field:
+// pinned(core = N); }` (or cooperative) in ITS main locus.
+locus Worker {
     params {
         // Stable per-worker identifier. Surfaced in log lines
         // and (post-unblock) used as part of the claimed_at

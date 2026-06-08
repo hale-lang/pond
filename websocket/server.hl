@@ -278,17 +278,23 @@ locus WsServerConn {
         return false;
     }
 
-    fn send_text(s: String) -> Bool {
-        return self.send_frame(1, std::bytes::from_string(s));
+    // send_text / send_binary — owner-called outbound surface, so
+    // they carry `fallible(WsError)` (v0.8.1 two-channel rule).
+    // Address with `or raise` / `or fail ...` / `or <substitute>`.
+    fn send_text(s: String) -> () fallible(WsError) {
+        self.send_frame(1, std::bytes::from_string(s)) or raise;
     }
 
-    fn send_binary(b: Bytes) -> Bool {
-        return self.send_frame(2, b);
+    fn send_binary(b: Bytes) -> () fallible(WsError) {
+        self.send_frame(2, b) or raise;
     }
 
-    fn send_frame(opcode: Int, payload: Bytes) -> Bool {
+    fn send_frame(opcode: Int, payload: Bytes) -> () fallible(WsError) {
         if !self.connected {
-            return false;
+            fail WsError {
+                kind:   "io",
+                detail: "send on closed connection",
+            };
         }
         let stream = std::io::tcp::Stream { conn_fd: self.conn_fd, owns_fd: false };
         let frame =   emit_server_frame(true, opcode, payload);
@@ -307,20 +313,22 @@ locus WsServerConn {
                 bytes:  0,
                 op:     opcode,
             });
-            return false;
+            fail WsError {
+                kind:   "io",
+                detail: "send failed; peer gone",
+            };
         }
         self.frames_sent = self.frames_sent + 1;
-        return true;
     }
 
-    fn close() {
+    // close — graceful close frame + teardown. User-called member fn
+    // → `fallible(WsError)`; the close-frame write is best-effort
+    // (`or discard`) since teardown proceeds regardless.
+    fn close() -> () fallible(WsError) {
         if !self.connected {
             return;
         }
-        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd, owns_fd: false };
-        let close =   emit_server_frame(true, 8, b"");
-        stream.send_bytes(close);
-        self.frames_sent = self.frames_sent + 1;
+        self.send_frame(8, b"") or discard;
         self.connected = false;
     }
 }

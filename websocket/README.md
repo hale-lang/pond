@@ -20,7 +20,10 @@ but the driver is inverted: the consumer drives.
 ```hale
 import "vendor/pond/websocket" as ws;
 
-locus EchoTap : schedule pinned {
+// Pin the owner on its own thread via the app's main-locus
+// `placement { tap: pinned(core = N); }` (F.31); a single-locus
+// demo like this just runs on the main thread.
+locus EchoTap {
     run() {
         let conn = ws::WsClient {
             url:            "wss://echo.websocket.events",
@@ -66,8 +69,9 @@ fn main() { EchoTap { }; }
 Blocking I/O in Hale belongs on the **owner's** scheduler, not in
 a hidden thread inside the library. The owner-Σ:
 
-- declares its schedule class (typically `: schedule pinned` for a
-  dedicated thread),
+- gets its thread placement from the app's main-locus
+  `placement { }` block (typically `pinned` for a dedicated thread,
+  F.31),
 - holds the connection locus as a child in its arena,
 - drives `read_msg()` synchronously from its own loop,
 - reads `conn.last_message` via the F.14 typed contract surface —
@@ -170,8 +174,8 @@ FRICTION.md.
 `WsClient` is a passive **connection wrapper** — a Service-locus
 shape but without `run()`. Methods are synchronous; the owner's
 loop drives. The owner is typically a **Service locus** (pattern
-3) with `: schedule pinned` so blocking reads don't starve the
-cooperative scheduler.
+3) placed `pinned` (via the app's main-locus `placement { }` block,
+F.31) so blocking reads don't starve the cooperative scheduler.
 
 `parse_url` / `parse_frame` / `emit_frame` / `build_request` /
 `parse_response` are **free fns** (pattern 6), testable in

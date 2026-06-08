@@ -5,29 +5,24 @@ contract deviations encountered while building this lib.
 
 ## Contract deviations vs CONTRACTS.md
 
-### `Client` methods cannot be `fallible(HttpError)` — [CLOSABLE]
+### `Client` methods cannot be `fallible(HttpError)` — [CLOSED 2026-06-08]
 
-**2026-05-27 update.** Upstream v0.8.1 (#24 v0.2, commits `d565d6f`
-+ `98910b9`) narrowed the two-channel rule so user-declared `fn`
-member fns can now carry `fallible(E)` with heap-bearing payloads.
-The deviation below is the still-shipped source shape; the next
-source pass flips `Client.get` / `.post` / `.request` to
-`fallible(HttpError)` directly, drops the `last_kind` /
-`last_status` / `last_detail` accessors, and collapses the free-fn
-mirrors. Clean breaking change — no transitional surface.
+**2026-06-08 resolution.** Migrated to the v0.8.1 two-channel rule
+(#24 v0.2, commits `d565d6f` + `98910b9`). `Client.get` / `.post` /
+`.request` now declare `fallible(HttpError)` directly and match the
+free-fn surface in CONTRACTS.md verbatim. Removed the entire
+workaround: the `last_kind` / `last_status` / `last_detail` scratch
+params, the `last_error_kind()` / `last_error_status()` /
+`last_error_detail()` accessors, the `__record_err` bridge, and the
+`__client_{get,post,request}_fallible` free-fn mirrors (their bodies
+folded straight into the methods). No deviation remains; the as-built
+surface equals the contract. Callers address the value channel with
+`or raise` / `or <substitute>` / an error-check fn.
 
-**Current source shape (still in place).** `Client.get` / `.post` /
-`.request` return `Response` directly (no `fallible` marker). On
-failure they write the error into `self.last_kind` /
-`self.last_status` / `self.last_detail` and return a sentinel
-`Response { status: 0 }`. Callers check `r.status > 0` and consult
-`c.last_error_kind()` / `.last_error_status()` /
-`.last_error_detail()` if status is 0.
-
-Agents that want value-channel `or raise` propagation can still
-use the free-fn surface (`http::get`, `http::post`,
-`http::request`) — those are `fallible(HttpError)` per the
-contract.
+**2026-05-27 (historical).** Upstream v0.8.1 narrowed the two-channel
+rule so user-declared `fn` member fns can carry `fallible(E)` with
+heap-bearing payloads; this entry tracked the pending source pass that
+the 2026-06-08 migration above completed.
 
 ## Language / stdlib gaps
 
