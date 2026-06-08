@@ -8,7 +8,8 @@
 // This matches The Design's I3/H4/H10 for blocking I/O:
 //
 //   - The locus that owns the connection lives on its own scheduler
-//     (typically `: schedule pinned`).
+//     (typically placed `pinned` via the app's `placement { }`
+//     block, F.31).
 //   - Frames are recv'd into the locus's own arena (rx_buf, reused
 //     per recv).
 //   - Parsed messages land in `self.last_message`, exposed via the
@@ -32,10 +33,11 @@
 //                    last_message; handles peer pings, pongs, close
 //                    transparently; auto-reconnects on transient
 //                    failure if `auto_reconnect = true` (Bool)
-//   send_text(s)   — emit a text frame (Bool)
-//   send_bytes(b)  — emit a binary frame (Bool)
+//   send_text(s)   — emit a text frame (fallible(WsError))
+//   send_bytes(b)  — emit a binary frame (fallible(WsError))
 //   close()        — send close frame + tear down socket
-//   dissolve()     — calls close()
+//                    (fallible(WsError); best-effort frame write)
+//   dissolve()     — calls close_sock()
 //
 // ## URL parsing
 //
@@ -350,7 +352,10 @@ locus WsClient {
                         hdr.masked, hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
             self.rx_buf.shift_front(hdr.total);
             // F.30 5a wired method-call arg-site coercion too.
-            let _ = self.send_frame_internal(10, self.scratch_buf.view());
+            // Ping reply is best-effort on the inbound control path:
+            // try_peel_one is not a user-called send, so a failed
+            // pong is dropped here rather than bubbled to the owner.
+            self.send_frame_internal(10, self.scratch_buf.view()) or discard;
             self.scratch_buf.clear();
             return 1;
         }
@@ -405,36 +410,39 @@ locus WsClient {
 
     // ===== outbound send surface =====
 
-    fn send_text(s: String) -> Bool {
+    // send_text — emit a text frame. User-called member fn, so it
+    // carries `fallible(WsError)` (v0.8.1 two-channel rule). Callers
+    // address with `or raise` / `or fail ...` / `or <substitute>`.
+    fn send_text(s: String) -> () fallible(WsError) {
         if !self.connected {
-            self.last_error = WsError {
+            fail WsError {
                 kind: "io",
                 detail: "not connected",
             };
-            return false;
         }
         let payload = std::bytes::from_string(s);
-        return self.send_frame_internal(1, payload);
+        self.send_frame_internal(1, payload) or raise;
     }
 
-    fn send_bytes(b: Bytes) -> Bool {
+    fn send_bytes(b: Bytes) -> () fallible(WsError) {
         if !self.connected {
-            self.last_error = WsError {
+            fail WsError {
                 kind: "io",
                 detail: "not connected",
             };
-            return false;
         }
-        return self.send_frame_internal(2, b);
+        self.send_frame_internal(2, b) or raise;
     }
 
     // close — send a graceful close frame and tear down the socket.
-    // After this, `connected` is false and read_msg / send_* will
-    // return false unless open() is called again.
-    fn close() {
+    // After this, `connected` is false and read_msg / send_* fail
+    // unless open() is called again. User-called member fn →
+    // `fallible(WsError)`; the close-frame write is best-effort
+    // (`or discard`) since teardown proceeds regardless.
+    fn close() -> () fallible(WsError) {
         let empty = std::bytes::from_string("");
         if self.connected {
-            let _ = self.send_frame_internal(8, empty);
+            self.send_frame_internal(8, empty) or discard;
         }
         self.close_sock();
         self.connected = false;
@@ -442,21 +450,24 @@ locus WsClient {
 
     // ===== internal helpers =====
 
-    fn send_frame_internal(opcode: Int, payload: Bytes) -> Bool {
+    // send_frame_internal — masks + writes one frame. User-callable
+    // surface (send_text / send_bytes / close) addresses it with
+    // `or raise`; the inbound ping-reply path in try_peel_one
+    // (control-channel, owner does not call it) addresses it with
+    // `or discard`.
+    fn send_frame_internal(opcode: Int, payload: Bytes) -> () fallible(WsError) {
         self.mask_seed = self.mask_seed * 1664525 + 1013904223;
         let frame = emit_frame(true, opcode, payload, self.mask_seed);
         let n = self.write_all(frame);
         if n < 0 {
-            self.last_error = WsError { kind: "io", detail: "send failed" };
             self.logger.on_event(WsLogEvent {
                 phase: "error", detail: "send failed", op: opcode });
-            return false;
+            fail WsError { kind: "io", detail: "send failed" };
         }
         self.frames_sent = self.frames_sent + 1;
         self.logger.on_event(WsLogEvent {
             phase: "send", detail: "frame written",
             bytes: len(payload), op: opcode });
-        return true;
     }
 
     fn write_all(b: Bytes) -> Int {

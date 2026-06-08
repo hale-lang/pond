@@ -20,19 +20,16 @@
 // **CONTRACTS.md deviation log** (see FRICTION.md for full
 // context):
 //
-//   1. CONTRACTS.md says `Model.forward(x: Matrix) -> Matrix
-//      fallible(NnError)`. Locus methods can't carry fallible(E)
-//      per the two-channel rule (KNOWN_GOTCHAS G4). Shipped
-//      shape: `forward(x: Matrix) -> Matrix`; on shape mismatch
-//      returns the matrix error sentinel and stashes
-//      `self.last_error: NnError`. Callers branch on
-//      `mat::Mat.is_error(out)` after the call.
+//   1. `Model.forward` / `Model.train_step` / `Model.apply_delta`
+//      now carry `fallible(NnError)` directly, per the v0.8.1
+//      narrowing of the two-channel rule (user-declared member
+//      fns may declare `fallible(E)`). Shape mismatches / decode
+//      failures route through `fail NnError { ... }` on the value
+//      channel; the former matrix-error-sentinel + `last_error`
+//      stash workaround is retired. Callers address with
+//      `or raise` / `or <substitute>` / `or handler(err)`.
 //
-//   2. CONTRACTS.md says `Model.apply_delta(d: Bytes) -> ()
-//      fallible(NnError)`. Same rule; shipped non-fallible.
-//      Errors land on `self.last_error`.
-//
-//   3. The `Layer` type stores `weights_offset / weights_count /
+//   2. The `Layer` type stores `weights_offset / weights_count /
 //      biases_offset / biases_count` Int windows into Model.params
 //      rather than the contract's `weights: Matrix; biases:
 //      Matrix;` because `type` records can't carry locus refs at
@@ -90,7 +87,6 @@ locus Model {
         // Owner state for state-mirroring surface surface.
         gen:         Int            = 0;
         era:         Int            = 0;
-        last_error:  NnError;
 
         // PRNG state for Xavier-init weights. Tiny LCG; not
         // cryptographic — deterministic seeds matter more than
@@ -127,10 +123,10 @@ locus Model {
     }
 
     // Replace the model's full state from a snapshot-shaped
-    // Bytes payload. Bumps `gen` on success. On any decode
-    // failure stashes `self.last_error` with kind
-    // "decode_failed" and leaves state untouched.
-    fn apply_delta(d: Bytes) {
+    // Bytes payload. Bumps `gen` on success. On a decode failure
+    // routes a kind="decode_failed" NnError up the value channel
+    // and leaves state untouched.
+    fn apply_delta(d: Bytes) -> () fallible(NnError) {
         let s = std::str::from_bytes(d);
         let total = len(s);
         // Locate the first newline — meta boundary.
@@ -146,11 +142,10 @@ locus Model {
             i = i + 1;
         }
         if nl < 0 {
-            self.last_error = NnError {
+            fail NnError {
                 kind:   "decode_failed",
                 detail: "missing newline meta delimiter",
             };
-            return;
         }
         let meta = std::str::substring(s, 0, nl);
         // Parse + replace state. Reset the @form(vec) by
@@ -190,7 +185,6 @@ locus Model {
             cursor = tok_end + 1;
         }
         self.gen = self.gen + 1;
-        self.last_error = NnError { };
     }
 
     // ---- model-building surface ----
@@ -201,18 +195,17 @@ locus Model {
     // and initializes weights with Xavier-uniform draws scaled by
     // sqrt(1 / input_dim); biases start at 0.0.
     //
-    // Unknown activations are accepted with a `last_error` stash
-    // (kind="unknown_activation") and treated as "linear" at
-    // forward time — the structurally-clean path is to address
-    // last_error after add_dense().
+    // `add_dense` is a non-fallible model-building convenience
+    // (CONTRACTS.md: `fn add_dense(...) -> ()`). An unrecognized
+    // activation name is canonicalized to "linear" so the stored
+    // meta_csv always names a known activation; the value-channel
+    // shape mismatches are reported later at `forward`/`train_step`.
     fn add_dense(input_dim: Int, output_dim: Int, activation: String) {
-        // Validate activation.
-        let act = canonical_activation(activation);
-        if act == "unknown" {
-            self.last_error = NnError {
-                kind:   "unknown_activation",
-                detail: activation,
-            };
+        // Validate activation; unknown falls back to linear.
+        let act_raw = canonical_activation(activation);
+        let mut act = act_raw;
+        if act_raw == "unknown" {
+            act = "linear";
         }
         // Compute windows.
         let w_off = self.params_len;
@@ -272,27 +265,25 @@ locus Model {
     // as a length-input_dim vector). Returns an output Matrix of
     // shape output_dim x 1.
     //
-    // Empty model → returns the matrix error sentinel and stashes
-    // `last_error` kind="empty_model". Shape mismatch (input
-    // length doesn't match first-layer input_dim) → error
-    // sentinel + last_error kind="shape_mismatch".
-    fn forward(x: mat::Matrix) -> mat::Matrix {
+    // Empty model → `fail` kind="empty_model". Shape mismatch
+    // (input length doesn't match first-layer input_dim) →
+    // `fail` kind="shape_mismatch". Both route up the value
+    // channel; callers address with `or raise` / `or <substitute>`.
+    fn forward(x: mat::Matrix) -> mat::Matrix fallible(NnError) {
         let mx = mat::Mat { };
         let ops = NnOps { };
         if self.layer_count == 0 {
-            self.last_error = NnError {
+            fail NnError {
                 kind:   "empty_model",
                 detail: "forward() called with no layers",
             };
-            return mx.error_matrix();
         }
         let first = self.layer_at(0);
         if x.len() != first.input_dim {
-            self.last_error = NnError {
+            fail NnError {
                 kind:   "shape_mismatch",
                 detail: "input length doesn't match first layer input_dim",
             };
-            return mx.error_matrix();
         }
         // Coerce input to column-vec view (input_dim x 1).
         let mut a = ops.column_view(x, first.input_dim);
@@ -306,43 +297,41 @@ locus Model {
             a = ops.apply_activation(zb, layer.activation);
             li = li + 1;
         }
-        self.last_error = NnError { };
         return a;
     }
 
     // Single forward + backward + SGD update on one sample.
-    // Returns the per-sample MSE loss (or NaN on shape mismatch
-    // with last_error set).
+    // Returns the per-sample MSE loss; a shape mismatch (or an
+    // empty model) routes through `fail` on the value channel.
     //
     // Caches forward activations in two parallel @form(vec) Float
     // buffers held on a sibling FwdCache locus — let-bound inside
     // this method so it dissolves at scope exit. The caches store
     // pre-activation (z) and post-activation (a) values for each
     // layer in storage order.
-    fn train_step(x: mat::Matrix, y: mat::Matrix, lr: Float) -> Float {
+    fn train_step(x: mat::Matrix, y: mat::Matrix, lr: Float)
+        -> Float fallible(NnError)
+    {
         let mx = mat::Mat { };
         if self.layer_count == 0 {
-            self.last_error = NnError {
+            fail NnError {
                 kind:   "empty_model",
                 detail: "train_step() called with no layers",
             };
-            return std::math::nan();
         }
         let first = self.layer_at(0);
         let last = self.layer_at(self.layer_count - 1);
         if x.len() != first.input_dim {
-            self.last_error = NnError {
+            fail NnError {
                 kind:   "shape_mismatch",
                 detail: "input length doesn't match first layer input_dim",
             };
-            return std::math::nan();
         }
         if y.len() != last.output_dim {
-            self.last_error = NnError {
+            fail NnError {
                 kind:   "shape_mismatch",
                 detail: "target length doesn't match last layer output_dim",
             };
-            return std::math::nan();
         }
 
         // Sibling activation cache (let-bound; dissolves at fn
@@ -436,7 +425,6 @@ locus Model {
             li_b = li_b - 1;
         }
 
-        self.last_error = NnError { };
         return loss;
     }
 

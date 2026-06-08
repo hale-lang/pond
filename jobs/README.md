@@ -73,7 +73,10 @@ locus Pool {
     }
 }
 
-locus Worker : schedule pinned {
+// Pinned thread placement is now the consuming app's choice via its
+// main locus `placement { worker_field: pinned(core = N); }` block
+// (F.31 removed the per-locus `: schedule` annotation).
+locus Worker {
     params { worker_id: Int; db_path; table;
              max_jobs: Int; simulate: Bool;
              handler: fn(Job) -> JobResult; }

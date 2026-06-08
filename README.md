@@ -58,11 +58,13 @@ codegen limitation that constrains where they're usable.
 
 | Path | What it is | Suggested alias |
 |------|------------|------|
-| `sqlite/` | SQLite adapter (Db locus, fallible(DbError)) | `db` |
+| `db/` | Backend-neutral `DbDriver` interface (Go database/sql shape) | `db` |
+| `pq/` | Postgres driver (pgwire v3 over TCP) + connection pool; satisfies `DbDriver` | `pq` |
+| `sqlite/` | SQLite adapter (Db locus, fallible(DbError)) — BLOCKED on `std::db::sqlite::*` | `sqlite` |
 | `router/` | HTTP router with path params + middleware | `router` |
 | `sessions/` | HMAC-signed cookie sessions | `sess` |
 | `jobs/` | Background job queue + worker pool (sqlite-backed) | `jobs` |
-| `migrations/` | Schema migration runner | `migs` |
+| `migrations/` | Forward-only migration runner (`Migrator` on `db::DbDriver`) | `migs` |
 
 ### Tier 2 — Observability + supervision
 
@@ -72,6 +74,12 @@ codegen limitation that constrains where they're usable.
 | `metrics/` | Prometheus-format exposition (counter/gauge/histogram) | `metrics` |
 | `supervisor/` | Erlang-style restart strategies on `on_failure` | `sup` |
 | `tracing/` | Span tree mirroring the locus tower | `trace` |
+
+### Tier 3 — Realtime
+
+| Path | What it is | Suggested alias |
+|------|------------|------|
+| `websocket/` | RFC 6455 WebSocket client + server-side upgrade | `ws` |
 
 ### Tier 5 — AI / agent orchestration
 
@@ -84,13 +92,13 @@ codegen limitation that constrains where they're usable.
 | `agent/embeddings/` | Vector store with top-k search | `emb` |
 | `ml/neural/` | Tiny NN trainer (MNIST-class problems) | `nn` |
 
-### Tier 3, 6, 7, 8 — backlog (not yet built)
+### Tier 6, 7, 8 — backlog (not yet built)
 
-Realtime/messaging (`realtime/websocket`, `realtime/pubsub`,
-`realtime/nats`, `realtime/cron`); game/sim (`game/ecs`,
-`game/tick`, `game/spatial`); data formats (`data/csv`,
-`data/timeseries`, `data/pipeline`); DevX (`dev/lsp`, `dev/docgen`,
-`dev/asserts`, `dev/bench`). Picked up when a workload demands.
+Messaging (`realtime/pubsub`, `realtime/nats`, `realtime/cron`);
+game/sim (`game/ecs`, `game/tick`, `game/spatial`); data formats
+(`data/csv`, `data/timeseries`, `data/pipeline`); DevX (`dev/lsp`,
+`dev/docgen`, `dev/asserts`, `dev/bench`). Picked up when a workload
+demands.
 
 ## Design rules
 

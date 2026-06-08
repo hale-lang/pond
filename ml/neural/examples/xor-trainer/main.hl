@@ -49,6 +49,18 @@ locus TrainLogger {
     }
 }
 
+// Error-check fns for the fallible Trainer.fit / Model.apply_delta
+// calls inside the lifecycle `run()` body. `run()` can't be
+// fallible, so these `or handler(err)` substitutes print the
+// NnError detail and resolve the value channel to Unit.
+fn report_fit_err(e: nn::NnError) {
+    println("FAIL trainer.fit error kind=", e.kind, " detail=", e.detail);
+}
+
+fn report_delta_err(e: nn::NnError) {
+    println("FAIL copy.apply_delta error kind=", e.kind, " detail=", e.detail);
+}
+
 fn assert_lt_float(label: String, value: Float, threshold: Float) {
     if value < threshold {
         println("ok   ", label, " ", to_string(value), " < ",
@@ -71,8 +83,8 @@ fn assert_eq_int(label: String, got: Int, want: Int) {
 // Round a sigmoid output to a 0/1 class label by thresholding at
 // 0.5. The trained network's outputs settle within a few
 // thousandths of 0 or 1 on the four XOR corners.
-fn predict_label(model: nn::Model, x: mat::Matrix) -> Int {
-    let out = model.forward(x);
+fn predict_label(model: nn::Model, x: mat::Matrix) -> Int fallible(nn::NnError) {
+    let out = model.forward(x) or raise;
     let p = out.get(0) or 0.0;
     if p >= 0.5 {
         return 1;
@@ -97,7 +109,6 @@ locus XorDemo {
         // identical across runs.
         let model = nn::Model {
             name:       "xor",
-            last_error: nn::NnError { },
             rng_state:  42,
         };
         // 2-3-1 with a 3-neuron hidden layer escapes the
@@ -114,19 +125,13 @@ locus XorDemo {
         let trainer = nn::Trainer {
             lr:         0.5,
             batch_size: 4,
-            last_error: nn::NnError { },
         };
 
         println("[xor] training 2-3-1 MLP for 5000 epochs ...");
-        trainer.fit(model, xs, ys, 5000);
-
-        // Check the trainer didn't surface an error.
-        if trainer.last_error.kind != "" {
-            println("FAIL trainer.last_error.kind = ", trainer.last_error.kind);
-            println("     detail = ", trainer.last_error.detail);
-        } else {
-            println("ok   trainer.last_error empty");
-        }
+        // fit is fallible; `run()` is a lifecycle method (can't be
+        // fallible) so we address the value channel inline with an
+        // error-check fn that prints the detail then continues.
+        trainer.fit(model, xs, ys, 5000) or report_fit_err(err);
 
         // Final loss should be small.
         assert_lt_float("final loss", logger.last_loss, 0.05);
@@ -137,18 +142,22 @@ locus XorDemo {
         let x10 = mx.from_rows(2, 1, "1.0, 0.0");
         let x11 = mx.from_rows(2, 1, "1.0, 1.0");
 
-        assert_eq_int("XOR(0,0)", predict_label(model, x00), 0);
-        assert_eq_int("XOR(0,1)", predict_label(model, x01), 1);
-        assert_eq_int("XOR(1,0)", predict_label(model, x10), 1);
-        assert_eq_int("XOR(1,1)", predict_label(model, x11), 0);
+        // predict_label is fallible; `or -1` substitutes a sentinel
+        // label on the value channel so the assert reports FAIL.
+        assert_eq_int("XOR(0,0)", predict_label(model, x00) or -1, 0);
+        assert_eq_int("XOR(0,1)", predict_label(model, x01) or -1, 1);
+        assert_eq_int("XOR(1,0)", predict_label(model, x10) or -1, 1);
+        assert_eq_int("XOR(1,1)", predict_label(model, x11) or -1, 0);
 
         // Dump raw outputs so the demo body shows the
         // continuous-valued sigmoid responses for the visual reader.
+        // `or mx.error_matrix()` substitutes the matrix sentinel if
+        // forward's value channel fires.
         println("[xor] sigmoid outputs:");
-        let p00 = model.forward(x00);
-        let p01 = model.forward(x01);
-        let p10 = model.forward(x10);
-        let p11 = model.forward(x11);
+        let p00 = model.forward(x00) or mx.error_matrix();
+        let p01 = model.forward(x01) or mx.error_matrix();
+        let p10 = model.forward(x10) or mx.error_matrix();
+        let p11 = model.forward(x11) or mx.error_matrix();
         println("  f(0,0) = ", to_string(p00.get(0) or 0.0));
         println("  f(0,1) = ", to_string(p01.get(0) or 0.0));
         println("  f(1,0) = ", to_string(p10.get(0) or 0.0));
@@ -160,16 +169,12 @@ locus XorDemo {
         let snap = model.snapshot_bytes();
         let copy = nn::Model {
             name:       "xor_copy",
-            last_error: nn::NnError { },
         };
-        copy.apply_delta(snap);
-        if copy.last_error.kind != "" {
-            println("FAIL copy.apply_delta last_error = ", copy.last_error.kind);
-        } else {
-            println("ok   snapshot round-trip clean");
-        }
-        assert_eq_int("copy XOR(0,1)", predict_label(copy, x01), 1);
-        assert_eq_int("copy XOR(1,1)", predict_label(copy, x11), 0);
+        // apply_delta is fallible; an error-check fn prints the
+        // detail (lifecycle `run()` can't be fallible), else clean.
+        copy.apply_delta(snap) or report_delta_err(err);
+        assert_eq_int("copy XOR(0,1)", predict_label(copy, x01) or -1, 1);
+        assert_eq_int("copy XOR(1,1)", predict_label(copy, x11) or -1, 0);
 
         println("[xor] xor-trainer demo complete");
     }

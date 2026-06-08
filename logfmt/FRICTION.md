@@ -3,37 +3,63 @@
 Gaps, suspicions, and deviations from CONTRACTS.md surfaced while
 building this lib.
 
-## deviation: fallible-on-locus-method — [CLOSABLE]
+## deviation: fallible-on-locus-method — [EXEMPT — interface-binding]
 
-**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
-v0.2, commits `d565d6f` + `98910b9`) so user-declared `fn` member
-fns now carry `fallible(E)`. The next source pass restores
-`FileSink.write` / `line` / `newline` (and `OtlpSink`'s parallel
-trio) to `() fallible(IoError)` directly. The `__handle_io`
-error-check fn + `last_kind` / `last_errno` / `last_path` capture
-fields collapse. Clean breaking change.
+**2026-06-08 resolution.** This lib is NOT a pending fallible
+migration. It is an **interface-binding exemption** under the
+v0.8.1 two-channel rule. The central status note (`## 2026-05-27
+status note` in CONTRACTS.md) lists logfmt's
+`write`/`line`/`newline` as scheduled to flip to `fallible(E)`;
+that scheduling is incorrect for this lib and should be retracted.
 
-**Current source shape (still in place).** CONTRACTS.md declares
-the Sink-shape methods as `fallible(IoError)`:
+**Reason — the satisfied interface is non-fallible.**
+`FileSink.write/line/newline` and `OtlpSink.write/line/newline`
+exist to *structurally satisfy* `std::text::Sink`. (Note: the
+satisfied interface is `std::text::Sink`, NOT `std::log::Sink` —
+`std::log` ships no `Sink` interface at all; its sinks are bus
+subscribers with an `on_event` method. The text-Sink triple is
+what callers thread where a `Sink` param is expected.) The
+verbatim stdlib declaration
+(`crates/hale-codegen/runtime/stdlib/text.hl`,
+`interface __StdTextSink`) is:
 
 ```hale
-locus FileSink {
-    fn write(s: String) -> () fallible(IoError);
-    fn line(s: String)  -> () fallible(IoError);
-    fn newline()        -> () fallible(IoError);
+interface __StdTextSink {
+    fn write(s: String);   // non-fallible
+    fn line(s: String);    // non-fallible
+    fn newline();          // non-fallible
 }
 ```
 
-Under the old (pre-v0.8.1) rule, the surface couldn't be
-implemented verbatim. The lib shipped:
+v0.8.1 lets a user `fn` member declare `fallible(E)`, but a method
+that must satisfy a non-fallible interface CANNOT — the fallible
+signature no longer matches the interface, so coerce-to-interface
+(text.hl's F.20 Phase B fat-pointer path) would reject the locus at
+every consumer call site that passes a `FileSink`/`OtlpSink` where
+a `std::text::Sink` is expected. Flipping these to
+`() fallible(IoError)` would BREAK interface satisfaction.
 
-- methods declared with `-> ()` (not `fallible(IoError)`)
-- the body addresses the value channel from inside via
+**Therefore the methods STAY non-fallible.** Being interface-bound,
+they are effectively a substrate-facing surface and keep the
+*structural* channel for failures. The value-channel escape hatch
+stays as the correct mechanism for an interface-bound sink:
+
+- methods declared with `-> ()` (matching `std::text::Sink`)
+- the body addresses the underlying fallible
+  (`std::io::fs::write_file_append`) from inside via
   `or self.__handle_io(err)`
 - the handler captures `e.kind` / `e.errno` / `e.path` into
   `self.last_kind` / `self.last_errno` / `self.last_path`
 - public accessors `last_error_kind()`, `last_error_errno()`,
   `last_error_path()` expose the captured state
+
+These accessors and the `__handle_io` capture are NOT dead state —
+they are the only way an interface-bound (non-fallible) sink can
+surface a value-channel IO failure. They are exercised by
+`examples/rotated-file/main.hl` and documented in README.md. No
+cleanup applies; the contract's `fallible(IoError)` Sink-method
+signatures in CONTRACTS.md are themselves unimplementable against
+the real `std::text::Sink` and should track this exemption.
 
 ## blocking: otlp-transport-stubbed
 

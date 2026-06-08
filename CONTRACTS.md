@@ -14,6 +14,52 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-06-08 status note — up-to-date / idiomatic review pass
+
+A repo-wide review against the current Hale compiler. Every seed now
+`hale check`s clean. Changes that affect this document:
+
+- **v0.8.1 fallible(E) migrations DONE.** The "non-fallible method +
+  `last_error` accessor + paired fallible free fn" workaround is
+  retired in: `http/client` (`Client.{get,post,request}`),
+  `sessions` (`SessionStore.read`), `tracing` (`Tracer.export_otlp`,
+  now `fallible(TraceError)`, not `IoError`), `agent/llm`
+  (`{Anthropic,OpenAi}Client.complete`), `agent/tools`
+  (`Registry.dispatch` — the paired free fn collapsed into the
+  method), `agent/embeddings` (`Store.{add,search,remove}` — the
+  `*_checked` free fns collapsed in), `agent/sandbox`, `ml/neural`
+  (`Trainer.fit`, `Model.{forward,train_step,apply_delta}`), and
+  `websocket` (`Ws{Client,ServerConn}.{send_*,close}`; blocking
+  owner-driven pumps `read_msg`/`handshake`/`open` stay Bool +
+  `last_error` so run-loop predicates don't each need an `or`).
+- **`logfmt` is EXEMPT, not pending.** Its `FileSink`/`OtlpSink`
+  `write`/`line`/`newline` structurally satisfy the **non-fallible**
+  `std::text::Sink` interface (there is no `std::log::Sink`), so they
+  CANNOT be `fallible(E)` without breaking interface satisfaction.
+  They keep the structural channel. The 2026-05-27 note's plan to
+  flip logfmt is retracted.
+- **CQRS no-locus-return enforced.** `math/matrix`'s factories +
+  `transpose` and `metrics`'s `counter`/`gauge`/`histogram` are now
+  **free fns** (a method may not return a locus). Surfaces below
+  updated. `heron`'s `Parser.parse` is likewise a free fn now.
+- **`: schedule` annotation removed (F.31).** `jobs`'s `Worker` and
+  the `websocket` echo example dropped it; placement is a consuming
+  app's `placement { }` concern.
+- **Bus topic decls are file-local.** `bus { publish T; }` / `T <- v`
+  only resolve a `topic T` declared in the SAME `.hl` file as the
+  publishing locus. Single-publisher libs co-locate the topic
+  (`subprocess`, `ml/neural`); the two-publisher `agent/llm` uses
+  literal subjects (`"agent.llm.chunk"`) with the topic decls kept
+  for the cross-seed subscriber contract.
+- **New libs documented below:** `pond/db` (backend-neutral
+  `DbDriver` interface), `pond/pq` (Postgres pgwire-v3 driver +
+  pool), `pond/websocket` (client + server upgrade). `pond/sqlite`
+  query ops and `pond/migrations` (`Migrator`, now on `db::DbDriver`)
+  surfaces updated to match source.
+- **`pond/tower` removed** — unused, superseded by F.31 `placement`.
+
+---
+
 ## 2026-05-27 status note — v0.8.1 closables
 
 Upstream Hale shipped v0.8.1 on the 2026-05-18 → 2026-05-27
@@ -63,6 +109,9 @@ FRICTION.md tracks the source-side migration status.
   instead of wrapping their own observability layer.
 
 ### Newly-closable contract deviations (source migration pending)
+
+> **Superseded by the 2026-06-08 note above** — these migrations are
+> DONE (and `logfmt` is exempt, not migrated). Kept for history.
 
 The following libs ship a "non-fallible method + `last_error_*`
 accessor + paired fallible free fn" workaround that v0.8.1's
@@ -288,10 +337,13 @@ topic ProcessExit { payload: ExitStatus; }
 
 ### `pond/math/matrix/` — alias `mat`
 
-**Updated 2026-05-16 — see KNOWN_GOTCHAS G3 + G4.** Factories
-moved to methods on `Mat` namespace lotus because free fns can't
-return LocusRef. Binary ops are namespace-lotus methods (not
-fallible per two-channel rule); use sentinel-predicate pairs.
+**Updated 2026-06-08 — CQRS no-locus-return.** Factories, binary
+ops, `transpose`, and the sentinel helpers are **free fns**: a
+locus method may not return a locus value (`Matrix` is a locus), so
+the `Mat` namespace-lotus methods were extracted to free fns
+(hale v0.8.2 m90 / commit `04657b1`). Bind to the lib's alias
+(`mat::zeros(...)`, etc.). Non-fallible ops use sentinel-predicate
+pairs; bounds-checked variants are fallible free fns.
 
 ```hale
 @form(vec)
@@ -299,47 +351,46 @@ locus Matrix {                           // row-major dense
     params { rows: Int; cols: Int; }
     capacity { heap data of Float; }
     // synthesized: len, get, set, push, pop, sort_*
-    // user-added on top (NOT fallible per two-channel rule):
+    // user-added on top (data-returning, allowed as methods):
     fn at(r: Int, c: Int) -> Float;              // returns 0.0 on OOB
     fn set_at(r: Int, c: Int, v: Float) -> ();   // no-op on OOB
-    fn transpose() -> Matrix;
 }
 
-// Namespace lotus for factories and binary ops:
-locus Mat {
-    params { }
-    fn zeros(rows: Int, cols: Int) -> Matrix;
-    fn eye(n: Int) -> Matrix;
-    fn from_rows(rows: Int, cols: Int, data: String) -> Matrix;
-    fn matmul(a: Matrix, b: Matrix) -> Matrix;       // returns error_matrix on mismatch
-    fn add(a: Matrix, b: Matrix) -> Matrix;          // returns error_matrix on mismatch
-    fn scale(a: Matrix, k: Float) -> Matrix;
-    fn dot(a: Matrix, b: Matrix) -> Float;           // returns nan_sentinel on mismatch
+// Factories + binary ops + sentinels are FREE FNS (return a locus,
+// which methods may not):
+fn zeros(rows: Int, cols: Int) -> Matrix;
+fn eye(n: Int) -> Matrix;
+fn from_rows(rows: Int, cols: Int, data: String) -> Matrix;
+fn matmul(a: Matrix, b: Matrix) -> Matrix;       // error_matrix on mismatch
+fn add(a: Matrix, b: Matrix) -> Matrix;          // error_matrix on mismatch
+fn scale(a: Matrix, k: Float) -> Matrix;
+fn dot(a: Matrix, b: Matrix) -> Float;           // nan_sentinel on mismatch
+fn transpose(m: Matrix) -> Matrix;
 
-    // sentinel predicates
-    fn error_matrix() -> Matrix;                    // rows=-1
-    fn is_error(m: Matrix) -> Bool;
-    fn nan_sentinel() -> Float;
-    fn is_nan(f: Float) -> Bool;
-}
+fn error_matrix() -> Matrix;                     // rows=-1 sentinel
+fn is_error(m: Matrix) -> Bool;
+fn nan_sentinel() -> Float;
+fn is_nan(f: Float) -> Bool;
 
-// Fallible bounds-checked variants live as free fns:
+// Fallible bounds-checked variants (also free fns):
 fn at_checked(m: Matrix, r: Int, c: Int) -> Float fallible(IndexError);
-fn set_at_checked(m: Matrix, r: Int, c: Int, v: Float) -> () fallible(IndexError);
-fn check_matmul_shapes(a: Matrix, b: Matrix) -> () fallible(MatrixError);
-fn check_add_shapes(a: Matrix, b: Matrix) -> () fallible(MatrixError);
-fn check_dot_shapes(a: Matrix, b: Matrix) -> () fallible(MatrixError);
+fn set_at_checked(m: Matrix, r: Int, c: Int, v: Float) -> Float fallible(IndexError);
+fn index_of(rows: Int, cols: Int, r: Int, c: Int) -> Int fallible(IndexError);
+fn check_matmul_shapes(a_rows: Int, a_cols: Int, b_rows: Int, b_cols: Int) -> () fallible(MatrixError);
+fn check_same_shape(a_rows: Int, a_cols: Int, b_rows: Int, b_cols: Int) -> () fallible(MatrixError);
+fn check_dot_shapes(a_rows: Int, a_cols: Int, b_rows: Int, b_cols: Int) -> () fallible(MatrixError);
 
 type MatrixError { kind: String; }       // "shape_mismatch" | "empty"
+// `locus Mat { }` remains as a vestigial empty namespace lotus.
 ```
 
 **Consumer pattern:**
 ```hale
-let mat = std::path::to::Mat { };
-let z = mat.zeros(3, 3);
-let i = mat.eye(3);
-let p = mat.matmul(i, z);
-if mat.is_error(p) { /* shape mismatch */ }
+import "vendor/pond/math/matrix" as mat;
+let z = mat::zeros(3, 3);
+let i = mat::eye(3);
+let p = mat::matmul(i, z);
+if mat::is_error(p) { /* shape mismatch */ }
 ```
 
 ### `pond/math/stats/` — alias `stats`
@@ -364,7 +415,80 @@ type StatsError { kind: String; }        // "empty" | "out_of_range"
 
 ## Tier 1 — Rails-shape web stack
 
-### `pond/sqlite/` — alias `db`
+### `pond/db/` — alias `db`
+
+Backend-neutral relational store, Go `database/sql` shape (added
+2026-06; commit `f8e2c62`). Declares the `DbDriver` interface + the
+result shapes every driver speaks; concrete drivers (`pond/pq`,
+`pond/sqlite`) structurally satisfy it (F.20 — no `impl`). Apps
+program against the interface and inject a driver, so a backend swap
+is a one-line change. **Errors travel as values**, not channels:
+F.20 interface methods can't be `fallible(E)`, so every result
+carries `ok: Bool` + `err: DbError` (the driver does the fallible
+protocol work internally and packs the outcome).
+
+```hale
+interface DbDriver {
+    fn backend() -> String;                       // "postgres" | "sqlite" | ...
+    fn open() -> Status;
+    fn close();
+    fn exec(sql: String) -> ExecResult;           // INSERT/UPDATE/DELETE/DDL
+    fn query_one(sql: String) -> Row;             // ok=false, err.kind="no_row" on empty
+    fn query_all(sql: String) -> Rows;
+    fn exec_params(sql: String, args: Args)  -> ExecResult;   // $1/$2 bind — safe path
+    fn query_params(sql: String, args: Args) -> Rows;
+    fn begin() -> Status; fn commit() -> Status; fn rollback() -> Status;
+    fn tx_status() -> String;                     // "idle" | "in_tx" | "aborted"
+}
+
+type DbError    { kind: String; engine_code: Int; detail: String; }  // kind=="" → success
+type Status     { ok: Bool; err: DbError; }
+type ExecResult { ok: Bool; err: DbError; rows_affected: Int; last_insert_rowid: Int; }
+type Row        { ok: Bool; err: DbError; data: String; }            // tab-separated columns
+type Rows       { ok: Bool; err: DbError; csv: String; n: Int; }     // newline rows
+
+type ArgVal { val: String; is_null: Bool; }
+@form(vec)
+locus Args {                                      // ordered bind params for $1/$2/...
+    params { n: Int = 0; }
+    capacity { heap data of ArgVal; }
+    fn add(s: String) -> ();
+    fn add_null() -> ();
+    fn count() -> Int;
+    fn val_at(i: Int) -> String;
+    fn null_at(i: Int) -> Bool;
+}
+```
+
+### `pond/pq/` — alias `pq`
+
+Postgres driver speaking the pgwire v3 protocol over TCP (added
+2026-06; commits `d0f8123`, `f23c27b`, `6945294`). Satisfies
+`db::DbDriver`. Vendors `pond/db`.
+
+```hale
+import "vendor/pond/db" as db;
+
+locus PgConn {                                     // single connection
+    params { host = "127.0.0.1"; port = 55432; user = "fathom";
+             database = "fathom"; sock = -1; connected = false;
+             txn_state = "idle"; recv_chunk = 8192; /* + rx_buf BytesBuilder */ }
+    // satisfies db::DbDriver: backend/open/close/exec/query_one/query_all/
+    // exec_params/query_params/begin/commit/rollback/tx_status
+}
+
+locus PgPool {                                     // fixed-size connection pool
+    params { host; port; user; database; size: Int = 4; }
+    // satisfies db::DbDriver; round-robin acquire over `size` PgConns.
+    // begin/commit/rollback are no-ops (tx_status: "n/a (pool)") — use a
+    // single PgConn for transactions.
+}
+```
+
+### `pond/sqlite/` — alias `sqlite`
+
+> Suggested alias changed `db` → `sqlite` to avoid colliding with the
+> new `pond/db` driver interface.
 
 ```hale
 type DbError { kind: String; sqlite_code: Int; detail: String; }
@@ -384,6 +508,13 @@ locus Db {
     fn finalize(stmt: Int) -> () fallible(DbError);
 }
 ```
+
+> **Current source shape (BLOCKED chain).** Pending `std::db::sqlite::*`
+> (F.1), `Db` ships stub bodies and the query ops are **free fns**
+> (`sqlite::exec(db, sql)`, `query_one`, `query_all`, `prepare`,
+> `step` — all `fallible(DbError)`), not methods. Migrating them onto
+> the `db::DbDriver` method set (so `sqlite::Db` satisfies the
+> interface like `pq::PgConn` does) is part of the F.1 unblock pass.
 
 ### `pond/router/` — alias `router`
 
@@ -456,18 +587,27 @@ locus Pool {                               // worker pool
 
 ### `pond/migrations/` — alias `migs`
 
+**Updated 2026-06-08 — rewritten onto `db::DbDriver`** (commit
+`7e00f37`): backend-neutral (runs against `pq` or `sqlite`),
+forward-only + idempotent. Errors ride the db `ok`/`err` value shape
+(the injected driver's interface methods are non-fallible per F.20),
+not a `fallible(MigrationError)` method surface.
+
 ```hale
-type MigrationError { kind: String; detail: String; version: Int; }
+import "vendor/pond/db" as db;
 
-locus Runner {
-    params { db: Db; dir: String = "migrations"; }
-    fn current_version() -> Int fallible(MigrationError);
-    fn pending() -> Rows fallible(MigrationError);  // version,filename per row
-    fn migrate_up(target_version: Int) -> () fallible(MigrationError);
-    fn migrate_down(target_version: Int) -> () fallible(MigrationError);
+locus Migrator {
+    params {
+        driver:   db::DbDriver;          // injected: pq::PgConn / pq::PgPool / sqlite::Db
+        applied:  Int    = 0;            // count applied this run
+        failed:   Bool   = false;        // sticky: once one fails, skip the rest
+        last_err: String = "";
+    }
+    fn ensure() -> Bool;                 // create the tracking table if absent
+    fn current_version() -> Int;
+    fn apply(version: Int, name: String, up_sql: String) -> Bool;  // idempotent
+    fn ok() -> Bool;
 }
-
-// CLI entry point: `migrate up`, `migrate down N`, `migrate status`.
 ```
 
 ---
@@ -476,48 +616,72 @@ locus Runner {
 
 ### `pond/logfmt/` — alias `logfmt`
 
+**Updated 2026-06-08.** These loci structurally satisfy the
+**`std::text::Sink`** interface (`write`/`line`/`newline`) — there is
+no `std::log::Sink`. That interface is **non-fallible**, so the sink
+methods stay non-fallible (making them `fallible(E)` would break
+interface satisfaction); failures ride the structural channel. This
+lib is EXEMPT from the v0.8.1 fallible flip, not a pending migration.
+
 ```hale
-// Implements std::log's Sink interface; consumers reference Sink as
-// std::log::Sink. These loci satisfy that structurally.
+// FileSink / OtlpSink satisfy std::text::Sink (non-fallible).
 
 locus FileSink {
     params { path: String; max_size_bytes: Int = 10000000;
              keep_files: Int = 5; }
-    fn write(s: String) -> () fallible(IoError);
-    fn line(s: String) -> () fallible(IoError);
-    fn newline() -> () fallible(IoError);
+    fn write(s: String) -> ();
+    fn line(s: String) -> ();
+    fn newline() -> ();
 }
 
 locus OtlpSink {                          // OTLP over HTTP
     params { endpoint: String; service_name: String; }
-    fn write(s: String) -> () fallible(IoError);
-    fn line(s: String) -> () fallible(IoError);
-    fn newline() -> () fallible(IoError);
+    fn write(s: String) -> ();
+    fn line(s: String) -> ();
+    fn newline() -> ();
 }
 ```
 
 ### `pond/metrics/` — alias `metrics`
 
+**Updated 2026-06-08 — CQRS no-locus-return.** `counter` / `gauge` /
+`histogram` return loci, so they are **free fns** (a method may not
+return a locus). `Registry` keeps `render()` (data return).
+`MetricsEndpoint.handle` takes `std::http::Request` directly (it
+satisfies `std::http::Handler`, not `router::Handler`).
+
 ```hale
 type Labels { kv: String; }              // "k1=v1\tk2=v2"
 
 locus Registry {                         // single instance per app
-    params { namespace: String = ""; }
-    fn counter(name: String, labels: Labels) -> Counter;
-    fn gauge(name: String, labels: Labels) -> Gauge;
-    fn histogram(name: String, buckets: Matrix, labels: Labels) -> Histogram;
+    params { namespace: String = ""; store: MetricMap; histograms: HistogramList; }
     fn render() -> String;               // Prometheus exposition format
 }
+
+// Factories are FREE FNS (return a locus):
+fn counter(reg: Registry, name: String, labels: Labels) -> Counter;
+fn gauge(reg: Registry, name: String, labels: Labels) -> Gauge;
+fn histogram(reg: Registry, name: String, buckets: mat::Matrix, labels: Labels) -> Histogram;
+
+// Label builders (no String[] in v1):
+fn labels_empty() -> Labels;
+fn labels_one(k: String, v: String) -> Labels;
+fn labels_two(k1: String, v1: String, k2: String, v2: String) -> Labels;
+fn labels_append(l: Labels, k: String, v: String) -> Labels;
 
 locus Counter   { fn inc() -> (); fn add(v: Float) -> (); }
 locus Gauge     { fn set(v: Float) -> (); fn inc() -> (); fn dec() -> (); }
 locus Histogram { fn observe(v: Float) -> (); }
 
-locus MetricsEndpoint {                  // HTTP handler, mounts on router
+locus MetricsEndpoint {                  // HTTP handler (std::http::Handler)
     params { registry: Registry; }
-    fn handle(ctx: Context) -> Response;  // implements router::Handler
+    fn handle(req: std::http::Request) -> std::http::Response;
 }
 ```
+
+`MetricMap` is opted into `@form(hashmap, sync = serialized)` so a
+metrics-endpoint pool can read counters that producer pools write
+(commit `b8745bf`).
 
 ### `pond/supervisor/` — alias `sup`
 
@@ -547,10 +711,51 @@ locus Tracer {                           // one per app; mirrors locus tower
     fn start_span(name: String, parent: SpanId) -> SpanId;
     fn end_span(id: SpanId) -> ();
     fn add_attr(id: SpanId, key: String, val: String) -> ();
-    fn export_otlp(endpoint: String) -> () fallible(IoError);
+    fn export_otlp(endpoint: String) -> () fallible(TraceError);
 }
 
-topic SpanCompleted { payload: Span; }
+type TraceError { kind: String; detail: String; }
+topic SpanCompleted { payload: Span; }   // declared in tracer.hl (same file as publisher)
+```
+
+
+## Tier 3 — Realtime
+
+### `pond/websocket/` — alias `ws`
+
+RFC 6455 WebSocket client + server-side upgrade (added 2026-05; was
+listed as backlog). Owner-driven recv model: blocking pumps
+(`open`/`read_msg`/`handshake`) return `Bool` and stash failure on
+`self.last_error` so run-loop predicates stay clean; the outbound
+send surface (`send_*`/`close`) is `fallible(WsError)` (v0.8.1).
+
+```hale
+type WsMessage  { kind: String; text: String; data: Bytes; }  // kind: text|binary|close|...
+type WsError    { kind: String; detail: String; }
+type WsLogEvent { phase: String; detail: String; ... }
+interface WsLogger { fn log(e: WsLogEvent); }                  // NoopWsLogger / StderrWsLogger
+
+locus WsClient {
+    params { url: String; extra_headers = ""; auto_reconnect = true;
+             max_retries: Int = -1; reconnect_initial = 1s; reconnect_max = 30s; }
+    fn open() -> Bool;                         // connect + handshake; last_error on fail
+    fn read_msg() -> Bool;                     // pump one message into self (Bool: got one)
+    fn send_text(s: String) -> () fallible(WsError);
+    fn send_bytes(b: Bytes) -> () fallible(WsError);
+    fn close() -> () fallible(WsError);
+}
+
+locus WsServerConn {                           // per-connection server side
+    fn handshake() -> Bool;                    // consume the HTTP Upgrade, send 101
+    fn read_msg() -> Bool;
+    fn send_text(s: String) -> () fallible(WsError);
+    fn send_binary(b: Bytes) -> () fallible(WsError);
+    fn close() -> () fallible(WsError);
+}
+
+// Frame + handshake free fns (build_request / parse_response /
+// compute_accept / parse_request / build_101_response / emit_frame /
+// peek_header / parse_url, ...) are the lower-level surface.
 ```
 
 

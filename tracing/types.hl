@@ -63,3 +63,18 @@ type Span {
     end_ns:   Int    = 0;
     attrs:    String = "";
 }
+
+// TraceError — fallible(TraceError) payload for export_otlp.
+//
+// Per the v0.8.1 two-channel rule, `export_otlp` carries
+// `fallible(TraceError)` directly (the pre-v0.8.1
+// non-fallible-method + `self.last_error_*` workaround is
+// retired). `kind` is a short machine-readable tag
+// ("transport_unsupported", "io", ...); `detail` is the
+// human-readable diagnostic. Underlying IoError from the HTTP
+// transport is translated into this shape at the call site via
+// `... or fail TraceError { ... }`.
+type TraceError {
+    kind:   String = "";
+    detail: String = "";
+}

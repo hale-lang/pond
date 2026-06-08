@@ -248,61 +248,14 @@ fn request(req: Request) -> Response fallible(HttpError) {
 // transparent; v1.x would flip to `Connection: keep-alive` to
 // make pooling pay off.
 //
-// Two-channel rule: Client methods CANNOT declare fallible(E)
-// per F.22 (user-declared locus methods are substrate-facing).
-// We wrap the fallible free fn `__round_trip_with_retry` inside
-// the method body, addressing the value channel with `or` and
-// surfacing the failure as a synthesized "error response"
-// (status = 0, headers="", body=b"") plus a sibling
-// `last_error()` accessor. That's the v1-idiomatic shape per
-// styleguide.md § 7.
-//
-// FRICTION: contract surface lists fallible(HttpError) on
-// Client methods — that's incompatible with the two-channel
-// rule. We deviate by returning Response and exposing the
-// error via `last_error()`; agents that want hard failure on
-// any error should use the free fns. See FRICTION.md.
-
-// The Client locus methods delegate to these fallible free fns
-// then address the error via `or self.__record_err(err)`. The
-// indirection is the v1 idiom for converting a value-channel
-// fallible call into a locus-shaped surface that records (not
-// re-raises) the failure.
-fn __client_get_fallible(
-    url_str: String, ua: String, max_body: Int, max_retries: Int
-) -> Response fallible(HttpError) {
-    let u = parse_url(url_str) or raise;
-    let _ = __check_scheme(u.scheme) or raise;
-    let req = Request {
-        method: "GET",
-        url: u,
-        headers: "",
-        body: b""
-    };
-    return __round_trip_with_retry(req, ua, max_body, max_retries) or raise;
-}
-
-fn __client_post_fallible(
-    url_str: String, body: Bytes, content_type: String,
-    ua: String, max_body: Int, max_retries: Int
-) -> Response fallible(HttpError) {
-    let u = parse_url(url_str) or raise;
-    let _ = __check_scheme(u.scheme) or raise;
-    let req = Request {
-        method: "POST",
-        url: u,
-        headers: "Content-Type: " + content_type,
-        body: body
-    };
-    return __round_trip_with_retry(req, ua, max_body, max_retries) or raise;
-}
-
-fn __client_request_fallible(
-    req: Request, ua: String, max_body: Int, max_retries: Int
-) -> Response fallible(HttpError) {
-    let _ = __check_scheme(req.url.scheme) or raise;
-    return __round_trip_with_retry(req, ua, max_body, max_retries) or raise;
-}
+// Two-channel rule (v0.8.1 #24 v0.2): user-declared `fn` member
+// methods carry `fallible(E)` directly. The pre-v0.8.1
+// "non-fallible method + self.last_error scratch + paired
+// `last_error_*()` accessors + `__record_err` bridge" workaround
+// is retired. `Client.get` / `.post` / `.request` are now
+// `fallible(HttpError)` per the contract and match the free-fn
+// surface verbatim; callers address the value channel with
+// `or raise` / `or <substitute>` / an error-check fn.
 
 locus Client {
     params {
@@ -318,63 +271,41 @@ locus Client {
         pool_fd1: Int = -1; pool_host1: String = ""; pool_port1: Int = 0;
         pool_fd2: Int = -1; pool_host2: String = ""; pool_port2: Int = 0;
         pool_fd3: Int = -1; pool_host3: String = ""; pool_port3: Int = 0;
-
-        // Last-error scratch (see FRICTION above). Reads through
-        // `last_error_kind()` / `last_error_detail()`.
-        last_kind: String = "";
-        last_status: Int = 0;
-        last_detail: String = "";
     }
 
-    fn last_error_kind() -> String { return self.last_kind; }
-    fn last_error_status() -> Int { return self.last_status; }
-    fn last_error_detail() -> String { return self.last_detail; }
-
-    // Capture an HttpError into self.last_*; returns a sentinel
-    // Response so the caller can chain.
-    fn __record_err(e: HttpError) -> Response {
-        self.last_kind = e.kind;
-        self.last_status = e.status;
-        self.last_detail = e.detail;
-        return __empty_response();
+    fn get(url_str: String) -> Response fallible(HttpError) {
+        let u = parse_url(url_str) or raise;
+        let _ = __check_scheme(u.scheme) or raise;
+        let req = Request {
+            method: "GET",
+            url: u,
+            headers: "",
+            body: b""
+        };
+        return __round_trip_with_retry(
+            req, self.user_agent, self.max_body, self.max_retries
+        ) or raise;
     }
 
-    fn get(url_str: String) -> Response {
-        self.last_kind = "";
-        self.last_status = 0;
-        self.last_detail = "";
-        return __client_get_fallible(
-            url_str,
-            self.user_agent,
-            self.max_body,
-            self.max_retries
-        ) or self.__record_err(err);
+    fn post(url_str: String, body: Bytes, content_type: String) -> Response fallible(HttpError) {
+        let u = parse_url(url_str) or raise;
+        let _ = __check_scheme(u.scheme) or raise;
+        let req = Request {
+            method: "POST",
+            url: u,
+            headers: "Content-Type: " + content_type,
+            body: body
+        };
+        return __round_trip_with_retry(
+            req, self.user_agent, self.max_body, self.max_retries
+        ) or raise;
     }
 
-    fn post(url_str: String, body: Bytes, content_type: String) -> Response {
-        self.last_kind = "";
-        self.last_status = 0;
-        self.last_detail = "";
-        return __client_post_fallible(
-            url_str,
-            body,
-            content_type,
-            self.user_agent,
-            self.max_body,
-            self.max_retries
-        ) or self.__record_err(err);
-    }
-
-    fn request(req: Request) -> Response {
-        self.last_kind = "";
-        self.last_status = 0;
-        self.last_detail = "";
-        return __client_request_fallible(
-            req,
-            self.user_agent,
-            self.max_body,
-            self.max_retries
-        ) or self.__record_err(err);
+    fn request(req: Request) -> Response fallible(HttpError) {
+        let _ = __check_scheme(req.url.scheme) or raise;
+        return __round_trip_with_retry(
+            req, self.user_agent, self.max_body, self.max_retries
+        ) or raise;
     }
 
     // Future: pool slot acquire / release. The connection-pool

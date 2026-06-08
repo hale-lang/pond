@@ -44,8 +44,7 @@
 // arg sites; the synthesized @form(vec).push DOES coerce, and
 // free-fn arg sites DO coerce. Routing every interface-arg
 // entry point through a free fn that forwards to the vec's
-// push is the pond house style (pond/tower::add uses the same
-// shape).
+// push is the pond house style.
 
 // Default 404 handler — Handler-shaped locus that returns a
 // plain "not found" body. Used as the default value for

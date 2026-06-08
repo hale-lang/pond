@@ -3,6 +3,20 @@
 Gaps, suspicions, and contract deviations surfaced while building
 this lib.
 
+## Resolved (2026-06-08 source pass)
+
+- **`Model.forward` / `Model.train_step` / `Model.apply_delta` /
+  `Trainer.fit` migrated to `fallible(NnError)`.** v0.8.1 narrowed
+  the two-channel rule (#24 v0.2, commits `d565d6f` + `98910b9`)
+  so user-declared `fn` member fns carry `fallible(E)` directly.
+  The old "non-fallible method + matrix-error-sentinel + populate
+  `self.last_error`" workaround is retired: the `last_error` param
+  is gone from both `Model` and `Trainer`, shape mismatches /
+  decode failures route through `fail NnError { ... }`, and in-lib
+  call sites use `model.train_step(...) or raise`. `add_dense`
+  stays non-fallible per CONTRACTS.md (unknown activation now
+  canonicalizes to "linear" instead of stashing an error).
+
 ## Contract deviations
 
 ### CONTRACTS.md `Layer { weights: Matrix; biases: Matrix; }` →
@@ -43,7 +57,7 @@ flattened-Layer-windows shape as the v1 binding contract, or
 type records / vec cells.
 
 ### CONTRACTS.md `Trainer.params { model: Model; ... }` →
-### shipped `Trainer.params { lr; batch_size; last_error; }` and
+### shipped `Trainer.params { lr; batch_size; }` and
 ### `fit(model, xs, ys, epochs)` (model is fit-arg)
 
 Same root cause: locus refs can't sit in another locus's params
@@ -55,24 +69,6 @@ it as the first positional argument to `fit`.
 Suggested CONTRACTS.md amendment: amend the Trainer signature to
 `fit(model: Model, xs: Matrix, ys: Matrix, epochs: Int)` and drop
 `model: Model` from `params`.
-
-### CONTRACTS.md `fn forward(x) -> Matrix fallible(NnError)` →
-### shipped `fn forward(x) -> Matrix` (sentinel + last_error) — [CLOSABLE]
-
-**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
-v0.2, commits `d565d6f` + `98910b9`); user-declared `fn` member
-fns now carry `fallible(E)`. The next source pass restores
-`Model.forward` / `apply_delta` and `Trainer.fit` to
-`fallible(NnError)` directly; the matrix-error-sentinel +
-`last_error`-populate pattern collapses. Same flip pond/math/matrix
-plans for `Mat.matmul`.
-
-**Current source shape (still in place).** Under the old
-(pre-v0.8.1) rule, locus methods couldn't declare `fallible(E)`.
-Shipped shape returns the matrix error sentinel
-(`mat::Mat.is_error(out)` is the predicate) on shape mismatch and
-stashes a populated `NnError` on `self.last_error`. The same
-deviation lands on `Model.apply_delta` and `Trainer.fit`.
 
 ### CONTRACTS.md `topic TrainStep { payload: TrainStep; }` →
 ### shipped `topic TrainStepEvent { payload: TrainStep; subject: "nn.TrainStep"; }`
@@ -91,6 +87,18 @@ have to use the literal-string subject form
 (`subscribe "nn.TrainStep" as ... of type nn::TrainStep;`).
 Naming the subject explicitly at the topic decl gives the
 consumer a stable wire name to bind to.
+
+**2026-06-08: topic decl co-located into `trainer.hl`.** Codegen
+v0 only resolves a `topic T` referenced by `bus { publish T; }` /
+`T <- v` when the decl sits in the *same .hl file* as the
+publishing locus (payload-type resolution stays seed-global; only
+the bus-block topic binding is file-local). `topic TrainStepEvent`
+previously lived in a standalone `topics.hl` and `Trainer` (in
+`trainer.hl`) failed with "publish references unknown topic
+`TrainStepEvent`". Moved the decl into `trainer.hl` alongside its
+sole publisher and deleted the now-empty `topics.hl`. The
+type-vs-topic name split (`type TrainStep` payload in `metrics.hl`,
+`topic TrainStepEvent` channel in `trainer.hl`) is preserved.
 
 ### `TrainStep.epoch` → `TrainStep.epoch_idx`
 

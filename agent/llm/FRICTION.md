@@ -3,34 +3,34 @@
 Gaps, suspicions, and deviations from CONTRACTS.md surfaced while
 building this lib.
 
-## two-channel-rule: locus methods can't declare fallible(E) — [CLOSABLE]
+## two-channel-rule: locus methods can't declare fallible(E) — [CLOSED 2026-06-08]
 
-**2026-05-27 update.** v0.8.1 narrowed the two-channel rule (#24
-v0.2, commits `d565d6f` + `98910b9`); user-declared `fn` member
-fns now carry `fallible(E)`. The next source pass restores
-`AnthropicClient.complete` / `OpenAiClient.complete` to
-`-> LlmResponse fallible(LlmError)`; the `__record` error-check
-fn + `last_error_*` accessor triple collapses. The paired
-`anthropic_complete` / `openai_complete` free fns can stay or
-collapse — design choice.
+**Closed.** v0.8.1 narrowed the two-channel rule (#24 v0.2,
+commits `d565d6f` + `98910b9`): user-declared `fn` member fns
+now carry `fallible(E)`. The source pass landed —
+`AnthropicClient.complete` / `OpenAiClient.complete` are now
+`-> LlmResponse fallible(LlmError)` methods that propagate with
+`or raise`. The old non-fallible-method workaround is gone:
+the `__record` / `__sse_recover` error-check fns and the
+`last_error_kind/status/detail` accessor triple (plus their
+`last_*` params) are deleted. The fallible free fns
+(`anthropic_complete` / `openai_complete`) stay as the kernel
+the methods wrap and as a public value-channel entry point.
 
-**Current source shape (still in place).** CONTRACTS.md lists:
+## bus-literal-subjects: two publisher files force literal-subject publishes
 
-```hale
-fn complete(req: LlmRequest) -> LlmResponse fallible(LlmError);
-fn stream(req: LlmRequest) -> ();
-```
-
-Under the old (pre-v0.8.1) rule the `complete` shape was
-type-illegal as a locus method. The implementation deviated:
-
-- Method declared non-fallible. Body wraps a fallible free fn
-  via `or self.__record(err)`.
-- Errors surface through `last_error_kind()` /
-  `last_error_status()` / `last_error_detail()` accessors.
-- The fallible free fns (`anthropic_complete`,
-  `openai_complete`) are public for consumers that want the
-  value-channel `fallible(LlmError)` path directly.
+This lib has TWO publisher files — `anthropic.hl` and
+`openai.hl` — both publishing the chunk/done channels. Codegen
+v0 only resolves a `topic T` ident from the SAME `.hl` file as
+the publishing locus ("publish references unknown topic"
+otherwise), so a single shared `topic LlmChunk` decl in
+`wire_topics.hl` can't be ident-referenced from both clients.
+Both bus blocks use the literal-subject form instead —
+`publish "agent.llm.chunk" of type LlmChunkMsg;` and sends
+`"agent.llm.chunk" <- LlmChunkMsg { ... };`. The literal
+subjects are kept in lockstep with the `subject:` fields of the
+`topic LlmChunk` / `topic LlmDone` decls in `wire_topics.hl`, so
+cross-seed subscribers can still wire `subscribe llm::LlmChunk`.
 
 ## topic-vs-type-duality: bus payload can't be raw String
 
@@ -232,11 +232,12 @@ the implication is that all output flows through the bus
    future "real" streaming impl (see "eager-buffering" above)
    would still be synchronous-from-the-caller's-perspective
    — the bus is the async piece.
-2. **Where do errors surface?** The bus emits `LlmDone` even
-   on failure (with empty `LlmResponse` payload). The
-   actually-failed nature of the call surfaces only through
-   `client.last_error_kind() != ""`. Subscribers can't
+2. **Where do errors surface?** `stream()` returns Unit, so it
+   has no value channel — on a fetch failure it emits a
+   sentinel `LlmDone` (empty `LlmResponse` payload) so
+   subscribers learn the stream finished. Subscribers can't
    distinguish "success with empty response" from "failed
-   call" without polling the client's `last_error`. A
-   future `LlmFailed` topic carrying the LlmError would let
+   call" on the bus today (the `complete()` path is the one
+   with hard `fallible(LlmError)` semantics). A future
+   `LlmFailed` topic carrying the LlmError would let
    subscribers tell them apart on the bus directly.
