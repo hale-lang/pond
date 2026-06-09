@@ -83,3 +83,31 @@ SIGWINCH.
 runtimes use anyway; cost is one ioctl per frame. No unblock
 requested unless a workload surfaces drift between resize and
 next frame as user-visible.
+
+## bug-suspected: method-name-shadowed-by-fn — cross-seed method call breaks when a top-level fn shares the name
+
+**What:** with both a top-level `fn title(s: String) -> String`
+(ansi.hl, the OSC-0 builder) and a `Console.title(s)` method in
+this seed, an importing program's `c.title("...")` failed at
+codegen with `locus __lib__console_Console has no method
+'title'`. Renaming the free fn to `window_title` fixed it; the
+method kept the short name. Same-seed callers were unaffected —
+the break is on the imported path, which points at the F.25
+mangler rewriting the member name (post-`.` should be
+unambiguous member position per `member_name` in
+grammar.ebnf, exempt from top-level rename).
+
+**Repro shape:** lib seed declaring `fn foo()` at top level AND
+`locus L { fn foo() }`; importer calls `l.foo()` → codegen
+error. (`Screen.print` vs the *builtin* `print` does NOT trip
+it — only seed-top-level fns through the import mangler.)
+
+**Workaround (active):** no top-level fn may share a name with
+any locus method in the same seed. This forced two renames:
+`title` → `window_title` (Console.title owns the name) and
+`write` → `write_raw` (Console.write is fixed by the
+`std::text::Sink` interface shape, so the free fn moved).
+
+**Proposed upstream unblock:** mangler/codegen treat post-`.`
+member names as member position (never rewrite), matching the
+grammar's `member_name` rule.

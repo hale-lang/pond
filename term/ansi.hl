@@ -46,8 +46,11 @@ fn paste_off() -> String { return "\x1b[?2004l"; }
 
 // ---- OSC ----
 
-// Terminal window title.
-fn title(s: String) -> String {
+// Terminal window title. (Named window_title, not title — a
+// top-level fn sharing a name with a locus method breaks the
+// import mangler's member-call resolution; Console.title owns
+// the short name. See FRICTION.md `method-name-shadowed-by-fn`.)
+fn window_title(s: String) -> String {
     return "\x1b]0;" + s + "\x07";
 }
 

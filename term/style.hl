@@ -45,54 +45,68 @@ locus Styler {
     // reset. Profile 0 (or an all-default Style) returns s
     // unchanged.
     fn apply(st: Style, s: String) -> String {
-        let seq = self.prefix(st);
-        if len(seq) == 0 { return s; }
-        return seq + s + "\x1b[0m";
+        return style_apply(self.profile, st, s);
     }
 
     // The SGR prefix alone — for builder-style assembly where
     // the caller manages resets (e.g. table rows, TUI cells).
     fn prefix(st: Style) -> String {
-        if self.profile == 0 { return ""; }
-        let mut seq = "";
-        if st.bold { seq = seq + "\x1b[1m"; }
-        if st.dim { seq = seq + "\x1b[2m"; }
-        if st.italic { seq = seq + "\x1b[3m"; }
-        if st.underline { seq = seq + "\x1b[4m"; }
-        if st.reverse { seq = seq + "\x1b[7m"; }
-        if st.strike { seq = seq + "\x1b[9m"; }
-        seq = seq + self.color_seq(38, st.fg);
-        seq = seq + self.color_seq(48, st.bg);
-        return seq;
+        return style_prefix(self.profile, st);
     }
+}
 
-    // One color channel: base 38 = foreground, 48 = background.
-    fn color_seq(base: Int, c: Int) -> String {
-        let cc = self.fit(c);
-        if cc < 0 { return ""; }
-        if cc >= 16777216 {
-            let v = cc - 16777216;
-            return "\x1b[" + to_string(base) + ";2;"
-                + to_string(v / 65536) + ";"
-                + to_string((v / 256) % 256) + ";"
-                + to_string(v % 256) + "m";
-        }
-        return "\x1b[" + to_string(base) + ";5;" + to_string(cc) + "m";
-    }
+// ---- Profile-parametric core (free fns) ----
+//
+// The Styler lotus delegates here; Console (console.hl) and any
+// caller that already holds a profile Int can use these
+// directly without instantiating a Styler.
 
-    // Downgrade a color value to what the profile can carry.
-    fn fit(c: Int) -> Int {
-        if c < 0 { return -1; }
-        if self.profile >= 3 { return c; }
-        let mut cc = c;
-        if cc >= 16777216 {
-            cc = quantize_256(cc - 16777216);
-        }
-        if self.profile <= 1 && cc > 15 {
-            cc = approx_16(cc);
-        }
-        return cc;
+fn style_apply(profile: Int, st: Style, s: String) -> String {
+    let seq = style_prefix(profile, st);
+    if len(seq) == 0 { return s; }
+    return seq + s + "\x1b[0m";
+}
+
+fn style_prefix(profile: Int, st: Style) -> String {
+    if profile == 0 { return ""; }
+    let mut seq = "";
+    if st.bold { seq = seq + "\x1b[1m"; }
+    if st.dim { seq = seq + "\x1b[2m"; }
+    if st.italic { seq = seq + "\x1b[3m"; }
+    if st.underline { seq = seq + "\x1b[4m"; }
+    if st.reverse { seq = seq + "\x1b[7m"; }
+    if st.strike { seq = seq + "\x1b[9m"; }
+    seq = seq + __color_seq_at(profile, 38, st.fg);
+    seq = seq + __color_seq_at(profile, 48, st.bg);
+    return seq;
+}
+
+// One color channel: base 38 = foreground, 48 = background.
+fn __color_seq_at(profile: Int, base: Int, c: Int) -> String {
+    let cc = fit_color(profile, c);
+    if cc < 0 { return ""; }
+    if cc >= 16777216 {
+        let v = cc - 16777216;
+        return "\x1b[" + to_string(base) + ";2;"
+            + to_string(v / 65536) + ";"
+            + to_string((v / 256) % 256) + ";"
+            + to_string(v % 256) + "m";
     }
+    return "\x1b[" + to_string(base) + ";5;" + to_string(cc) + "m";
+}
+
+// Downgrade a color value to what the profile can carry.
+fn fit_color(profile: Int, c: Int) -> Int {
+    if c < 0 { return -1; }
+    if profile >= 3 { return c; }
+    let mut cc = c;
+    if cc >= 16777216 {
+        cc = quantize_256(cc - 16777216);
+    }
+    if profile <= 1 && cc > 15 {
+        cc = approx_16(cc);
+    }
+    return cc;
 }
 
 // ---- Downgrade helpers (free fns — no state) ----

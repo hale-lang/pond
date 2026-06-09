@@ -36,6 +36,7 @@
 **/examples/counter/counter
 **/examples/dashboard/dashboard
 **/examples/keys/keys
+**/examples/report/report
 
 # Library-root binaries (a CLI shape, e.g. migrations/migrations)
 /migrations/migrations
