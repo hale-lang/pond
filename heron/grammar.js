@@ -686,6 +686,10 @@ module.exports = grammar({
       ':',
       field('type', $._type_expr),
       optional(seq('=', field('default', $._expression))),
+      // Go-style metadata tag — a backtick raw string. Shares the
+      // backtick token with time literals (which only appear in
+      // expression position); here it's a field tag.
+      optional(field('tag', $.time_literal)),
       ';',
     ),
 
