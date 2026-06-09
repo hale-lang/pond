@@ -1,10 +1,12 @@
-# pond/term — terminal control: color, styles, raw mode
+# pond/term — terminal control: color, styles, console, raw mode
 
 Tier-0 infrastructure for terminal-facing programs: capability
 detection (NO_COLOR / FORCE_COLOR / COLORTERM / TERM / isatty),
 profile-aware styled output with automatic color downgrade
-(truecolor → 256 → 16 → plain), raw ANSI escape builders, and a
-`RawMode` locus for per-byte input.
+(truecolor → 256 → 16 → plain), a stylized `Console` printer
+(titles / rules / steps / status sigils — the rich-style
+upgrade for your program's own stdout), raw ANSI escape
+builders, and a `RawMode` locus for per-byte input.
 
 This is the first pond lib after `heron/` to use the
 `@ffi("c")` mechanism (`spec/ffi.md`): five libc-only shims in
@@ -33,6 +35,21 @@ locus Styler {                               // namespace lotus; profile-aware
     fn apply(st: Style, s: String) -> String;   // wrap + reset
     fn prefix(st: Style) -> String;             // SGR prefix only
 }
+fn style_apply(profile, st, s) -> String;    // free-fn core Styler delegates to
+fn style_prefix(profile, st) -> String;
+
+// console.hl — the stylized println (one instance per app)
+locus Console {
+    params { profile: Int = -1;              // -1 = detect at birth
+             out_width: Int = 0; }           // 0 = probe (fallback 60)
+    fn title(s) / rule(label) / kv(key, value) / bullet(s);
+    fn info(s) / success(s);                 // stdout
+    fn warn(s) / error(s);                   // stderr
+    fn step(n, total, s);                    // [2/5] cargo-shaped
+    fn paint(st: Style, s) -> String;        // style without printing
+    fn paint_fg(c: Int, s) -> String;
+    fn write(s) / line(s) / newline();       // std::text::Sink shape
+}
 
 // ansi.hl — raw escape builders (free fns)
 fn reset() / cursor_to(row, col) / cursor_home() / cursor_hide() / cursor_show();
@@ -40,18 +57,41 @@ fn clear_screen() / clear_line() / alt_screen_on() / alt_screen_off();
 fn sync_on() / sync_off();                   // DEC 2026 synchronized update
 fn mouse_on() / mouse_off();                 // SGR mouse (1002 + 1006)
 fn paste_on() / paste_off();                 // bracketed paste (2004)
-fn title(s) / hyperlink(url, text);          // OSC 0 / OSC 8
+fn window_title(s) / hyperlink(url, text);   // OSC 0 / OSC 8
 
 // term.hl — terminal I/O + raw mode
 fn is_tty(fd: Int) -> Bool;
 fn width() -> Int;                           // 0 when not a tty
 fn height() -> Int;
-fn write(s: String) -> Int;                  // single write(2), bypasses _IOLBF
+fn write_raw(s: String) -> Int;              // single write(2), bypasses _IOLBF
 fn read_byte(timeout_ms: Int) -> Int;        // 0..255 byte / -1 timeout / -2 EOF
 locus RawMode {                              // birth enables, dissolve restores
     fn is_active() -> Bool;
 }
 ```
+
+## Canonical use — Console (stylized program output)
+
+```hale
+import "vendor/pond/term" as term;
+
+fn main() {
+    let c = term::Console { };
+    c.title("deploy");
+    c.kv("target", "prod-eu");
+    c.rule("steps");
+    c.step(1, 2, "building image");
+    c.success("built in 42s");
+    c.step(2, 2, "rolling out");
+    c.error("quota exceeded");        // → stderr
+}
+```
+
+Console is the upgrade for the stdout lane `std::log` doesn't
+cover — your program's own output. The two sinks compose:
+`logfmt::ConsoleSink` colors what Loggers publish on `log.**`,
+`term::Console` colors what the app itself says. Both honor
+NO_COLOR and degrade to clean plain text when piped.
 
 ## Canonical use — styled output
 
@@ -97,7 +137,7 @@ Notes while raw mode is active:
 - ISIG is off: **Ctrl-C arrives as byte 3**, not SIGINT. The
   caller owns the quit path.
 - OPOST is off: `println`'s `\n` does not return the carriage.
-  Use `term::write` with explicit `\r\n` or cursor addressing.
+  Use `term::write_raw` with explicit `\r\n` or cursor addressing.
 
 ## Color encoding
 
@@ -113,10 +153,14 @@ One `Int` axis (no parametric color type, per pond convention):
 - `ansi.hl` — escape builders.
 - `style.hl` — `Style` + `Styler` + downgrade math.
 - `caps.hl` — profile detection.
+- `console.hl` — the `Console` stylized printer.
 - `examples/styles/` — capability report + swatches + downgrade
   ladder + raw-mode probe. Agent-runnable (degrades to plain
   text when piped; `FORCE_COLOR=1 COLORTERM=truecolor` shows
   the full output anywhere).
+- `examples/report/` — Console demo: a stylized build report
+  exercising title/rule/kv/step/success/warn/error/bullet.
+  Agent-runnable.
 
 ## Verification
 

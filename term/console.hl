@@ -1,0 +1,134 @@
+// pond/term — Console: the stylized println.
+//
+// The drop-in upgrade for a program's *own* stdout output —
+// the lane std::log doesn't cover. (For log events, that's
+// pond/logfmt's ConsoleSink; the two compose: ConsoleSink
+// renders what Loggers publish, Console renders what your app
+// says.) One instance per app, constructed once; every method
+// degrades to clean plain text when piped / NO_COLOR'd, so
+// call sites never branch on capability.
+//
+//   let c = term::Console { };
+//   c.title("deploy");
+//   c.rule("environment");
+//   c.kv("target", "prod-eu");
+//   c.step(1, 3, "building");
+//   c.success("image built in 42s");
+//   c.warn("no healthcheck configured");
+//   c.error("rollout failed: quota");
+//
+// Lane discipline (cargo/npm-shaped): info/success/title/rule/
+// kv/bullet → stdout; warn/error → stderr. Console also wears
+// the std::text::Sink shape (write/line/newline, plain
+// passthrough) so it slots anywhere a Sink is expected.
+
+locus Console {
+    params {
+        // -1 = detect_profile() at birth. Pass an explicit
+        // profile (e.g. PROFILE_NONE for --no-color flags).
+        profile: Int = -1;
+        // 0 = probe terminal width at birth (fallback 60).
+        out_width: Int = 0;
+    }
+
+    birth() {
+        if self.profile < 0 {
+            self.profile = detect_profile();
+        }
+        if self.out_width == 0 {
+            let w = width();
+            if w > 0 {
+                self.out_width = w;
+            } else {
+                self.out_width = 60;
+            }
+        }
+    }
+
+    // ----- std::text::Sink shape (plain passthrough) -----
+
+    fn write(s: String) {
+        print(s);
+    }
+
+    fn line(s: String) {
+        println(s);
+    }
+
+    fn newline() {
+        println("");
+    }
+
+    // ----- Status lines -----
+
+    fn info(s: String) {
+        println("  " + self.paint(Style { fg: 6 }, "i") + " " + s);
+    }
+
+    fn success(s: String) {
+        println("  " + self.paint(Style { fg: 2 }, "✓") + " " + s);
+    }
+
+    // warn/error → stderr, keeping stdout pipeline-clean.
+    fn warn(s: String) {
+        eprintln("  " + self.paint(Style { fg: 3, bold: true }, "!")
+            + " " + s);
+    }
+
+    fn error(s: String) {
+        eprintln("  " + self.paint(Style { fg: 1, bold: true }, "✗")
+            + " " + s);
+    }
+
+    // [n/total] step marker, cargo-shaped.
+    fn step(n: Int, total: Int, s: String) {
+        println("  " + self.paint(Style { fg: 6, bold: true },
+            "[" + to_string(n) + "/" + to_string(total) + "]")
+            + " " + s);
+    }
+
+    // ----- Structure -----
+
+    fn title(s: String) {
+        println("");
+        println(self.paint(Style { bold: true, underline: true }, s));
+    }
+
+    // ── label ───────── to the terminal width. Empty label =
+    // bare rule. (Fill count uses the label's byte length —
+    // exact for ASCII labels; a wide-glyph label runs a few
+    // cells short, harmlessly.)
+    fn rule(label: String) {
+        let mut bar = "";
+        if len(label) == 0 {
+            bar = std::str::repeat("─", self.out_width);
+        } else {
+            let mut rest = self.out_width - len(label) - 4;
+            if rest < 2 { rest = 2; }
+            bar = "── " + label + " " + std::str::repeat("─", rest);
+        }
+        println(self.paint(Style { dim: true }, bar));
+    }
+
+    // Aligned key/value: dim key column, plain value.
+    fn kv(key: String, value: String) {
+        println("  " + self.paint(Style { dim: true },
+            std::str::pad_right(key, 16, " ")) + value);
+    }
+
+    fn bullet(s: String) {
+        println("   " + self.paint(Style { dim: true }, "•") + " " + s);
+    }
+
+    // ----- Escape hatches -----
+
+    // Style a fragment with this console's profile (downgrade
+    // included) without printing it.
+    fn paint(st: Style, s: String) -> String {
+        return style_apply(self.profile, st, s);
+    }
+
+    fn paint_fg(c: Int, s: String) -> String {
+        return style_apply(self.profile, Style { fg: c }, s);
+    }
+}

@@ -44,7 +44,7 @@ fn height() -> Int {
 // line-buffering. Use for escape-sequence-bearing output and
 // multi-line frames; plain program output should keep using
 // println. Returns bytes written (-1 on error).
-fn write(s: String) -> Int {
+fn write_raw(s: String) -> Int {
     return term_write_stdout(s);
 }
 
@@ -67,7 +67,7 @@ fn read_byte(timeout_ms: Int) -> Int {
 // In raw mode ISIG is off: Ctrl-C arrives as byte 3, not
 // SIGINT — the caller owns the quit path. OPOST is off too, so
 // println emits bare "\n" without carriage return; use
-// term::write with explicit "\r\n" or cursor addressing while
+// term::write_raw with explicit "\r\n" or cursor addressing while
 // raw mode is active.
 locus RawMode {
     params {

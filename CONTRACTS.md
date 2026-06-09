@@ -462,6 +462,24 @@ locus Styler {                           // namespace lotus, profile-aware downg
     fn apply(st: Style, s: String) -> String;
     fn prefix(st: Style) -> String;
 }
+fn style_apply(profile: Int, st: Style, s: String) -> String;   // free-fn core
+fn style_prefix(profile: Int, st: Style) -> String;
+
+// stylized console printer (one per app)
+locus Console {
+    params { profile: Int = -1;          // -1 = detect_profile() at birth
+             out_width: Int = 0; }       // 0 = probe terminal (fallback 60)
+    fn title(s: String) -> ();           // bold underline, blank line before
+    fn rule(label: String) -> ();        // ── label ───── to out_width
+    fn kv(key: String, value: String) -> ();
+    fn bullet(s: String) -> ();
+    fn info(s: String) / success(s: String) -> ();   // stdout sigil lines
+    fn warn(s: String) / error(s: String) -> ();     // stderr sigil lines
+    fn step(n: Int, total: Int, s: String) -> ();    // [n/total] marker
+    fn paint(st: Style, s: String) -> String;        // style, don't print
+    fn paint_fg(c: Int, s: String) -> String;
+    fn write(s: String) / line(s: String) / newline() -> ();  // std::text::Sink shape
+}
 
 // raw escape builders (free fns)
 fn reset() / cursor_to(row, col) / cursor_home() -> String;
@@ -471,14 +489,16 @@ fn alt_screen_on() / alt_screen_off() -> String;
 fn sync_on() / sync_off() -> String;     // DEC 2026
 fn mouse_on() / mouse_off() -> String;   // SGR 1002+1006
 fn paste_on() / paste_off() -> String;   // 2004
-fn title(s: String) -> String;           // OSC 0
+fn window_title(s: String) -> String;    // OSC 0 (not `title` — see FRICTION
+                                         // `method-name-shadowed-by-fn`)
 fn hyperlink(url: String, text: String) -> String;   // OSC 8
 
 // terminal I/O
 fn is_tty(fd: Int) -> Bool;
 fn width() -> Int;                       // 0 when not a tty
 fn height() -> Int;
-fn write(s: String) -> Int;              // one write(2); bypasses _IOLBF
+fn write_raw(s: String) -> Int;          // one write(2); bypasses _IOLBF
+                                         // (not `write` — Console.write owns it)
 fn read_byte(timeout_ms: Int) -> Int;    // 0..255 / -1 timeout / -2 EOF
 
 locus RawMode {                          // birth enables, dissolve restores
