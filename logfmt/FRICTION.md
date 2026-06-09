@@ -196,3 +196,25 @@ case (that path doesn't hit write/line/newline at all — it goes
 through on_event). It's lossy for the rarer "stream raw text to
 OTLP" path; if a workload surfaces that, a follow-up could let the
 caller stamp a severity via a params field.
+
+## duplicate-flagged: ansi-helpers-duplicated (G34)
+
+ConsoleSink carries its own SGR escape literals (the `paint` /
+`badge` helpers in `console_sink.hl`) instead of importing
+`pond/term`'s `Styler`. The G34 two-hop codegen break
+(`pond/CLAUDE.md`) keeps tier libs from importing each other —
+`term_alias::Style { ... }` literals inside this lib would fail
+at codegen with `unsupported in codegen v0: qualified-name
+struct literal in expression position`.
+
+The duplication is tiny (six escape strings + a wrap fn) and the
+profile machinery is intentionally NOT duplicated: ConsoleSink
+exposes a single `color: Bool` knob and lets callers who vendor
+`pond/term` pass the real probe (`color: term::is_tty(2)`).
+When G34 lifts, the cleanup pass swaps `paint`/`badge` to
+`term::Styler` and adds a `profile: Int` param.
+
+Related: there is no FFI-free way to ask "is stderr a tty", so
+`color` defaults to `true` and only NO_COLOR forces it off. The
+right fix is upstream — see `pond/term/FRICTION.md`
+`stdlib-term-primitives` (proposes `std::term::is_tty`).

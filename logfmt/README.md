@@ -21,6 +21,7 @@ The bare alias `logfmt` matches `pond/CONTRACTS.md` and
 |------|-----------|--------|
 | `FileSink`  | Appends to a path; size-based rotation | shipped |
 | `OtlpSink`  | Batches + posts to an OTLP/HTTP endpoint | **STUB** at v1 (see FRICTION.md) |
+| `ConsoleSink` | Colored, aligned human-facing console lines (stdout; WARN/ERROR → stderr) | shipped |
 
 Both loci satisfy `std::text::Sink` structurally (`write(s) -> ()`,
 `line(s) -> ()`, `newline() -> ()`) AND carry the
@@ -105,6 +106,43 @@ Each shift is implemented as a read-then-write (see FRICTION.md
 `max_size_bytes`, so rotation cost is linear in the cap, not in
 total log volume.
 
+## `ConsoleSink` — colored console lines
+
+```hale
+locus ConsoleSink {
+    params { color: Bool = true;        // NO_COLOR forces false at birth
+             show_time: Bool = true; }  // dim HH:MM:SS (UTC) prefix
+
+    // std::text::Sink-shape methods (plain passthrough)
+    fn write(s: String);
+    fn line(s: String);
+    fn newline();
+
+    // log.** subscriber — the colored rendering path
+    fn on_event(e: std::log::LogEvent);
+}
+```
+
+Renders each event as `HH:MM:SS LEVEL path msg` with a colored
+width-5 level badge (cyan INFO, bold-yellow WARN, bold-red
+ERROR, dim DEBUG/TRACE), dim timestamp + path, plain message.
+WARN/ERROR go to **stderr** — the same lane split
+`std::log::StdoutSink` uses.
+
+Color policy: `NO_COLOR` always wins (checked at birth). There
+is no isatty probe in this lib (it stays FFI-free; G34 also
+blocks importing `pond/term` — see FRICTION.md
+`ansi-helpers-duplicated`). Callers that vendor `pond/term`
+pass the probe explicitly:
+
+```hale
+logfmt::ConsoleSink { color: term::is_tty(2) };
+```
+
+Demo: `examples/console/` emits one event per level from a
+root + child logger; run with `NO_COLOR=1` to see the plain
+rendering, `2>/dev/null` to see the lane split.
+
 ## `OtlpSink` — OTLP/HTTP batch shipper (STUB)
 
 ```hale
@@ -165,9 +203,13 @@ and retires the last_error accessor triple. See FRICTION.md
 
 - `file_sink.hl` — `FileSink` locus + rotation.
 - `otlp_sink.hl` — `OtlpSink` locus (stub transport, real payload).
+- `console_sink.hl` — `ConsoleSink` locus (colored console lines).
 - `examples/rotated-file/main.hl` — App-locus demo: log 100 events
   with `max_size_bytes: 512`, then walk the rotated chain and
   verify `.1` exists.
+- `examples/console/main.hl` — App-locus demo: one event per
+  level through ConsoleSink; exhibits badge colors, NO_COLOR
+  fallback, and the stdout/stderr lane split.
 
 ## Verification
 

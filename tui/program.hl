@@ -1,0 +1,131 @@
+// pond/tui — Program: the Elm-shaped runtime loop.
+//
+// The user writes a locus that structurally satisfies App
+// (F.20 — no `impl I for L`): params are the model, update is
+// the message handler, view paints cells. Program owns the
+// terminal lifecycle (raw mode + alt screen + mouse/paste
+// modes in birth, full restore in dissolve — so SIGTERM's
+// drain cascade and scope exit both restore the terminal) and
+// drives the frame loop in run().
+//
+//   locus Counter {
+//       params { n: Int = 0; }
+//       fn init(s: tui::Screen) { }
+//       fn update(e: tui::Event, s: tui::Screen) -> Bool {
+//           if e.kind == "key" && e.key == "char" && e.ch == 113 {
+//               return true;                      // 'q' quits
+//           }
+//           if e.kind == "key" && e.key == "up" { self.n = self.n + 1; }
+//           return false;
+//       }
+//       fn view(s: tui::Screen) {
+//           s.clear();
+//           s.print(2, 1, "count: " + to_string(self.n));
+//       }
+//   }
+//
+//   fn main() {
+//       tui::Program { app: Counter { } };
+//   }
+//
+// Event order per frame: at most one input event (key / mouse /
+// paste — polled with the frame budget as timeout, so input
+// polling IS the frame clock), then a resize event if the
+// terminal changed, then exactly one tick. update returning
+// true quits; EOF on stdin quits; Ctrl-C arrives as a plain
+// key event (raw mode disables ISIG) — quit on it in update,
+// or don't (capture is the point).
+//
+// Non-TTY stdin/stdout degrade rather than fail: raw mode and
+// alt screen are skipped, frames still render to stdout, EOF
+// quits. With `max_frames` bounded this makes TUI demos
+// agent-runnable in a pipe.
+
+interface App {
+    fn init(s: Screen);
+    fn update(e: Event, s: Screen) -> Bool;
+    fn view(s: Screen);
+}
+
+locus Program {
+    params {
+        app: App;                  // required — the user's model locus
+        fps: Int = 30;
+        mouse: Bool = false;
+        use_alt_screen: Bool = true;
+        max_frames: Int = -1;      // >= 0 bounds the run (demos, tests)
+
+        // internals
+        is_term: Bool = false;
+        quit: Bool = false;
+        frames: Int = 0;
+        screen: Screen = Screen { };
+    }
+
+    birth() {
+        self.is_term = tui_raw_enable() == 1;
+        if self.is_term {
+            let mut setup = "";
+            if self.use_alt_screen { setup = setup + "\x1b[?1049h"; }
+            setup = setup + "\x1b[?25l\x1b[?2004h";
+            if self.mouse { setup = setup + "\x1b[?1002h\x1b[?1006h"; }
+            tui_write_stdout(setup);
+        }
+        let packed = tui_size_packed();
+        let mut w = 80;
+        let mut h = 24;
+        if packed != 0 {
+            w = packed / 65536;
+            h = packed % 65536;
+        }
+        self.screen.resize(w, h);
+    }
+
+    run() {
+        self.app.init(self.screen);
+        let mut budget = 1000 / self.fps;
+        if budget < 1 { budget = 1; }
+        while !self.quit {
+            let e = next_event(budget);
+            if e.kind == "eof" { self.quit = true; }
+            if e.kind == "key" || e.kind == "mouse" || e.kind == "paste" {
+                if self.app.update(e, self.screen) { self.quit = true; }
+            }
+            if !self.quit { self.check_resize(); }
+            if !self.quit {
+                if self.app.update(Event { kind: "tick" }, self.screen) {
+                    self.quit = true;
+                }
+            }
+            self.app.view(self.screen);
+            self.screen.flush();
+            self.frames = self.frames + 1;
+            if self.max_frames >= 0 && self.frames >= self.max_frames {
+                self.quit = true;
+            }
+        }
+    }
+
+    dissolve() {
+        if self.is_term {
+            let mut tear = "\x1b[?1006l\x1b[?1002l\x1b[?2004l\x1b[?25h\x1b[0m";
+            if self.use_alt_screen { tear = tear + "\x1b[?1049l"; }
+            tui_write_stdout(tear);
+            tui_raw_disable();
+        }
+    }
+
+    fn check_resize() {
+        let packed = tui_size_packed();
+        if packed == 0 { return; }
+        let w = packed / 65536;
+        let h = packed % 65536;
+        if w != self.screen.w || h != self.screen.h {
+            self.screen.resize(w, h);
+            if self.app.update(Event { kind: "resize", w: w, h: h },
+                               self.screen) {
+                self.quit = true;
+            }
+        }
+    }
+}

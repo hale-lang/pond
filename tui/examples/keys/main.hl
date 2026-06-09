@@ -1,0 +1,91 @@
+// tui/examples/keys — input-event echo viewer (interactive).
+//
+// Renders the last screen-full of decoded events: keys with
+// modifiers, mouse presses/wheel (mouse reporting enabled),
+// and bracketed pastes. The fastest way to verify what your
+// terminal actually sends. Quits on q / esc / EOF.
+//
+// Interactive by design; for a non-interactive smoke test run
+// it with closed stdin (immediate EOF → renders one frame and
+// exits):
+//   ./tui/examples/keys/keys < /dev/null
+//
+// Build:
+//   hale build tui/examples/keys/
+
+import "../.." as tui;
+
+locus KeysDemo {
+    params {
+        log: String = "";
+        n: Int = 0;
+    }
+
+    fn init(s: tui::Screen) {
+    }
+
+    fn update(e: tui::Event, s: tui::Screen) -> Bool {
+        if e.kind == "key" {
+            if e.key == "char" && e.ch == 113 { return true; }   // q
+            if e.key == "esc" { return true; }
+        }
+        if e.kind == "key" || e.kind == "mouse" || e.kind == "paste"
+            || e.kind == "resize" {
+            self.n = self.n + 1;
+            let line = to_string(self.n) + "  " + describe(e);
+            if len(self.log) == 0 {
+                self.log = line;
+            } else {
+                self.log = line + "\n" + self.log;   // newest first
+            }
+        }
+        return false;
+    }
+
+    fn view(s: tui::Screen) {
+        s.clear();
+        s.fill(0, 0, s.w, 1, 24);
+        s.put(1, 0, " pond/tui key echo — q/esc quits ", 231, 24, 1);
+        let mut row = 0;
+        while row < s.h - 2 {
+            let line = tui::line_at(self.log, row);
+            if len(line) > 0 {
+                let mut attrs = 0;
+                if row > 0 { attrs = 2; }   // dim history
+                s.put(1, 2 + row, line, -1, -1, attrs);
+            }
+            row = row + 1;
+        }
+    }
+}
+
+fn main() {
+    tui::Program { app: KeysDemo { }, fps: 60, mouse: true };
+}
+
+// One human-readable line per event.
+fn describe(e: tui::Event) -> String {
+    let mut mods = "";
+    if e.ctrl { mods = mods + "ctrl+"; }
+    if e.alt { mods = mods + "alt+"; }
+    if e.shift { mods = mods + "shift+"; }
+
+    if e.kind == "key" {
+        if e.key == "char" {
+            return "key   " + mods + "'" + e.text + "'  (cp "
+                + to_string(e.ch) + ")";
+        }
+        return "key   " + mods + e.key;
+    }
+    if e.kind == "mouse" {
+        return "mouse " + mods + e.btn + " @ " + to_string(e.x)
+            + "," + to_string(e.y);
+    }
+    if e.kind == "paste" {
+        return "paste " + to_string(len(e.text)) + " bytes: " + e.text;
+    }
+    if e.kind == "resize" {
+        return "resize " + to_string(e.w) + "x" + to_string(e.h);
+    }
+    return e.kind;
+}

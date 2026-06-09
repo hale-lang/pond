@@ -1,0 +1,142 @@
+// pond/term — Style (shape type) + Styler (namespace lotus).
+//
+// A Style is pure data (catalog pattern 5) — struct-literal
+// composition with defaults replaces fluent builder chains:
+//
+//   let warn = term::Style { fg: 214, bold: true };
+//   let st = term::Styler { profile: term::detect_profile() };
+//   println(st.apply(warn, "WARN"));
+//
+// Color encoding (one Int axis, no parametric color type):
+//   -1                = no color (terminal default)
+//   0..255            = ANSI palette index
+//   16777216 + rgb    = 24-bit truecolor (use term::rgb(r,g,b))
+//
+// Styler is profile-aware: truecolor values quantize to the
+// 6x6x6 cube + gray ramp on 256-color profiles, and palette
+// values fold to the base 16 on 16-color profiles. Profile 0
+// passes text through untouched, so the same call sites work
+// piped / NO_COLOR'd with zero branching at the caller.
+
+type Style {
+    fg: Int = -1;
+    bg: Int = -1;
+    bold: Bool = false;
+    dim: Bool = false;
+    italic: Bool = false;
+    underline: Bool = false;
+    reverse: Bool = false;
+    strike: Bool = false;
+}
+
+// Pack r/g/b (each 0..255) into the truecolor Int encoding.
+fn rgb(r: Int, g: Int, b: Int) -> Int {
+    return 16777216 + r * 65536 + g * 256 + b;
+}
+
+locus Styler {
+    params {
+        // 0 = plain, 1 = ansi16, 2 = ansi256, 3 = truecolor.
+        // Pass term::detect_profile() for environment-derived.
+        profile: Int = 3;
+    }
+
+    // Wrap s in the SGR sequences st declares, terminated by a
+    // reset. Profile 0 (or an all-default Style) returns s
+    // unchanged.
+    fn apply(st: Style, s: String) -> String {
+        let seq = self.prefix(st);
+        if len(seq) == 0 { return s; }
+        return seq + s + "\x1b[0m";
+    }
+
+    // The SGR prefix alone — for builder-style assembly where
+    // the caller manages resets (e.g. table rows, TUI cells).
+    fn prefix(st: Style) -> String {
+        if self.profile == 0 { return ""; }
+        let mut seq = "";
+        if st.bold { seq = seq + "\x1b[1m"; }
+        if st.dim { seq = seq + "\x1b[2m"; }
+        if st.italic { seq = seq + "\x1b[3m"; }
+        if st.underline { seq = seq + "\x1b[4m"; }
+        if st.reverse { seq = seq + "\x1b[7m"; }
+        if st.strike { seq = seq + "\x1b[9m"; }
+        seq = seq + self.color_seq(38, st.fg);
+        seq = seq + self.color_seq(48, st.bg);
+        return seq;
+    }
+
+    // One color channel: base 38 = foreground, 48 = background.
+    fn color_seq(base: Int, c: Int) -> String {
+        let cc = self.fit(c);
+        if cc < 0 { return ""; }
+        if cc >= 16777216 {
+            let v = cc - 16777216;
+            return "\x1b[" + to_string(base) + ";2;"
+                + to_string(v / 65536) + ";"
+                + to_string((v / 256) % 256) + ";"
+                + to_string(v % 256) + "m";
+        }
+        return "\x1b[" + to_string(base) + ";5;" + to_string(cc) + "m";
+    }
+
+    // Downgrade a color value to what the profile can carry.
+    fn fit(c: Int) -> Int {
+        if c < 0 { return -1; }
+        if self.profile >= 3 { return c; }
+        let mut cc = c;
+        if cc >= 16777216 {
+            cc = quantize_256(cc - 16777216);
+        }
+        if self.profile <= 1 && cc > 15 {
+            cc = approx_16(cc);
+        }
+        return cc;
+    }
+}
+
+// ---- Downgrade helpers (free fns — no state) ----
+
+// 24-bit rgb → nearest xterm-256 index (6x6x6 cube + gray ramp).
+fn quantize_256(v: Int) -> Int {
+    let r = v / 65536;
+    let g = (v / 256) % 256;
+    let b = v % 256;
+    if r == g && g == b {
+        if r < 8 { return 16; }
+        if r > 248 { return 231; }
+        return 232 + (r - 8) / 10;
+    }
+    return 16 + 36 * cube_index(r) + 6 * cube_index(g) + cube_index(b);
+}
+
+// Channel value 0..255 → cube step 0..5 (xterm levels
+// 0,95,135,175,215,255 with midpoint thresholds).
+fn cube_index(v: Int) -> Int {
+    if v < 48 { return 0; }
+    if v < 115 { return 1; }
+    return (v - 35) / 40;
+}
+
+// xterm-256 index → base-16 index. The 3-bit trick works
+// because ANSI's base palette IS r|g<<1|b<<2 with a bright bit.
+fn approx_16(c: Int) -> Int {
+    if c < 16 { return c; }
+    if c >= 232 {
+        let lvl = (c - 232) * 10 + 8;
+        if lvl < 64 { return 0; }
+        if lvl < 128 { return 8; }
+        if lvl < 192 { return 7; }
+        return 15;
+    }
+    let v = c - 16;
+    let r = v / 36;
+    let g = (v / 6) % 6;
+    let b = v % 6;
+    let mut idx = 0;
+    if r >= 2 { idx = idx + 1; }
+    if g >= 2 { idx = idx + 2; }
+    if b >= 2 { idx = idx + 4; }
+    if r >= 4 || g >= 4 || b >= 4 { return idx + 8; }
+    return idx;
+}

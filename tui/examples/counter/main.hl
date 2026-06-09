@@ -1,0 +1,45 @@
+// tui/examples/counter — minimal App-interface probe.
+//
+// The smallest possible tui program: a counter that increments
+// each tick and quits on 'q' / Ctrl-C / EOF / 120 frames.
+// Agent-runnable: piped stdin hits EOF immediately, or the
+// max_frames bound stops it; frames render to stdout either way.
+//
+// Build + run:
+//   hale build tui/examples/counter/
+//   ./tui/examples/counter/counter        # interactive
+//   ./tui/examples/counter/counter < /dev/null   # one frame, exits
+
+import "../.." as tui;
+
+locus Counter {
+    params {
+        n: Int = 0;
+    }
+
+    fn init(s: tui::Screen) {
+    }
+
+    fn update(e: tui::Event, s: tui::Screen) -> Bool {
+        if e.kind == "key" {
+            if e.key == "char" && e.ch == 113 { return true; }   // q
+            if e.key == "char" && e.ch == 99 && e.ctrl { return true; }  // ^C
+            if e.key == "up" { self.n = self.n + 10; }
+        }
+        if e.kind == "tick" {
+            self.n = self.n + 1;
+        }
+        return false;
+    }
+
+    fn view(s: tui::Screen) {
+        s.clear();
+        s.put(2, 1, "tui counter", -1, -1, 1);
+        s.print(2, 3, "ticks: " + to_string(self.n));
+        s.print(2, 5, "q / Ctrl-C quits; up-arrow jumps +10");
+    }
+}
+
+fn main() {
+    tui::Program { app: Counter { }, fps: 30, max_frames: 120 };
+}

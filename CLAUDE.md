@@ -39,12 +39,13 @@ Several non-obvious patterns in this repo exist because codegen v0 (the current 
 ## Repo structure (high-level)
 
 - **`_util/*`** — Tier 0 internals; single-file namespace-lotus utilities operating on primitives only. Five today: `intfloat`, `decimal_float`, `duration_int`, `kvpack`, `rowbuf`. See the G34 caveat above.
-- **`http/`, `crypto/`, `subprocess/`, `math/`** — Tier 0 infrastructure.
+- **`http/`, `crypto/`, `subprocess/`, `math/`, `term/`** — Tier 0 infrastructure. `term/` is the second `@ffi("c")` lib (after `heron/`): libc-only `glue.c` + `hale.toml [ffi]`, `term_*` C symbols.
 - **`sqlite/`, `router/`, `sessions/`, `jobs/`, `migrations/`** — Tier 1 Rails-shape web stack.
 - **`logfmt/`, `metrics/`, `supervisor/`, `tracing/`** — Tier 2 observability + supervision.
 - **`db/`, `pq/`** — backend-neutral `DbDriver` interface + Postgres pgwire driver (the Go `database/sql` split).
 - **`agent/{llm,tools,conversation,sandbox,embeddings}/`, `ml/neural/`** — Tier 5 AI / agent orchestration.
 - **`websocket/`** — Tier 3 realtime: RFC 6455 client + server-side upgrade. (`tower/` was removed 2026-06-08 — unused, superseded by F.31 `placement`.)
+- **`tui/`** — Tier 8 DevX: Elm-shaped full-screen TUI runtime (App/Program, typed input events, cell-grid diff renderer, widgets). Self-contained seed: per G34 it does NOT import `term/` — it carries its own escape helpers and `glue.c` under `tui_*` C symbols (`@ffi` symbols aren't mangled, so per-lib C prefixes are mandatory across FFI-bearing libs).
 - **`heron/`** — outlier: tree-sitter grammar for Hale, not a Hale seed. Has its own build chain (npm + Makefile + cargo + tree-sitter CLI). See `heron/README.md`. Generated `src/parser.c` IS checked in so consumers only need `libtree-sitter` at link time, not the tree-sitter CLI.
 
 Backlog tiers (6, 7, 8 — game/sim, data formats, devx; plus the rest of tier 3 realtime messaging beyond `websocket/`) are listed in `README.md` but not yet built.

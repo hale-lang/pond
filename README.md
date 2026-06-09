@@ -53,6 +53,7 @@ codegen limitation that constrains where they're usable.
 | `subprocess/` | fork/exec wrapper with pipes + timeout | `sub` |
 | `math/matrix/` | Dense matrix + matmul + linalg primitives | `mat` |
 | `math/stats/` | Mean, var, quantile, online moments | `stats` |
+| `term/` | Terminal control: color profiles + styled output (auto-downgrade), ANSI escapes, raw mode (`@ffi` libc shims) | `term` |
 
 ### Tier 1 — Rails-shape web stack
 
@@ -70,7 +71,7 @@ codegen limitation that constrains where they're usable.
 
 | Path | What it is | Suggested alias |
 |------|------------|------|
-| `logfmt/` | Structured log sinks (file/OTLP) for `std::log` | `logfmt` |
+| `logfmt/` | Structured log sinks (file/OTLP/colored console) for `std::log` | `logfmt` |
 | `metrics/` | Prometheus-format exposition (counter/gauge/histogram) | `metrics` |
 | `supervisor/` | Erlang-style restart strategies on `on_failure` | `sup` |
 | `tracing/` | Span tree mirroring the locus tower | `trace` |
@@ -91,6 +92,12 @@ codegen limitation that constrains where they're usable.
 | `agent/sandbox/` | Subprocess-based code-execution sandbox | `sandbox` |
 | `agent/embeddings/` | Vector store with top-k search | `emb` |
 | `ml/neural/` | Tiny NN trainer (MNIST-class problems) | `nn` |
+
+### Tier 8 — DevX
+
+| Path | What it is | Suggested alias |
+|------|------------|------|
+| `tui/` | Elm-shaped full-screen TUI runtime: App/Program loop, typed input events (keys/mouse/paste), cell-grid diff renderer, widgets | `tui` |
 
 ### Tier 6, 7, 8 — backlog (not yet built)
 

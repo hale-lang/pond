@@ -1,0 +1,68 @@
+// tui/examples/dashboard — composed-widget demo.
+//
+// A title bar, a spinner, a progress bar that advances ~2% per
+// tick, and a scrollable task list. Quits when the progress
+// hits 100%, on q / Ctrl-C / EOF, or at the 300-frame bound —
+// so it terminates by itself in a few seconds. Agent-runnable:
+// works piped (no raw mode, frames to stdout, EOF quits) and
+// interactive on a tty.
+//
+// Build + run:
+//   hale build tui/examples/dashboard/
+//   ./tui/examples/dashboard/dashboard
+
+import "../.." as tui;
+
+locus Dashboard {
+    params {
+        spin: tui::Spinner = tui::Spinner { };
+        bar: tui::ProgressBar = tui::ProgressBar { };
+        tasks: tui::List = tui::List {
+            items: "vendor pond into the app\nwire ConsoleSink\nenable raw mode\nparse escape sequences\ndiff the cell grids\nship the dashboard\ncelebrate"
+        };
+        tick_n: Int = 0;
+    }
+
+    fn init(s: tui::Screen) {
+    }
+
+    fn update(e: tui::Event, s: tui::Screen) -> Bool {
+        if e.kind == "key" {
+            if e.key == "char" && e.ch == 113 { return true; }            // q
+            if e.key == "char" && e.ch == 99 && e.ctrl { return true; }   // ^C
+        }
+        self.tasks.handle(e);
+        if e.kind == "tick" {
+            self.tick_n = self.tick_n + 1;
+            self.spin.tick();
+            if self.tick_n % 2 == 0 { self.bar.add(2); }
+            // advance the list selection with the work
+            if self.tick_n % 20 == 0 {
+                self.tasks.handle(tui::Event { kind: "key", key: "down" });
+            }
+            if self.bar.done() { return true; }
+        }
+        return false;
+    }
+
+    fn view(s: tui::Screen) {
+        s.clear();
+        // title bar
+        s.fill(0, 0, s.w, 1, 24);
+        s.put(1, 0, " pond/tui dashboard ", 231, 24, 1);
+        s.put(s.w - 22, 0, "q quits / arrows move", 250, 24, 0);
+
+        self.spin.draw(s, 2, 2, 214);
+        s.put(4, 2, "building…", -1, -1, 0);
+        self.bar.draw(s, 2, 4, 40, 41);
+
+        s.put(2, 6, "tasks", -1, -1, 9);
+        self.tasks.draw(s, 2, 7, 44, 7);
+
+        s.put(2, 15, "tick " + to_string(self.tick_n), -1, -1, 2);
+    }
+}
+
+fn main() {
+    tui::Program { app: Dashboard { }, fps: 30, max_frames: 300 };
+}

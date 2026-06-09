@@ -1,0 +1,42 @@
+// logfmt/examples/console — colored console logging demo.
+//
+// Instantiates a ConsoleSink (color forced on so the demo
+// exhibits the SGR output even when piped — agent-runnable;
+// set NO_COLOR=1 to see the plain rendering), then emits one
+// event per level from a root and a child logger. INFO/DEBUG/
+// TRACE land on stdout; WARN/ERROR land on stderr.
+//
+// Catalog mapping: App locus (pattern 1); run() delegates to a
+// free helper per the lifecycle-return rule.
+//
+// Build + run:
+//   hale build logfmt/examples/console/
+//   ./logfmt/examples/console/console
+//   NO_COLOR=1 ./logfmt/examples/console/console 2>&1
+
+import "../.." as logfmt;
+
+locus ConsoleDemo {
+    run() {
+        drive();
+    }
+}
+
+fn main() {
+    ConsoleDemo { };
+}
+
+fn drive() {
+    // Sink before any Logger publishes (bus-ordering rule).
+    logfmt::ConsoleSink { color: true };
+
+    let app = std::log::Logger { name: "app" };
+    let db = std::log::Logger { name: "db", parent_path: "app" };
+
+    app.info("service starting");
+    db.debug("opening connection pool");
+    db.trace("pool slot 1 acquired");
+    db.warn("slow query: 412ms");
+    db.error("connection refused, giving up");
+    app.info("shutdown complete");
+}

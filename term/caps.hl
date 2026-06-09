@@ -1,0 +1,51 @@
+// pond/term — terminal capability detection.
+//
+// One question, answered the way modern CLI tooling answers it
+// (termenv / lipgloss / NO_COLOR convention): what color
+// profile should output use right now?
+//
+// Precedence:
+//   1. NO_COLOR set            → plain (0), always.
+//   2. FORCE_COLOR / CLICOLOR_FORCE set (non-"0") → skip the
+//      tty check (CI pipes that still want color).
+//   3. stdout not a tty (and not forced) → plain (0).
+//   4. COLORTERM truecolor/24bit → truecolor (3).
+//   5. TERM "dumb" → plain; contains "truecolor" → 3;
+//      contains "256color" → 2; anything else → ansi16 (1).
+
+const PROFILE_NONE: Int = 0;
+const PROFILE_ANSI16: Int = 1;
+const PROFILE_ANSI256: Int = 2;
+const PROFILE_TRUECOLOR: Int = 3;
+
+fn detect_profile() -> Int {
+    if std::env::var_exists("NO_COLOR") { return 0; }
+
+    let mut forced = false;
+    if std::env::var_exists("FORCE_COLOR") {
+        if std::env::var("FORCE_COLOR") != "0" { forced = true; }
+    }
+    if std::env::var_exists("CLICOLOR_FORCE") {
+        if std::env::var("CLICOLOR_FORCE") != "0" { forced = true; }
+    }
+
+    if !forced && !is_tty(1) { return 0; }
+
+    let colorterm = std::env::var("COLORTERM");
+    if colorterm == "truecolor" || colorterm == "24bit" { return 3; }
+
+    let t = std::env::var("TERM");
+    if t == "dumb" { return 0; }
+    if std::str::index_of(t, "truecolor") >= 0 { return 3; }
+    if std::str::index_of(t, "256color") >= 0 { return 2; }
+    return 1;
+}
+
+// Human-readable profile name for diagnostics.
+fn profile_name(p: Int) -> String {
+    if p == 0 { return "plain"; }
+    if p == 1 { return "ansi16"; }
+    if p == 2 { return "ansi256"; }
+    if p == 3 { return "truecolor"; }
+    return "unknown";
+}
