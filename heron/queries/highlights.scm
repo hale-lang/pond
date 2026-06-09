@@ -372,3 +372,7 @@
 
 ; Self
 (self_expr) @variable.builtin
+
+; Go-style field tags (a backtick string in field-declaration position)
+; read as attribute metadata, not a time-literal string.
+(struct_field tag: (time_literal) @attribute)

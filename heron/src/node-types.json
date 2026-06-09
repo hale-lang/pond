@@ -7968,6 +7968,16 @@
           }
         ]
       },
+      "tag": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "time_literal",
+            "named": true
+          }
+        ]
+      },
       "type": {
         "multiple": true,
         "required": true,
