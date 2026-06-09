@@ -1,0 +1,58 @@
+// pond/term — raw ANSI escape builders.
+//
+// Free fns (catalog pattern 6) returning escape strings. These
+// are the bottom layer; most consumers want style.hl's Styler
+// (profile-aware, downgrades colors) instead of raw sequences.
+//
+// Every sequence is plain ASCII — `\x1b` is in the string
+// literal escape range, so no language surface beyond string
+// literals is needed.
+
+// SGR reset.
+fn reset() -> String { return "\x1b[0m"; }
+
+// ---- Cursor ----
+
+// 1-based row/col absolute positioning.
+fn cursor_to(row: Int, col: Int) -> String {
+    return "\x1b[" + to_string(row) + ";" + to_string(col) + "H";
+}
+
+fn cursor_home() -> String { return "\x1b[H"; }
+fn cursor_hide() -> String { return "\x1b[?25l"; }
+fn cursor_show() -> String { return "\x1b[?25h"; }
+
+// ---- Screen ----
+
+fn clear_screen() -> String { return "\x1b[2J"; }
+fn clear_line() -> String { return "\x1b[2K"; }
+fn alt_screen_on() -> String { return "\x1b[?1049h"; }
+fn alt_screen_off() -> String { return "\x1b[?1049l"; }
+
+// Synchronized update (DEC 2026): batch a frame so the
+// terminal repaints once. Unsupported terminals ignore it.
+fn sync_on() -> String { return "\x1b[?2026h"; }
+fn sync_off() -> String { return "\x1b[?2026l"; }
+
+// ---- Input modes ----
+
+// SGR mouse reporting (button + motion, mode 1002 + 1006).
+fn mouse_on() -> String { return "\x1b[?1002h\x1b[?1006h"; }
+fn mouse_off() -> String { return "\x1b[?1006l\x1b[?1002l"; }
+
+// Bracketed paste (mode 2004).
+fn paste_on() -> String { return "\x1b[?2004h"; }
+fn paste_off() -> String { return "\x1b[?2004l"; }
+
+// ---- OSC ----
+
+// Terminal window title.
+fn title(s: String) -> String {
+    return "\x1b]0;" + s + "\x07";
+}
+
+// OSC 8 hyperlink: the text renders as a clickable link in
+// supporting terminals, as plain text elsewhere.
+fn hyperlink(url: String, text: String) -> String {
+    return "\x1b]8;;" + url + "\x1b\\" + text + "\x1b]8;;\x1b\\";
+}

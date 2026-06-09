@@ -1,0 +1,274 @@
+// pond/tui — input events.
+//
+// One flat Event record (shape type, pattern 5 — every field
+// defaulted so partial literals stay terse) plus the
+// byte-stream parser that turns raw terminal input into typed
+// events: UTF-8 assembly, CSI/SS3 escape sequences with
+// modifier decoding, SGR mouse reporting, bracketed paste.
+//
+// The parser is pull-shaped: `next_event(timeout_ms)` reads at
+// most one event's worth of bytes via tui_read_byte and returns
+// `kind: "none"` on timeout. Program's frame loop calls it with
+// the frame budget as the timeout, so input polling IS the
+// frame clock.
+
+type Event {
+    // none | key | mouse | paste | tick | resize | eof
+    kind: String = "none";
+
+    // kind == "key": char, enter, tab, backspace, esc, up,
+    // down, left, right, home, end, pgup, pgdn, insert,
+    // delete, f1..f12
+    key: String = "";
+    ch: Int = 0;          // codepoint when key == "char"
+    text: String = "";    // UTF-8 bytes of the char / paste payload
+    ctrl: Bool = false;
+    alt: Bool = false;
+    shift: Bool = false;
+
+    // kind == "mouse": left, middle, right, release, move,
+    // wheel_up, wheel_down — x/y are 1-based cells.
+    btn: String = "";
+    x: Int = 0;
+    y: Int = 0;
+
+    // kind == "resize"
+    w: Int = 0;
+    h: Int = 0;
+}
+
+// Read one event, waiting up to timeout_ms for the first byte.
+// Continuation bytes of an in-flight sequence use short fixed
+// timeouts so a lone ESC keypress still resolves promptly.
+fn next_event(timeout_ms: Int) -> Event {
+    let b = tui_read_byte(timeout_ms);
+    if b == -1 { return Event { kind: "none" }; }
+    if b == -2 { return Event { kind: "eof" }; }
+    if b == 27 { return __parse_escape(); }
+    return __key_from_byte(b, false);
+}
+
+// ---- Plain bytes → key events ----
+
+fn __key_from_byte(b: Int, alt: Bool) -> Event {
+    if b == 13 || b == 10 { return Event { kind: "key", key: "enter", alt: alt }; }
+    if b == 9 { return Event { kind: "key", key: "tab", alt: alt }; }
+    if b == 127 || b == 8 { return Event { kind: "key", key: "backspace", alt: alt }; }
+    if b == 27 { return Event { kind: "key", key: "esc", alt: alt }; }
+    if b == 0 {
+        return Event { kind: "key", key: "char", ch: 32, text: " ",
+                       ctrl: true, alt: alt };
+    }
+    if b <= 26 {
+        // Ctrl+letter arrives as 1..26.
+        let cp = 96 + b;
+        return Event { kind: "key", key: "char", ch: cp,
+                       text: __one_byte_text(cp), ctrl: true, alt: alt };
+    }
+    if b < 32 { return Event { kind: "none" }; }
+    if b < 128 {
+        return Event { kind: "key", key: "char", ch: b,
+                       text: __one_byte_text(b), alt: alt };
+    }
+    return __utf8_char(b, alt);
+}
+
+// Assemble a multi-byte UTF-8 scalar starting at lead.
+fn __utf8_char(lead: Int, alt: Bool) -> Event {
+    let mut need = 0;
+    let mut cp = 0;
+    if lead >= 192 && lead <= 223 {
+        need = 1;
+        cp = lead - 192;
+    } else if lead >= 224 && lead <= 239 {
+        need = 2;
+        cp = lead - 224;
+    } else if lead >= 240 && lead <= 247 {
+        need = 3;
+        cp = lead - 240;
+    } else {
+        return Event { kind: "none" };
+    }
+
+    let buf = std::bytes::BytesBuilder { initial_cap: 8 };
+    buf.append_u8(lead);
+    let mut i = 0;
+    while i < need {
+        let b = tui_read_byte(50);
+        if b < 128 || b > 191 { return Event { kind: "none" }; }
+        cp = cp * 64 + (b - 128);
+        buf.append_u8(b);
+        i = i + 1;
+    }
+    return Event { kind: "key", key: "char", ch: cp,
+                   text: std::str::clone(buf.text_view()), alt: alt };
+}
+
+fn __one_byte_text(b: Int) -> String {
+    let buf = std::bytes::BytesBuilder { initial_cap: 4 };
+    buf.append_u8(b);
+    return std::str::clone(buf.text_view());
+}
+
+// ---- Escape sequences ----
+
+fn __parse_escape() -> Event {
+    let b = tui_read_byte(20);
+    if b == -1 || b == -2 { return Event { kind: "key", key: "esc" }; }
+    if b == 91 { return __parse_csi(); }   // '['
+    if b == 79 { return __parse_ss3(); }   // 'O'
+    if b == 27 { return Event { kind: "key", key: "esc" }; }
+    // ESC-prefixed plain byte = Alt+key.
+    return __key_from_byte(b, true);
+}
+
+// SS3 (ESC O): arrows on application-keypad terminals, F1-F4.
+fn __parse_ss3() -> Event {
+    let b = tui_read_byte(20);
+    if b == 65 { return Event { kind: "key", key: "up" }; }
+    if b == 66 { return Event { kind: "key", key: "down" }; }
+    if b == 67 { return Event { kind: "key", key: "right" }; }
+    if b == 68 { return Event { kind: "key", key: "left" }; }
+    if b == 72 { return Event { kind: "key", key: "home" }; }
+    if b == 70 { return Event { kind: "key", key: "end" }; }
+    if b == 80 { return Event { kind: "key", key: "f1" }; }
+    if b == 81 { return Event { kind: "key", key: "f2" }; }
+    if b == 82 { return Event { kind: "key", key: "f3" }; }
+    if b == 83 { return Event { kind: "key", key: "f4" }; }
+    return Event { kind: "none" };
+}
+
+// CSI (ESC [): accumulate up to three numeric params + the
+// SGR-mouse '<' marker, dispatch on the final byte.
+fn __parse_csi() -> Event {
+    let mut p1 = 0;
+    let mut p2 = 0;
+    let mut p3 = 0;
+    let mut idx = 0;
+    let mut mouse = false;
+    while true {
+        let b = tui_read_byte(20);
+        if b == -1 || b == -2 { return Event { kind: "none" }; }
+        if b == 60 {
+            mouse = true;                 // '<'
+        } else if b >= 48 && b <= 57 {
+            if idx == 0 { p1 = p1 * 10 + (b - 48); }
+            if idx == 1 { p2 = p2 * 10 + (b - 48); }
+            if idx == 2 { p3 = p3 * 10 + (b - 48); }
+        } else if b == 59 {
+            idx = idx + 1;                // ';'
+        } else if b >= 64 && b <= 126 {
+            return __finish_csi(b, p1, p2, p3, idx + 1, mouse);
+        }
+        // other intermediates: ignore
+    }
+    return Event { kind: "none" };
+}
+
+fn __finish_csi(fin: Int, p1: Int, p2: Int, p3: Int,
+                nparams: Int, mouse: Bool) -> Event {
+    if mouse && (fin == 77 || fin == 109) {
+        return __mouse_event(fin, p1, p2, p3);
+    }
+
+    // "1;5A"-style modifier param: shift=1, alt=2, ctrl=4 on
+    // (param - 1).
+    let mut shift = false;
+    let mut alt = false;
+    let mut ctrl = false;
+    if nparams >= 2 && p2 > 0 {
+        let m = p2 - 1;
+        if (m & 1) != 0 { shift = true; }
+        if (m & 2) != 0 { alt = true; }
+        if (m & 4) != 0 { ctrl = true; }
+    }
+
+    if fin == 65 { return Event { kind: "key", key: "up", shift: shift, alt: alt, ctrl: ctrl }; }
+    if fin == 66 { return Event { kind: "key", key: "down", shift: shift, alt: alt, ctrl: ctrl }; }
+    if fin == 67 { return Event { kind: "key", key: "right", shift: shift, alt: alt, ctrl: ctrl }; }
+    if fin == 68 { return Event { kind: "key", key: "left", shift: shift, alt: alt, ctrl: ctrl }; }
+    if fin == 72 { return Event { kind: "key", key: "home", shift: shift, alt: alt, ctrl: ctrl }; }
+    if fin == 70 { return Event { kind: "key", key: "end", shift: shift, alt: alt, ctrl: ctrl }; }
+    if fin == 90 { return Event { kind: "key", key: "tab", shift: true }; }   // CSI Z
+
+    if fin == 126 {                       // '~'
+        if p1 == 200 { return __parse_paste(); }
+        return Event { kind: "key", key: __tilde_key(p1),
+                       shift: shift, alt: alt, ctrl: ctrl };
+    }
+    return Event { kind: "none" };
+}
+
+fn __tilde_key(code: Int) -> String {
+    if code == 1 || code == 7 { return "home"; }
+    if code == 2 { return "insert"; }
+    if code == 3 { return "delete"; }
+    if code == 4 || code == 8 { return "end"; }
+    if code == 5 { return "pgup"; }
+    if code == 6 { return "pgdn"; }
+    if code == 11 { return "f1"; }
+    if code == 12 { return "f2"; }
+    if code == 13 { return "f3"; }
+    if code == 14 { return "f4"; }
+    if code == 15 { return "f5"; }
+    if code == 17 { return "f6"; }
+    if code == 18 { return "f7"; }
+    if code == 19 { return "f8"; }
+    if code == 20 { return "f9"; }
+    if code == 21 { return "f10"; }
+    if code == 23 { return "f11"; }
+    if code == 24 { return "f12"; }
+    return "";
+}
+
+// SGR mouse (CSI < b ; x ; y M/m). Final 'M' = press/move,
+// 'm' = release.
+fn __mouse_event(fin: Int, b: Int, x: Int, y: Int) -> Event {
+    let mut btn = "";
+    if fin == 109 {
+        btn = "release";
+    } else if (b & 64) != 0 {
+        if (b & 3) == 0 { btn = "wheel_up"; } else { btn = "wheel_down"; }
+    } else if (b & 32) != 0 {
+        btn = "move";
+    } else {
+        let base = b & 3;
+        if base == 0 { btn = "left"; }
+        if base == 1 { btn = "middle"; }
+        if base == 2 { btn = "right"; }
+        if base == 3 { btn = "release"; }
+    }
+    let mut shift = false;
+    let mut alt = false;
+    let mut ctrl = false;
+    if (b & 4) != 0 { shift = true; }
+    if (b & 8) != 0 { alt = true; }
+    if (b & 16) != 0 { ctrl = true; }
+    return Event { kind: "mouse", btn: btn, x: x, y: y,
+                   shift: shift, alt: alt, ctrl: ctrl };
+}
+
+// Bracketed paste: everything until ESC [ 2 0 1 ~ is payload.
+// Terminals emit the terminator atomically, so the parser
+// assumes a well-formed close (a malformed one ends the paste
+// at the next ESC, never corrupts later events beyond that).
+fn __parse_paste() -> Event {
+    let buf = std::bytes::BytesBuilder { initial_cap: 256 };
+    while true {
+        let b = tui_read_byte(100);
+        if b < 0 { break; }
+        if b == 27 {
+            // Consume "[201~" (5 bytes), then stop.
+            let mut i = 0;
+            while i < 5 {
+                let skip = tui_read_byte(20);
+                if skip < 0 { break; }
+                i = i + 1;
+            }
+            break;
+        }
+        buf.append_u8(b);
+    }
+    return Event { kind: "paste",
+                   text: std::str::clone(buf.text_view()) };
+}

@@ -14,6 +14,33 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-06-09 status note — terminal stack (term / tui / ConsoleSink)
+
+Three additions, all shipped + verified in one pass:
+
+- **`pond/term/` (NEW, Tier 0)** — terminal control: capability
+  detection, profile-aware styled output with color downgrade,
+  ANSI escape builders, `RawMode` locus. Second `@ffi("c")` lib
+  in pond (after heron): five libc-only shims in `glue.c`,
+  auto-picked-up via `hale.toml [ffi]`.
+- **`pond/tui/` (NEW, Tier 8)** — Elm-shaped full-screen TUI
+  runtime: `App` interface + `Program` loop, typed input events
+  (keys/modifiers, SGR mouse, bracketed paste, UTF-8), `Screen`
+  cell-grid diff renderer, widgets (Spinner / ProgressBar /
+  List / TextInput). Self-contained seed: G34 blocks importing
+  `term/`, and @ffi symbol non-mangling forces per-lib C
+  prefixes (`tui_*` vs `term_*`) — duplication flagged in both
+  FRICTION.md files.
+- **`pond/logfmt/` ConsoleSink (ADDED)** — colored human-facing
+  `log.**` sink (badge colors, dim time/path, WARN/ERROR →
+  stderr, NO_COLOR honored). FFI-free by design; tty probing is
+  the caller's via `color: term::is_tty(2)`.
+
+Upstream asks recorded: `term/FRICTION.md`
+(`panic-exit-bypasses-atexit`, `stdlib-term-primitives`) and
+`tui/FRICTION.md` (`no-append-str-on-bytesbuilder`,
+`unicode-width-heuristic`, `stdin-not-parkable`).
+
 ## 2026-06-08 status note — up-to-date / idiomatic review pass
 
 A repo-wide review against the current Hale compiler. Every seed now
@@ -412,6 +439,54 @@ locus OnlineMoments {                    // Welford's running mean/var
 type StatsError { kind: String; }        // "empty" | "out_of_range"
 ```
 
+### `pond/term/` — alias `term`
+
+Terminal control. `@ffi("c")` lib (libc-only `glue.c`; `term_*`
+C symbols — the prefix is load-bearing, see FRICTION.md
+`ffi-symbols-not-namespaced`). Color values share one Int axis:
+`-1` default, `0..255` palette, `rgb(r,g,b)` truecolor.
+
+```hale
+// capability detection
+fn detect_profile() -> Int;              // 0 plain / 1 ansi16 / 2 ansi256 / 3 truecolor
+fn profile_name(p: Int) -> String;
+const PROFILE_NONE / PROFILE_ANSI16 / PROFILE_ANSI256 / PROFILE_TRUECOLOR: Int;
+
+// styled text
+type Style { fg: Int = -1; bg: Int = -1;
+             bold: Bool; dim: Bool; italic: Bool;
+             underline: Bool; reverse: Bool; strike: Bool; }
+fn rgb(r: Int, g: Int, b: Int) -> Int;
+locus Styler {                           // namespace lotus, profile-aware downgrade
+    params { profile: Int = 3; }
+    fn apply(st: Style, s: String) -> String;
+    fn prefix(st: Style) -> String;
+}
+
+// raw escape builders (free fns)
+fn reset() / cursor_to(row, col) / cursor_home() -> String;
+fn cursor_hide() / cursor_show() -> String;
+fn clear_screen() / clear_line() -> String;
+fn alt_screen_on() / alt_screen_off() -> String;
+fn sync_on() / sync_off() -> String;     // DEC 2026
+fn mouse_on() / mouse_off() -> String;   // SGR 1002+1006
+fn paste_on() / paste_off() -> String;   // 2004
+fn title(s: String) -> String;           // OSC 0
+fn hyperlink(url: String, text: String) -> String;   // OSC 8
+
+// terminal I/O
+fn is_tty(fd: Int) -> Bool;
+fn width() -> Int;                       // 0 when not a tty
+fn height() -> Int;
+fn write(s: String) -> Int;              // one write(2); bypasses _IOLBF
+fn read_byte(timeout_ms: Int) -> Int;    // 0..255 / -1 timeout / -2 EOF
+
+locus RawMode {                          // birth enables, dissolve restores
+    params { active: Bool = false; }
+    fn is_active() -> Bool;
+}
+```
+
 
 ## Tier 1 — Rails-shape web stack
 
@@ -639,6 +714,16 @@ locus OtlpSink {                          // OTLP over HTTP
     fn write(s: String) -> ();
     fn line(s: String) -> ();
     fn newline() -> ();
+}
+
+locus ConsoleSink {                       // colored human-facing console lines
+    params { color: Bool = true;          // NO_COLOR forces false at birth;
+                                          // pass term::is_tty(2) for a real probe
+             show_time: Bool = true; }    // dim HH:MM:SS (UTC) prefix
+    fn write(s: String) -> ();
+    fn line(s: String) -> ();
+    fn newline() -> ();
+    // log.** subscriber: colored badge + dim path; WARN/ERROR → stderr
 }
 ```
 
@@ -880,6 +965,85 @@ locus Trainer {
 
 topic TrainStep { payload: TrainStep; }
 ```
+
+---
+
+## Tier 8 — DevX
+
+### `pond/tui/` — alias `tui`
+
+Elm-shaped full-screen TUI runtime. Self-contained seed (G34:
+no import of `pond/term`; carries its own glue under `tui_*` C
+symbols). Colors use the pond/term Int encoding; `attrs` is a
+bitmask (1 bold, 2 dim, 4 italic, 8 underline, 16 reverse,
+32 strike). Coordinates: `Screen` is 0-based (x, y); mouse
+events are 1-based terminal cells.
+
+```hale
+// events
+type Event {
+    kind: String = "none";    // none|key|mouse|paste|tick|resize|eof
+    key: String; ch: Int; text: String;
+    ctrl: Bool; alt: Bool; shift: Bool;
+    btn: String; x: Int; y: Int;          // mouse
+    w: Int; h: Int;                       // resize
+}
+fn next_event(timeout_ms: Int) -> Event;
+
+// screen — cell grid + diff renderer
+locus Screen {
+    params { w: Int; h: Int; }            // + internal grids/frame builder
+    fn resize(w: Int, h: Int) -> ();
+    fn clear() -> ();
+    fn set_cell(x: Int, y: Int, ch: Int, fg: Int, bg: Int, attrs: Int) -> ();
+    fn put(x: Int, y: Int, s: String, fg: Int, bg: Int, attrs: Int) -> ();
+    fn print(x: Int, y: Int, s: String) -> ();
+    fn fill(x: Int, y: Int, w: Int, h: Int, bg: Int) -> ();
+    fn set_cursor(x: Int, y: Int) -> ();
+    fn hide_cursor() -> ();
+    fn flush() -> ();                     // diff + one write(2), DEC 2026 wrapped
+}
+fn rgb(r: Int, g: Int, b: Int) -> Int;
+fn char_width(cp: Int) -> Int;            // 0 / 1 / 2 (heuristic — see FRICTION)
+fn str_width(s: String) -> Int;
+
+// program — the runtime loop
+interface App {
+    fn init(s: Screen);
+    fn update(e: Event, s: Screen) -> Bool;   // true = quit
+    fn view(s: Screen);
+}
+locus Program {
+    params { app: App;                    // required
+             fps: Int = 30; mouse: Bool = false;
+             use_alt_screen: Bool = true;
+             max_frames: Int = -1; }      // >= 0 bounds the run
+}
+
+// widgets
+locus Spinner     { fn tick() -> (); fn draw(s: Screen, x: Int, y: Int, fg: Int) -> (); }
+locus ProgressBar { params { pct: Int = 0; }
+                    fn set(p: Int) / add(d: Int) -> (); fn done() -> Bool;
+                    fn draw(s: Screen, x: Int, y: Int, w: Int, fg: Int) -> (); }
+locus List        { params { items: String = ""; selected: Int = 0; offset: Int = 0; }
+                    fn handle(e: Event) -> ();
+                    fn draw(s: Screen, x: Int, y: Int, w: Int, h: Int) -> ();
+                    fn count() -> Int; fn selected_item() -> String; }
+locus TextInput   { params { value: String = ""; placeholder: String = ""; focus: Bool = true; }
+                    fn handle(e: Event) -> ();
+                    fn draw(s: Screen, x: Int, y: Int, w: Int) -> (); }
+fn line_count(s: String) -> Int;          // newline-separated collection helpers
+fn line_at(s: String, idx: Int) -> String;
+```
+
+Frame-loop contract: per frame Program delivers at most one
+input event, a `resize` if the terminal changed (size polled,
+no SIGWINCH), then exactly one `tick`; any `update` returning
+true (or stdin EOF) quits; then `view` + `flush`. Raw mode
+disables ISIG — Ctrl-C arrives as `key char ch=99 ctrl`. When
+stdin/stdout isn't a tty, raw mode + alt screen are skipped but
+frames still render — with `max_frames` that makes demos
+agent-runnable in a pipe.
 
 ---
 

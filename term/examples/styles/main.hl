@@ -1,0 +1,104 @@
+// term/examples/styles — capability report + styled swatches.
+//
+// Agent-runnable: when stdout is piped the detected profile is
+// 0 (no color) and the output is plain text; on a truecolor
+// terminal the same binary prints colored swatches. The demo
+// also forces each profile explicitly so the downgrade ladder
+// (truecolor → 256 → 16 → plain) is visible in one run.
+//
+// Build + run:
+//   hale build term/examples/styles/
+//   ./term/examples/styles/styles
+
+import "../.." as term;
+
+locus StylesDemo {
+    run() {
+        drive();
+    }
+}
+
+fn main() {
+    StylesDemo { };
+}
+
+fn drive() {
+    println("pond/term styles demo");
+    println("  stdout tty: ", term::is_tty(1));
+    println("  size:       ", term::width(), "x", term::height());
+
+    let profile = term::detect_profile();
+    println("  profile:    ", term::profile_name(profile));
+    println("");
+
+    show_profile(profile);
+
+    println("downgrade ladder — same rgb(255,135,0) at each profile");
+    ladder(3);
+    ladder(2);
+    ladder(1);
+    ladder(0);
+    println("");
+
+    let got = raw_probe();
+    println("raw-mode probe");
+    println("  read_byte(50ms) returned ", got,
+        " (-1 = timeout, -2 = stdin not a tty / EOF)");
+}
+
+fn ladder(p: Int) {
+    let st = term::Styler { profile: p };
+    println("  ", term::profile_name(p), ": ",
+        st.apply(term::Style { fg: term::rgb(255, 135, 0), bold: true },
+            "swatch"));
+}
+
+// Raw mode in its own fn scope so RawMode's dissolve (terminal
+// restore) fires before the caller prints results — println's
+// "\n" stair-steps while OPOST is off.
+fn raw_probe() -> Int {
+    let raw = term::RawMode { };
+    if !raw.is_active() { return -2; }
+    return term::read_byte(50);
+}
+
+fn show_profile(profile: Int) {
+    let st = term::Styler { profile: profile };
+
+    let title = term::Style { bold: true, underline: true };
+    println(st.apply(title, "attributes"));
+    println("  ",
+        st.apply(term::Style { bold: true }, "bold"), " ",
+        st.apply(term::Style { dim: true }, "dim"), " ",
+        st.apply(term::Style { italic: true }, "italic"), " ",
+        st.apply(term::Style { underline: true }, "underline"), " ",
+        st.apply(term::Style { reverse: true }, "reverse"), " ",
+        st.apply(term::Style { strike: true }, "strike"));
+
+    println(st.apply(title, "ansi 16"));
+    let mut line = "  ";
+    let mut i = 0;
+    while i < 16 {
+        line = line + st.apply(term::Style { fg: i }, "#") ;
+        i = i + 1;
+    }
+    println(line);
+
+    println(st.apply(title, "truecolor ramp (downgrades per profile)"));
+    let mut ramp = "  ";
+    let mut j = 0;
+    while j < 24 {
+        let r = 55 + j * 8;
+        let g = 40 + j * 5;
+        let b = 200 - j * 6;
+        ramp = ramp + st.apply(term::Style { fg: term::rgb(r, g, b) }, "#");
+        j = j + 1;
+    }
+    println(ramp);
+
+    println(st.apply(title, "composed"));
+    println("  ", st.apply(
+        term::Style { fg: term::rgb(255, 135, 0), bold: true },
+        "orange bold"), " on profile ", term::profile_name(profile));
+    println("");
+}

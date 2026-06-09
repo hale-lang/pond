@@ -1,0 +1,293 @@
+// pond/tui — widgets.
+//
+// Each widget is a locus (params = widget state, methods =
+// handle/draw — pattern 3 without the bus). The composing App
+// holds widgets as param fields (F.29: defaults construct them,
+// the dissolve cascade tears them down) and forwards events /
+// draw calls from its own update/view:
+//
+//   locus Dash {
+//       params {
+//           spin: tui::Spinner = tui::Spinner { };
+//           files: tui::List = tui::List { items: "a\nb\nc" };
+//       }
+//       fn update(e: tui::Event, s: tui::Screen) -> Bool {
+//           self.files.handle(e);
+//           if e.kind == "tick" { self.spin.tick(); }
+//           return false;
+//       }
+//       fn view(s: tui::Screen) {
+//           self.spin.draw(s, 2, 1, 6);
+//           self.files.draw(s, 2, 3, 30, 10);
+//       }
+//   }
+//
+// List items are a newline-separated String — the pond v1
+// collection shape (Rows-style), not a parametric vector.
+
+// ---- Spinner ----
+
+locus Spinner {
+    params {
+        frame: Int = 0;
+    }
+
+    fn tick() {
+        self.frame = (self.frame + 1) % 10;
+    }
+
+    fn draw(s: Screen, x: Int, y: Int, fg: Int) {
+        // 10 braille frames, 3 UTF-8 bytes each — fixed stride
+        // makes substring indexing exact.
+        let frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
+        let lo = self.frame * 3;
+        s.put(x, y, std::str::substring(frames, lo, lo + 3),
+              fg, -1, 0);
+    }
+}
+
+// ---- ProgressBar ----
+
+locus ProgressBar {
+    params {
+        pct: Int = 0;     // 0..100
+    }
+
+    fn set(p: Int) {
+        let mut v = p;
+        if v < 0 { v = 0; }
+        if v > 100 { v = 100; }
+        self.pct = v;
+    }
+
+    fn add(d: Int) {
+        self.set(self.pct + d);
+    }
+
+    fn done() -> Bool {
+        return self.pct >= 100;
+    }
+
+    // [█████░░░░░] 50%  — total width w (>= 9).
+    fn draw(s: Screen, x: Int, y: Int, w: Int, fg: Int) {
+        let mut inner = w - 7;       // brackets + " 100%"
+        if inner < 1 { inner = 1; }
+        let filled = inner * self.pct / 100;
+        s.print(x, y, "[");
+        let mut i = 0;
+        while i < inner {
+            if i < filled {
+                s.put(x + 1 + i, y, "█", fg, -1, 0);
+            } else {
+                s.put(x + 1 + i, y, "░", -1, -1, 2);
+            }
+            i = i + 1;
+        }
+        s.print(x + 1 + inner, y, "]");
+        s.print(x + inner + 3, y,
+            std::str::pad_left(to_string(self.pct), 3, " ") + "%");
+    }
+}
+
+// ---- List ----
+//
+// Scrollable selection list over newline-separated items.
+// up/down/home/end + mouse wheel move the selection; the
+// window follows.
+
+locus List {
+    params {
+        items: String = "";
+        selected: Int = 0;
+        offset: Int = 0;
+    }
+
+    fn count() -> Int {
+        return line_count(self.items);
+    }
+
+    fn selected_item() -> String {
+        return line_at(self.items, self.selected);
+    }
+
+    fn handle(e: Event) {
+        let n = self.count();
+        if n == 0 { return; }
+        if e.kind == "key" {
+            if e.key == "up" { self.selected = self.selected - 1; }
+            if e.key == "down" { self.selected = self.selected + 1; }
+            if e.key == "home" { self.selected = 0; }
+            if e.key == "end" { self.selected = n - 1; }
+            if e.key == "pgup" { self.selected = self.selected - 10; }
+            if e.key == "pgdn" { self.selected = self.selected + 10; }
+        }
+        if e.kind == "mouse" {
+            if e.btn == "wheel_up" { self.selected = self.selected - 1; }
+            if e.btn == "wheel_down" { self.selected = self.selected + 1; }
+        }
+        if self.selected < 0 { self.selected = 0; }
+        if self.selected >= n { self.selected = n - 1; }
+    }
+
+    fn draw(s: Screen, x: Int, y: Int, w: Int, h: Int) {
+        let n = self.count();
+        // Keep the selection inside the window.
+        if self.selected < self.offset { self.offset = self.selected; }
+        if self.selected >= self.offset + h {
+            self.offset = self.selected - h + 1;
+        }
+        let mut row = 0;
+        while row < h {
+            let idx = self.offset + row;
+            if idx < n {
+                let line = line_at(self.items, idx);
+                if idx == self.selected {
+                    s.fill(x, y + row, w, 1, -1);
+                    s.put(x, y + row, "> " + line, -1, -1, 16);
+                    // pad the highlight to the widget edge
+                    let used = 2 + str_width(line);
+                    let mut p = used;
+                    while p < w {
+                        s.set_cell(x + p, y + row, 32, -1, -1, 16);
+                        p = p + 1;
+                    }
+                } else {
+                    s.put(x, y + row, "  " + line, -1, -1, 0);
+                }
+            }
+            row = row + 1;
+        }
+    }
+}
+
+// ---- TextInput ----
+//
+// Append/backspace editing (end-of-line cursor only at v1 —
+// see FRICTION.md `textinput-no-mid-line-cursor`). The owning
+// App routes key events here while the input has focus and
+// reads `value` on enter.
+
+locus TextInput {
+    params {
+        value: String = "";
+        placeholder: String = "";
+        focus: Bool = true;
+    }
+
+    fn handle(e: Event) {
+        if !self.focus { return; }
+        if e.kind == "paste" {
+            self.value = self.value + e.text;
+            return;
+        }
+        if e.kind != "key" { return; }
+        if e.key == "char" && !e.ctrl && !e.alt {
+            self.value = self.value + e.text;
+        }
+        if e.key == "backspace" {
+            self.value = __drop_last_char(self.value);
+        }
+    }
+
+    fn draw(s: Screen, x: Int, y: Int, w: Int) {
+        s.fill(x, y, w, 1, -1);
+        if len(self.value) == 0 && len(self.placeholder) > 0 {
+            s.put(x, y, self.placeholder, -1, -1, 2);
+        } else {
+            s.print(x, y, self.value);
+        }
+        if self.focus {
+            s.set_cursor(x + str_width(self.value), y);
+        }
+    }
+}
+
+// ---- String helpers (free fns) ----
+
+// Display width of a String (UTF-8 decode + char_width sum).
+fn str_width(s: String) -> Int {
+    let n = len(s);
+    let mut i = 0;
+    let mut total = 0;
+    while i < n {
+        let b = std::str::byte_at_unchecked(s, i);
+        let mut sz = 1;
+        let mut cp = b;
+        if b >= 240 {
+            sz = 4;
+        } else if b >= 224 {
+            sz = 3;
+        } else if b >= 192 {
+            sz = 2;
+        }
+        if i + sz > n { return total; }
+        if sz == 2 {
+            cp = (b - 192) * 64
+                + (std::str::byte_at_unchecked(s, i + 1) - 128);
+        }
+        if sz == 3 {
+            cp = ((b - 224) * 64
+                + (std::str::byte_at_unchecked(s, i + 1) - 128)) * 64
+                + (std::str::byte_at_unchecked(s, i + 2) - 128);
+        }
+        if sz == 4 {
+            cp = (((b - 240) * 64
+                + (std::str::byte_at_unchecked(s, i + 1) - 128)) * 64
+                + (std::str::byte_at_unchecked(s, i + 2) - 128)) * 64
+                + (std::str::byte_at_unchecked(s, i + 3) - 128);
+        }
+        total = total + char_width(cp);
+        i = i + sz;
+    }
+    return total;
+}
+
+// Drop the last UTF-8 scalar from s.
+fn __drop_last_char(s: String) -> String {
+    let n = len(s);
+    if n == 0 { return s; }
+    let mut i = n - 1;
+    while i > 0 {
+        let b = std::str::byte_at_unchecked(s, i);
+        if b < 128 || b >= 192 { break; }   // not a continuation byte
+        i = i - 1;
+    }
+    return std::str::substring(s, 0, i);
+}
+
+// Count newline-separated entries ("" = 0 items).
+fn line_count(s: String) -> Int {
+    let n = len(s);
+    if n == 0 { return 0; }
+    let mut count = 1;
+    let mut i = 0;
+    while i < n {
+        if std::str::byte_at_unchecked(s, i) == 10 {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+// The idx-th newline-separated entry ("" when out of range).
+fn line_at(s: String, idx: Int) -> String {
+    let n = len(s);
+    let mut line = 0;
+    let mut start = 0;
+    let mut i = 0;
+    while i < n {
+        if std::str::byte_at_unchecked(s, i) == 10 {
+            if line == idx {
+                return std::str::substring(s, start, i);
+            }
+            line = line + 1;
+            start = i + 1;
+        }
+        i = i + 1;
+    }
+    if line == idx {
+        return std::str::substring(s, start, n);
+    }
+    return "";
+}

@@ -1,0 +1,89 @@
+// pond/term — terminal control surface.
+//
+// @ffi("c") externs over the libc shims in glue.c, plus the
+// clean free-fn wrappers consumers actually call and the
+// RawMode service locus. See README.md for the full surface
+// and ansi.hl / style.hl / caps.hl for the styling layer.
+//
+// Catalog mapping: free fns (pattern 6) for the stateless
+// queries; RawMode is a service locus (pattern 3) whose whole
+// job is birth-acquires / dissolve-restores.
+
+// ---- @ffi externs (see glue.c) ----
+
+@ffi("c") fn term_isatty(fd: Int) -> Int;
+@ffi("c") fn term_raw_enable() -> Int;
+@ffi("c") fn term_raw_disable() -> Int;
+@ffi("c") fn term_size_packed() -> Int;
+@ffi("c") fn term_write_stdout(s: String) -> Int;
+@ffi("c") fn term_read_byte(timeout_ms: Int) -> Int;
+
+// ---- Free-fn wrappers ----
+
+// True when fd refers to a terminal. fd 1 (stdout) is the one
+// that matters for "should I emit color" decisions.
+fn is_tty(fd: Int) -> Bool {
+    return term_isatty(fd) == 1;
+}
+
+// Terminal width in columns. 0 when stdout is not a tty.
+fn width() -> Int {
+    let packed = term_size_packed();
+    if packed == 0 { return 0; }
+    return packed / 65536;
+}
+
+// Terminal height in rows. 0 when stdout is not a tty.
+fn height() -> Int {
+    let packed = term_size_packed();
+    if packed == 0 { return 0; }
+    return packed % 65536;
+}
+
+// Write s to stdout in one write(2) syscall, bypassing stdio
+// line-buffering. Use for escape-sequence-bearing output and
+// multi-line frames; plain program output should keep using
+// println. Returns bytes written (-1 on error).
+fn write(s: String) -> Int {
+    return term_write_stdout(s);
+}
+
+// Read one byte from stdin, waiting up to timeout_ms.
+// Returns 0..255 = byte, -1 = timeout, -2 = EOF / error.
+// Pair with RawMode for unbuffered per-key reads; in cooked
+// mode bytes arrive line-at-a-time.
+fn read_byte(timeout_ms: Int) -> Int {
+    return term_read_byte(timeout_ms);
+}
+
+// ---- RawMode — birth-acquires / dissolve-restores ----
+//
+// let raw = term::RawMode { };
+// ... per-byte input via term::read_byte ...
+// // scope exit restores the terminal (m82 dissolve timing);
+// // SIGTERM's drain cascade and exit()-shaped panics restore
+// // too (glue.c installs an atexit hook on first enable).
+//
+// In raw mode ISIG is off: Ctrl-C arrives as byte 3, not
+// SIGINT — the caller owns the quit path. OPOST is off too, so
+// println emits bare "\n" without carriage return; use
+// term::write with explicit "\r\n" or cursor addressing while
+// raw mode is active.
+locus RawMode {
+    params {
+        active: Bool = false;
+    }
+    birth() {
+        self.active = term_raw_enable() == 1;
+    }
+    dissolve() {
+        if self.active {
+            term_raw_disable();
+        }
+    }
+    // False when stdin isn't a tty (piped input) — callers can
+    // degrade to line-based input instead of failing.
+    fn is_active() -> Bool {
+        return self.active;
+    }
+}

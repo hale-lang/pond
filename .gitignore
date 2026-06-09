@@ -31,6 +31,11 @@
 **/examples/synth-feed-demo/synth-feed-demo
 **/examples/stats-demo/stats-demo
 **/examples/exposition-demo/exposition-demo
+**/examples/styles/styles
+**/examples/console/console
+**/examples/counter/counter
+**/examples/dashboard/dashboard
+**/examples/keys/keys
 
 # Library-root binaries (a CLI shape, e.g. migrations/migrations)
 /migrations/migrations
