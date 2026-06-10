@@ -161,6 +161,14 @@ hale build tui/examples/dashboard/ && ./tui/examples/dashboard/dashboard
   colors by log level, status bar with position/FOLLOW.
   `logview <file>` — try it on a `logfmt::FileSink` output
   while the rotated-file demo writes to it.
+- `examples/metricsdash/` — **a real app**: live Prometheus
+  metrics dashboard. Scrapes a text-exposition URL (via
+  pond/http/client — end apps may import multiple pond libs)
+  or file on an interval; renders each series with current
+  value, per-second rate for counters, and a sparkline of
+  recent samples; '/' filters, 'p' pauses.
+  `metricsdash http://host:port/metrics` — points at any
+  pond/metrics `Registry.render()` endpoint or node_exporter.
 
 ## Self-contained by design (G34)
 
