@@ -1034,7 +1034,8 @@ locus Screen {
     fn flush() -> ();                     // diff + one write(2), DEC 2026 wrapped
 }
 fn rgb(r: Int, g: Int, b: Int) -> Int;
-fn char_width(cp: Int) -> Int;            // 0 / 1 / 2 (heuristic — see FRICTION)
+fn char_width(cp: Int) -> Int;            // 0 / 1 / 2 (generated full-Unicode
+                                          // table — width.hl, wcwidth-compatible)
 fn str_width(s: String) -> Int;
 
 // program — the runtime loop
