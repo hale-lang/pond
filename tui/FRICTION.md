@@ -24,39 +24,35 @@ consume the `std::term` primitives proposed in
 `pond/term/FRICTION.md` `stdlib-term-primitives`, and the glue
 disappears from both).
 
-## gap: no-append-str-on-bytesbuilder
+## no-append-str-on-bytesbuilder — RESOLVED upstream (hale #105, 2026-06-09)
 
-`std::bytes::BytesBuilder` has `append(chunk: Bytes)` and the
-binary-pack writers (`append_u8` ...) but no `append_str(s:
-String)`. The frame renderer appends many small string
-fragments per flush; materializing a `Bytes` per fragment via
-`std::bytes::from_string` would allocate per call, so
-`screen.hl` ships a `__append_str` helper that byte-walks the
-String through `append_u8`. Costs one C-call per byte (~10k
-calls for a full-frame redraw — fine at frame rates, just
-inelegant).
+**Was:** no `append_str(s: String)` on BytesBuilder; the frame
+renderer byte-walked Strings through `append_u8` (~10k C calls
+per full redraw).
 
-**Proposed stdlib unblock:** `BytesBuilder.append_str(s:
-String)` — one strlen + memcpy in the C primitive. Trivial
-addition with an obvious consumer.
+**Fix (upstream):** `BytesBuilder.append_str(s: String)` shipped
+(strlen + memcpy primitive; realloc-NULL routes through
+`violate alloc_failed` like `append`). `screen.hl` now calls it
+directly; the byte-walk helper is deleted. String only, not
+StringView — a view carries no terminating NUL, so strlen would
+overrun it (slices like `s[lo..hi]` are owned Strings and work).
 
-## gap: frame-clone-per-flush
+## frame-clone-per-flush — CLOSED as correct-by-design (hale #105)
 
-`flush()` ends with
-`tui_write_stdout(std::str::clone(self.frame.text_view()))` —
-one full copy of the frame per flush. The clone exists because
-the `@ffi` String parameter wants an owned C string and the
-StringView → String coercion at @ffi call boundaries is
-untested surface; the clone makes the call unambiguous.
-Steady-state frames are tiny (tens of bytes) so the copy is
-noise, but the first frame / full redraws copy the whole frame
-buffer.
+**Was:** `flush()` clones the frame
+(`std::str::clone(self.frame.text_view())`) before the @ffi
+write, pending an answer on StringView → String coercion at
+@ffi boundaries.
 
-**Follow-up:** either confirm the view coercion fires at @ffi
-arg positions (then pass `text_view()` straight through —
-zero-copy since the builder's buffer is already NUL-terminated)
-or declare the extern as `fn tui_write_view(v: StringView)`
-(spec/ffi.md marshals views as the 16-byte `lotus_view_t`).
+**Answer (upstream, documented in spec/ffi.md):** StringView
+does NOT coerce to a String @ffi param — `lower_ffi_fn_call`
+exact-checks the type, and correctly so (no NUL at a view's
+end). The per-flush clone is the right shape, not a workaround.
+Steady-state frames are tens of bytes, so the copy is noise.
+The zero-copy path, if a workload ever measures the full-redraw
+copy: declare the extern as `fn tui_write_view(v: StringView)`
+(marshals as the 16-byte `lotus_view_t`) and recover ptr+len in
+glue. Not worth the glue complexity today.
 
 ## heuristic: unicode-width-heuristic
 
@@ -100,10 +96,10 @@ Note the frame loop services the cooperative queue only between
 frames; a TUI app that also subscribes to bus topics should keep
 handlers on other pools or accept frame-granularity delivery.
 
-## upstream: panic-exit-bypasses-atexit
+## panic-exit-bypasses-atexit — RESOLVED upstream (hale #106, 2026-06-09)
 
-Same entry as `pond/term/FRICTION.md` — `_exit(1)` runtime
-panic paths (F.30b stale-view) bypass the glue's atexit
-terminal restore. An alt-screen TUI hitting one leaves the
-terminal raw + on the alternate screen. Routing runtime panics
-through `exit()` upstream closes it for both libs at once.
+The F.30b stale-view panic now exits via `exit(1)` instead of
+`_exit(1)`, so this lib's atexit restore (termios + leave alt
+screen + show cursor) runs on every runtime panic path. See
+`pond/term/FRICTION.md` for the full entry; upstream carries a
+regression test modeled on exactly this glue pattern.

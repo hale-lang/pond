@@ -162,12 +162,12 @@ locus Screen {
     // stdout in one syscall.
     fn flush() {
         self.frame.clear();
-        __append_str(self.frame, "\x1b[?2026h");
+        self.frame.append_str("\x1b[?2026h");
         self.cur_fg = -999;
         self.cur_bg = -999;
         self.cur_attrs = -1;
         if self.full_redraw {
-            __append_str(self.frame, "\x1b[0m\x1b[2J");
+            self.frame.append_str("\x1b[0m\x1b[2J");
         }
 
         let mut pend_x = -2;   // terminal cursor after last emit
@@ -188,7 +188,7 @@ locus Screen {
                 }
                 if dirty && c.ch != 0 {
                     if pend_x != x || pend_y != y {
-                        __append_str(self.frame, "\x1b["
+                        self.frame.append_str("\x1b["
                             + to_string(y + 1) + ";"
                             + to_string(x + 1) + "H");
                     }
@@ -203,17 +203,21 @@ locus Screen {
             y = y + 1;
         }
 
-        __append_str(self.frame, "\x1b[0m");
+        self.frame.append_str("\x1b[0m");
         if self.cursor_x >= 0 {
-            __append_str(self.frame, "\x1b["
+            self.frame.append_str("\x1b["
                 + to_string(self.cursor_y + 1) + ";"
                 + to_string(self.cursor_x + 1) + "H\x1b[?25h");
         }
-        __append_str(self.frame, "\x1b[?2026l");
+        self.frame.append_str("\x1b[?2026l");
         self.full_redraw = false;
 
-        // clone(): the @ffi String arg wants an owned C string;
-        // see FRICTION.md `frame-clone-per-flush`.
+        // clone(): @ffi String params take exactly String —
+        // StringView deliberately does NOT coerce there (no NUL
+        // at a view's end; hale #105 confirmed + documented in
+        // spec/ffi.md). The clone IS the correct shape; the
+        // zero-copy alternative is a StringView-typed extern.
+        // See FRICTION.md `frame-clone-per-flush`.
         tui_write_stdout(std::str::clone(self.frame.text_view()));
     }
 
@@ -223,15 +227,15 @@ locus Screen {
             && attrs == self.cur_attrs {
             return;
         }
-        __append_str(self.frame, "\x1b[0m");
-        if (attrs & 1) != 0 { __append_str(self.frame, "\x1b[1m"); }
-        if (attrs & 2) != 0 { __append_str(self.frame, "\x1b[2m"); }
-        if (attrs & 4) != 0 { __append_str(self.frame, "\x1b[3m"); }
-        if (attrs & 8) != 0 { __append_str(self.frame, "\x1b[4m"); }
-        if (attrs & 16) != 0 { __append_str(self.frame, "\x1b[7m"); }
-        if (attrs & 32) != 0 { __append_str(self.frame, "\x1b[9m"); }
-        if fg >= 0 { __append_str(self.frame, __color_sgr(38, fg)); }
-        if bg >= 0 { __append_str(self.frame, __color_sgr(48, bg)); }
+        self.frame.append_str("\x1b[0m");
+        if (attrs & 1) != 0 { self.frame.append_str("\x1b[1m"); }
+        if (attrs & 2) != 0 { self.frame.append_str("\x1b[2m"); }
+        if (attrs & 4) != 0 { self.frame.append_str("\x1b[3m"); }
+        if (attrs & 8) != 0 { self.frame.append_str("\x1b[4m"); }
+        if (attrs & 16) != 0 { self.frame.append_str("\x1b[7m"); }
+        if (attrs & 32) != 0 { self.frame.append_str("\x1b[9m"); }
+        if fg >= 0 { self.frame.append_str(__color_sgr(38, fg)); }
+        if bg >= 0 { self.frame.append_str(__color_sgr(48, bg)); }
         self.cur_fg = fg;
         self.cur_bg = bg;
         self.cur_attrs = attrs;
@@ -255,19 +259,6 @@ fn __color_sgr(base: Int, c: Int) -> String {
             + to_string(v % 256) + "m";
     }
     return "\x1b[" + to_string(base) + ";5;" + to_string(c) + "m";
-}
-
-// Append a String's bytes to the builder. BytesBuilder has no
-// append_str; byte-walking via append_u8 avoids materializing a
-// Bytes blob per fragment (see FRICTION.md
-// `no-append-str-on-bytesbuilder`).
-fn __append_str(b: std::bytes::BytesBuilder, s: String) {
-    let n = len(s);
-    let mut i = 0;
-    while i < n {
-        b.append_u8(std::str::byte_at_unchecked(s, i));
-        i = i + 1;
-    }
 }
 
 // Append cp's UTF-8 bytes to the builder.

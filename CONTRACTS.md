@@ -41,6 +41,18 @@ Upstream asks recorded: `term/FRICTION.md`
 `tui/FRICTION.md` (`no-append-str-on-bytesbuilder`,
 `unicode-width-heuristic`, `stdin-not-parkable`).
 
+**Same-day upstream response (hale #104–#107):** the mangler
+method-name bug is FIXED (#104 — pond's `window_title` /
+`write_raw` renames kept by preference, not necessity);
+`BytesBuilder.append_str` SHIPPED (#105 — tui's renderer now
+uses it; also answered: StringView deliberately does NOT coerce
+at @ffi String params, so tui's per-flush clone is correct by
+design); stale-view panics now `exit()` so atexit terminal
+restore covers all panic paths (#106); `std::term` primitives
+SCOPED in `hale/notes/stdlib-term-primitives.md` (#107 — when
+shipped, both libs' glue.c retires). FRICTION entries updated
+to match.
+
 ## 2026-06-08 status note — up-to-date / idiomatic review pass
 
 A repo-wide review against the current Hale compiler. Every seed now
@@ -489,8 +501,7 @@ fn alt_screen_on() / alt_screen_off() -> String;
 fn sync_on() / sync_off() -> String;     // DEC 2026
 fn mouse_on() / mouse_off() -> String;   // SGR 1002+1006
 fn paste_on() / paste_off() -> String;   // 2004
-fn window_title(s: String) -> String;    // OSC 0 (not `title` — see FRICTION
-                                         // `method-name-shadowed-by-fn`)
+fn window_title(s: String) -> String;    // OSC 0
 fn hyperlink(url: String, text: String) -> String;   // OSC 8
 
 // terminal I/O
@@ -498,7 +509,6 @@ fn is_tty(fd: Int) -> Bool;
 fn width() -> Int;                       // 0 when not a tty
 fn height() -> Int;
 fn write_raw(s: String) -> Int;          // one write(2); bypasses _IOLBF
-                                         // (not `write` — Console.write owns it)
 fn read_byte(timeout_ms: Int) -> Int;    // 0..255 / -1 timeout / -2 EOF
 
 locus RawMode {                          // birth enables, dissolve restores

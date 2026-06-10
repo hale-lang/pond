@@ -4,28 +4,23 @@ Deviations, gaps, and proposed upstream unblocks surfaced while
 building the terminal control surface. Format per pond
 convention: one entry per item, smallest repro, proposed unblock.
 
-## `panic-exit-bypasses-atexit` — `_exit(1)` panics skip terminal restore
+## `panic-exit-bypasses-atexit` — RESOLVED upstream (hale #106, 2026-06-09)
 
-**What:** `glue.c` installs an `atexit` hook on first
-`term_raw_enable()` so the saved termios + a screen reset are
-restored on `exit()`-shaped abnormal exits. This covers
-`lotus_root_panic` (dprintf + `exit(1)` per `spec/runtime.md`
-§ "Process exit"). It does NOT cover runtime paths that call
-`_exit(1)` directly — the F.30b stale-view panic
-(`lotus_view_stale_panic`) and the shm-ring
-handler-must-not-call-exit convention both use `_exit`, which
-bypasses atexit by design.
+**Was:** the F.30b stale-view panic (`lotus_view_stale_panic`)
+used `_exit(1)`, bypassing the atexit termios/screen restore
+this lib's glue installs — a raw-mode program tripping it left
+the user's terminal raw.
 
-**Consequence:** a program that holds a live raw-mode terminal
-and trips a stale-view panic leaves the user's terminal raw
-(no echo, no canonical mode) until they type `reset`.
+**Fix (upstream):** `lotus_view_stale_panic` now calls
+`exit(1)`, matching `lotus_root_panic` — atexit hooks run on
+every runtime panic path. Upstream added a regression test
+(`panic_atexit::view_stale_panic_runs_atexit_cleanup`) that
+installs an atexit hook via FFI glue exactly the way this lib
+does. No pond-side change needed; the glue's hook now covers
+panic, error, and normal return uniformly. (SIGKILL remains
+unrecoverable — true everywhere.)
 
-**Proposed upstream unblock:** route runtime panics through
-`exit()` uniformly, or expose an abnormal-exit hook the FFI
-layer can register cleanup into. Filed as the highest-value
-hardening item for terminal-facing programs.
-
-## `stdlib-term-primitives` — five shims that want a `std::` home
+## `stdlib-term-primitives` — five shims that want a `std::` home (SCOPED upstream, hale #107)
 
 **What:** `term_isatty` / `term_size_packed` /
 `term_write_stdout` / `term_read_byte` / raw-mode toggles are
@@ -35,12 +30,22 @@ an FFI lib just to ask "is stdout a tty"; today it takes a
 `color: Bool` param instead and documents passing
 `term::is_tty(1)` (see `logfmt/README.md`).
 
-**Proposed upstream unblock:** `std::term::{is_tty, size}` +
-`std::io::stdout::write_bytes` + byte-level
-`std::io::stdin::read_byte(timeout)` in the stdlib. The raw-mode
-toggle pair could ride along or stay FFI. Longer-term: stdin as
-a parkable fd on `where async_io` pools so an interactive app
-can park on input instead of poll-sleeping.
+**Status (2026-06-09):** upstream scoped the design in
+`hale/notes/stdlib-term-primitives.md` — `std::term::{is_tty,
+size, RawMode}` + `std::io::stdout::write_bytes` +
+`std::io::stdin::read_byte`, with real shapes (a TermSize
+record + fallible instead of the cols<<16|rows pack) and a
+std-side RawMode guard locus whose runtime primitive registers
+the atexit termios restore. Parkable-stdin-on-async_io and key
+decoding are explicitly deferred (the latter stays library
+territory — this lib / pond/tui).
+
+**When this unblocks:** retire `glue.c` + `hale.toml` and the
+`term_*` externs; `is_tty`/`width`/`height`/`write_raw`/
+`read_byte` become thin delegates (or are removed in favor of
+the std names); `RawMode` here either wraps `std::term::RawMode`
+or is dropped. `pond/tui` does the same with its `tui_*` copies.
+ConsoleSink gains a real tty probe for its `color` default.
 
 ## `ffi-symbols-not-namespaced` — C symbol collisions across FFI libs
 
@@ -84,30 +89,23 @@ runtimes use anyway; cost is one ioctl per frame. No unblock
 requested unless a workload surfaces drift between resize and
 next frame as user-visible.
 
-## bug-suspected: method-name-shadowed-by-fn — cross-seed method call breaks when a top-level fn shares the name
+## method-name-shadowed-by-fn — FIXED upstream (hale #104, 2026-06-09)
 
-**What:** with both a top-level `fn title(s: String) -> String`
-(ansi.hl, the OSC-0 builder) and a `Console.title(s)` method in
-this seed, an importing program's `c.title("...")` failed at
-codegen with `locus __lib__console_Console has no method
-'title'`. Renaming the free fn to `window_title` fixed it; the
-method kept the short name. Same-seed callers were unaffected —
-the break is on the imported path, which points at the F.25
-mangler rewriting the member name (post-`.` should be
-unambiguous member position per `member_name` in
-grammar.ebnf, exempt from top-level rename).
+**Was:** a cross-seed method call failed at codegen when the
+imported seed had a top-level fn sharing the method's name
+(`fn title` in ansi.hl + `Console.title` → importing program's
+`c.title(...)` died with `locus ... has no method 'title'`).
 
-**Repro shape:** lib seed declaring `fn foo()` at top level AND
-`locus L { fn foo() }`; importer calls `l.foo()` → codegen
-error. (`Screen.print` vs the *builtin* `print` does NOT trip
-it — only seed-top-level fns through the import mangler.)
+**Actual root cause (per the upstream fix — opposite of this
+entry's original guess):** the call site was fine; the mangler's
+`walk_fn_decl` renamed the method *declaration* through the
+seed's top-level rename map, producing a decl/use mismatch.
+Fixed by routing `LocusMember::Fn` through a `walk_method_decl`
+that walks the body but never renames the method. Regression
+test upstream:
+`cross_seed_imports::method_name_shadowed_by_top_level_fn_resolves`.
 
-**Workaround (active):** no top-level fn may share a name with
-any locus method in the same seed. This forced two renames:
-`title` → `window_title` (Console.title owns the name) and
-`write` → `write_raw` (Console.write is fixed by the
-`std::text::Sink` interface shape, so the free fn moved).
-
-**Proposed upstream unblock:** mangler/codegen treat post-`.`
-member names as member position (never rewrite), matching the
-grammar's `member_name` rule.
+**Names kept by choice:** `window_title` (clearer than `title`
+for the OSC-0 builder) and `write_raw` (distinguishes the raw
+fd-1 write from `Console.write`'s Sink-shape passthrough) stay
+— they read better, the constraint just no longer forces them.
