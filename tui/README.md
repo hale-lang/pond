@@ -98,7 +98,8 @@ locus List         { params { items: String; selected: Int; }  // newline-separa
                      fn handle(e); fn draw(s, x, y, w, h);
                      fn count() -> Int; fn selected_item() -> String; }
 locus TextInput    { params { value: String; placeholder: String; focus: Bool; }
-                     fn handle(e); fn draw(s, x, y, w); }
+                     fn handle(e); fn draw(s, x, y, w);
+                     fn set_value(v); fn set_focus(b); }
 fn line_count(s) -> Int; fn line_at(s, i) -> String;
 ```
 
@@ -154,6 +155,12 @@ hale build tui/examples/dashboard/ && ./tui/examples/dashboard/dashboard
   wcwidth assertions (combining, zero-width, jamo, CJK,
   fullwidth, emoji, narrow symbols). Run after regenerating
   `width.hl`.
+- `examples/logview/` — **a real app**: less-+F-shaped log
+  viewer. Follows appends live (tail -f), scrolls
+  (keys + wheel), filters as you type with match highlighting,
+  colors by log level, status bar with position/FOLLOW.
+  `logview <file>` — try it on a `logfmt::FileSink` output
+  while the rotated-file demo writes to it.
 
 ## Self-contained by design (G34)
 

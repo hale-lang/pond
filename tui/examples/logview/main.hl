@@ -1,0 +1,319 @@
+// tui/examples/logview — a real log viewer.
+//
+// less-+F-shaped: loads a log file, follows appends live
+// (tail -f), scrolls, filters as you type, colors by level,
+// and highlights filter matches. Pairs naturally with
+// pond/logfmt output (watch a FileSink's file live), but any
+// line-oriented file works.
+//
+//   logview <file> [max_frames]
+//
+// Keys:
+//   q          quit            (Ctrl-C also quits)
+//   ↑/↓ wheel  scroll ±1 / ±3
+//   pgup/pgdn  scroll ±page
+//   g / home   jump to top (disables follow)
+//   G / end    jump to bottom + re-enable follow
+//   f          toggle follow
+//   /          filter mode — filters live as you type;
+//              enter keeps the filter, esc clears it
+//
+// Follow mode polls the file (~2x/s), ingests only the new
+// tail (append-only assumption; truncation/rotation inserts a
+// marker and re-ingests), and keeps partial trailing lines
+// pending until their newline arrives. Filtering is evaluated
+// at render time over all lines — O(n) per frame, fine for the
+// hundreds-of-thousands-of-lines scale a viewer session sees.
+//
+// [max_frames] bounds the run for non-interactive smoke tests
+// (the demo renders frames even when piped).
+//
+// Build + run:
+//   hale build tui/examples/logview/
+//   ./tui/examples/logview/logview /tmp/app.log
+
+import "../.." as tui;
+
+// Line storage — one String per log line.
+@form(vec)
+locus LineVec {
+    capacity { heap items of String; }
+}
+
+locus Logview {
+    params {
+        path: String = "";
+        lines: LineVec = LineVec { };
+        pending: String = "";     // partial line awaiting its \n
+        last_size: Int = 0;       // file bytes consumed
+        offset: Int = 0;          // top visible row (filtered space)
+        follow: Bool = true;
+        filtering: Bool = false;  // '/' edit mode
+        filter: tui::TextInput = tui::TextInput {
+            focus: false,
+            placeholder: "type to filter…"
+        };
+        poll: Int = 0;
+    }
+
+    fn init(s: tui::Screen) {
+        self.reload();
+    }
+
+    // ---- File ingestion ----
+
+    fn reload() {
+        let sz = std::io::fs::file_size(self.path) or 0;
+        if sz == self.last_size { return; }
+        if sz < self.last_size {
+            // Truncated or rotated: mark it and re-ingest from 0.
+            self.lines.push("--- file truncated / rotated ---");
+            self.last_size = 0;
+            self.pending = "";
+        }
+        let content = std::io::fs::read_file(self.path) or "";
+        let n = len(content);
+        if n <= self.last_size { return; }
+        let chunk = std::str::substring(content, self.last_size, n);
+        self.last_size = n;
+        self.ingest(self.pending + chunk);
+    }
+
+    // Split complete lines into the vec; keep the partial tail.
+    fn ingest(data: String) {
+        let n = len(data);
+        let mut start = 0;
+        let mut i = 0;
+        while i < n {
+            if std::str::byte_at_unchecked(data, i) == 10 {
+                let mut end = i;
+                if end > start {
+                    if std::str::byte_at_unchecked(data, end - 1) == 13 {
+                        end = end - 1;   // strip \r of \r\n
+                    }
+                }
+                self.lines.push(std::str::substring(data, start, end));
+                start = i + 1;
+            }
+            i = i + 1;
+        }
+        self.pending = std::str::substring(data, start, n);
+    }
+
+    // ---- Update ----
+
+    fn update(e: tui::Event, s: tui::Screen) -> Bool {
+        if e.kind == "tick" {
+            self.poll = self.poll + 1;
+            if self.poll % 15 == 0 { self.reload(); }   // ~2x/s at 30fps
+            return false;
+        }
+
+        let page = s.h - 2;
+
+        // Global: Ctrl-C quits in any mode.
+        if e.kind == "key" && e.key == "char" && e.ctrl && e.ch == 99 {
+            return true;
+        }
+
+        // Wheel scrolls in any mode.
+        if e.kind == "mouse" {
+            if e.btn == "wheel_up" { self.scroll(-3, page); }
+            if e.btn == "wheel_down" { self.scroll(3, page); }
+            return false;
+        }
+
+        if self.filtering {
+            if e.kind == "key" && e.key == "enter" {
+                self.set_editing(false);
+                return false;
+            }
+            if e.kind == "key" && e.key == "esc" {
+                self.filter.set_value("");
+                self.set_editing(false);
+                return false;
+            }
+            self.filter.handle(e);   // chars / backspace / paste
+            return false;
+        }
+
+        if e.kind == "key" {
+            if e.key == "char" && e.ch == 113 { return true; }   // q
+            if e.key == "char" && e.ch == 47 {                   // /
+                self.set_editing(true);
+            }
+            if e.key == "char" && e.ch == 102 {                  // f
+                self.follow = !self.follow;
+            }
+            if e.key == "char" && e.ch == 103 {                  // g
+                self.offset = 0;
+                self.follow = false;
+            }
+            if e.key == "char" && e.ch == 71 {                   // G
+                self.follow = true;
+            }
+            if e.key == "up" { self.scroll(-1, page); }
+            if e.key == "down" { self.scroll(1, page); }
+            if e.key == "pgup" { self.scroll(-page, page); }
+            if e.key == "pgdn" { self.scroll(page, page); }
+            if e.key == "home" {
+                self.offset = 0;
+                self.follow = false;
+            }
+            if e.key == "end" { self.follow = true; }
+        }
+        return false;
+    }
+
+    fn set_editing(b: Bool) {
+        self.filtering = b;
+        self.filter.set_focus(b);
+    }
+
+    fn scroll(delta: Int, page: Int) {
+        self.follow = false;
+        let mut max_off = self.visible_count(self.filter.value) - page;
+        if max_off < 0 { max_off = 0; }
+        self.offset = self.offset + delta;
+        if self.offset > max_off { self.offset = max_off; }
+        if self.offset < 0 { self.offset = 0; }
+    }
+
+    fn visible_count(q: String) -> Int {
+        let total = self.lines.len();
+        if len(q) == 0 { return total; }
+        let mut c = 0;
+        let mut i = 0;
+        while i < total {
+            let line = self.lines.get(i) or "";
+            if line_matches(line, q) { c = c + 1; }
+            i = i + 1;
+        }
+        return c;
+    }
+
+    // ---- View ----
+
+    fn view(s: tui::Screen) {
+        s.clear();
+        s.hide_cursor();
+        let page = s.h - 2;
+        let q = self.filter.value;
+
+        let vis_total = self.visible_count(q);
+        let mut max_off = vis_total - page;
+        if max_off < 0 { max_off = 0; }
+        if self.follow { self.offset = max_off; }
+        if self.offset > max_off { self.offset = max_off; }
+
+        self.draw_status(s, vis_total, page);
+
+        // Visible window over the filtered line space.
+        let total = self.lines.len();
+        let mut row = 0;
+        let mut vi = 0;
+        let mut i = 0;
+        while i < total && row < page {
+            let line = self.lines.get(i) or "";
+            if line_matches(line, q) {
+                if vi >= self.offset {
+                    self.draw_line(s, 1 + row, line, q);
+                    row = row + 1;
+                }
+                vi = vi + 1;
+            }
+            i = i + 1;
+        }
+
+        self.draw_bottom(s, q);
+    }
+
+    fn draw_status(s: tui::Screen, vis_total: Int, page: Int) {
+        s.fill(0, 0, s.w, 1, 24);
+        s.put(1, 0, " logview ", 231, 24, 1);
+        s.put(10, 0, self.path + " ", 250, 24, 0);
+
+        let mut pct = 100;
+        if vis_total > page {
+            pct = (self.offset + page) * 100 / vis_total;
+        }
+        let mut right = to_string(vis_total) + " lines  "
+            + to_string(pct) + "%";
+        if self.follow { right = right + "  FOLLOW"; }
+        let rx = s.w - tui::str_width(right) - 1;
+        if self.follow {
+            s.put(rx, 0, right, 10, 24, 1);
+        } else {
+            s.put(rx, 0, right, 250, 24, 0);
+        }
+    }
+
+    fn draw_line(s: tui::Screen, y: Int, line: String, q: String) {
+        let fg = level_fg(line);
+        let attrs = level_attrs(line);
+        if len(q) > 0 {
+            let pos = std::str::index_of(line, q);
+            if pos >= 0 {
+                let pre = std::str::substring(line, 0, pos);
+                let mid = std::str::substring(line, pos, pos + len(q));
+                let post = std::str::substring(line, pos + len(q),
+                    len(line));
+                s.put(0, y, pre, fg, -1, attrs);
+                let x1 = tui::str_width(pre);
+                s.put(x1, y, mid, 0, 11, 0);   // black on bright yellow
+                s.put(x1 + tui::str_width(mid), y, post, fg, -1, attrs);
+                return;
+            }
+        }
+        s.put(0, y, line, fg, -1, attrs);
+    }
+
+    fn draw_bottom(s: tui::Screen, q: String) {
+        let y = s.h - 1;
+        if self.filtering {
+            s.put(0, y, "/", 11, -1, 1);
+            self.filter.draw(s, 1, y, s.w - 1);
+            return;
+        }
+        let mut help = " q quit  / filter  f follow  g/G top/bottom";
+        if len(q) > 0 {
+            help = help + "   filter: " + q + "  (esc in / clears)";
+        }
+        s.put(0, y, help, -1, -1, 2);
+    }
+}
+
+// ---- Level colorization (free fns) ----
+
+fn level_fg(line: String) -> Int {
+    if std::str::index_of(line, "ERROR") >= 0 { return 9; }
+    if std::str::index_of(line, "WARN") >= 0 { return 11; }
+    return -1;
+}
+
+fn level_attrs(line: String) -> Int {
+    if std::str::index_of(line, "DEBUG") >= 0 { return 2; }
+    if std::str::index_of(line, "TRACE") >= 0 { return 2; }
+    return 0;
+}
+
+fn line_matches(line: String, q: String) -> Bool {
+    if len(q) == 0 { return true; }
+    return std::str::index_of(line, q) >= 0;
+}
+
+fn main() {
+    if std::env::args_count() < 2 {
+        println("usage: logview <file> [max_frames]");
+        println("  follows appends live (tail -f shape); q quits");
+        return;
+    }
+    let path = std::env::arg(1);
+    let frames = std::str::parse_int(std::env::arg_or(2, "-1")) or -1;
+    tui::Program {
+        app: Logview { path: path },
+        fps: 30,
+        mouse: true,
+        max_frames: frames
+    };
+}
