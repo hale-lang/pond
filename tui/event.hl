@@ -7,7 +7,7 @@
 // modifier decoding, SGR mouse reporting, bracketed paste.
 //
 // The parser is pull-shaped: `next_event(timeout_ms)` reads at
-// most one event's worth of bytes via tui_read_byte and returns
+// most one event's worth of bytes via std::io::stdin::read_byte
 // `kind: "none"` on timeout. Program's frame loop calls it with
 // the frame budget as the timeout, so input polling IS the
 // frame clock.
@@ -41,7 +41,7 @@ type Event {
 // Continuation bytes of an in-flight sequence use short fixed
 // timeouts so a lone ESC keypress still resolves promptly.
 fn next_event(timeout_ms: Int) -> Event {
-    let b = tui_read_byte(timeout_ms);
+    let b = std::io::stdin::read_byte(timeout_ms);
     if b == -1 { return Event { kind: "none" }; }
     if b == -2 { return Event { kind: "eof" }; }
     if b == 27 { return __parse_escape(); }
@@ -94,7 +94,7 @@ fn __utf8_char(lead: Int, alt: Bool) -> Event {
     buf.append_u8(lead);
     let mut i = 0;
     while i < need {
-        let b = tui_read_byte(50);
+        let b = std::io::stdin::read_byte(50);
         if b < 128 || b > 191 { return Event { kind: "none" }; }
         cp = cp * 64 + (b - 128);
         buf.append_u8(b);
@@ -113,7 +113,7 @@ fn __one_byte_text(b: Int) -> String {
 // ---- Escape sequences ----
 
 fn __parse_escape() -> Event {
-    let b = tui_read_byte(20);
+    let b = std::io::stdin::read_byte(20);
     if b == -1 || b == -2 { return Event { kind: "key", key: "esc" }; }
     if b == 91 { return __parse_csi(); }   // '['
     if b == 79 { return __parse_ss3(); }   // 'O'
@@ -124,7 +124,7 @@ fn __parse_escape() -> Event {
 
 // SS3 (ESC O): arrows on application-keypad terminals, F1-F4.
 fn __parse_ss3() -> Event {
-    let b = tui_read_byte(20);
+    let b = std::io::stdin::read_byte(20);
     if b == 65 { return Event { kind: "key", key: "up" }; }
     if b == 66 { return Event { kind: "key", key: "down" }; }
     if b == 67 { return Event { kind: "key", key: "right" }; }
@@ -147,7 +147,7 @@ fn __parse_csi() -> Event {
     let mut idx = 0;
     let mut mouse = false;
     while true {
-        let b = tui_read_byte(20);
+        let b = std::io::stdin::read_byte(20);
         if b == -1 || b == -2 { return Event { kind: "none" }; }
         if b == 60 {
             mouse = true;                 // '<'
@@ -256,7 +256,7 @@ fn __mouse_event(fin: Int, b: Int, x: Int, y: Int) -> Event {
 fn __parse_paste() -> Event {
     let buf = std::bytes::BytesBuilder { initial_cap: 256 };
     while true {
-        let b = tui_read_byte(100);
+        let b = std::io::stdin::read_byte(100);
         if b < 0 { break; }
         if b == 27 {
             if __paste_terminator(buf) { break; }
@@ -280,19 +280,19 @@ fn __paste_terminator(buf: std::bytes::BytesBuilder) -> Bool {
     let mut got3 = 0;
     let mut got4 = 0;
 
-    got1 = tui_read_byte(20);
+    got1 = std::io::stdin::read_byte(20);
     if got1 < 0 { return true; }
     if got1 == 91 {
-        got2 = tui_read_byte(20);
+        got2 = std::io::stdin::read_byte(20);
         if got2 < 0 { return true; }
         if got2 == 50 {
-            got3 = tui_read_byte(20);
+            got3 = std::io::stdin::read_byte(20);
             if got3 < 0 { return true; }
             if got3 == 48 {
-                got4 = tui_read_byte(20);
+                got4 = std::io::stdin::read_byte(20);
                 if got4 < 0 { return true; }
                 if got4 == 49 {
-                    let got5 = tui_read_byte(20);
+                    let got5 = std::io::stdin::read_byte(20);
                     if got5 < 0 { return true; }
                     if got5 == 126 { return true; }
                     buf.append_u8(27);

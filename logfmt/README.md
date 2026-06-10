@@ -110,7 +110,7 @@ total log volume.
 
 ```hale
 locus ConsoleSink {
-    params { color: Bool = true;        // NO_COLOR forces false at birth
+    params { color: Bool = true;        // true = auto (tty probe at birth)
              show_time: Bool = true; }  // dim HH:MM:SS (UTC) prefix
 
     // std::text::Sink-shape methods (plain passthrough)
@@ -129,15 +129,10 @@ ERROR, dim DEBUG/TRACE), dim timestamp + path, plain message.
 WARN/ERROR go to **stderr** — the same lane split
 `std::log::StdoutSink` uses.
 
-Color policy: `NO_COLOR` always wins (checked at birth). There
-is no isatty probe in this lib (it stays FFI-free; G34 also
-blocks importing `pond/term` — see FRICTION.md
-`ansi-helpers-duplicated`). Callers that vendor `pond/term`
-pass the probe explicitly:
-
-```hale
-logfmt::ConsoleSink { color: term::is_tty(2) };
-```
+Color policy (auto since hale #108): `color: true` (default)
+keeps color only when stderr is a tty (`std::term::is_tty(2)`,
+probed at birth) or FORCE_COLOR / CLICOLOR_FORCE is set;
+`NO_COLOR` always wins; `color: false` means never.
 
 Demo: `examples/console/` emits one event per level from a
 root + child logger; run with `NO_COLOR=1` to see the plain

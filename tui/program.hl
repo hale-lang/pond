@@ -55,28 +55,34 @@ locus Program {
         use_alt_screen: Bool = true;
         max_frames: Int = -1;      // >= 0 bounds the run (demos, tests)
 
-        // internals
+        // internals — `raw` is the std::term RAII guard: its
+        // construction (params-init) puts stdin in raw mode
+        // (soft-fails on a non-tty) and the F.29 cascade
+        // restores the termios AFTER this locus's dissolve
+        // body runs — exactly the right order (teardown
+        // escapes write while still raw, then restore).
         is_term: Bool = false;
         quit: Bool = false;
         frames: Int = 0;
+        raw: std::term::RawMode = std::term::RawMode { };
         screen: Screen = Screen { };
     }
 
     birth() {
-        self.is_term = tui_raw_enable() == 1;
+        self.is_term = std::term::is_tty(0);
         if self.is_term {
             let mut setup = "";
             if self.use_alt_screen { setup = setup + "\x1b[?1049h"; }
             setup = setup + "\x1b[?25l\x1b[?2004h";
             if self.mouse { setup = setup + "\x1b[?1002h\x1b[?1006h"; }
-            tui_write_stdout(setup);
+            std::io::stdout::write_bytes(setup);
         }
-        let packed = tui_size_packed();
+        let ts = std::term::size();
         let mut w = 80;
         let mut h = 24;
-        if packed != 0 {
-            w = packed / 65536;
-            h = packed % 65536;
+        if ts.cols > 0 {
+            w = ts.cols;
+            h = ts.rows;
         }
         self.screen.resize(w, h);
     }
@@ -110,16 +116,17 @@ locus Program {
         if self.is_term {
             let mut tear = "\x1b[?1006l\x1b[?1002l\x1b[?2004l\x1b[?25h\x1b[0m";
             if self.use_alt_screen { tear = tear + "\x1b[?1049l"; }
-            tui_write_stdout(tear);
-            tui_raw_disable();
+            std::io::stdout::write_bytes(tear);
+            // termios restore happens next: the F.29 cascade
+            // dissolves the `raw` guard field after this body.
         }
     }
 
     fn check_resize() {
-        let packed = tui_size_packed();
-        if packed == 0 { return; }
-        let w = packed / 65536;
-        let h = packed % 65536;
+        let ts = std::term::size();
+        if ts.cols == 0 { return; }
+        let w = ts.cols;
+        let h = ts.rows;
         if w != self.screen.w || h != self.screen.h {
             self.screen.resize(w, h);
             if self.app.update(Event { kind: "resize", w: w, h: h },

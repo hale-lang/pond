@@ -1,51 +1,38 @@
-// pond/term — terminal control surface.
+// pond/term — terminal I/O surface.
 //
-// @ffi("c") externs over the libc shims in glue.c, plus the
-// clean free-fn wrappers consumers actually call and the
-// RawMode service locus. See README.md for the full surface
-// and ansi.hl / style.hl / caps.hl for the styling layer.
-//
-// Catalog mapping: free fns (pattern 6) for the stateless
-// queries; RawMode is a service locus (pattern 3) whose whole
-// job is birth-acquires / dissolve-restores.
-
-// ---- @ffi externs (see glue.c) ----
-
-@ffi("c") fn term_isatty(fd: Int) -> Int;
-@ffi("c") fn term_raw_enable() -> Int;
-@ffi("c") fn term_raw_disable() -> Int;
-@ffi("c") fn term_size_packed() -> Int;
-@ffi("c") fn term_write_stdout(s: String) -> Int;
-@ffi("c") fn term_read_byte(timeout_ms: Int) -> Int;
-
-// ---- Free-fn wrappers ----
+// As of hale #108–#110 the OS primitives live in the stdlib
+// (`std::term::*`, `std::io::stdout::write_bytes`,
+// `std::io::stdin::read_byte` — pond's FFI glue bodies moved
+// upstream verbatim). This file keeps the lib's contract
+// surface as thin delegates, plus the RawMode guard with its
+// `is_active()` probe. No `@ffi` declarations, no glue.c, no
+// hale.toml — this is a pure-Hale seed now.
 
 // True when fd refers to a terminal. fd 1 (stdout) is the one
-// that matters for "should I emit color" decisions.
+// that matters for "should I emit color" decisions; fd 2 for
+// stderr-lane loggers.
 fn is_tty(fd: Int) -> Bool {
-    return term_isatty(fd) == 1;
+    return std::term::is_tty(fd);
 }
 
 // Terminal width in columns. 0 when stdout is not a tty.
 fn width() -> Int {
-    let packed = term_size_packed();
-    if packed == 0 { return 0; }
-    return packed / 65536;
+    let ts = std::term::size();
+    return ts.cols;
 }
 
 // Terminal height in rows. 0 when stdout is not a tty.
 fn height() -> Int {
-    let packed = term_size_packed();
-    if packed == 0 { return 0; }
-    return packed % 65536;
+    let ts = std::term::size();
+    return ts.rows;
 }
 
-// Write s to stdout in one write(2) syscall, bypassing stdio
-// line-buffering. Use for escape-sequence-bearing output and
-// multi-line frames; plain program output should keep using
-// println. Returns bytes written (-1 on error).
+// Write s to stdout in one write(2) syscall. The stdlib
+// primitive fflushes stdout first, so raw frames interleave
+// correctly with buffered println output. Returns bytes
+// written (-1 on error).
 fn write_raw(s: String) -> Int {
-    return term_write_stdout(s);
+    return std::io::stdout::write_bytes(s);
 }
 
 // Read one byte from stdin, waiting up to timeout_ms.
@@ -53,33 +40,38 @@ fn write_raw(s: String) -> Int {
 // Pair with RawMode for unbuffered per-key reads; in cooked
 // mode bytes arrive line-at-a-time.
 fn read_byte(timeout_ms: Int) -> Int {
-    return term_read_byte(timeout_ms);
+    return std::io::stdin::read_byte(timeout_ms);
 }
 
 // ---- RawMode — birth-acquires / dissolve-restores ----
 //
 // let raw = term::RawMode { };
 // ... per-byte input via term::read_byte ...
-// // scope exit restores the terminal (m82 dissolve timing);
-// // SIGTERM's drain cascade and exit()-shaped panics restore
-// // too (glue.c installs an atexit hook on first enable).
+// // scope exit restores the terminal (m82 dissolve timing).
+//
+// Wraps std::term::RawMode (the owned `guard` field does the
+// termios toggle; the F.29 cascade restores it after this
+// locus's dissolve) and adds the `is_active()` probe the
+// stdlib guard doesn't expose — callers degrade to line-based
+// input when stdin is piped. The stdlib guard registers a
+// runtime atexit restore, and every runtime panic path exits
+// via exit() (hale #106), so the terminal is restored on
+// panic / error / return with no lib-side hook.
 //
 // In raw mode ISIG is off: Ctrl-C arrives as byte 3, not
 // SIGINT — the caller owns the quit path. OPOST is off too, so
 // println emits bare "\n" without carriage return; use
-// term::write_raw with explicit "\r\n" or cursor addressing while
-// raw mode is active.
+// term::write_raw with explicit "\r\n" or cursor addressing
+// while raw mode is active.
 locus RawMode {
     params {
         active: Bool = false;
+        guard: std::term::RawMode = std::term::RawMode { };
     }
     birth() {
-        self.active = term_raw_enable() == 1;
-    }
-    dissolve() {
-        if self.active {
-            term_raw_disable();
-        }
+        // The stdlib guard soft-fails on a non-tty; mirror that
+        // state for callers (enable succeeds iff stdin is a tty).
+        self.active = std::term::is_tty(0);
     }
     // False when stdin isn't a tty (piped input) — callers can
     // degrade to line-based input instead of failing.

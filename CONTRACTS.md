@@ -41,6 +41,23 @@ Upstream asks recorded: `term/FRICTION.md`
 `tui/FRICTION.md` (`no-append-str-on-bytesbuilder`,
 `unicode-width-heuristic`, `stdin-not-parkable`).
 
+**2026-06-10 — std::term shipped (hale #108–#110); pond FFI
+retired.** Upstream implemented the full scoped surface
+(`std::term::{is_tty, size, RawMode}`,
+`std::io::stdout::write_bytes`, `std::io::stdin::read_byte` —
+pond's glue bodies moved upstream verbatim). Cleanup executed:
+`term/` and `tui/` deleted their `glue.c` / `hale.toml` /
+externs (pure Hale now; `heron/` is pond's only FFI lib);
+`term/`'s I/O fns are thin std delegates and its `RawMode`
+wraps `std::term::RawMode` (keeping `is_active()`); `tui/`'s
+Program holds a `std::term::RawMode` guard field, polls
+`std::term::size()` (TermSize record), and `Screen.flush()` is
+now zero-copy (StringView coerces at stdlib path-call args —
+the per-flush clone is gone); `logfmt::ConsoleSink`'s
+`color: true` is now AUTO (tty-probed at birth, FORCE_COLOR /
+CLICOLOR_FORCE override, NO_COLOR wins). Public surfaces below
+are unchanged except the ConsoleSink color semantics.
+
 **Same-day upstream response (hale #104–#107):** the mangler
 method-name bug is FIXED (#104 — pond's `window_title` /
 `write_raw` renames kept by preference, not necessity);
@@ -453,10 +470,11 @@ type StatsError { kind: String; }        // "empty" | "out_of_range"
 
 ### `pond/term/` — alias `term`
 
-Terminal control. `@ffi("c")` lib (libc-only `glue.c`; `term_*`
-C symbols — the prefix is load-bearing, see FRICTION.md
-`ffi-symbols-not-namespaced`). Color values share one Int axis:
-`-1` default, `0..255` palette, `rgb(r,g,b)` truecolor.
+Terminal control. Pure Hale: the I/O surface delegates to
+`std::term` / `std::io::{stdout,stdin}` (hale #108–#110; the
+lib's original FFI glue moved upstream). Color values share one
+Int axis: `-1` default, `0..255` palette, `rgb(r,g,b)`
+truecolor.
 
 ```hale
 // capability detection
@@ -747,8 +765,9 @@ locus OtlpSink {                          // OTLP over HTTP
 }
 
 locus ConsoleSink {                       // colored human-facing console lines
-    params { color: Bool = true;          // NO_COLOR forces false at birth;
-                                          // pass term::is_tty(2) for a real probe
+    params { color: Bool = true;          // true = AUTO: tty-probed at birth
+                                          // (std::term::is_tty(2)); NO_COLOR wins;
+                                          // FORCE_COLOR keeps color in pipes
              show_time: Bool = true; }    // dim HH:MM:SS (UTC) prefix
     fn write(s: String) -> ();
     fn line(s: String) -> ();
@@ -1003,8 +1022,8 @@ topic TrainStep { payload: TrainStep; }
 ### `pond/tui/` — alias `tui`
 
 Elm-shaped full-screen TUI runtime. Self-contained seed (G34:
-no import of `pond/term`; carries its own glue under `tui_*` C
-symbols). Colors use the pond/term Int encoding; `attrs` is a
+no import of `pond/term`; both libs sit on the `std::term`
+primitives — no FFI glue since hale #108–#110). Colors use the pond/term Int encoding; `attrs` is a
 bitmask (1 bold, 2 dim, 4 italic, 8 underline, 16 reverse,
 32 strike). Coordinates: `Screen` is 0-based (x, y); mouse
 events are 1-based terminal cells.

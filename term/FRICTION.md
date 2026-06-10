@@ -20,7 +20,7 @@ does. No pond-side change needed; the glue's hook now covers
 panic, error, and normal return uniformly. (SIGKILL remains
 unrecoverable — true everywhere.)
 
-## `stdlib-term-primitives` — five shims that want a `std::` home (SCOPED upstream, hale #107)
+## `stdlib-term-primitives` — RESOLVED upstream (hale #108–#110) + cleanup DONE (2026-06-10)
 
 **What:** `term_isatty` / `term_size_packed` /
 `term_write_stdout` / `term_read_byte` / raw-mode toggles are
@@ -40,12 +40,18 @@ the atexit termios restore. Parkable-stdin-on-async_io and key
 decoding are explicitly deferred (the latter stays library
 territory — this lib / pond/tui).
 
-**When this unblocks:** retire `glue.c` + `hale.toml` and the
-`term_*` externs; `is_tty`/`width`/`height`/`write_raw`/
-`read_byte` become thin delegates (or are removed in favor of
-the std names); `RawMode` here either wraps `std::term::RawMode`
-or is dropped. `pond/tui` does the same with its `tui_*` copies.
-ConsoleSink gains a real tty probe for its `color` default.
+**Unblocked + cleaned up (2026-06-10):** hale #108–#110 shipped
+the full scoped surface — `std::term::{is_tty, size, RawMode}`,
+`std::io::stdout::write_bytes` (with a fflush-before-raw-write
+ordering fix ours lacked), `std::io::stdin::read_byte` — with
+pond's glue bodies moved upstream verbatim. The recipe above is
+executed: `glue.c` + `hale.toml` + the `term_*` externs are
+deleted; `is_tty`/`width`/`height`/`write_raw`/`read_byte` are
+thin delegates; `RawMode` wraps `std::term::RawMode` (keeping
+the `is_active()` probe the std guard doesn't expose).
+`pond/tui` likewise dropped its `tui_*` copies, and
+`logfmt::ConsoleSink` gained the real tty probe (auto color).
+This lib is pure Hale now.
 
 ## `ffi-symbols-not-namespaced` — C symbol collisions across FFI libs
 
@@ -56,9 +62,11 @@ are compiled into the same link. Two pond libs shipping a
 `glue.c` that defines the same symbol produce a duplicate-symbol
 link error in any app vendoring both.
 
-**Workaround (active):** per-lib C symbol prefixes — this lib
-claims `term_*`; `pond/tui` duplicates the same shims under
-`tui_*`. Works, but it's convention-enforced only.
+**Status (2026-06-10):** moot for term/tui — both libs' glue
+retired when the primitives moved upstream (hale #108–#110);
+`heron/` is pond's only FFI lib again. The entry stays as the
+documented convention for any future FFI-bearing lib: claim a
+unique C symbol prefix.
 
 **Proposed upstream unblock:** none needed immediately;
 documenting the convention here. If FFI libs proliferate, a
@@ -66,15 +74,13 @@ lib-id-derived symbol-prefix check (or weak-symbol convention)
 at the build layer would make collisions a diagnostic instead of
 a linker error.
 
-## `int-only-ffi-packing` — no tuple returns at the FFI boundary
+## `int-only-ffi-packing` — RESOLVED by the stdlib move (2026-06-10)
 
-**What:** `spec/ffi.md` rejects tuples in `@ffi` signatures, so
-`term_size_packed` returns `(cols << 16) | rows` in one Int and
-`width()` / `height()` unpack it Hale-side. Two ioctl calls per
-size poll when a caller wants both dimensions.
-
-**Status:** cosmetic; not worth an unblock. Logged so the next
-reader knows the packing is deliberate.
+**Was:** `@ffi` rejects tuple returns, so the size shim packed
+`(cols << 16) | rows` into one Int. The upstream
+`std::term::size()` returns a real `TermSize { cols, rows }`
+record (path-calls aren't FFI-constrained); pond's `width()` /
+`height()` now read it directly. The packing is gone.
 
 ## `sigwinch-not-surfaced` — resize is polled, not signaled
 

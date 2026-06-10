@@ -212,13 +212,15 @@ locus Screen {
         self.frame.append_str("\x1b[?2026l");
         self.full_redraw = false;
 
-        // clone(): @ffi String params take exactly String —
-        // StringView deliberately does NOT coerce there (no NUL
-        // at a view's end; hale #105 confirmed + documented in
-        // spec/ffi.md). The clone IS the correct shape; the
-        // zero-copy alternative is a StringView-typed extern.
-        // See FRICTION.md `frame-clone-per-flush`.
-        tui_write_stdout(std::str::clone(self.frame.text_view()));
+        // Zero-copy frame write: write_bytes is a stdlib
+        // path-call, and StringView coerces to String at
+        // stdlib READ positions (unlike @ffi params — hale
+        // #105). The builder maintains buf[len] == 0 so the
+        // view's recomputed pointer is a valid C string, and
+        // the epoch guard validates freshness at the coercion
+        // site. The per-flush clone retired with the FFI glue
+        // (FRICTION.md `frame-clone-per-flush`).
+        std::io::stdout::write_bytes(self.frame.text_view());
     }
 
     // Emit an SGR run only when style changes between cells.

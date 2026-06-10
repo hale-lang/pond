@@ -8,10 +8,11 @@ profile-aware styled output with automatic color downgrade
 upgrade for your program's own stdout), raw ANSI escape
 builders, and a `RawMode` locus for per-byte input.
 
-This is the first pond lib after `heron/` to use the
-`@ffi("c")` mechanism (`spec/ffi.md`): five libc-only shims in
-`glue.c`, picked up automatically through `hale.toml [ffi]`
-when you import the lib. No external link deps.
+Pure Hale — no FFI. The OS primitives this lib originally
+shipped as `@ffi("c")` glue moved into the stdlib (hale
+#108–#110: `std::term::{is_tty, size, RawMode}`,
+`std::io::stdout::write_bytes`, `std::io::stdin::read_byte`);
+this lib's I/O surface is thin delegates over them.
 
 ## Suggested alias
 
@@ -128,9 +129,9 @@ fn read_one_key() -> Int {
 
 Terminal restore is structural, not best-effort: dissolve fires
 at scope exit (m82 timing), the SIGTERM drain cascade reaches it
-(F.4), and `glue.c` installs an `atexit` hook on first enable.
+(F.4), and the stdlib guard registers a runtime `atexit` restore.
 As of hale #106 every runtime panic path exits via `exit()`, so
-the hook covers panic, error, and normal return uniformly.
+panic, error, and normal return all restore the terminal.
 
 Notes while raw mode is active:
 
@@ -148,8 +149,8 @@ One `Int` axis (no parametric color type, per pond convention):
 
 ## Files
 
-- `glue.c` + `hale.toml` — libc FFI shims (`term_*` symbols).
-- `term.hl` — externs, free-fn wrappers, `RawMode`.
+- `term.hl` — std::term delegates + the `RawMode` guard
+  (wraps `std::term::RawMode`, adds `is_active()`).
 - `ansi.hl` — escape builders.
 - `style.hl` — `Style` + `Styler` + downgrade math.
 - `caps.hl` — profile detection.
@@ -184,8 +185,9 @@ is piped, `-1` timeout on a quiet tty).
 ## Relationship to pond/tui
 
 `tui/` does NOT import this lib — the G34 two-hop codegen break
-keeps tier libs from importing each other, so `tui/` carries its
-own copies of the escape helpers and glue shims (under `tui_*` C
-symbols so a program vendoring both links cleanly). Apps that
-just want color/styled *output* (logging, CLI reports) take
-`term/`; full-screen interactive apps take `tui/`.
+keeps tier libs from importing each other — but since hale
+#108–#110 both sit on the same `std::term` primitives, so the
+only remaining duplication is a few escape-string fragments.
+Apps that just want color/styled *output* (logging, CLI
+reports) take `term/`; full-screen interactive apps take
+`tui/`.

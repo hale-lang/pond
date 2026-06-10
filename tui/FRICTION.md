@@ -1,6 +1,6 @@
 # pond/tui — friction log
 
-## duplicate-flagged: glue-duplicated-from-term (G34)
+## glue-duplicated-from-term — RESOLVED by the stdlib move (hale #108–#110, 2026-06-10)
 
 `glue.c` is a copy of `pond/term/glue.c` under `tui_`-prefixed
 symbols, and the SGR/escape emission in `screen.hl` re-derives
@@ -17,12 +17,15 @@ blockers:
    duplicate-symbol any app vendoring both libs, so the copy
    *must* rename even if G34 lifted today.
 
-Cleanup recipe when G34 lifts: drop ansi duplication by calling
-`term::` fns; keep glue.c but shrink it to the raw-mode +
-read/write shims under the `tui_` prefix (or better: both libs
-consume the `std::term` primitives proposed in
-`pond/term/FRICTION.md` `stdlib-term-primitives`, and the glue
-disappears from both).
+**Resolved (2026-06-10):** the "or better" branch happened —
+hale #108–#110 shipped the `std::term` primitives and the glue
+disappeared from both libs (`glue.c` / `hale.toml` / `ffi.hl`
+deleted here; event.hl reads via `std::io::stdin::read_byte`,
+the renderer writes via `std::io::stdout::write_bytes`, Program
+holds a `std::term::RawMode` guard field and polls
+`std::term::size()`). Residual duplication vs pond/term is a
+few escape-string fragments in the renderer — collapses when
+G34 lifts.
 
 ## no-append-str-on-bytesbuilder — RESOLVED upstream (hale #105, 2026-06-09)
 
@@ -45,14 +48,16 @@ write, pending an answer on StringView → String coercion at
 @ffi boundaries.
 
 **Answer (upstream, documented in spec/ffi.md):** StringView
-does NOT coerce to a String @ffi param — `lower_ffi_fn_call`
-exact-checks the type, and correctly so (no NUL at a view's
-end). The per-flush clone is the right shape, not a workaround.
-Steady-state frames are tens of bytes, so the copy is noise.
-The zero-copy path, if a workload ever measures the full-redraw
-copy: declare the extern as `fn tui_write_view(v: StringView)`
-(marshals as the 16-byte `lotus_view_t`) and recover ptr+len in
-glue. Not worth the glue complexity today.
+does NOT coerce to a String @ffi param (no NUL at a view's
+end), so the clone was correct while the write was FFI.
+
+**Fully closed (2026-06-10):** the write is now the stdlib
+path-call `std::io::stdout::write_bytes`, and StringView DOES
+coerce to String at stdlib READ positions — the builder
+maintains `buf[len] == 0`, so the view's recomputed pointer is
+a valid C string, and the epoch guard validates freshness at
+the coercion site. `flush()` passes `self.frame.text_view()`
+straight through: zero-copy frame writes, no clone at all.
 
 ## unicode-width-heuristic — RESOLVED (2026-06-09, generated table)
 

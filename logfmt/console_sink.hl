@@ -14,15 +14,12 @@
 // lane split std::log::StdoutSink uses — so `2>/dev/null` and
 // shell-pipeline conventions hold.
 //
-// Color policy:
-//   - `color: Bool = true` is the only knob. birth() forces it
-//     off when NO_COLOR is set (https://no-color.org).
-//   - There is no isatty probe here: that needs an FFI shim and
-//     this lib stays FFI-free (G34 also blocks importing
-//     pond/term — see FRICTION.md `ansi-helpers-duplicated`).
-//     Callers that vendor pond/term pass the probe explicitly:
-//
-//       logfmt::ConsoleSink { color: term::is_tty(2) };
+// Color policy (auto since hale #108 shipped std::term):
+//   - `color: true` (the default) means AUTO: birth() keeps
+//     color only when stderr is a tty (std::term::is_tty(2)) —
+//     or when FORCE_COLOR / CLICOLOR_FORCE is set (CI pipes
+//     that still want color). NO_COLOR always wins.
+//   - `color: false` means never, regardless of environment.
 //
 // Like FileSink, the locus also wears the std::text::Sink shape
 // (write/line/newline, non-fallible per the interface-binding
@@ -44,6 +41,10 @@ locus ConsoleSink {
     birth() {
         if std::env::var_exists("NO_COLOR") {
             self.color = false;
+        } else if self.color {
+            if !std::term::is_tty(2) && !__console_force_color() {
+                self.color = false;
+            }
         }
     }
 
@@ -107,6 +108,18 @@ locus ConsoleSink {
 // `__console_`-prefixed: free fns are seed-global under F.19,
 // so internals carry the file's prefix to keep logfmt's shared
 // scope clean.
+
+// FORCE_COLOR / CLICOLOR_FORCE (non-"0") overrides the tty
+// probe — same convention pond/term's caps.hl honors.
+fn __console_force_color() -> Bool {
+    if std::env::var_exists("FORCE_COLOR") {
+        if std::env::var("FORCE_COLOR") != "0" { return true; }
+    }
+    if std::env::var_exists("CLICOLOR_FORCE") {
+        if std::env::var("CLICOLOR_FORCE") != "0" { return true; }
+    }
+    return false;
+}
 
 // Wall-clock HH:MM:SS (UTC) from std::time::now() epoch seconds.
 fn __console_clock() -> String {

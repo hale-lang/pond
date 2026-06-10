@@ -1,7 +1,0 @@
-# hale.toml — link surface for pond/tui consumers.
-#
-# Picked up automatically on import (spec/ffi.md § "hale.toml
-# [ffi] auto-pickup"). libc-only — no `link` entries.
-
-[ffi]
-csrc = ["glue.c"]
