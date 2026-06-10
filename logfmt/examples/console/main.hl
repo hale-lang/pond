@@ -1,18 +1,19 @@
 // logfmt/examples/console — colored console logging demo.
 //
-// Instantiates a ConsoleSink (color forced on so the demo
-// exhibits the SGR output even when piped — agent-runnable;
-// set NO_COLOR=1 to see the plain rendering), then emits one
-// event per level from a root and a child logger. INFO/DEBUG/
-// TRACE land on stdout; WARN/ERROR land on stderr.
+// Instantiates a ConsoleSink (auto color: tty-probed via
+// std::term::is_tty(2) at birth, NO_COLOR always wins,
+// FORCE_COLOR=1 keeps color in pipes), then emits one event
+// per level from a root and a child logger. INFO/DEBUG/TRACE
+// land on stdout; WARN/ERROR land on stderr.
 //
 // Catalog mapping: App locus (pattern 1); run() delegates to a
 // free helper per the lifecycle-return rule.
 //
 // Build + run:
 //   hale build logfmt/examples/console/
-//   ./logfmt/examples/console/console
-//   NO_COLOR=1 ./logfmt/examples/console/console 2>&1
+//   ./logfmt/examples/console/console                  # colored on a tty
+//   ./logfmt/examples/console/console | cat            # auto-plain (piped)
+//   FORCE_COLOR=1 ./logfmt/examples/console/console | cat   # colored anyway
 
 import "../.." as logfmt;
 
@@ -28,7 +29,7 @@ fn main() {
 
 fn drive() {
     // Sink before any Logger publishes (bus-ordering rule).
-    logfmt::ConsoleSink { color: true };
+    logfmt::ConsoleSink { };   // auto color (tty-probed)
 
     let app = std::log::Logger { name: "app" };
     let db = std::log::Logger { name: "db", parent_path: "app" };

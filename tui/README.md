@@ -166,11 +166,11 @@ hale build tui/examples/dashboard/ && ./tui/examples/dashboard/dashboard
 
 This seed does NOT import `pond/term` — the G34 two-hop
 codegen break keeps tier libs from importing each other — so it
-carries its own copies of the escape helpers and the C glue
-(`tui_*` symbols; `term_*` belongs to pond/term — @ffi symbols
-aren't mangled, so the prefixes keep an app that vendors both
-libs linking cleanly). Flagged in FRICTION.md; collapses when
-G34 lifts.
+carried its own escape helpers and C glue. Since hale
+#108–#110 the glue is gone — both libs sit on `std::term` /
+`std::io::{stdout,stdin}` primitives — and the remaining
+duplication is a few escape-string fragments in the renderer.
+Collapses fully when G34 lifts.
 
 ## Verification
 
