@@ -1,0 +1,584 @@
+// tui/examples/metricsdash — a live metrics dashboard.
+//
+// Scrapes a Prometheus text-exposition source on an interval
+// and renders every series as a row: name, current value,
+// rate (counters, per second), and a sparkline of recent
+// samples. Works against any /metrics endpoint — pond/metrics'
+// Registry.render() output, a node_exporter, anything speaking
+// the text format — or a file (re-read each interval; handy
+// for `watch curl -o`-style pipelines and for tests).
+//
+//   metricsdash <http://host:port/metrics | file> [max_frames]
+//
+// Keys:
+//   q          quit            (Ctrl-C also quits)
+//   /          filter as you type (enter keeps, esc clears)
+//   p          pause / resume scraping
+//   ↑/↓ wheel  scroll          pgup/pgdn page
+//   g/home G/end               top / bottom
+//
+// Composes three pond layers: tui (Program/Screen/TextInput),
+// http/client (URL sources — an end app may import both;
+// G34 only bites lib-from-lib), and the std::term primitives
+// underneath. HTTP scrapes are synchronous on the frame loop —
+// a slow remote stalls a frame; fine for the localhost /
+// LAN-scrape shape this tool is for.
+//
+// Exposition parsing: `# TYPE name kind` lines feed the kind
+// table (counters get a rate column); metric lines split into
+// `name{labels}` key + value (label values may contain spaces —
+// the key ends at the closing `}` when labels are present;
+// optional trailing timestamps are ignored). Unparseable
+// values (NaN) skip the sample. Series that vanish from the
+// source keep their last row (marked stale by a frozen
+// sparkline) — Prometheus semantics, not a bug.
+//
+// Build + run:
+//   hale build tui/examples/metricsdash/
+//   ./tui/examples/metricsdash/metricsdash http://127.0.0.1:9100/metrics
+
+import "../.." as tui;
+import "../../../http/client" as http;
+
+// ---- Storage ----
+
+type Series {
+    key: String;          // "name{labels}" — the row identity
+    value: Float = 0.0;
+    prev: Float = 0.0;
+    samples: Int = 0;
+    hist: String = "";    // space-separated recent values (<= 24)
+}
+
+@form(hashmap)
+locus SeriesMap {
+    capacity { pool entries of Series indexed_by key; }
+}
+
+type KindEntry {
+    name: String;         // bare metric name (no labels)
+    kind: String;         // counter | gauge | histogram | summary
+}
+
+@form(hashmap)
+locus KindMap {
+    capacity { pool entries of KindEntry indexed_by name; }
+}
+
+@form(vec)
+locus KeyVec {
+    capacity { heap items of String; }
+}
+
+// ---- The app ----
+
+locus Dash {
+    params {
+        source: String = "";
+        scrape_secs: Int = 2;
+        fps: Int = 30;
+
+        series: SeriesMap = SeriesMap { };
+        kinds: KindMap = KindMap { };
+        keys: KeyVec = KeyVec { };     // sorted row order
+
+        scrapes: Int = 0;
+        last_err: String = "";
+        paused: Bool = false;
+        tick_n: Int = 0;
+
+        offset: Int = 0;
+        filtering: Bool = false;
+        filter: tui::TextInput = tui::TextInput {
+            focus: false,
+            placeholder: "type to filter…"
+        };
+    }
+
+    fn init(s: tui::Screen) {
+        self.scrape();
+    }
+
+    // ---- Scrape + parse ----
+
+    fn scrape() {
+        let body = self.fetch();
+        if len(body) == 0 { return; }
+        self.scrapes = self.scrapes + 1;
+        let n = len(body);
+        let mut start = 0;
+        let mut i = 0;
+        while i < n {
+            if std::str::byte_at_unchecked(body, i) == 10 {
+                if i > start {
+                    self.ingest_line(std::str::substring(body, start, i));
+                }
+                start = i + 1;
+            }
+            i = i + 1;
+        }
+        if n > start {
+            self.ingest_line(std::str::substring(body, start, n));
+        }
+        self.keys.sort();
+    }
+
+    fn fetch() -> String {
+        if std::str::index_of(self.source, "http://") == 0
+            || std::str::index_of(self.source, "https://") == 0 {
+            let resp = http::get(self.source) or self.http_err(err);
+            if resp.status == 0 { return ""; }   // http_err path
+            if resp.status != 200 {
+                self.last_err = "http " + to_string(resp.status);
+                return "";
+            }
+            self.last_err = "";
+            return std::str::from_bytes(resp.body);
+        }
+        let content = std::io::fs::read_file(self.source)
+            or self.file_err(err);
+        if len(content) > 0 { self.last_err = ""; }
+        return content;
+    }
+
+    fn http_err(e: http::HttpError) -> http::Response {
+        self.last_err = e.kind;
+        return http::Response {
+            status: 0, body: std::bytes::from_string("")
+        };
+    }
+
+    fn file_err(e: IoError) -> String {
+        self.last_err = e.kind + ": " + e.path;
+        return "";
+    }
+
+    fn ingest_line(line: String) {
+        let n = len(line);
+        if n == 0 { return; }
+        if std::str::byte_at_unchecked(line, 0) == 35 {   // '#'
+            if std::str::index_of(line, "# TYPE ") == 0 {
+                let rest = std::str::substring(line, 7, n);
+                let sp = std::str::index_of(rest, " ");
+                if sp > 0 {
+                    self.kinds.set(KindEntry {
+                        name: std::str::substring(rest, 0, sp),
+                        kind: std::str::trim(
+                            std::str::substring(rest, sp + 1, len(rest)))
+                    });
+                }
+            }
+            return;
+        }
+
+        // Key ends at '}' when labels are present (label values
+        // may contain spaces); else at the first space.
+        let brace = std::str::index_of(line, "}");
+        let mut key = "";
+        let mut rest = "";
+        if brace >= 0 {
+            key = std::str::substring(line, 0, brace + 1);
+            rest = std::str::substring(line, brace + 1, n);
+        } else {
+            let sp = std::str::index_of(line, " ");
+            if sp <= 0 { return; }
+            key = std::str::substring(line, 0, sp);
+            rest = std::str::substring(line, sp, n);
+        }
+        let valstr = std::str::trim(rest);
+        // Optional trailing timestamp: value is the first token.
+        let mut tok = valstr;
+        let tsp = std::str::index_of(valstr, " ");
+        if tsp > 0 { tok = std::str::substring(valstr, 0, tsp); }
+        if !std::str::can_parse_float(tok) { return; }   // NaN/junk
+        let v = std::str::parse_float(tok) or 0.0;
+        self.upsert(key, v);
+    }
+
+    fn upsert(key: String, v: Float) {
+        if self.series.has(key) {
+            let c = self.series.get(key) or Series { key: key };
+            self.series.set(Series {
+                key: key,
+                value: v,
+                prev: c.value,
+                samples: c.samples + 1,
+                hist: hist_push(c.hist, v)
+            });
+        } else {
+            self.keys.push(key);
+            self.series.set(Series {
+                key: key,
+                value: v,
+                prev: v,
+                samples: 1,
+                hist: hist_push("", v)
+            });
+        }
+    }
+
+    // ---- Update ----
+
+    fn update(e: tui::Event, s: tui::Screen) -> Bool {
+        if e.kind == "tick" {
+            self.tick_n = self.tick_n + 1;
+            if !self.paused {
+                if self.tick_n % (self.scrape_secs * self.fps) == 0 {
+                    self.scrape();
+                }
+            }
+            return false;
+        }
+
+        let page = s.h - 3;
+
+        if e.kind == "key" && e.key == "char" && e.ctrl && e.ch == 99 {
+            return true;                                  // ^C
+        }
+        if e.kind == "mouse" {
+            if e.btn == "wheel_up" { self.scroll(-3, page); }
+            if e.btn == "wheel_down" { self.scroll(3, page); }
+            return false;
+        }
+
+        if self.filtering {
+            if e.kind == "key" && e.key == "enter" {
+                self.set_editing(false);
+                return false;
+            }
+            if e.kind == "key" && e.key == "esc" {
+                self.filter.set_value("");
+                self.set_editing(false);
+                return false;
+            }
+            self.filter.handle(e);
+            return false;
+        }
+
+        if e.kind == "key" {
+            if e.key == "char" && e.ch == 113 { return true; }       // q
+            if e.key == "char" && e.ch == 47 { self.set_editing(true); }  // /
+            if e.key == "char" && e.ch == 112 {                      // p
+                self.paused = !self.paused;
+            }
+            if e.key == "char" && e.ch == 103 { self.offset = 0; }   // g
+            if e.key == "char" && e.ch == 71 {                       // G
+                self.scroll(1000000000, page);
+            }
+            if e.key == "up" { self.scroll(-1, page); }
+            if e.key == "down" { self.scroll(1, page); }
+            if e.key == "pgup" { self.scroll(-page, page); }
+            if e.key == "pgdn" { self.scroll(page, page); }
+            if e.key == "home" { self.offset = 0; }
+            if e.key == "end" { self.scroll(1000000000, page); }
+        }
+        return false;
+    }
+
+    fn set_editing(b: Bool) {
+        self.filtering = b;
+        self.filter.set_focus(b);
+    }
+
+    fn scroll(delta: Int, page: Int) {
+        let mut max_off = self.visible_count(self.filter.value) - page;
+        if max_off < 0 { max_off = 0; }
+        self.offset = self.offset + delta;
+        if self.offset > max_off { self.offset = max_off; }
+        if self.offset < 0 { self.offset = 0; }
+    }
+
+    fn visible_count(q: String) -> Int {
+        let total = self.keys.len();
+        if len(q) == 0 { return total; }
+        let mut c = 0;
+        let mut i = 0;
+        while i < total {
+            let key = self.keys.get(i) or "";
+            if std::str::index_of(key, q) >= 0 { c = c + 1; }
+            i = i + 1;
+        }
+        return c;
+    }
+
+    // ---- View ----
+
+    fn view(s: tui::Screen) {
+        s.clear();
+        s.hide_cursor();
+        let page = s.h - 3;
+        let q = self.filter.value;
+
+        let vis_total = self.visible_count(q);
+        let mut max_off = vis_total - page;
+        if max_off < 0 { max_off = 0; }
+        if self.offset > max_off { self.offset = max_off; }
+
+        self.draw_status(s, vis_total);
+        self.draw_header(s);
+
+        let total = self.keys.len();
+        let mut row = 0;
+        let mut vi = 0;
+        let mut i = 0;
+        while i < total && row < page {
+            let key = self.keys.get(i) or "";
+            if len(q) == 0 || std::str::index_of(key, q) >= 0 {
+                if vi >= self.offset {
+                    self.draw_row(s, 2 + row, key);
+                    row = row + 1;
+                }
+                vi = vi + 1;
+            }
+            i = i + 1;
+        }
+
+        self.draw_bottom(s, q);
+    }
+
+    fn draw_status(s: tui::Screen, vis_total: Int) {
+        s.fill(0, 0, s.w, 1, 24);
+        s.put(1, 0, " metricsdash ", 231, 24, 1);
+        // clip long sources so the right-side block stays clear
+        let mut src = self.source;
+        let mut room = s.w - 58;
+        if room < 8 { room = 8; }
+        if len(src) > room {
+            src = std::str::substring(src, 0, room - 1) + "…";
+        }
+        s.put(14, 0, src + " ", 250, 24, 0);
+        let mut right = to_string(vis_total) + " series  scrape #"
+            + to_string(self.scrapes) + " @" + to_string(self.scrape_secs)
+            + "s";
+        if self.paused { right = right + "  PAUSED"; }
+        if len(self.last_err) > 0 { right = right + "  ERR " + self.last_err; }
+        let rx = s.w - tui::str_width(right) - 1;
+        if len(self.last_err) > 0 {
+            s.put(rx, 0, right, 9, 24, 1);
+        } else if self.paused {
+            s.put(rx, 0, right, 11, 24, 1);
+        } else {
+            s.put(rx, 0, right, 250, 24, 0);
+        }
+    }
+
+    fn draw_header(s: tui::Screen) {
+        let name_w = self.name_width(s);
+        s.put(1, 1, "NAME", -1, -1, 2);
+        s.put(1 + name_w + 1, 1, std::str::pad_left("VALUE", 12, " "),
+              -1, -1, 2);
+        s.put(1 + name_w + 14, 1, std::str::pad_left("RATE/s", 10, " "),
+              -1, -1, 2);
+        s.put(1 + name_w + 26, 1, "TREND", -1, -1, 2);
+    }
+
+    fn name_width(s: tui::Screen) -> Int {
+        let mut w = s.w - 46;
+        if w < 16 { w = 16; }
+        return w;
+    }
+
+    fn draw_row(s: tui::Screen, y: Int, key: String) {
+        let c = self.series.get(key) or Series { key: key };
+        let name_w = self.name_width(s);
+
+        // name (clipped; exposition keys are ASCII)
+        let mut name = key;
+        if len(name) > name_w {
+            name = std::str::substring(name, 0, name_w - 1) + "…";
+        }
+        s.put(1, y, name, 14, -1, 0);
+
+        // value
+        s.put(1 + name_w + 1, y,
+              std::str::pad_left(fmt_num(c.value), 12, " "), -1, -1, 1);
+
+        // rate — counters only, needs two samples
+        let kind = self.kind_of(key);
+        if kind == "counter" && c.samples >= 2 {
+            let mut d = (c.value - c.prev) / int_to_float(self.scrape_secs);
+            let mut fg = 10;
+            if d < 0.0 { fg = 9; }       // counter reset
+            s.put(1 + name_w + 14, y,
+                  std::str::pad_left(fmt_num(d), 10, " "), fg, -1, 0);
+        } else {
+            s.put(1 + name_w + 14, y,
+                  std::str::pad_left("-", 10, " "), -1, -1, 2);
+        }
+
+        // sparkline
+        s.put(1 + name_w + 26, y, sparkline(c.hist, 16), 45, -1, 0);
+    }
+
+    fn kind_of(key: String) -> String {
+        let mut base = key;
+        let brace = std::str::index_of(key, "{");
+        if brace > 0 { base = std::str::substring(key, 0, brace); }
+        // histogram/summary series carry suffixed names
+        let k = self.kinds.get(base) or self.kind_fallback(base);
+        return k.kind;
+    }
+
+    fn kind_fallback(base: String) -> KindEntry {
+        // _total convention: treat as counter even without TYPE.
+        let n = len(base);
+        if n > 6 {
+            if std::str::substring(base, n - 6, n) == "_total" {
+                return KindEntry { name: base, kind: "counter" };
+            }
+        }
+        return KindEntry { name: base, kind: "" };
+    }
+
+    fn draw_bottom(s: tui::Screen, q: String) {
+        let y = s.h - 1;
+        if self.filtering {
+            s.put(0, y, "/", 11, -1, 1);
+            self.filter.draw(s, 1, y, s.w - 1);
+            return;
+        }
+        let mut help = " q quit  / filter  p pause  g/G top/bottom";
+        if len(q) > 0 {
+            help = help + "   filter: " + q + "  (esc in / clears)";
+        }
+        s.put(0, y, help, -1, -1, 2);
+    }
+}
+
+// ---- Helpers (free fns) ----
+
+fn int_to_float(n: Int) -> Float {
+    return n * 1.0;   // F.23 binop promotion widens the Int side
+}
+
+// Append v to the space-separated history, capped at 24 entries.
+fn hist_push(h: String, v: Float) -> String {
+    let mut out = "";
+    if len(h) == 0 {
+        out = fmt_num(v);
+    } else {
+        out = h + " " + fmt_num(v);
+    }
+    // count entries; drop from the front while over cap
+    while hist_count(out) > 24 {
+        let sp = std::str::index_of(out, " ");
+        out = std::str::substring(out, sp + 1, len(out));
+    }
+    return out;
+}
+
+fn hist_count(h: String) -> Int {
+    let n = len(h);
+    if n == 0 { return 0; }
+    let mut c = 1;
+    let mut i = 0;
+    while i < n {
+        if std::str::byte_at_unchecked(h, i) == 32 { c = c + 1; }
+        i = i + 1;
+    }
+    return c;
+}
+
+// Render the last `width` history samples as ▁▂▃▄▅▆▇█ blocks,
+// normalized to the visible window's min..max.
+fn sparkline(h: String, width: Int) -> String {
+    let total = hist_count(h);
+    if total == 0 { return ""; }
+    let mut skip = total - width;
+    if skip < 0 { skip = 0; }
+
+    // pass 1: window min/max
+    let mut mn = 0.0;
+    let mut mx = 0.0;
+    let mut started = false;
+    let mut idx = 0;
+    let n = len(h);
+    let mut start = 0;
+    let mut i = 0;
+    while i <= n {
+        let mut boundary = i == n;
+        if !boundary {
+            if std::str::byte_at_unchecked(h, i) == 32 { boundary = true; }
+        }
+        if boundary {
+            if idx >= skip && i > start {
+                let v = std::str::parse_float(
+                    std::str::substring(h, start, i)) or 0.0;
+                if !started {
+                    mn = v;
+                    mx = v;
+                    started = true;
+                } else {
+                    if v < mn { mn = v; }
+                    if v > mx { mx = v; }
+                }
+            }
+            idx = idx + 1;
+            start = i + 1;
+        }
+        i = i + 1;
+    }
+
+    // pass 2: emit blocks (each glyph is 3 UTF-8 bytes — fixed
+    // stride substring, same trick as the Spinner frames)
+    let blocks = "▁▂▃▄▅▆▇█";
+    let span = mx - mn;
+    let mut out = "";
+    idx = 0;
+    start = 0;
+    i = 0;
+    while i <= n {
+        let mut boundary = i == n;
+        if !boundary {
+            if std::str::byte_at_unchecked(h, i) == 32 { boundary = true; }
+        }
+        if boundary {
+            if idx >= skip && i > start {
+                let v = std::str::parse_float(
+                    std::str::substring(h, start, i)) or 0.0;
+                let mut lvl = 3;
+                if span > 0.0 {
+                    lvl = Int((v - mn) / span * 7.0 + 0.5);
+                    if lvl < 0 { lvl = 0; }
+                    if lvl > 7 { lvl = 7; }
+                }
+                out = out + std::str::substring(blocks, lvl * 3, lvl * 3 + 3);
+            }
+            idx = idx + 1;
+            start = i + 1;
+        }
+        i = i + 1;
+    }
+    return out;
+}
+
+// Compact numeric formatting: integers above 1000, two
+// decimals below.
+fn fmt_num(v: Float) -> String {
+    let mut x = v;
+    let mut sign = "";
+    if x < 0.0 {
+        sign = "-";
+        x = 0.0 - x;
+    }
+    if x >= 1000.0 { return sign + to_string(Int(x + 0.5)); }
+    let scaled = Int(x * 100.0 + 0.5);
+    return sign + to_string(scaled / 100) + "."
+        + std::str::pad_left(to_string(scaled % 100), 2, "0");
+}
+
+fn main() {
+    if std::env::args_count() < 2 {
+        println("usage: metricsdash <http://host:port/metrics | file> [max_frames]");
+        println("  scrapes Prometheus text exposition every 2s; q quits");
+        return;
+    }
+    let source = std::env::arg(1);
+    let frames = std::str::parse_int(std::env::arg_or(2, "-1")) or -1;
+    tui::Program {
+        app: Dash { source: source },
+        fps: 30,
+        mouse: true,
+        max_frames: frames
+    };
+}
