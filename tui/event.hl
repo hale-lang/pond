@@ -249,26 +249,79 @@ fn __mouse_event(fin: Int, b: Int, x: Int, y: Int) -> Event {
 }
 
 // Bracketed paste: everything until ESC [ 2 0 1 ~ is payload.
-// Terminals emit the terminator atomically, so the parser
-// assumes a well-formed close (a malformed one ends the paste
-// at the next ESC, never corrupts later events beyond that).
+// Strict terminator match: an ESC inside the payload that does
+// NOT begin "[201~" is preserved verbatim (the matched prefix
+// bytes are appended) and scanning continues — pasted text
+// containing raw escapes survives intact.
 fn __parse_paste() -> Event {
     let buf = std::bytes::BytesBuilder { initial_cap: 256 };
     while true {
         let b = tui_read_byte(100);
         if b < 0 { break; }
         if b == 27 {
-            // Consume "[201~" (5 bytes), then stop.
-            let mut i = 0;
-            while i < 5 {
-                let skip = tui_read_byte(20);
-                if skip < 0 { break; }
-                i = i + 1;
-            }
-            break;
+            if __paste_terminator(buf) { break; }
+        } else {
+            buf.append_u8(b);
         }
-        buf.append_u8(b);
     }
     return Event { kind: "paste",
                    text: std::str::clone(buf.text_view()) };
+}
+
+// After an ESC inside a paste: true iff the next bytes complete
+// the "[201~" terminator. On mismatch, appends the ESC plus
+// whatever prefix matched to buf (payload bytes, not control)
+// and returns false. A read timeout mid-match treats the paste
+// as truncated-but-terminated (true) — the safe end state.
+fn __paste_terminator(buf: std::bytes::BytesBuilder) -> Bool {
+    // "[201~" = 91, 50, 48, 49, 126
+    let mut got1 = 0;
+    let mut got2 = 0;
+    let mut got3 = 0;
+    let mut got4 = 0;
+
+    got1 = tui_read_byte(20);
+    if got1 < 0 { return true; }
+    if got1 == 91 {
+        got2 = tui_read_byte(20);
+        if got2 < 0 { return true; }
+        if got2 == 50 {
+            got3 = tui_read_byte(20);
+            if got3 < 0 { return true; }
+            if got3 == 48 {
+                got4 = tui_read_byte(20);
+                if got4 < 0 { return true; }
+                if got4 == 49 {
+                    let got5 = tui_read_byte(20);
+                    if got5 < 0 { return true; }
+                    if got5 == 126 { return true; }
+                    buf.append_u8(27);
+                    buf.append_u8(91);
+                    buf.append_u8(50);
+                    buf.append_u8(48);
+                    buf.append_u8(49);
+                    buf.append_u8(got5);
+                    return false;
+                }
+                buf.append_u8(27);
+                buf.append_u8(91);
+                buf.append_u8(50);
+                buf.append_u8(48);
+                buf.append_u8(got4);
+                return false;
+            }
+            buf.append_u8(27);
+            buf.append_u8(91);
+            buf.append_u8(50);
+            buf.append_u8(got3);
+            return false;
+        }
+        buf.append_u8(27);
+        buf.append_u8(91);
+        buf.append_u8(got2);
+        return false;
+    }
+    buf.append_u8(27);
+    buf.append_u8(got1);
+    return false;
 }

@@ -86,7 +86,8 @@ locus Screen {
     fn flush();                               // Program calls this for you
 }
 fn rgb(r, g, b) -> Int;          // truecolor for fg/bg
-fn char_width(cp: Int) -> Int;   // 0 / 1 / 2
+fn char_width(cp: Int) -> Int;   // 0 / 1 / 2 — generated full-Unicode table
+                                 // (width.hl; regen: tools/gen_width_table.py)
 fn str_width(s: String) -> Int;  // display columns
 
 // widgets.hl
@@ -149,6 +150,10 @@ hale build tui/examples/dashboard/ && ./tui/examples/dashboard/dashboard
 - `examples/keys/` — interactive event echo (keys with
   modifiers, mouse, paste); the fastest way to see what your
   terminal sends. q / esc quits.
+- `examples/widthcheck/` — width-table self-test: 23 pinned
+  wcwidth assertions (combining, zero-width, jamo, CJK,
+  fullwidth, emoji, narrow symbols). Run after regenerating
+  `width.hl`.
 
 ## Self-contained by design (G34)
 

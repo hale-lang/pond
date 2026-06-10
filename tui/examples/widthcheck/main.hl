@@ -1,0 +1,74 @@
+// tui/examples/widthcheck — width-table self-test.
+//
+// Pins char_width / str_width against known-good wcwidth
+// values across the classes the generated table covers:
+// ASCII, Latin, combining marks, ZWJ / zero-width, soft
+// hyphen, Hangul (incl. zero-width medial jamo), CJK,
+// fullwidth forms, emoji, and the narrow symbol blocks
+// (braille, box drawing). A failure prints ASSERTION FAILED
+// and exits non-zero (std::test contract). Re-run after
+// regenerating width.hl via tools/gen_width_table.py.
+//
+// Build + run:
+//   hale build tui/examples/widthcheck/
+//   ./tui/examples/widthcheck/widthcheck
+
+import "../.." as tui;
+
+locus WidthCheck {
+    run() {
+        drive();
+    }
+}
+
+fn main() {
+    WidthCheck { };
+}
+
+fn cw(label: String, cp: Int, expect: Int) {
+    let got = tui::char_width(cp);
+    println("  cp ", std::str::pad_left(to_string(cp), 7, " "), "  ",
+        std::str::pad_right(label, 26, " "), got,
+        "  (expect ", expect, ")");
+    std::test::assert_eq_int(got, expect, label);
+}
+
+fn sw(label: String, s: String, expect: Int) {
+    let got = tui::str_width(s);
+    println("  str ", std::str::pad_right(label, 30, " "), got,
+        "  (expect ", expect, ")");
+    std::test::assert_eq_int(got, expect, label);
+}
+
+fn drive() {
+    println("width-table self-test (generated width.hl)");
+
+    println("char_width:");
+    cw("latin A", 65, 1);
+    cw("latin e-acute", 233, 1);
+    cw("combining acute", 769, 0);
+    cw("soft hyphen", 173, 1);
+    cw("zero-width space", 8203, 0);
+    cw("zero-width joiner", 8205, 0);
+    cw("variation selector-16", 65039, 0);
+    cw("hangul jamo lead (wide)", 4352, 2);
+    cw("hangul jamo vowel (zero)", 4449, 0);
+    cw("hangul syllable", 44032, 2);
+    cw("cjk ideograph", 20013, 2);
+    cw("hiragana a", 12354, 2);
+    cw("fullwidth F", 65318, 2);
+    cw("box block (narrow)", 9608, 1);
+    cw("braille (narrow)", 10315, 1);
+    cw("party popper emoji", 127881, 2);
+    cw("grinning face emoji", 128512, 2);
+    cw("cjk extension B", 131072, 2);
+
+    println("str_width:");
+    sw("ascii abc", "abc", 3);
+    sw("cjk two chars", "中文", 4);
+    sw("mixed a + cjk + b", "a中b", 4);
+    sw("spinner braille frame", "⠋", 1);
+    sw("emoji", "🎉", 2);
+
+    println("widthcheck: all assertions passed");
+}

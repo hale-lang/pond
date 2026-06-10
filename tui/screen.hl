@@ -284,28 +284,14 @@ fn append_codepoint(b: std::bytes::BytesBuilder, cp: Int) {
     b.append_u8(128 + cp % 64);
 }
 
-// Display width of a codepoint: 0 (combining / continuation),
-// 1, or 2 (East Asian wide + emoji blocks). Range heuristic —
-// see FRICTION.md `unicode-width-heuristic` for the full-table
-// follow-up.
+// Display width of a codepoint: 0 (combining / zero-width /
+// continuation), 1, or 2 (East Asian Wide / Fullwidth, incl.
+// emoji presentation). ASCII short-circuits; everything else
+// consults the generated full-Unicode table (width.hl —
+// regenerate via tools/gen_width_table.py).
 fn char_width(cp: Int) -> Int {
-    if cp == 0 { return 0; }
-    if cp < 1280 {
-        if cp >= 768 && cp <= 879 { return 0; }    // combining diacritics
-        return 1;
-    }
-    if cp >= 4352 && cp <= 4447 { return 2; }      // Hangul Jamo leads
-    if cp >= 11904 && cp <= 42191 { return 2; }    // CJK radicals .. Yi
-    if cp >= 43360 && cp <= 43391 { return 2; }    // Hangul Jamo ext A
-    if cp >= 44032 && cp <= 55215 { return 2; }    // Hangul syllables
-    if cp >= 63744 && cp <= 64255 { return 2; }    // CJK compat ideographs
-    if cp >= 65040 && cp <= 65131 { return 2; }    // vertical / small forms
-    if cp >= 65281 && cp <= 65376 { return 2; }    // fullwidth forms
-    if cp >= 65504 && cp <= 65510 { return 2; }    // fullwidth signs
-    if cp >= 110592 && cp <= 110847 { return 2; }  // Kana supplement
-    if cp >= 126980 && cp <= 127569 { return 2; }  // mahjong .. symbols
-    if cp >= 127744 && cp <= 128767 { return 2; }  // emoji core blocks
-    if cp >= 128992 && cp <= 129791 { return 2; }  // emoji ext blocks
-    if cp >= 131072 && cp <= 196605 { return 2; }  // CJK ext B+
-    return 1;
+    if cp == 0 { return 0; }       // wide-cell continuation marker
+    if cp < 32 { return 1; }       // controls (set_cell clamps these)
+    if cp < 127 { return 1; }      // ASCII fast path
+    return width_lookup(cp);
 }
