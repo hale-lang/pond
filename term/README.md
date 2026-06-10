@@ -128,9 +128,9 @@ fn read_one_key() -> Int {
 
 Terminal restore is structural, not best-effort: dissolve fires
 at scope exit (m82 timing), the SIGTERM drain cascade reaches it
-(F.4), and `glue.c` installs an `atexit` hook on first enable so
-`exit()`-shaped panics (incl. `lotus_root_panic`) restore too.
-The one uncovered path is `_exit()` — see FRICTION.md.
+(F.4), and `glue.c` installs an `atexit` hook on first enable.
+As of hale #106 every runtime panic path exits via `exit()`, so
+the hook covers panic, error, and normal return uniformly.
 
 Notes while raw mode is active:
 

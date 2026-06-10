@@ -12,10 +12,11 @@
 // Safety net: term_raw_enable installs an atexit hook that
 // restores the saved termios and emits a best-effort screen
 // reset (leave alt screen, show cursor, mouse/paste off, SGR
-// reset). This covers `exit()`-shaped abnormal exits — incl.
-// lotus_root_panic, which is dprintf + exit(1). It does NOT
-// cover `_exit()` paths (e.g. the F.30b stale-view panic);
-// see FRICTION.md `panic-exit-bypasses-atexit`.
+// reset). Every runtime panic path is exit()-shaped as of hale
+// #106 (lotus_root_panic always was; the F.30b stale-view
+// panic flipped from _exit to exit), so the hook covers panic,
+// error, and normal return uniformly. See FRICTION.md
+// `panic-exit-bypasses-atexit` (RESOLVED).
 
 #include <errno.h>
 #include <poll.h>
