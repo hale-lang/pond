@@ -38,6 +38,7 @@
 **/examples/keys/keys
 **/examples/report/report
 **/examples/widthcheck/widthcheck
+**/examples/logview/logview
 
 # Library-root binaries (a CLI shape, e.g. migrations/migrations)
 /migrations/migrations

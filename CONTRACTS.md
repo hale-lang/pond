@@ -1062,7 +1062,9 @@ locus List        { params { items: String = ""; selected: Int = 0; offset: Int 
                     fn count() -> Int; fn selected_item() -> String; }
 locus TextInput   { params { value: String = ""; placeholder: String = ""; focus: Bool = true; }
                     fn handle(e: Event) -> ();
-                    fn draw(s: Screen, x: Int, y: Int, w: Int) -> (); }
+                    fn draw(s: Screen, x: Int, y: Int, w: Int) -> ();
+                    fn set_value(v: String) -> ();   // owner-side mutators —
+                    fn set_focus(b: Bool) -> (); }   // borrowed-field writes aren't a surface
 fn line_count(s: String) -> Int;          // newline-separated collection helpers
 fn line_at(s: String, idx: Int) -> String;
 ```
