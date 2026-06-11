@@ -166,8 +166,10 @@ hale build tui/examples/dashboard/ && ./tui/examples/dashboard/dashboard
   viewer. Follows appends live (tail -f), scrolls
   (keys + wheel), filters as you type with match highlighting,
   colors by log level, status bar with position/FOLLOW.
-  `logview <file>` — try it on a `logfmt::FileSink` output
-  while the rotated-file demo writes to it.
+  `logview <file>`, or `logview --cmd 'docker compose logs -f'`
+  for stream sources — the pipeline runs detached (output to a
+  temp log the viewer follows, ANSI stripped at ingestion) and
+  its whole process group is TERM'd on quit.
 - `examples/metricsdash/` — **a real app**: live Prometheus
   metrics dashboard. Scrapes a text-exposition URL (via
   pond/http/client — end apps may import multiple pond libs)

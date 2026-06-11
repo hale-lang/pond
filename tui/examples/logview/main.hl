@@ -7,6 +7,16 @@
 // line-oriented file works.
 //
 //   logview <file> [max_frames]
+//   logview --cmd '<command>' [max_frames]
+//
+// --cmd runs a pipeline itself (detached process group, output
+// to a temp log this viewer follows; quitting TERMs the whole
+// group) and strips ANSI escapes at ingestion — built for
+// stream sources that can't be a <file>:
+//
+//   logview --cmd 'docker compose logs -f'
+//   logview --cmd 'journalctl -fu myservice'
+//   logview --cmd 'kubectl logs -f deploy/api'
 //
 // Keys:
 //   q          quit            (Ctrl-C also quits)
@@ -43,6 +53,9 @@ locus LineVec {
 locus Logview {
     params {
         path: String = "";
+        cmd: String = "";        // --cmd mode: spawned pipeline
+        cmd_pid: Int = -1;       // its process-group leader
+        cmd_live: Bool = true;
         lines: LineVec = LineVec { };
         pending: String = "";     // partial line awaiting its \n
         last_size: Int = 0;       // file bytes consumed
@@ -57,7 +70,26 @@ locus Logview {
     }
 
     fn init(s: tui::Screen) {
+        if len(self.cmd) > 0 { self.spawn_cmd(); }
         self.reload();
+    }
+
+    // --cmd mode: run the pipeline detached (same setsid shape
+    // procpanel uses — script file for quoting safety, the
+    // redirect on the background job so run()'s pipe sees EOF,
+    // setsid so quit can TERM the whole process group) with its
+    // output landing in self.path, which the normal follow
+    // machinery then tails.
+    fn spawn_cmd() {
+        let script = self.path + ".sh";
+        std::io::fs::write_file(script, self.cmd + "\n") or discard;
+        std::io::fs::write_file(self.path, "") or discard;
+        let wrapper = "setsid sh -c 'sh " + script + "' > "
+            + self.path + " 2>&1 < /dev/null & echo $!";
+        let out = std::process::run("sh\n-c\n" + wrapper)
+            or run_err(err);
+        self.cmd_pid = std::str::parse_int(std::str::trim(out.stdout))
+            or -1;
     }
 
     // ---- File ingestion ----
@@ -92,7 +124,8 @@ locus Logview {
                         end = end - 1;   // strip \r of \r\n
                     }
                 }
-                self.lines.push(std::str::substring(data, start, end));
+                self.lines.push(
+                    strip_ansi(std::str::substring(data, start, end)));
                 start = i + 1;
             }
             i = i + 1;
@@ -103,9 +136,26 @@ locus Logview {
     // ---- Update ----
 
     fn update(e: tui::Event, s: tui::Screen) -> Bool {
+        if e.kind == "quit" {
+            // Program delivers this once on every quit path —
+            // tear the spawned pipeline's process group down.
+            if self.cmd_pid > 0 {
+                std::process::run("kill\n-TERM\n--\n-"
+                    + to_string(self.cmd_pid)) or run_err(err);
+            }
+            return true;
+        }
         if e.kind == "tick" {
             self.poll = self.poll + 1;
-            if self.poll % 15 == 0 { self.reload(); }   // ~2x/s at 30fps
+            if self.poll % 15 == 0 {
+                self.reload();
+                if self.cmd_pid > 0 && self.cmd_live {
+                    if !std::io::fs::file_exists(
+                        "/proc/" + to_string(self.cmd_pid)) {
+                        self.cmd_live = false;
+                    }
+                }
+            }
             return false;
         }
 
@@ -231,7 +281,17 @@ locus Logview {
     fn draw_status(s: tui::Screen, vis_total: Int, page: Int) {
         s.fill(0, 0, s.w, 1, 24);
         s.put(1, 0, " logview ", 231, 24, 1);
-        s.put(10, 0, self.path + " ", 250, 24, 0);
+        let mut src = self.path;
+        if len(self.cmd) > 0 {
+            src = "$ " + self.cmd;
+            if !self.cmd_live { src = src + "  [command exited]"; }
+        }
+        let mut room = s.w - 40;
+        if room < 8 { room = 8; }
+        if len(src) > room {
+            src = std::str::substring(src, 0, room - 1) + "…";
+        }
+        s.put(10, 0, src + " ", 250, 24, 0);
 
         let mut pct = 100;
         if vis_total > page {
@@ -297,6 +357,51 @@ fn level_attrs(line: String) -> Int {
     return 0;
 }
 
+// Drop ANSI escape sequences (CSI + OSC) from a line —
+// `docker compose logs` and friends colorize their output, and
+// raw escapes would render as garbage cells. Level coloring is
+// logview's own job anyway.
+fn strip_ansi(s: String) -> String {
+    if std::str::index_of(s, "\x1b") < 0 { return s; }
+    let n = len(s);
+    let b = std::bytes::BytesBuilder { initial_cap: 128 };
+    let mut i = 0;
+    while i < n {
+        let c = std::str::byte_at_unchecked(s, i);
+        if c == 27 {
+            let mut c2 = 0;
+            if i + 1 < n { c2 = std::str::byte_at_unchecked(s, i + 1); }
+            if c2 == 91 {                  // CSI … final 0x40..0x7E
+                i = i + 2;
+                while i < n {
+                    let f = std::str::byte_at_unchecked(s, i);
+                    i = i + 1;
+                    if f >= 64 && f <= 126 { break; }
+                }
+            } else if c2 == 93 {           // OSC … BEL
+                i = i + 2;
+                while i < n {
+                    let f = std::str::byte_at_unchecked(s, i);
+                    i = i + 1;
+                    if f == 7 { break; }
+                }
+            } else {
+                i = i + 1;                 // lone ESC: drop
+            }
+        } else {
+            b.append_u8(c);
+            i = i + 1;
+        }
+    }
+    return std::str::clone(b.text_view());
+}
+
+fn run_err(e: IoError) -> std::process::ProcessOutput {
+    return std::process::ProcessOutput {
+        code: -1, signal: 0, stdout: "", stderr: e.kind
+    };
+}
+
 fn line_matches(line: String, q: String) -> Bool {
     if len(q) == 0 { return true; }
     return std::str::index_of(line, q) >= 0;
@@ -305,13 +410,36 @@ fn line_matches(line: String, q: String) -> Bool {
 fn main() {
     if std::env::args_count() < 2 {
         println("usage: logview <file> [max_frames]");
+        println("       logview --cmd '<command>' [max_frames]");
         println("  follows appends live (tail -f shape); q quits");
+        println("  --cmd runs the pipeline itself (output -> temp log,");
+        println("  followed live; quitting TERMs its process group):");
+        println("    logview --cmd 'docker compose logs -f --no-log-prefix'");
         return;
     }
-    let path = std::env::arg(1);
+    let a1 = std::env::arg(1);
+    if a1 == "--cmd" {
+        if std::env::args_count() < 3 {
+            println("usage: logview --cmd '<command>' [max_frames]");
+            return;
+        }
+        let cmd = std::env::arg(2);
+        let frames = std::str::parse_int(std::env::arg_or(3, "-1")) or -1;
+        let tag = to_string(std::process::pid());
+        tui::Program {
+            app: Logview {
+                cmd: cmd,
+                path: "/tmp/logview-cmd-" + tag + ".log"
+            },
+            fps: 30,
+            mouse: true,
+            max_frames: frames
+        };
+        return;
+    }
     let frames = std::str::parse_int(std::env::arg_or(2, "-1")) or -1;
     tui::Program {
-        app: Logview { path: path },
+        app: Logview { path: a1 },
         fps: 30,
         mouse: true,
         max_frames: frames
