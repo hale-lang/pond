@@ -40,6 +40,7 @@
 **/examples/widthcheck/widthcheck
 **/examples/logview/logview
 **/examples/metricsdash/metricsdash
+**/examples/procpanel/procpanel
 
 # Library-root binaries (a CLI shape, e.g. migrations/migrations)
 /migrations/migrations

@@ -110,6 +110,15 @@ locus Program {
                 self.quit = true;
             }
         }
+        // One final `quit` event, delivered on EVERY quit path
+        // (q-from-update, stdin EOF, max_frames) — the app's
+        // teardown hook. Needed because `app` is an
+        // interface-typed param field and the F.29 dissolve
+        // cascade walks only LocusRef-typed fields, so the app
+        // locus's own dissolve() never fires (see FRICTION.md
+        // `interface-field-skips-dissolve-cascade`). Supervisor-
+        // shaped apps (procpanel) stop their children here.
+        self.app.update(Event { kind: "quit" }, self.screen);
     }
 
     dissolve() {

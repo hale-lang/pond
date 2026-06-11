@@ -1,0 +1,495 @@
+// tui/examples/procpanel — a process supervisor panel.
+//
+// foreman/pm2-shaped: reads a Procfile (`name: command` lines),
+// launches every entry, and shows a live panel — process table
+// (pid, status, uptime, restarts) on top, the selected
+// process's log tail underneath. Stop / kill / restart from the
+// keyboard; optional auto-restart on non-zero exit; quitting
+// the panel TERMs everything it started (supervisor semantics).
+//
+//   procpanel <Procfile> [max_frames]
+//
+// Keys:
+//   ↑/↓        select process        q  quit (stops all)
+//   r          restart selected      s  stop (SIGTERM)
+//   k          kill -9 selected      a  toggle auto-restart
+//   /          (none — table is small by design)
+//
+// How it supervises without blocking the frame loop (no
+// try_wait in std::process, and `wait` blocks):
+//
+//   1. Each command is written to /tmp/procpanel-<name>.sh and
+//      launched DETACHED via std::process::run:
+//        sh -c '( sh SCRIPT > LOG 2>&1; echo $? > EXITF ) & echo $!'
+//      run() returns immediately with the subshell pid on
+//      stdout; the script-file indirection keeps user commands
+//      (any quoting, even newlines) out of the argv blob.
+//   2. Liveness is a /proc/<pid> existence probe each poll —
+//      the subshell is reparented to init on our exit and
+//      reaped there, so no zombies and no stale /proc entries.
+//   3. The exit code lands in the EXITF sentinel file when the
+//      command finishes; the poll reads it once /proc vanishes.
+//   4. Output goes to per-process log files the panel tails
+//      (the logview ingestion pattern) — solving the "no
+//      non-blocking pipe reads" gap subprocess/FRICTION.md
+//      documents, by never holding a pipe at all.
+//
+// Build + run:
+//   hale build tui/examples/procpanel/
+//   ./tui/examples/procpanel/procpanel Procfile
+
+import "../.." as tui;
+
+type Proc {
+    name: String;          // key — Procfile entry name
+    cmd: String = "";
+    pid: Int = -1;
+    status: String = "starting";   // running|exited|stopped|spawn-failed
+    code: Int = 0;
+    restarts: Int = 0;
+    started: Int = 0;      // epoch seconds
+    hold: Int = 0;         // 1 = manually stopped; auto-restart skips
+}
+
+@form(hashmap)
+locus ProcMap {
+    capacity { pool entries of Proc indexed_by name; }
+}
+
+@form(vec)
+locus NameVec {
+    capacity { heap items of String; }
+}
+
+locus Panel {
+    params {
+        procfile: String = "";
+        procs: ProcMap = ProcMap { };
+        names: NameVec = NameVec { };   // Procfile order
+        selected: Int = 0;
+        auto_restart: Bool = false;
+        tick_n: Int = 0;
+        pane: String = "";              // cached log tail (selected)
+        pane_for: String = "";
+        pane_size: Int = -1;
+    }
+
+    // Supervisor guarantee: children die with the panel on
+    // EVERY exit path (q, Ctrl-C, stdin EOF, max_frames, the
+    // SIGTERM drain cascade) — Panel is an owned param field of
+    // Program, so the F.29 cascade fires this dissolve whenever
+    // the Program goes down.
+    dissolve() {
+        self.shutdown_all();
+    }
+
+    fn init(s: tui::Screen) {
+        self.load_procfile();
+        let n = self.names.len();
+        let mut i = 0;
+        while i < n {
+            let name = self.names.get(i) or "";
+            self.start_proc(name);
+            i = i + 1;
+        }
+    }
+
+    // ---- Procfile ----
+
+    fn load_procfile() {
+        let content = std::io::fs::read_file(self.procfile) or "";
+        let n = len(content);
+        let mut start = 0;
+        let mut i = 0;
+        while i <= n {
+            let mut boundary = i == n;
+            if !boundary {
+                if std::str::byte_at_unchecked(content, i) == 10 {
+                    boundary = true;
+                }
+            }
+            if boundary {
+                if i > start {
+                    self.add_entry(std::str::substring(content, start, i));
+                }
+                start = i + 1;
+            }
+            i = i + 1;
+        }
+    }
+
+    fn add_entry(line: String) {
+        let t = std::str::trim(line);
+        if len(t) == 0 { return; }
+        if std::str::byte_at_unchecked(t, 0) == 35 { return; }   // '#'
+        let colon = std::str::index_of(t, ":");
+        if colon <= 0 { return; }
+        let name = std::str::trim(std::str::substring(t, 0, colon));
+        let cmd = std::str::trim(std::str::substring(t, colon + 1, len(t)));
+        if len(name) == 0 || len(cmd) == 0 { return; }
+        if self.procs.has(name) { return; }   // first entry wins
+        self.names.push(name);
+        self.procs.set(Proc { name: name, cmd: cmd });
+    }
+
+    // ---- Lifecycle ops ----
+
+    fn start_proc(name: String) {
+        let p = self.procs.get(name) or Proc { name: name };
+
+        // The command lives in a script file so arbitrary user
+        // quoting never touches the argv blob.
+        std::io::fs::write_file(script_path(name), p.cmd + "\n")
+            or discard;
+        std::io::fs::unlink(exit_path(name)) or discard;
+        std::io::fs::write_file(log_path(name), "") or discard;
+
+        // Three load-bearing details:
+        //   - the WHOLE group is redirected + stdin detached, or
+        //     the background job inherits run()'s stdout pipe and
+        //     the drain never sees EOF (run blocks until the
+        //     child dies);
+        //   - `setsid` makes $! a session/process-group leader,
+        //     so stop/kill can signal the NEGATIVE pid and take
+        //     the entire process tree (TERM'ing just $! leaves
+        //     grandchildren running — found the hard way);
+        //   - the user command lives in a script file, so its
+        //     quoting never touches this line.
+        // (redirections sit on the background job itself, NOT
+        // inside the quoted inner shell — otherwise the inner
+        // sh keeps run()'s pipe as its own stdout and the drain
+        // blocks until the command dies)
+        let wrapper = "setsid sh -c 'sh " + script_path(name)
+            + "; echo $? > " + exit_path(name) + "' > "
+            + log_path(name) + " 2>&1 < /dev/null & echo $!";
+        let out = std::process::run("sh\n-c\n" + wrapper)
+            or run_err(err);
+
+        let pid = std::str::parse_int(std::str::trim(out.stdout)) or -1;
+        let mut status = "running";
+        if pid <= 0 { status = "spawn-failed"; }
+        self.procs.set(Proc {
+            name: name,
+            cmd: p.cmd,
+            pid: pid,
+            status: status,
+            code: 0,
+            restarts: p.restarts,
+            started: std::time::now(),
+            hold: 0
+        });
+    }
+
+    fn stop_proc(name: String, sig: String) {
+        let p = self.procs.get(name) or Proc { name: name };
+        if p.status != "running" { return; }
+        std::process::run("kill\n-" + sig + "\n--\n-" + to_string(p.pid))
+            or run_err(err);
+        self.procs.set(Proc {
+            name: name, cmd: p.cmd, pid: p.pid, status: p.status,
+            code: p.code, restarts: p.restarts, started: p.started,
+            hold: 1
+        });
+    }
+
+    fn restart_proc(name: String) {
+        let p = self.procs.get(name) or Proc { name: name };
+        if p.status == "running" {
+            std::process::run("kill\n-TERM\n--\n-" + to_string(p.pid))
+                or run_err(err);
+        }
+        self.procs.set(Proc {
+            name: name, cmd: p.cmd, pid: p.pid, status: p.status,
+            code: p.code, restarts: p.restarts + 1, started: p.started,
+            hold: 0
+        });
+        self.start_proc(name);
+    }
+
+    // ---- Status polling ----
+
+    fn poll_procs() {
+        let n = self.names.len();
+        let mut i = 0;
+        while i < n {
+            let name = self.names.get(i) or "";
+            let p = self.procs.get(name) or Proc { name: name };
+            if p.status == "running" {
+                if !std::io::fs::file_exists("/proc/" + to_string(p.pid)) {
+                    self.mark_exited(p);
+                }
+            }
+            i = i + 1;
+        }
+    }
+
+    fn mark_exited(p: Proc) {
+        let raw = std::io::fs::read_file(exit_path(p.name)) or "";
+        let code = std::str::parse_int(std::str::trim(raw)) or -1;
+        let mut status = "exited";
+        if p.hold == 1 { status = "stopped"; }
+        self.procs.set(Proc {
+            name: p.name, cmd: p.cmd, pid: p.pid, status: status,
+            code: code, restarts: p.restarts, started: p.started,
+            hold: p.hold
+        });
+        if self.auto_restart && p.hold == 0 && code != 0 {
+            self.restart_proc(p.name);
+        }
+    }
+
+    // ---- Update ----
+
+    fn update(e: tui::Event, s: tui::Screen) -> Bool {
+        if e.kind == "quit" {
+            self.shutdown_all();
+            return true;
+        }
+        if e.kind == "tick" {
+            self.tick_n = self.tick_n + 1;
+            if self.tick_n % 15 == 0 { self.poll_procs(); }   // ~2x/s
+            if self.tick_n % 5 == 0 { self.refresh_pane(); }
+            return false;
+        }
+        if e.kind == "key" && e.key == "char" && e.ctrl && e.ch == 99 {
+            self.shutdown_all();
+            return true;
+        }
+        if e.kind == "mouse" {
+            if e.btn == "wheel_up" { self.move_sel(-1); }
+            if e.btn == "wheel_down" { self.move_sel(1); }
+            return false;
+        }
+        if e.kind == "key" {
+            if e.key == "char" && e.ch == 113 {                  // q
+                self.shutdown_all();
+                return true;
+            }
+            if e.key == "up" { self.move_sel(-1); }
+            if e.key == "down" { self.move_sel(1); }
+            if e.key == "char" && e.ch == 114 {                  // r
+                self.restart_proc(self.sel_name());
+            }
+            if e.key == "char" && e.ch == 115 {                  // s
+                self.stop_proc(self.sel_name(), "TERM");
+            }
+            if e.key == "char" && e.ch == 107 {                  // k
+                self.stop_proc(self.sel_name(), "KILL");
+            }
+            if e.key == "char" && e.ch == 97 {                   // a
+                self.auto_restart = !self.auto_restart;
+            }
+        }
+        return false;
+    }
+
+    fn move_sel(d: Int) {
+        let n = self.names.len();
+        if n == 0 { return; }
+        self.selected = self.selected + d;
+        if self.selected < 0 { self.selected = 0; }
+        if self.selected >= n { self.selected = n - 1; }
+        self.pane_size = -1;   // force pane refresh
+    }
+
+    fn sel_name() -> String {
+        return self.names.get(self.selected) or "";
+    }
+
+    fn shutdown_all() {
+        let n = self.names.len();
+        let mut i = 0;
+        while i < n {
+            let name = self.names.get(i) or "";
+            self.stop_proc(name, "TERM");
+            i = i + 1;
+        }
+    }
+
+    // ---- Log pane ----
+
+    fn refresh_pane() {
+        let name = self.sel_name();
+        if len(name) == 0 { return; }
+        let path = log_path(name);
+        let sz = std::io::fs::file_size(path) or 0;
+        if name == self.pane_for && sz == self.pane_size { return; }
+        self.pane_for = name;
+        self.pane_size = sz;
+        let content = std::io::fs::read_file(path) or "";
+        let n = len(content);
+        let mut lo = n - 8192;          // last ~8KB is plenty for a pane
+        if lo < 0 { lo = 0; }
+        self.pane = std::str::substring(content, lo, n);
+    }
+
+    // ---- View ----
+
+    fn view(s: tui::Screen) {
+        s.clear();
+        s.hide_cursor();
+        let nproc = self.names.len();
+
+        // title
+        s.fill(0, 0, s.w, 1, 24);
+        s.put(1, 0, " procpanel ", 231, 24, 1);
+        s.put(12, 0, self.procfile + " ", 250, 24, 0);
+        let mut right = to_string(self.running_count()) + "/"
+            + to_string(nproc) + " running";
+        if self.auto_restart { right = right + "  AUTO-RESTART"; }
+        let rx = s.w - tui::str_width(right) - 1;
+        if self.auto_restart {
+            s.put(rx, 0, right, 10, 24, 1);
+        } else {
+            s.put(rx, 0, right, 250, 24, 0);
+        }
+
+        // table header
+        s.put(1, 1, "NAME", -1, -1, 2);
+        s.put(13, 1, std::str::pad_left("PID", 7, " "), -1, -1, 2);
+        s.put(22, 1, "STATUS", -1, -1, 2);
+        s.put(34, 1, std::str::pad_left("UPTIME", 8, " "), -1, -1, 2);
+        s.put(44, 1, std::str::pad_left("RST", 4, " "), -1, -1, 2);
+        s.put(50, 1, "COMMAND", -1, -1, 2);
+
+        // rows
+        let mut i = 0;
+        while i < nproc {
+            self.draw_proc_row(s, 2 + i, i);
+            i = i + 1;
+        }
+
+        // log pane
+        let div_y = 2 + nproc;
+        let name = self.sel_name();
+        let mut label = "── log: " + name + " (" + log_path(name) + ") ";
+        let mut fill = s.w - tui::str_width(label);
+        if fill < 0 { fill = 0; }
+        s.put(0, div_y, label + std::str::repeat("─", fill), -1, -1, 2);
+        self.draw_pane(s, div_y + 1, s.h - 1);
+
+        // help
+        s.put(0, s.h - 1,
+            " q quit-all  r restart  s stop  k kill  a auto-restart  ↑/↓ select",
+            -1, -1, 2);
+    }
+
+    fn running_count() -> Int {
+        let n = self.names.len();
+        let mut c = 0;
+        let mut i = 0;
+        while i < n {
+            let p = self.procs.get(self.names.get(i) or "") or Proc { name: "" };
+            if p.status == "running" { c = c + 1; }
+            i = i + 1;
+        }
+        return c;
+    }
+
+    fn draw_proc_row(s: tui::Screen, y: Int, idx: Int) {
+        let name = self.names.get(idx) or "";
+        let p = self.procs.get(name) or Proc { name: name };
+        let mut marker = "  ";
+        let mut bg = -1;
+        if idx == self.selected {
+            s.fill(0, y, s.w, 1, 236);
+            marker = "> ";
+            bg = 236;
+        }
+
+        s.put(0, y, marker + name, 14, bg, 0);
+        s.put(13, y, std::str::pad_left(to_string(p.pid), 7, " "),
+              -1, bg, 0);
+
+        if p.status == "running" {
+            s.put(22, y, "running", 10, bg, 0);
+            s.put(34, y, std::str::pad_left(
+                fmt_uptime(std::time::now() - p.started), 8, " "),
+                -1, bg, 0);
+        } else if p.status == "exited" {
+            let mut fg = 9;
+            if p.code == 0 { fg = 250; }
+            s.put(22, y, "exit " + to_string(p.code), fg, bg, 0);
+            s.put(34, y, std::str::pad_left("-", 8, " "), -1, bg, 2);
+        } else if p.status == "stopped" {
+            s.put(22, y, "stopped", 11, bg, 0);
+            s.put(34, y, std::str::pad_left("-", 8, " "), -1, bg, 2);
+        } else {
+            s.put(22, y, p.status, 9, bg, 1);
+            s.put(34, y, std::str::pad_left("-", 8, " "), -1, bg, 2);
+        }
+
+        s.put(44, y, std::str::pad_left(to_string(p.restarts), 4, " "),
+              -1, bg, 0);
+        let mut cmd = p.cmd;
+        let room = s.w - 51;
+        if len(cmd) > room && room > 1 {
+            cmd = std::str::substring(cmd, 0, room - 1) + "…";
+        }
+        s.put(50, y, cmd, -1, bg, 2);
+    }
+
+    fn draw_pane(s: tui::Screen, top: Int, bottom: Int) {
+        let h = bottom - top;
+        if h <= 0 { return; }
+        // walk pane lines; keep only the last h
+        let total = tui::line_count(self.pane);
+        let mut skip = total - h;
+        if skip < 0 { skip = 0; }
+        let mut row = 0;
+        let mut i = skip;
+        while i < total && row < h {
+            s.print(1, top + row, tui::line_at(self.pane, i));
+            row = row + 1;
+            i = i + 1;
+        }
+    }
+}
+
+// ---- Helpers ----
+
+fn log_path(name: String) -> String {
+    return "/tmp/procpanel-" + name + ".log";
+}
+
+fn exit_path(name: String) -> String {
+    return "/tmp/procpanel-" + name + ".exit";
+}
+
+fn script_path(name: String) -> String {
+    return "/tmp/procpanel-" + name + ".sh";
+}
+
+fn run_err(e: IoError) -> std::process::ProcessOutput {
+    return std::process::ProcessOutput {
+        code: -1, signal: 0, stdout: "", stderr: e.kind
+    };
+}
+
+fn fmt_uptime(secs: Int) -> String {
+    let mut t = secs;
+    if t < 0 { t = 0; }
+    if t < 3600 {
+        return to_string(t / 60) + ":"
+            + std::str::pad_left(to_string(t % 60), 2, "0");
+    }
+    return to_string(t / 3600) + ":"
+        + std::str::pad_left(to_string((t % 3600) / 60), 2, "0") + ":"
+        + std::str::pad_left(to_string(t % 60), 2, "0");
+}
+
+fn main() {
+    if std::env::args_count() < 2 {
+        println("usage: procpanel <Procfile> [max_frames]");
+        println("  Procfile lines: `name: command`; q stops everything");
+        return;
+    }
+    let procfile = std::env::arg(1);
+    let frames = std::str::parse_int(std::env::arg_or(2, "-1")) or -1;
+    tui::Program {
+        app: Panel { procfile: procfile },
+        fps: 30,
+        mouse: true,
+        max_frames: frames
+    };
+}

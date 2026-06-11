@@ -119,3 +119,33 @@ The F.30b stale-view panic now exits via `exit(1)` instead of
 screen + show cursor) runs on every runtime panic path. See
 `pond/term/FRICTION.md` for the full entry; upstream carries a
 regression test modeled on exactly this glue pattern.
+
+## interface-field-skips-dissolve-cascade — upstream gap + framework workaround
+
+**What:** the F.29 lifecycle cascade dissolves `LocusRef`-typed
+param fields, but an INTERFACE-typed param field (`app: App` on
+`Program`) wraps its locus in a `{data, vtable}` fat pointer the
+cascade does not walk — the underlying locus's `dissolve()`
+never fires when the holder dissolves. Found building procpanel:
+its `Panel.dissolve()` (which TERMs all supervised children) ran
+on no exit path, leaking child processes on max_frames / EOF
+quits while the explicit `q` path (in `update`) cleaned up fine.
+
+**Repro shape:** `locus H { params { a: I; } }` where `I` is an
+interface and the bound value is a locus with a `dissolve()`
+body — instantiate H, let it dissolve, observe the inner
+dissolve never runs.
+
+**Workaround (framework-level, shipped):** `Program.run()`
+delivers one final `Event { kind: "quit" }` to `app.update`
+after the loop ends, on every quit path — apps do teardown
+there instead of in `dissolve()`. This is arguably the better
+surface anyway (Elm apps expect a last message, and it works
+under any future cascade semantics), so it stays even when the
+gap closes.
+
+**Proposed upstream unblock:** extend
+`emit_locus_field_dissolves` to interface-typed fields (the fat
+pointer's data slot is the locus; its type is known at the
+coercion site — a per-(locus, interface) dissolve thunk beside
+the vtable would carry it).
