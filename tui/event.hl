@@ -13,7 +13,9 @@
 // frame clock.
 
 type Event {
-    // none | key | mouse | paste | tick | resize | eof
+    // none | key | mouse | paste | tick | resize | eof | quit
+    // (quit is delivered exactly once by Program, after its
+    // loop ends, on every quit path — the teardown hook)
     kind: String = "none";
 
     // kind == "key": char, enter, tab, backspace, esc, up,

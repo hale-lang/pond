@@ -1031,7 +1031,7 @@ events are 1-based terminal cells.
 ```hale
 // events
 type Event {
-    kind: String = "none";    // none|key|mouse|paste|tick|resize|eof
+    kind: String = "none";    // none|key|mouse|paste|tick|resize|eof|quit
     key: String; ch: Int; text: String;
     ctrl: Bool; alt: Bool; shift: Bool;
     btn: String; x: Int; y: Int;          // mouse
@@ -1091,7 +1091,11 @@ fn line_at(s: String, idx: Int) -> String;
 Frame-loop contract: per frame Program delivers at most one
 input event, a `resize` if the terminal changed (size polled,
 no SIGWINCH), then exactly one `tick`; any `update` returning
-true (or stdin EOF) quits; then `view` + `flush`. Raw mode
+true (or stdin EOF) quits; then `view` + `flush`. After the
+loop, one final `quit` event is delivered on every quit path —
+the app teardown hook (the app locus's own dissolve() does NOT
+fire: interface-typed fields sit outside the F.29 cascade; see
+tui/FRICTION.md `interface-field-skips-dissolve-cascade`). Raw mode
 disables ISIG — Ctrl-C arrives as `key char ch=99 ctrl`. When
 stdin/stdout isn't a tty, raw mode + alt screen are skipped but
 frames still render — with `max_frames` that makes demos

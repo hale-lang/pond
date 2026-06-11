@@ -66,7 +66,7 @@ locus Program {
 
 // event.hl — one flat record, every field defaulted
 type Event {
-    kind: String;                 // none|key|mouse|paste|tick|resize|eof
+    kind: String;                 // none|key|mouse|paste|tick|resize|eof|quit
     key: String; ch: Int; text: String;
     ctrl/alt/shift: Bool;
     btn: String; x: Int; y: Int;  // mouse (1-based cells)
@@ -116,6 +116,13 @@ IS the frame clock), a `resize` event if the terminal changed
 (size is polled, no SIGWINCH), then exactly one `tick`. Any
 `update` returning true quits; EOF on stdin quits. `view` +
 `Screen.flush()` then run once.
+
+After the loop ends — on **every** quit path (update returning
+true, stdin EOF, `max_frames`) — Program delivers one final
+`Event { kind: "quit" }` to `update`: the teardown hook.
+Supervisor-shaped apps stop their children there (don't rely on
+the app locus's `dissolve()` — interface-typed fields are
+outside the F.29 cascade; see FRICTION.md).
 
 `flush()` diffs the cell grid against the previous frame and
 emits cursor moves only on discontinuity and SGR runs only on
@@ -169,6 +176,14 @@ hale build tui/examples/dashboard/ && ./tui/examples/dashboard/dashboard
   recent samples; '/' filters, 'p' pauses.
   `metricsdash http://host:port/metrics` — points at any
   pond/metrics `Registry.render()` endpoint or node_exporter.
+- `examples/procpanel/` — **a real app**: foreman/pm2-shaped
+  process supervisor. Reads a Procfile, launches every entry
+  detached (output → per-process log files the panel tails),
+  shows pid/status/uptime/restarts + the selected process's
+  log pane; stop / kill -9 / restart from the keyboard,
+  auto-restart on non-zero exit ('a'), and quitting TERMs the
+  whole process group of everything it started — on every exit
+  path. `procpanel Procfile`.
 
 ## Self-contained by design (G34)
 
