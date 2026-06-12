@@ -22,7 +22,7 @@ type SessionError  { kind }                       // fallible payload
 
 locus SessionStore {
     params { secret: Bytes; ttl_seconds: Int = 86400; }
-    fn read(cookie_header) -> Session     // sentinel + last_error on err
+    fn read(cookie_header) -> Session fallible(SessionError)
     fn write(s)            -> String      // Set-Cookie value
     fn invalidate(id)      -> String      // clearing Set-Cookie value
 }
@@ -47,7 +47,7 @@ fn verify_cookie(secret, cookie_header, now_seconds)
 block. Use `get_value` / `set_value` rather than touching the
 field directly — the codec is the same family as
 `pond/router::RouteParams.path_kv` and `pond/metrics::Labels.kv`
-(see FRICTION.md `duplicate-suspected`).
+(see FRICTION.log `duplicate-suspected`).
 
 ## Quick start with `std::http::Server`
 
@@ -63,9 +63,12 @@ locus Routes {
     }
     fn handle(req: std::http::Request) -> std::http::Response {
         let cookie = std::http::header(req, "Cookie");
-        let s      = self.sessions.read(cookie);
+        // read is fallible(SessionError); substitute an empty
+        // Session on any verify failure and branch on id == "".
+        let s = self.sessions.read(cookie)
+            or sess::Session { id: "", data: "" };
 
-        if self.sessions.last_error.kind == "" {
+        if s.id != "" {
             // Authenticated.
             let who = sess::get_value(s, "user");
             return std::http::Response {
@@ -132,26 +135,23 @@ HMAC, compares against the received mac in constant time
 - `"tampered"` — HMAC mismatch (constant-time compare failed).
 - `"expired"`  — payload's TTL deadline is in the past.
 
-The free-fn `verify_cookie` returns these via `fallible(SessionError)`;
-the `SessionStore.read` method surfaces the same kinds on
-`self.last_error` (per the two-channel deviation below).
+Both the free fn `verify_cookie` and the `SessionStore.read`
+method return these via `fallible(SessionError)` (the read
+migration landed 2026-06-08; the pre-v0.8.1 `last_error`
+workaround is gone).
 
 ## Contract deviations
 
-- `SessionStore.read` is declared without `fallible(SessionError)`
-  under the pre-v0.8.1 two-channel rule. → **v0.8.1 #24 v0.2**
-  (commits `d565d6f` + `98910b9`) narrows the rule so
-  user-declared `fn` member fns carry `fallible(E)` directly;
-  the next source pass restores the contract signature on
-  `SessionStore.read` and collapses the `last_error` accessor.
-  The companion free fn `verify_cookie(secret, header, now)`
-  stays available for callers that prefer not to instantiate the
+- None on the fallibility surface — `SessionStore.read` carries
+  `-> Session fallible(SessionError)` per the contract. The
+  companion free fn `verify_cookie(secret, header, now)` stays
+  available for callers that prefer not to instantiate the
   locus.
 
 - TTL uses `std::time::monotonic()` (process-local) because the
   v1 stdlib has no wall-clock `time::now()`. Cookies don't
   survive a process restart for expiry-comparison purposes —
-  flagged in `FRICTION.md`.
+  flagged in `FRICTION.log`.
 
 ## Building
 
