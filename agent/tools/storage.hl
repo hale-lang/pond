@@ -6,7 +6,7 @@
 // default couldn't find the mangled ToolList type when it
 // lived in a separate file from the Registry decl) forced the
 // child locus to move into registry.hl alongside Registry. See
-// FRICTION.md "@form-vec-cross-file-resolution" for the gap
+// FRICTION.log "@form-vec-cross-file-resolution" for the gap
 // log. This file is kept so the seed remains a per-concern
 // split if/when the gap is fixed (storage.hl currently empty;
 // the placeholder type below keeps the file non-empty so the

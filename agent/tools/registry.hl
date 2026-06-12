@@ -35,7 +35,7 @@
 // cell wasn't resolving in the param-default position
 // (`entries: ToolList = ToolList { }` couldn't find the
 // mangled ToolList type when ToolList lived in storage.hl).
-// FRICTION.md "@form-vec-cross-file-resolution" tracks the gap.
+// FRICTION.log "@form-vec-cross-file-resolution" tracks the gap.
 // Internal storage; consumers never name it.
 @form(vec)
 locus ToolList {
@@ -44,25 +44,29 @@ locus ToolList {
 
 // __NoopTool — sentinel locus satisfying the Tool interface.
 // Used as the proof-of-unreachable default for
-// `entries.get(i) or __NoopTool { }` inside loops that have
-// already bounded `i < entries.len()`. Per styleguide §
-// "Current language gaps", `@form(vec).get(i)` returns
+// `entries.get(i) or noop` inside loops that have already
+// bounded `i < entries.len()`. Per styleguide § "Current
+// language gaps", `@form(vec).get(i)` returns
 // `T fallible(IndexError)`; the `or` branch is unreachable in
 // the loops below but the fallback expression must still
 // type-check at the interface (Tool) success type.
 //
-// The literal `or __NoopTool { }` is the right shape: the
-// `or <substitute>` checker now does LocusRef → Interface
-// coercion (a concrete locus satisfying the success interface
-// is accepted directly). Routing the sentinel through a
-// `-> Tool`-returning helper instead is actively wrong here —
-// the helper's return type is the interface `Tool`, so the
-// substitute's type name collides with the success interface's
-// name and the structural-impl check tries (and fails) to prove
-// `type Tool` satisfies `interface Tool`. Using the locus
-// literal keeps the substitute's type name (`__NoopTool`)
-// distinct from the interface, so coercion takes the intended
-// LocusRef → Interface path.
+// Shape note (2026-06-12): the substitute must be a binding
+// that is ALREADY interface-typed —
+//
+//     let noop: Tool = __NoopTool { };
+//     let t = entries.get(i) or noop;
+//
+// The direct literal `or __NoopTool { }` typechecks (the
+// `or <substitute>` checker runs LocusRef → Interface
+// coercion) but is rejected at codegen: "`or` substitute type
+// mismatch: expected Interface(Tool), got LocusRef(__NoopTool)"
+// — codegen v0's `or`-substitute lowering has no coercion step.
+// The let-ascription performs the coercion up front so the
+// substitute expression is interface-typed by the time codegen
+// sees it. Routing the sentinel through a `-> Tool`-returning
+// helper fn is still actively wrong (same-name structural-impl
+// trap — see FRICTION.log 2026-06-08).
 locus __NoopTool {
     fn spec() -> ToolSpec { return ToolSpec { }; }
     fn invoke(call: ToolCall) -> ToolResult {
@@ -85,10 +89,11 @@ locus __NoopTool {
 // spec/styleguide.md § "Current language gaps", and lookup is
 // naturally a return-bearing helper.
 fn __lookup_invoke(entries: ToolList, call: ToolCall) -> ToolResult {
+    let noop: Tool = __NoopTool { };
     let n = entries.len();
     let mut i = 0;
     while i < n {
-        let t = entries.get(i) or __NoopTool { };
+        let t = entries.get(i) or noop;
         let s = t.spec();
         if s.name == call.name {
             return t.invoke(call);
@@ -119,12 +124,13 @@ fn __lookup_invoke(entries: ToolList, call: ToolCall) -> ToolResult {
 // outside the method signature; mirrors pond/router's
 // __router_run_chain split.
 fn __build_spec_array(entries: ToolList) -> String {
+    let noop: Tool = __NoopTool { };
     let b = std::json::Builder { };
     b.begin_array();
     let n = entries.len();
     let mut i = 0;
     while i < n {
-        let t = entries.get(i) or __NoopTool { };
+        let t = entries.get(i) or noop;
         let s = t.spec();
         b.begin_object();
         b.string_field("name",        s.name);
