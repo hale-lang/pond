@@ -35,7 +35,7 @@ locus Registry {
 
 ## v1 deviations
 
-One deviation remains in source; see `FRICTION.md` for the full
+One deviation remains in source; see `FRICTION.log` for the full
 audit. As of v0.8.1, this deviation is **closable** by a source
 edit (no remaining upstream gap).
 
