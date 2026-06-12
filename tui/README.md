@@ -122,7 +122,7 @@ true, stdin EOF, `max_frames`) — Program delivers one final
 `Event { kind: "quit" }` to `update`: the teardown hook.
 Supervisor-shaped apps stop their children there (don't rely on
 the app locus's `dissolve()` — interface-typed fields are
-outside the F.29 cascade; see FRICTION.md).
+outside the F.29 cascade; see FRICTION.log).
 
 `flush()` diffs the cell grid against the previous frame and
 emits cursor moves only on discontinuity and SGR runs only on
@@ -187,15 +187,26 @@ hale build tui/examples/dashboard/ && ./tui/examples/dashboard/dashboard
   whole process group of everything it started — on every exit
   path. `procpanel Procfile`.
 
-## Self-contained by design (G34)
+## Self-contained by choice
 
-This seed does NOT import `pond/term` — the G34 two-hop
-codegen break keeps tier libs from importing each other — so it
-carried its own escape helpers and C glue. Since hale
-#108–#110 the glue is gone — both libs sit on `std::term` /
-`std::io::{stdout,stdin}` primitives — and the remaining
-duplication is a few escape-string fragments in the renderer.
-Collapses fully when G34 lifts.
+This seed does NOT import `pond/term`. Originally that was
+forced (the G34 two-hop codegen break — closed upstream by
+WS3.4, 2026-06-11), so it carried its own escape helpers and C
+glue. Since hale #108–#110 the glue is gone — both libs sit on
+`std::term` / `std::io::{stdout,stdin}` primitives — leaving
+only a few frozen escape-string fragments plus a one-line
+`rgb()` and a ~10-line color-SGR helper duplicated in the
+renderer.
+
+With G34 closed the import now WORKS, but the collapse was
+evaluated and declined (2026-06-12): pulling in term would force
+every tui consumer to vendor pond/term too (no-transitive-deps
+rule), and term's String-returning `Styler` surface doesn't fit
+the diff renderer's per-cell builder-append hot path. Full
+rationale + evidence in `FRICTION.log
+§ glue-duplicated-from-term`. Apps that want styled line output
+take `term/`; full-screen apps take `tui/`; the color Int
+encoding is shared by convention.
 
 ## Verification
 

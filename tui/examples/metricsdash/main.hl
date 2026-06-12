@@ -18,8 +18,9 @@
 //   g/home G/end               top / bottom
 //
 // Composes three pond layers: tui (Program/Screen/TextInput),
-// http/client (URL sources — an end app may import both;
-// G34 only bites lib-from-lib), and the std::term primitives
+// http/client (URL sources — an end app may import both; the
+// old G34 lib-from-lib break closed upstream 2026-06-11), and
+// the std::term primitives
 // underneath. HTTP scrapes are synchronous on the frame loop —
 // a slow remote stalls a frame; fine for the localhost /
 // LAN-scrape shape this tool is for.

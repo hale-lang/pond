@@ -163,7 +163,7 @@ locus List {
 // ---- TextInput ----
 //
 // Append/backspace editing (end-of-line cursor only at v1 —
-// see FRICTION.md `textinput-no-mid-line-cursor`). The owning
+// see FRICTION.log `textinput-no-mid-line-cursor`). The owning
 // App routes key events here while the input has focus and
 // reads `value` on enter.
 
