@@ -1,7 +1,4 @@
 // pond/supervisor — Supervisor locus
-
-import "../_util/duration_int" as durint;
-
 //
 // Erlang OTP-style supervision tree on top of Hale's built-in
 // on_failure + recovery primitives (spec/runtime.md § Recovery
@@ -16,7 +13,7 @@ import "../_util/duration_int" as durint;
 //       // on_failure machinery routes through the strategy
 //   }
 //
-// Contract deviations (logged in FRICTION.md):
+// Contract deviations (logged in FRICTION.log):
 //
 //   1. `child: LocusRef` is not a user-typeable parameter in v1 —
 //      LocusRef is the C-ABI shape used internally for `self.children`
@@ -91,14 +88,16 @@ locus Supervisor {
 
     // accept(c: Worker) — the substrate-level child registration.
     // Per F.11 child registration runs before the Worker is added to
-    // self.children. We only bump a sibling counter here; per-child
-    // birth_order assignment is deferred until v1 supports
-    // cross-locus field writes from accept() (currently the codegen
-    // rejects non-self field assignment targets; see
-    // pond/KNOWN_GOTCHAS.md). rest_for_one's "later siblings"
-    // calculation is friction-tagged in FRICTION.md as a result.
+    // self.children. The cross-locus field write `c.birth_order = ...`
+    // lowers at HEAD (verified 2026-06-12 — the old "non-self
+    // field/index assignment target" codegen rejection is gone), so
+    // each child is stamped with its arrival index here. rest_for_one
+    // still restarts only the failed child (its second blocker —
+    // `restart(sib)` over a `self.children` iteration — remains
+    // unexercised by any fixture; see FRICTION.log), but the
+    // birth_order data the calculation needs is now populated.
     accept(c: Worker) {
-        let _ = c.name;
+        c.birth_order = self.children_seen;
         self.children_seen = self.children_seen + 1;
     }
 
@@ -211,15 +210,12 @@ locus Supervisor {
     //   - Otherwise increment the existing window's count and compare
     //     to max_restarts.
     fn intensity_check() -> Bool {
-        // `std::time::monotonic()` returns Duration (i64 ns). v1
-        // codegen rejects mixed Duration/Int arithmetic, and
-        // there is no `Int(d: Duration)` conversion (see
-        // pond/sessions/FRICTION.md "Duration → Int conversion").
-        // We use the stringify-and-parse workaround the sessions
-        // lib also relies on: to_string(Duration) formats as
-        // "<n>ns"; strip the trailing "ns" and parse back to Int.
-        let di      = durint::DurationInt { };
-        let now_sec = di.now_seconds();
+        // `std::time::monotonic_ns() -> Int` (shipped 2026-05-21)
+        // returns the raw i64 nanosecond reading, retiring the
+        // stringify-and-parse Duration→Int shim this lib used to
+        // take from pond/_util/duration_int (import dropped
+        // 2026-06-12 — one less lib for consumers to vendor).
+        let now_sec = std::time::monotonic_ns() / 1000000000;
         if self.window_start_ns == 0 || (now_sec - self.window_start_ns) > self.window_seconds {
             // Fresh window — open it at the current second and
             // count this failure as the first.
@@ -255,11 +251,11 @@ locus Supervisor {
     //   "rest_for_one" — restart(c); the runtime cap-2 also limits
     //                    siblings restartability per spec/semantics.md
     //                    § restart(). TODO: needs sibling iter; see
-    //                    FRICTION.md.
+    //                    FRICTION.log.
     //   "one_for_all"  — restart every child via self.children iter.
     //                    TODO: needs verified runtime support for
     //                    restart(c) where c flows from self.children;
-    //                    see FRICTION.md.
+    //                    see FRICTION.log.
     //   "escalate"     — bubble(err) immediately.
     //
     // Intensity gate: if the current window's restart_count exceeds
@@ -313,18 +309,18 @@ locus Supervisor {
                     // recovery ops on each child (untested in v1
                     // fixtures). For now we restart only the failed
                     // child; the spec is documented and exercised by
-                    // example/one-for-one. See FRICTION.md.
+                    // example/one-for-one. See FRICTION.log.
                     println("supervisor: rest_for_one (degraded — restarting only c=",
-                            c.name, "); see FRICTION.md");
+                            c.name, "); see FRICTION.log");
                     restart(c);
                 } else {
                     if kind == "one_for_all" {
                         // TODO: needs `for sib in self.children {
                         // restart(sib); }` — untested in v1 fixture
                         // set. Degraded to one_for_one semantics with
-                        // a friction note. See FRICTION.md.
+                        // a friction note. See FRICTION.log.
                         println("supervisor: one_for_all (degraded — restarting only c=",
-                                c.name, "); see FRICTION.md");
+                                c.name, "); see FRICTION.log");
                         restart(c);
                     } else {
                         // Unknown strategy.kind — defensive default:
@@ -347,6 +343,6 @@ locus Supervisor {
     }
 }
 
-// The Duration → whole-seconds shim (formerly `__mono_seconds`)
-// now lives in pond/_util/duration_int. The restart-window
-// arithmetic above calls `durint::DurationInt.now_seconds()`.
+// The restart-window arithmetic reads `std::time::monotonic_ns()`
+// directly (Int ns → whole seconds by integer division); the
+// pond/_util/duration_int shim dependency was dropped 2026-06-12.

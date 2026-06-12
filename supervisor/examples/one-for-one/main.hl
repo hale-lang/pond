@@ -20,25 +20,27 @@
 //      invocation. The runtime synthesizes a ClosureViolation
 //      and routes to the Supervisor's on_failure handler.
 //   3. The supervisor's one_for_one branch calls restart(bad).
-//      The runtime re-runs bad's birth(), which fires the
-//      closure again. The runtime's cap-2 restart budget bounds
-//      this; after the cap is hit, the violation falls through
-//      to the supervisor's on_failure absorb path.
+//      Observed HEAD semantics (re-verified 2026-06-12): the
+//      runtime restarts the child into run() on the same memory
+//      — birth() is NOT re-entered, so the fail_on_birth violate
+//      fires exactly once and the restarted child proceeds to
+//      run normally ("Worker.run name=bad" prints after the
+//      supervisor's restart line).
 //   4. The good worker is *never* touched — its birth() runs
 //      exactly once, its run()'s "still alive" print fires
 //      exactly once.
 //
 // The "only the bad one was restarted" check is observable on
-// stdout: the count of "Worker.birth name=bad" lines is > 1, the
-// count of "Worker.birth name=good" lines is exactly 1, and the
-// count of "Worker.run name=good" lines is exactly 1.
+// stdout: exactly one "supervisor: one_for_one restart child=bad"
+// line, "Worker.run name=bad" after it, and exactly one each of
+// "Worker.birth name=good" / "Worker.run name=good".
 //
 // What this example does NOT cover (out of scope for one_for_one):
 //
 //   - Sibling cross-restart (one_for_all / rest_for_one). The
 //     library's supervisor.hl stubs those strategies and routes
 //     them to one_for_one with a friction note; see
-//     ../../FRICTION.md.
+//     FRICTION.log.
 //   - Application-driven (non-birth) failures. Worker.fail(reason)
 //     is the canonical hook for "value error → structural failure"
 //     bridging; the supervision routing is identical.
@@ -87,11 +89,10 @@ locus SupervisedApp {
         // Spawn the bad worker — fail_on_birth=true. The first
         // birth() prints, sets last_error, and violates `failed`.
         // The supervisor's on_failure picks the one_for_one branch
-        // and calls restart(c). The runtime re-runs birth on the
-        // same memory; the new birth() does the same thing. The
-        // runtime's per-locus restart cap (2) bounds the loop;
-        // after the cap is hit the violation falls through and
-        // the supervisor absorbs.
+        // and calls restart(c). At HEAD the runtime restarts the
+        // child into run() on the same memory (birth is not
+        // re-entered), so the violate fires once and the restarted
+        // child runs normally.
         s.spawn_worker("bad", "broken", "oops", true);
 
         println("--- SupervisedApp.run done ---");

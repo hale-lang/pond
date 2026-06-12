@@ -20,7 +20,7 @@ type SupStrategy { kind: String; }
 type ChildSpec { name: String; policy: String; }
 //   policy ∈ { "permanent", "transient", "temporary" }
 //   (CONTRACTS.md spells this field "restart"; renamed to "policy"
-//   because "restart" is a reserved keyword — see FRICTION.md.)
+//   because "restart" is a reserved keyword — see FRICTION.log.)
 
 locus Worker {
     params {
@@ -59,8 +59,8 @@ strategy fire from `on_failure`? Mapping (per
 | Strategy        | Body of `on_failure`                                            | v1 status |
 |-----------------|-----------------------------------------------------------------|-----------|
 | `one_for_one`   | `restart(c);` — re-run just the failed child's birth.           | shipped, exercised by `examples/one-for-one/`. |
-| `rest_for_one`  | restart `c` AND every sibling later in birth order.             | degraded — needs sibling iter; see FRICTION.md. |
-| `one_for_all`   | restart `c` AND every other child.                              | degraded — needs `for sib in self.children { restart(sib); }`; see FRICTION.md. |
+| `rest_for_one`  | restart `c` AND every sibling later in birth order.             | degraded — needs sibling iter; see FRICTION.log. |
+| `one_for_all`   | restart `c` AND every other child.                              | degraded — needs `for sib in self.children { restart(sib); }`; see FRICTION.log. |
 | `escalate`      | `bubble(err);` — propagate to the supervisor's parent.          | shipped. |
 
 `restart_in_place(c)` (factory-reset variant; see
@@ -148,9 +148,16 @@ Three deviations from `pond/CONTRACTS.md § pond/supervisor/`:
    INSIDE the supervisor's own method body for `accept` to fire on
    the supervisor (per spec/semantics.md § Locus instantiation).
 
-See `FRICTION.md` for the wider list (rest_for_one / one_for_all
-degradations, codegen-rejects-violate-in-birth, Duration → Int
-conversion shim, etc.).
+See `FRICTION.log` for the wider list (rest_for_one / one_for_all
+degradations — kept per the upstream "design choice, no action"
+note). Closed at HEAD 2026-06-12: `violate` lowers inside
+lifecycle bodies (the fail_now() workaround is gone), accept()
+stamps `c.birth_order` (cross-locus field writes from accept now
+lower), and the restart-window clock reads
+`std::time::monotonic_ns()` directly (the
+`pond/_util/duration_int` dependency is dropped — consumers no
+longer need to vendor it). Note: at HEAD `restart(c)` re-enters
+run() without re-running birth().
 
 ## Building
 
