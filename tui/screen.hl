@@ -219,7 +219,7 @@ locus Screen {
         // view's recomputed pointer is a valid C string, and
         // the epoch guard validates freshness at the coercion
         // site. The per-flush clone retired with the FFI glue
-        // (FRICTION.md `frame-clone-per-flush`).
+        // (FRICTION.log `frame-clone-per-flush`).
         std::io::stdout::write_bytes(self.frame.text_view());
     }
 

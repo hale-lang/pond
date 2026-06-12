@@ -31,7 +31,7 @@
 //      command finishes; the poll reads it once /proc vanishes.
 //   4. Output goes to per-process log files the panel tails
 //      (the logview ingestion pattern) — solving the "no
-//      non-blocking pipe reads" gap subprocess/FRICTION.md
+//      non-blocking pipe reads" gap FRICTION.log
 //      documents, by never holding a pipe at all.
 //
 // Build + run:

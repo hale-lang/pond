@@ -115,7 +115,7 @@ locus Program {
         // teardown hook. Needed because `app` is an
         // interface-typed param field and the F.29 dissolve
         // cascade walks only LocusRef-typed fields, so the app
-        // locus's own dissolve() never fires (see FRICTION.md
+        // locus's own dissolve() never fires (see FRICTION.log
         // `interface-field-skips-dissolve-cascade`). Supervisor-
         // shaped apps (procpanel) stop their children here.
         self.app.update(Event { kind: "quit" }, self.screen);
