@@ -2,6 +2,7 @@
 
 import "../_util/duration_int" as durint;
 import "../_util/rowbuf"       as rb;
+import "../http/client"        as http;
 
 //
 // Per CONTRACTS.md:
@@ -23,7 +24,7 @@ import "../_util/rowbuf"       as rb;
 // locus instantiation: a child span's parent is whatever span
 // was open when the child started. v1 has the user thread
 // `parent` explicitly through start_span; a future
-// runtime-injection pass (see FRICTION.md) would walk the locus
+// runtime-injection pass (see FRICTION.log) would walk the locus
 // tower at birth/dissolve and emit start/end_span automatically,
 // removing the explicit-parent argument entirely.
 //
@@ -50,7 +51,7 @@ import "../_util/rowbuf"       as rb;
 // Lookups are linear scans over the buffer — fine for trace
 // budgets typical of a single request (~10s of spans). When a
 // workload pushes against this, the @form(hashmap) flip is the
-// right substitution; logged in FRICTION.md.
+// right substitution; logged in FRICTION.log.
 //
 // The two-channel rule (v0.8.1 #24 v0.2): user-declared `fn`
 // member methods carry `fallible(E)` directly. `start_span` /
@@ -62,37 +63,30 @@ import "../_util/rowbuf"       as rb;
 // / `or handler(err)`.
 
 // =====================================================================
-// Transitive-import gap (see FRICTION.md "export_otlp can't import
-// pond/http/client transitively"). The Hale import resolver
-// does NOT follow imports inside imported seeds (spec/projects.md
-// § "Strict barrier: no re-exports"), so a downstream app that
-// only imports `trace` cannot see `http::HttpError` / `http::post`
-// referenced from this lib. Until cross-seed transitive imports
-// land, `export_otlp` ships as a JSON-only stub: it assembles the
-// OTLP body and `fail`s with a `TraceError { kind:
-// "transport_unsupported", ... }` so consumers can detect the gap
-// via the value channel (`or handler(err)`). Full wire delivery
-// flips on when the gap closes — at which point the body is POSTed
-// and an `io`-kind TraceError is raised on transport failure.
+// Transport: pond/http/client. The resolver follows imports inside
+// imported seeds since upstream WS3.3 (2026-06-11), so this lib's
+// `import "../http/client"` resolves at every downstream build
+// site. Pond's no-transitive-deps rule still applies at the
+// VENDORING level: a consumer of `export_otlp` must vendor
+// `pond/http` alongside `pond/tracing` so the relative import
+// path exists in its tree. (The consumer does NOT need its own
+// `import` line unless it names http types itself — the re-export
+// barrier is about naming, not resolution.)
 // =====================================================================
 
 
 // =====================================================================
-// Bus channel — the SpanCompleted topic.
+// Bus channel — the SpanCompleted topic decl is CO-LOCATED with
+// its publisher. `hale build` / `hale run` accept a sibling-file
+// decl since upstream WS3.3 (2026-06-11), but `hale check` still
+// resolves topics file-locally ("publish references unknown
+// topic") — the check-vs-build divergence logged upstream. Keep
+// the decl in this file until `hale check` catches up so the
+// repo's own verification gate (`hale check <lib>/`) stays green.
+// Subscribers wire up by qualified ident:
 //
-// Per CONTRACTS.md: `topic SpanCompleted { payload: Span; }`.
-// Upstream A1 (`f9068fa`) closed the topic-ident mangle gap that
-// previously forced the lib to drop the topic decl in favor of
-// inlined literal subjects throughout. The decl lives in this
-// file (not topics.hl) to dodge the cross-file topic-decl
-// resolution gap noted in FRICTION.md.
-//
-// Subscribers wire up by qualified topic ident:
-//
-//   bus {
-//     subscribe trace::SpanCompleted as on_span;
-//   }
-//
+//   bus { subscribe trace::SpanCompleted as on_span; }
+// =====================================================================
 topic SpanCompleted { payload: Span; subject: "trace.span.completed"; }
 
 locus Tracer {
@@ -229,19 +223,22 @@ locus Tracer {
     }
 
     // export_otlp — assemble the OTLP/HTTP JSON batch from the
-    // completed-spans buffer and (when the transitive-import
-    // gap closes) POST it to `endpoint`.
+    // completed-spans buffer and POST it to `endpoint` as
+    // `application/json` via pond/http/client.
     //
     // Per the v0.8.1 two-channel rule, this method carries
     // `fallible(TraceError)` directly: failure routes through the
     // value channel as a `TraceError { kind; detail; }`. Callers
     // address it with `or raise` / `or handler(err)`.
     //
-    // v1 stub-mode: the JSON body is assembled, then the method
-    // `fail`s with `kind: "transport_unsupported"` to flag the
-    // transitive-import gap. The completed-span buffer is NOT
-    // cleared so a retry after the unblock will exfiltrate the
-    // same batch.
+    // Error kinds:
+    //   "io"      — the transport failed (connect / send / recv /
+    //               bad response); the underlying http::HttpError
+    //               is folded into `detail`.
+    //   "non_2xx" — the collector answered outside 200..299.
+    //
+    // The completed-span buffer is cleared ONLY on a 2xx success,
+    // so a retry after any failure re-exports the same batch.
     //
     // No-op + success (Unit) when the export buffer is empty.
     fn export_otlp(endpoint: String) -> () fallible(TraceError) {
@@ -250,21 +247,20 @@ locus Tracer {
             let _ = endpoint;
         } else {
             let body = __build_otlp_json(self.service_name, self.completed_buf);
-            // Body assembled; transport not yet reachable (see the
-            // transitive-import note above). Surface the gap on the
-            // value channel. When the unblock lands this becomes an
-            // `http::post(...) or fail TraceError { kind: "io", ... }`.
-            let _ = body;
-            fail TraceError {
-                kind:   "transport_unsupported",
-                detail: "pond/tracing: transitive import of "
-                    + "pond/http/client not yet supported; OTLP body "
-                    + "assembled but not delivered to " + endpoint
-                    + ". See FRICTION.md.",
-            };
-            // self.completed_buf intentionally NOT cleared — a
-            // future retry after the unblock should pick up the
-            // same batch.
+            let resp = http::post(
+                endpoint,
+                std::bytes::from_string(body),
+                "application/json"
+            ) or (__raise_transport(err, endpoint) or raise);
+            if resp.status < 200 || resp.status >= 300 {
+                fail TraceError {
+                    kind:   "non_2xx",
+                    detail: "OTLP collector at " + endpoint
+                        + " rejected the batch with status "
+                        + to_string(resp.status),
+                };
+            }
+            self.completed_buf = "";
         }
     }
 
@@ -314,6 +310,21 @@ locus Tracer {
 // live in pond/_util/duration_int and pond/_util/rowbuf. Call sites
 // use the `durint` / `rb` aliases declared at the top of this file.
 
+// __raise_transport — translate the transport's http::HttpError
+// into this lib's TraceError and raise. Always fails; the
+// http::Response success type only satisfies the typechecker so
+// the helper slots into export_otlp's or-chain
+// (`or (__raise_transport(err, endpoint) or raise)`), the same
+// payload-translation idiom pond/http/client's __raise_connect
+// uses.
+fn __raise_transport(e: http::HttpError, endpoint: String) -> http::Response fallible(TraceError) {
+    fail TraceError {
+        kind:   "io",
+        detail: "OTLP POST to " + endpoint + " failed: "
+            + e.kind + " (" + e.detail + ")",
+    };
+}
+
 // __build_otlp_json — assemble the OTLP/HTTP JSON body from
 // the completed-spans buffer.
 //
@@ -327,12 +338,12 @@ locus Tracer {
 // but flattens the wrapper so an OTLP collector running in
 // permissive-input mode can ingest it. Full nested OTLP is the
 // right v1.x followup once a workload pulls on it; logged in
-// FRICTION.md.
+// FRICTION.log.
 fn __build_otlp_json(service_name: String, completed_buf: String) -> String {
     let b    = std::json::Builder { };
     let rows = rb::RowBuf { };
     b.begin_object();
-    b.field("service", service_name);
+    b.string_field("service", service_name);
     b.begin_array_field("spans");
 
     let buf_len = len(completed_buf);
@@ -354,13 +365,18 @@ fn __build_otlp_json(service_name: String, completed_buf: String) -> String {
             let start_ns  = std::str::parse_int(start_str) or 0;
             let end_ns    = std::str::parse_int(end_str) or 0;
 
+            // string_field (quoted + escaped), NOT the raw `field`
+            // — `field` emits the value as raw wire bytes, which
+            // produced invalid JSON for every string here. Caught
+            // 2026-06-12 when the POST went live and a capture
+            // server saw the actual body.
             b.begin_object();
-            b.field("spanId", id_str);
-            b.field("parentSpanId", parent_id);
-            b.field("name", name);
+            b.string_field("spanId", id_str);
+            b.string_field("parentSpanId", parent_id);
+            b.string_field("name", name);
             b.int_field("startTimeUnixNano", start_ns);
             b.int_field("endTimeUnixNano", end_ns);
-            b.field("attributes", attrs);
+            b.string_field("attributes", attrs);
             b.end_object();
         }
         if rel < 0 {
