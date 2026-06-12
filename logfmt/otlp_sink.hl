@@ -1,43 +1,34 @@
-// pond/logfmt — OtlpSink (STUB at v1).
+// pond/logfmt — OtlpSink.
 //
 // Service locus (catalog pattern 3): subscribes to "log.**", batches
-// events, and (when fully wired) POSTs each batch to an OTLP/HTTP
-// endpoint as `application/json`. Same `write/line/newline` surface
-// as FileSink so the locus structurally satisfies `std::text::Sink`
-// — drop-in alternative for any sink position.
+// events, and POSTs each batch to an OTLP/HTTP endpoint as
+// `application/json` via pond/http/client. Same `write/line/newline`
+// surface as FileSink so the locus structurally satisfies
+// `std::text::Sink` — drop-in alternative for any sink position.
 //
-// STATUS — STUB. The transport call to pond/http/client is currently
-// commented out because Hale v1's no-transitive-import rule means a
-// downstream importer of pond/logfmt would have to also vendor +
-// import pond/http/client, OR every reference to `http::*` types
-// inside this file fails to resolve at the importer's build site
-// (`unsupported in codegen v0: qualified type http::HttpError not in
-// stdlib path-renames table`). Until the import surface lifts that
-// limit — or a workload pushes the assignment to require
-// http-vendoring — the OTLP transport is left as a documented gap.
+// Transport status — LIVE since 2026-06-12. The resolver follows
+// imports inside imported seeds since upstream WS3.3 (post-audit
+// pass 2026-06-11), so this lib's `import "../http/client"`
+// resolves at every downstream build site. Pond's
+// no-transitive-deps rule still applies at the VENDORING level: a
+// consumer of OtlpSink must vendor `pond/http` alongside
+// `pond/logfmt` so the relative import path exists in its tree.
+// (The consumer does NOT need its own `import` line unless it
+// names http types itself.) See FRICTION.log
+// `otlp-transport-stubbed` (closed).
 //
-// What's wired regardless of the gap:
-//   - bus subscription on "log.**" — events still arrive
+// What's wired:
+//   - bus subscription on "log.**"
 //   - in-memory batching into pending_buf + pending_count
 //   - OTLP/JSON payload assembly via std::json::Builder
 //   - severity-number mapping (level → OTLP severity)
+//   - the HTTP POST (`__post_batch` → `http::post`); transport
+//     failures land in the last_* capture triple (the locus is
+//     interface-bound non-fallible, so the value channel is the
+//     structural-channel escape hatch — see FRICTION.log
+//     `fallible-on-locus-method`)
 //   - `pending_payload()` accessor returning the rendered JSON
-//     so callers can inspect / forward the batch externally
-//
-// What's stubbed:
-//   - the actual HTTP POST. `__post_batch` clears the buffer and
-//     records `last_kind = "transport_stub"` so a caller can see
-//     a batch was assembled but not shipped.
-//
-// To re-enable the transport (once the import rule is relaxed OR
-// the consumer is willing to vendor http alongside logfmt):
-//   1. uncomment the `import "../http/client" as http;` line below
-//   2. replace `__post_batch`'s stub body with the
-//      `http::post(...)` call shown in the comment
-//   3. add an `__handle_http(e: http::HttpError) -> http::Response`
-//      capture method (template in the comment block at end of file)
-//
-// See FRICTION.md `otlp-transport-stubbed`.
+//     so callers can inspect the batch before a flush
 //
 // Wire shape (OTLP/HTTP JSON, simplified). The full OTLP schema
 // nests `resourceLogs[].scopeLogs[].logRecords[]`; for v1 we emit
@@ -66,7 +57,7 @@
 //   4 DEBUG → 5
 //   5 TRACE → 1
 
-// import "../http/client" as http;   // re-enable once consumers vendor it
+import "../http/client" as http;
 
 locus OtlpSink {
     params {
@@ -79,14 +70,13 @@ locus OtlpSink {
         pending_buf: String = "";
         pending_count: Int = 0;
 
-        // Cumulative batches assembled so far. Useful for tests
-        // verifying the batching cadence under the stub.
+        // Cumulative batches flushed (POST attempted) so far.
+        // Useful for tests verifying the batching cadence.
         batches_assembled: Int = 0;
 
-        // Last-error scratch — captures the transport failure
-        // (or, at v1, the "transport_stub" pseudo-error every
-        // flush emits). Same shape as logfmt::FileSink and
-        // pond/http/client::Client.
+        // Last-error scratch — captures the most recent flush's
+        // transport failure ("" = last flush succeeded). Same
+        // shape as logfmt::FileSink and pond/http/client::Client.
         last_kind: String = "";
         last_status: Int = 0;
         last_detail: String = "";
@@ -138,9 +128,9 @@ locus OtlpSink {
     fn batches_count() -> Int { return self.batches_assembled; }
 
     // Render the current pending batch as the OTLP/JSON payload
-    // that *would* be POSTed. Exposed as a stub-era affordance:
-    // a caller wiring up its own transport can pull the payload
-    // out and ship it via whatever HTTP surface it has on hand.
+    // that the next flush will POST. Useful for inspection / tests
+    // and for callers that want to ship a copy through their own
+    // transport.
     fn pending_payload() -> String {
         return self.__render_payload();
     }
@@ -163,22 +153,49 @@ locus OtlpSink {
         }
     }
 
-    // STUB version. Real version (commented at end of file)
-    // would call `http::post` and capture the result. At v1 we
-    // assemble the payload (verifies the JSON builder path),
-    // tick the batches counter, and record a transport-stub
-    // marker in last_*.
+    // Render the pending batch and POST it. The last_* triple is
+    // reset at the top so it always reflects THIS flush:
+    //   ""         — POST returned 2xx
+    //   transport  — http::HttpError.kind ("connect_failed", ...)
+    //   "non_2xx"  — collector answered outside 200..299
     //
     // The pending buffer clears either way — the batch is
-    // "released" from the locus's perspective.
+    // "released" from the locus's perspective (OTLP log shipping
+    // is best-effort; a sink that re-queued failed batches forever
+    // would balloon memory on a dead collector). Callers that need
+    // delivery confirmation check last_error_kind() after flush().
     fn __post_batch() {
-        let _payload = self.__render_payload();
-        self.batches_assembled = self.batches_assembled + 1;
-        self.last_kind = "transport_stub";
+        let payload = self.__render_payload();
+        self.last_kind = "";
         self.last_status = 0;
-        self.last_detail = "OtlpSink: http transport not wired at v1; see FRICTION.md";
+        self.last_detail = "";
+        let resp = http::post(
+            self.endpoint,
+            std::bytes::from_string(payload),
+            "application/json"
+        ) or self.__handle_http(err);
+        self.batches_assembled = self.batches_assembled + 1;
+        if self.last_kind == "" {
+            if resp.status < 200 || resp.status >= 300 {
+                self.last_kind = "non_2xx";
+                self.last_status = resp.status;
+                self.last_detail = "OTLP collector rejected batch";
+            }
+        }
         self.pending_buf = "";
         self.pending_count = 0;
+    }
+
+    // Error-capture arm for the `or self.__handle_http(err)`
+    // disposition above. Records the transport failure into the
+    // last_* triple and returns a status-0 sentinel Response so
+    // __post_batch keeps control (same shape FileSink.__handle_io
+    // uses for IoError).
+    fn __handle_http(e: http::HttpError) -> http::Response {
+        self.last_kind = e.kind;
+        self.last_status = e.status;
+        self.last_detail = e.detail;
+        return http::Response { status: 0, headers: "", body: b"" };
     }
 
     // Translate the pending_buf into an OTLP/JSON string.
@@ -299,44 +316,3 @@ locus OtlpSink {
         return "UNSPECIFIED";
     }
 }
-
-// ===== Re-enabling the http transport =====
-//
-// When pond/logfmt's consumer is willing to also vendor + import
-// pond/http/client (the v1 no-transitive-import rule requires this),
-// swap `__post_batch` for the body below and add the
-// `__handle_http` capture method. The stub-marker `last_kind =
-// "transport_stub"` goes away; real HTTP errors land in last_*.
-//
-// import "../http/client" as http;          // top of file
-//
-// fn __post_batch() {
-//     let body_str = self.__render_payload();
-//     let body = std::bytes::from_string(body_str);
-//     let resp = http::post(self.endpoint, body, "application/json")
-//         or self.__handle_http(err);
-//     self.batches_assembled = self.batches_assembled + 1;
-//     if self.last_kind != "" {
-//         self.pending_buf = "";
-//         self.pending_count = 0;
-//         return;
-//     }
-//     if resp.status < 200 || resp.status >= 300 {
-//         self.last_kind = "non_2xx";
-//         self.last_status = resp.status;
-//         self.last_detail = "OTLP collector rejected batch";
-//     }
-//     self.pending_buf = "";
-//     self.pending_count = 0;
-// }
-//
-// fn __handle_http(e: http::HttpError) -> http::Response {
-//     self.last_kind = e.kind;
-//     self.last_status = e.status;
-//     self.last_detail = e.detail;
-//     return http::Response {
-//         status: 0,
-//         headers: "",
-//         body: std::bytes::from_string("")
-//     };
-// }
