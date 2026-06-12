@@ -1,0 +1,75 @@
+// pond/metrics — public shape types.
+//
+// Per-concern file of the metrics seed (re-split 2026-06-12
+// after the upstream WS3.4-family pass-A registration fix; see
+// FRICTION.log "blocked-on: cross-seed multi-file resolution").
+//
+// Pure-data records — no lifecycle, no flow. Constructed via
+// struct literal at use sites; passed by value through methods
+// and free fns. Per pattern 5 (Shape type) in
+// `spec/styleguide.md`.
+
+// `Labels` — a serialized set of label key/value pairs.
+//
+// Stored as "k1=v1\tk2=v2\t..." (tab-separated, `=`-joined)
+// to match the cross-cutting CONTRACTS.md convention
+// ("Labels { kv: String; } // "k1=v1\tk2=v2""). Empty `kv`
+// ("") means no labels; consumers should construct via the
+// free-fn helpers (`labels_empty`, `labels_one`, `labels_two`)
+// so the empty-vs-populated branch is uniform.
+type Labels {
+    kv: String = "";
+}
+
+// `MetricEntry` — the cell shape stored in `MetricMap` (the
+// `@form(hashmap)` substrate inside Registry).
+//
+// Single struct shape covers all three metric kinds. The
+// `kind` field discriminates (0=counter, 1=gauge,
+// 2=histogram); `value` carries the live scalar; `hist_idx`
+// is the index into Registry's parallel `HistogramList` vec
+// for histograms (-1 for counter/gauge).
+//
+// `key` is the hashmap index: `name + "{" + labels.kv + "}"`.
+// Composite keying lets a single name carry multiple label-
+// disambiguated series (the standard Prometheus shape).
+//
+// Per `spec/forms.md § @form(hashmap)`, the cell type must be
+// a user-declared struct and the `indexed_by` field must
+// exist on it. Both hold (`key: String`).
+type MetricEntry {
+    key:      String = "";
+    name:     String = "";
+    labels:   String = "";
+    kind:     Int    = 0;
+    value:    Float  = 0.0;
+    hist_idx: Int    = -1;
+}
+
+// `HistogramData` — bucket bounds + cumulative counts + sum
+// + count for one histogram series. Lives as a cell in
+// Registry's `HistogramList` `@form(vec)`. The
+// `MetricEntry.hist_idx` field indexes into that vec.
+//
+// Bucket bounds and counts are serialized as tab-separated
+// strings rather than nested Matrix locus refs because
+// `@form(vec)` cells must be value-shapes (per
+// `spec/semantics.md § Slot restrictions (v1)` — slots reject
+// LocusRef cells). Bounds parse once at register time; counts
+// are read+modified+rewritten at every observe(). Slow but
+// straightforward; a per-iteration optimization can lift the
+// parse if hot-path histograms surface.
+//
+// `bounds_csv` carries the user-supplied bucket upper bounds
+// in ascending order, tab-separated. `counts_csv` is the
+// parallel cumulative counts array, one longer than bounds
+// (the trailing slot is the +Inf bucket per Prometheus
+// convention).
+type HistogramData {
+    name:       String = "";
+    labels:     String = "";
+    bounds_csv: String = "";
+    counts_csv: String = "";
+    sum:        Float  = 0.0;
+    count:      Int    = 0;
+}

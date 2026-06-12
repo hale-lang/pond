@@ -1,0 +1,41 @@
+// pond/metrics — labels constructors + composite keying.
+//
+// Pattern 6 helpers (bare free fns).
+//
+// Pre-A3 the cross-seed `path call X::Y in expression position`
+// rejection forced these onto a `Lab` namespace lotus. Upstream
+// `f9068fa` (A3) closed that gap; consumers call
+// `metrics::labels_one(...)` etc. directly. Naming follows the
+// CONTRACTS.md hint (`metrics::labels_*`).
+//
+// `metric_key` stays a private bare free fn because Registry
+// (intra-seed) reaches it directly; cross-seed consumers
+// shouldn't need it.
+
+fn labels_empty() -> Labels {
+    return Labels { kv: "" };
+}
+
+fn labels_one(k: String, v: String) -> Labels {
+    return Labels { kv: k + "=" + v };
+}
+
+fn labels_two(k1: String, v1: String, k2: String, v2: String) -> Labels {
+    return Labels { kv: k1 + "=" + v1 + "\t" + k2 + "=" + v2 };
+}
+
+fn labels_append(l: Labels, k: String, v: String) -> Labels {
+    if len(l.kv) == 0 {
+        return Labels { kv: k + "=" + v };
+    }
+    return Labels { kv: l.kv + "\t" + k + "=" + v };
+}
+
+// `metric_key(name, labels)` — composite hashmap key for one
+// metric series. The format `name{labels.kv}` mirrors the
+// Prometheus exposition shape closely enough that debug
+// printing the key is recognizable. Bare free fn; intra-seed
+// callers (Registry) reach it directly.
+fn metric_key(name: String, labels: Labels) -> String {
+    return name + "{" + labels.kv + "}";
+}

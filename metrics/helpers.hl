@@ -1,0 +1,270 @@
+// pond/metrics — CSV serialization + Prometheus rendering
+// helper free fns (pattern 6).
+//
+// pond/math/matrix is the sibling lib carrying the `Matrix`
+// locus that the histogram factory accepts for bucket bounds.
+// Suggested alias `mat` per CONTRACTS.md.
+
+import "../math/matrix" as mat;
+
+// ----- bucket-bounds + counts serialization -----
+
+// `floats_to_csv(m)` — flatten a Matrix's elements (storage
+// order) into a tab-separated Float string. Used at histogram
+// register time to pack the bucket bounds into the
+// HistogramData cell (which can't hold a Matrix ref directly).
+fn floats_to_csv(m: mat::Matrix) -> String {
+    let n = m.len();
+    if n == 0 {
+        return "";
+    }
+    let mut out = "";
+    let mut i = 0;
+    while i < n {
+        let v = m.get(i) or 0.0;
+        if i == 0 {
+            out = to_string(v);
+        } else {
+            out = out + "\t" + to_string(v);
+        }
+        i = i + 1;
+    }
+    return out;
+}
+
+// `len_floats(s)` — count of tab-separated tokens in `s`.
+// Zero for empty. Shared between Float and Int CSV paths
+// (tokenization is identical).
+fn len_floats(s: String) -> Int {
+    let n = len(s);
+    if n == 0 {
+        return 0;
+    }
+    let mut count = 1;
+    let mut i = 0;
+    while i < n {
+        let ch = s[i..i + 1];
+        if ch == "\t" {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+// `nth_tab_token(s, i)` — the i-th tab-separated token in
+// `s`, 0-indexed. Returns "" on out-of-range.
+fn nth_tab_token(s: String, i: Int) -> String {
+    let n = len(s);
+    if n == 0 {
+        return "";
+    }
+    let mut idx = 0;
+    let mut start = 0;
+    let mut j = 0;
+    while j < n {
+        let ch = s[j..j + 1];
+        if ch == "\t" {
+            if idx == i {
+                return s[start..j];
+            }
+            idx = idx + 1;
+            start = j + 1;
+        }
+        j = j + 1;
+    }
+    if idx == i {
+        return s[start..n];
+    }
+    return "";
+}
+
+// `float_at(s, i)` — i-th Float token. Returns 0.0 on OOB or
+// parse failure (sentinel).
+fn float_at(s: String, i: Int) -> Float {
+    let tok = nth_tab_token(s, i);
+    return std::str::parse_float(tok) or 0.0;
+}
+
+// `int_at(s, i)` — i-th Int token. 0 on OOB.
+fn int_at(s: String, i: Int) -> Int {
+    let tok = nth_tab_token(s, i);
+    return std::str::parse_int(tok) or 0;
+}
+
+// `zero_counts_csv(n)` — build a tab-separated string of `n`
+// zero counts. Used at histogram-register time to seed the
+// cumulative-counts buffer with the right slot count.
+fn zero_counts_csv(n: Int) -> String {
+    if n <= 0 {
+        return "";
+    }
+    let mut out = "0";
+    let mut i = 1;
+    while i < n {
+        out = out + "\t0";
+        i = i + 1;
+    }
+    return out;
+}
+
+// `int_csv_inc_at(s, i)` — return a new CSV where token i is
+// incremented by 1; rest unchanged. Out-of-range is a no-op.
+fn int_csv_inc_at(s: String, i: Int) -> String {
+    let n = len_floats(s);
+    if i < 0 {
+        return s;
+    }
+    if i >= n {
+        return s;
+    }
+    let mut out = "";
+    let mut j = 0;
+    while j < n {
+        let cur = int_at(s, j);
+        let new_val = if j == i { cur + 1 } else { cur };
+        if j == 0 {
+            out = to_string(new_val);
+        } else {
+            out = out + "\t" + to_string(new_val);
+        }
+        j = j + 1;
+    }
+    return out;
+}
+
+// `count_out_of_order(s)` — count pairs where counts[i+1] <
+// counts[i] (cumulative-monotonicity invariant violation).
+// Zero for a well-formed cumulative-counts vector. The
+// Histogram locus's closure-monitored field tracks this.
+fn count_out_of_order(s: String) -> Int {
+    let n = len_floats(s);
+    if n <= 1 {
+        return 0;
+    }
+    let mut violations = 0;
+    let mut prev = int_at(s, 0);
+    let mut j = 1;
+    while j < n {
+        let cur = int_at(s, j);
+        if cur < prev {
+            violations = violations + 1;
+        }
+        prev = cur;
+        j = j + 1;
+    }
+    return violations;
+}
+
+// ----- Prometheus exposition rendering -----
+
+// `prom_full_name(ns, name)` — apply the namespace prefix.
+// Empty namespace yields the bare name; otherwise "ns_name".
+fn prom_full_name(ns: String, name: String) -> String {
+    if len(ns) == 0 {
+        return name;
+    }
+    return ns + "_" + name;
+}
+
+// `prom_escape_label_value(v)` — escape a label value per the
+// Prometheus text format. Three replacements (in order):
+// backslash → \\, double-quote → \", newline → \n.
+fn prom_escape_label_value(v: String) -> String {
+    let s1 = std::str::replace(v, "\\", "\\\\");
+    let s2 = std::str::replace(s1, "\"", "\\\"");
+    let s3 = std::str::replace(s2, "\n", "\\n");
+    return s3;
+}
+
+// `render_labels(kv)` — emit the `{k1="v1",k2="v2"}` block for
+// a Labels.kv tab-joined string. Returns "" for empty kv so the
+// metric line renders as `name 1.23` (no braces).
+fn render_labels(kv: String) -> String {
+    if len(kv) == 0 {
+        return "";
+    }
+    let mut out = "{";
+    let n = len_floats(kv);
+    let mut i = 0;
+    while i < n {
+        let pair = nth_tab_token(kv, i);
+        let eq = std::str::index_of(pair, "=");
+        if eq >= 0 {
+            let k = pair[0..eq];
+            let v = pair[(eq + 1)..len(pair)];
+            if i > 0 {
+                out = out + ",";
+            }
+            out = out + k + "=\"" + prom_escape_label_value(v) + "\"";
+        }
+        i = i + 1;
+    }
+    out = out + "}";
+    return out;
+}
+
+// `render_labels_with_le(kv, le)` — variant for histogram
+// bucket samples. Appends `le="<bound>"` (the Prometheus
+// bucket-edge label) to the existing label set. Empty kv
+// yields `{le="<bound>"}`.
+fn render_labels_with_le(kv: String, le: String) -> String {
+    let escaped_le = prom_escape_label_value(le);
+    if len(kv) == 0 {
+        return "{le=\"" + escaped_le + "\"}";
+    }
+    let base = render_labels(kv);
+    let baselen = len(base);
+    return base[0..baselen - 1] + ",le=\"" + escaped_le + "\"}";
+}
+
+// `render_type_line(ns, name, kind)` — the `# TYPE name kind\n`
+// header line per the Prometheus exposition spec.
+fn render_type_line(ns: String, name: String, kind: String) -> String {
+    return "# TYPE " + prom_full_name(ns, name) + " " + kind + "\n";
+}
+
+// `render_sample(ns, name, labels, value)` — one sample line:
+// `<full_name>{<labels>} <value>\n`.
+fn render_sample(ns: String, name: String, labels: String, value: Float) -> String {
+    let full = prom_full_name(ns, name);
+    let lab = render_labels(labels);
+    return full + lab + " " + to_string(value) + "\n";
+}
+
+// `render_histogram(ns, h)` — emit the bucket / sum / count
+// triple for one histogram series. Cumulative bucket counts
+// emit as `<name>_bucket{le="<bound>"} <count>` lines (plus
+// the `+Inf` bucket), then `<name>_sum` and `<name>_count`.
+// Per-bucket-line build via BytesBuilder. The previous `out = out
+// + ...` loop allocated a fresh String per line of output, with
+// the scratch peak growing N² as `out` accumulated. For a 10-
+// bucket histogram that was ~13 intermediate Strings per call;
+// per /metrics scrape with H histograms × 13 lines, the scratch
+// burst was big enough to occasionally overflow the chunk pool
+// and trickle into glibc [heap]. BytesBuilder grows by doubling
+// in place — one allocation amortized over all appends.
+// See docs/src/how-tos/keeping-memory-bounded.md.
+fn render_histogram(ns: String, h: HistogramData) -> String {
+    let full = prom_full_name(ns, h.name);
+    let nb = len_floats(h.bounds_csv);
+    let nc = len_floats(h.counts_csv);
+    let b = std::bytes::BytesBuilder { initial_cap: 1024 };
+    let mut i = 0;
+    while i < nb {
+        let bound = nth_tab_token(h.bounds_csv, i);
+        let cnt = int_at(h.counts_csv, i);
+        let lab = render_labels_with_le(h.labels, bound);
+        b.append(std::bytes::from_string(full + "_bucket" + lab + " " + to_string(cnt) + "\n"));
+        i = i + 1;
+    }
+    if nc > nb {
+        let inf_cnt = int_at(h.counts_csv, nb);
+        let lab_inf = render_labels_with_le(h.labels, "+Inf");
+        b.append(std::bytes::from_string(full + "_bucket" + lab_inf + " " + to_string(inf_cnt) + "\n"));
+    }
+    let lab_total = render_labels(h.labels);
+    b.append(std::bytes::from_string(full + "_sum"   + lab_total + " " + to_string(h.sum)   + "\n"));
+    b.append(std::bytes::from_string(full + "_count" + lab_total + " " + to_string(h.count) + "\n"));
+    return std::str::from_bytes(b.finish());
+}
