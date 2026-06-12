@@ -25,6 +25,22 @@
 // `bindings` block — the bus substrate handles serialization
 // without the owner having to choose a snapshot format.
 
+// Bus topic — fires once per successful `append()`; the payload
+// is the Message that was just appended (subscribers reconstruct
+// post-append history by composing it onto their mirror of the
+// prior state). Decl CO-LOCATED with the publisher: `hale check`
+// still resolves topics file-locally even though build/run accept
+// sibling-file decls since WS3.3 — co-location keeps the
+// verification gate green.
+//
+// **Per-conversation subject derivation gap.** Two distinct
+// Conversation instances share a single wire subject in v1 —
+// every subscriber sees every conversation's traffic. The
+// intended end-state is one hierarchical-topic per conversation
+// (`topic SessionA : ConversationUpdated { subject: "session_a"; }`)
+// so consumers filter at the bus level. See the FRICTION log.
+topic ConversationUpdated { payload: Message; }
+
 locus Conversation {
     params {
         // The system prompt for this conversation. Empty string
@@ -51,26 +67,23 @@ locus Conversation {
         // and `pond/agent/llm::LlmRequest.messages`. Callers
         // must not embed tabs in `Message.content`; same
         // convention. A `std::iter::TabFields` helper (logged in
-        // FRICTION.md) would centralize this.
+        // FRICTION.log) would centralize this.
         history_buf:  String = "";
 
         // Live message count, for max_messages enforcement.
         msg_count:    Int    = 0;
     }
     bus {
-        // G1 (pond/KNOWN_GOTCHAS.md): when this lib is imported
-        // via `import "../.." as conv;`, the topic decl in
-        // topics.hl gets mangled to
-        // `__lib_conv_topics_ConversationUpdated` but a bare
-        // `publish ConversationUpdated;` here doesn't go through
-        // the same rename, so consumer-side builds report
-        // "unknown topic." Mirror pond/agent/llm and
-        // pond/subprocess: publish on a literal subject string
-        // with an explicit `of type Message`. Subscribers wire
-        // up via `subscribe "conv.updated" as ... of type Message`
-        // or via the topic decl (subscribe-side resolution path
-        // is healthy per G1).
-        publish "conv.updated" of type Message;
+        // Topic-decl form per CONTRACTS.md; the old G1
+        // literal-subject workaround (`publish "conv.updated"
+        // of type Message;`) is retired as of 2026-06-12.
+        // The decl is co-located above: `hale build`/`run`
+        // accept a sibling-file decl since WS3.3, but
+        // `hale check` still resolves topics file-locally —
+        // co-location keeps the verification gate green.
+        // Subscribers wire up via
+        // `subscribe conv::ConversationUpdated as handler;`.
+        publish ConversationUpdated;
     }
 
     // --------- Public surface (per CONTRACTS.md) ---------
@@ -102,9 +115,8 @@ locus Conversation {
 
         // Fire the topic. Subscribers see the just-appended
         // message; if they're maintaining their own mirror they
-        // fold this onto their prior state. Literal-subject form
-        // per G1 — see the `bus { }` block comment above.
-        "conv.updated" <- m;
+        // fold this onto their prior state.
+        ConversationUpdated <- m;
     }
 
     // history() — return the tab-separated stream of all

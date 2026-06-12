@@ -22,7 +22,7 @@
 // is "callers don't pass tabs in content" — same convention
 // `pond/router::RouteParams` and `pond/agent/llm::LlmRequest`
 // already use. A future `std::iter::TabFields` (logged in
-// FRICTION.md as duplicate-suspected) would centralize the
+// FRICTION.log as duplicate-suspected) would centralize the
 // pattern and could escape the delimiter properly.
 type Message {
     role:    String = "";

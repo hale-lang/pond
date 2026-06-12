@@ -19,7 +19,7 @@
 // supply backtick-literal timestamps (`` `2026-05-16T00:00:00Z` ``)
 // per the v1 Time-literal syntax. The values are illustrative —
 // a real conversation runtime would stamp via a wall-clock now()
-// (currently missing per pond/sessions/FRICTION.md `time::now()`
+// (currently missing per FRICTION.log `time::now()`
 // gap) or accept the timestamp from the calling layer.
 
 import "../.." as conv;

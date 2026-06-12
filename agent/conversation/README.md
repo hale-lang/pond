@@ -30,7 +30,7 @@ Per `pond/CONTRACTS.md § pond/agent/conversation/`.
 |-----------------------|--------------------------------------------------------|
 | `Message`             | type — `{ role: String; content: String; ts: Time; }` |
 | `Conversation`        | locus — see below                                      |
-| `ConversationUpdated` | topic — wire subject `"conv.updated"`, payload `Message` |
+| `ConversationUpdated` | topic — decl in `conversation.hl` (co-located with the publisher while the upstream hale-check divergence is open), payload `Message`; subscribe via `conv::ConversationUpdated` (the pre-2026-06-12 literal wire subject `"conv.updated"` is retired — see FRICTION.log) |
 
 ### `Conversation` locus
 
@@ -84,7 +84,7 @@ let req = llm::LlmRequest {
 ```
 
 Callers MUST NOT embed `\t` in `Message.content` — there is no
-escaping at v1. (Logged in FRICTION.md as duplicate-suspected
+escaping at v1. (Logged in FRICTION.log as duplicate-suspected
 with the same constraint in `pond/router` and `pond/agent/llm`.)
 
 ## Pattern-catalog mapping
@@ -112,6 +112,6 @@ The example constructs a `Conversation`, appends "hello",
 ## Cross-references
 
 - `pond/CONTRACTS.md` — the binding surface this lib targets.
-- `pond/agent/conversation/FRICTION.md` — deviations + gaps.
+- `FRICTION.log` — deviations + gaps.
 - `pond/agent/llm/README.md` — the natural downstream consumer
   of `history()`.
