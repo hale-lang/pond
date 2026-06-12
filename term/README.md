@@ -184,10 +184,15 @@ is piped, `-1` timeout on a quiet tty).
 
 ## Relationship to pond/tui
 
-`tui/` does NOT import this lib — the G34 two-hop codegen break
-keeps tier libs from importing each other — but since hale
-#108–#110 both sit on the same `std::term` primitives, so the
-only remaining duplication is a few escape-string fragments.
-Apps that just want color/styled *output* (logging, CLI
-reports) take `term/`; full-screen interactive apps take
-`tui/`.
+`tui/` does NOT import this lib — by choice since 2026-06-12
+(the G34 two-hop codegen break that used to force the
+separation closed upstream in WS3.4). Both sit on the same
+`std::term` primitives since hale #108–#110, so the only
+duplication is a few frozen escape-string fragments; collapsing
+them was evaluated and declined because the import would force
+tui consumers to vendor term too, and the Styler's
+String-returning surface doesn't fit tui's per-cell
+builder-append renderer (see `FRICTION.log
+§ glue-duplicated-from-term`). Apps that just want color/styled
+*output* (logging, CLI reports) take `term/`; full-screen
+interactive apps take `tui/`.

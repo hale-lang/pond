@@ -47,7 +47,7 @@ fn paste_off() -> String { return "\x1b[?2004l"; }
 // ---- OSC ----
 
 // Terminal window title. (window_title, not title: originally
-// forced by the import-mangler bug FRICTION.md records as
+// forced by the import-mangler bug FRICTION.log records as
 // `method-name-shadowed-by-fn` — fixed upstream in hale #104 —
 // and kept because it reads better next to Console.title.)
 fn window_title(s: String) -> String {
