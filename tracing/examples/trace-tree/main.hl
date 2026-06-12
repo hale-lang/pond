@@ -184,7 +184,7 @@ locus TraceTreeDemo {
         // Sanity check: we should have observed exactly 2 spans
         // (outer + inner). EXPECTED_SPANS would normally live as
         // a const, but cross-seed `const` lookups have known
-        // resolution gaps at v1; inlined per FRICTION.md.
+        // resolution gaps at v1; inlined per FRICTION.log.
         if sink.count != 2 {
             println("FAIL: expected 2 spans, got ", to_string(sink.count));
             std::process::exit(1);
