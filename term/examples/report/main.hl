@@ -36,7 +36,7 @@ fn drive() {
     c.step(2, 4, "build term/");
     c.success("5 shims linked, 0 warnings");
     c.step(3, 4, "build tui/");
-    c.warn("unicode width heuristic in use (see FRICTION.md)");
+    c.warn("unicode width heuristic in use (see FRICTION.log)");
     c.step(4, 4, "run demos");
     c.error("keys demo needs a tty — skipped");
 
