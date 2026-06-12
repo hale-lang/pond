@@ -23,16 +23,19 @@
 // a return value); on failure it publishes a sentinel `LlmDone`
 // carrying the partial text assembled before the failure.
 //
-// Bus topic note: this lib has TWO publisher files (anthropic.hl
-// + openai.hl) both publishing the chunk/done channels. Codegen
-// v0 only resolves a `topic T` ident from the SAME .hl file as
-// the publishing locus, so a shared `topic LlmChunk` decl in
-// wire_topics.hl can't be ident-referenced from here. We use the
-// literal-subject form (`publish "agent.llm.chunk" of type ...`
-// / `"agent.llm.chunk" <- ...`), whose subjects are kept in lock-
-// step with the `topic LlmChunk`/`LlmDone` decls in
-// wire_topics.hl so cross-seed subscribers still wire `llm::
-// LlmChunk`. Logged in FRICTION.md.
+// Bus topic note (2026-06-12): this lib has TWO publisher files
+// (anthropic.hl + openai.hl) both publishing the chunk/done
+// channels, so the publish sites use the literal-subject form
+// (`publish "agent.llm.chunk" of type ...` / `"agent.llm.chunk"
+// <- ...`) — the standing idiom for topics with >= 2 publisher
+// files. The subjects are kept byte-identical to the `subject:`
+// fields of the `topic LlmChunk`/`LlmDone` decls in topics.hl,
+// so cross-seed subscribers wire `subscribe llm::LlmChunk` as
+// usual. (Upstream WS3.3, 2026-06-11, made cross-file `topic T`
+// ident publishes resolve — the old file-locality behavior was a
+// `hale run <dir>` import bug — but the literal-subject form
+// remains the right shape here. See FRICTION.log
+// § bus-literal-subjects.)
 
 locus AnthropicClient {
     params {
@@ -251,7 +254,7 @@ fn __split_http(raw: String) -> __HttpSplit {
 // rejected `https://` at parse time. With `std::io::tls::*`
 // live, the URL parser routes `https` → TLS connect and the
 // rest of the code stays the same shape. Logged as closed in
-// FRICTION.md.
+// FRICTION.log.
 type __LlmStream {
     kind:   Int = 0;    // 0 = plain TCP, 1 = TLS (`mode` is a reserved
                         //    keyword in Hale, so `kind` here)
@@ -470,7 +473,7 @@ fn anthropic_complete(
 // the entire response first, then walks the SSE body in
 // one pass — small typical-prompt streams (a few KiB) are
 // fine; long generations sit behind one large blocking
-// drain. Logged in FRICTION.md.
+// drain. Logged in FRICTION.log.
 fn __anthropic_fetch_sse(
     api_key: String,
     base_url: String,

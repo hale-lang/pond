@@ -21,7 +21,7 @@
 // that wraps a streaming-LLM-style API will reinvent the same
 // `\n\n` split + `data:` prefix walk. Candidate for lifting
 // into `pond/sse/` once a second consumer materializes.
-// Logged in FRICTION.md.
+// Logged in FRICTION.log.
 
 // SseBuffer — accumulating String of bytes already received
 // over the SSE channel. `feed_chunk` appends; `next_data_line`
@@ -38,7 +38,7 @@
 // growth without a full locus tower. The pattern shows up in
 // `pond/http/client`'s `__recv_response_bytes` builder usage
 // and would benefit from a shared `std::iter::ChunkBuffer`.
-// Logged in FRICTION.md.
+// Logged in FRICTION.log.
 type SseBuffer {
     buf:    String = "";   // accumulated bytes (not yet consumed)
     done:   Bool   = false; // sticky — true once an end-of-stream
@@ -92,7 +92,7 @@ type __NextResult {
 // FRICTION: the OpenAI [DONE] convention deviates from W3C
 // SSE; flagging the per-vendor logic here rather than in the
 // vendor adapters because both end-up running through the
-// same line splitter. Logged in FRICTION.md.
+// same line splitter. Logged in FRICTION.log.
 fn next_data_line(buf: SseBuffer) -> __NextResult {
     if buf.done {
         return __NextResult {

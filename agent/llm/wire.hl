@@ -18,7 +18,7 @@
 // kv) and `pond/conversation::Conversation` (history is
 // tab-separated messages) follow the same shape. A
 // `std::iter::TabFields` or similar would lift the pattern.
-// Logged in FRICTION.md.
+// Logged in FRICTION.log.
 
 // __next_field — read one tab-separated field starting at
 // `from`. Returns the field value (excluding the delimiter)
@@ -77,7 +77,7 @@ fn __emit_message(b: std::json::Builder, role: String, content: String) {
 //   }
 //
 // We emit `max_tokens` even when 0 because Anthropic *requires*
-// it — see FRICTION.md (default 1024 picked here so the field
+// it — see FRICTION.log (default 1024 picked here so the field
 // is never absent on the wire).
 fn __build_anthropic_body(req: LlmRequest, stream: Bool) -> String {
     let b = std::json::Builder { };
@@ -282,7 +282,7 @@ fn __parse_openai_response(body: String) -> LlmResponse {
 // FRICTION: duplicate-suspected with std::json's internal
 // `__json_find_field_raw` — that helper isn't exported. Once
 // the stdlib lifts it (or adds a `find_object_field(json,
-// name) -> String`), this can go. Logged in FRICTION.md.
+// name) -> String`), this can go. Logged in FRICTION.log.
 fn __extract_field_raw(json: String, name: String) -> String {
     let needle = "\"" + name + "\"";
     let pos = std::str::index_of(json, needle);
