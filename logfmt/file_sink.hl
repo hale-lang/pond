@@ -38,7 +38,7 @@
 //   destination in a single syscall, so the oldest slot is evicted
 //   implicitly and no read-into-memory round-trip is needed.
 //
-// Interface-binding exemption (logged in FRICTION.md): CONTRACTS.md
+// Interface-binding exemption (logged in FRICTION.log): CONTRACTS.md
 // declares `write` / `line` / `newline` as `fallible(IoError)`, but
 // these methods must structurally satisfy `std::text::Sink`, whose
 // `write`/`line`/`newline` are NON-fallible

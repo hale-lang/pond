@@ -20,7 +20,7 @@ The bare alias `logfmt` matches `pond/CONTRACTS.md` and
 | Locus | Destination | Status |
 |------|-----------|--------|
 | `FileSink`  | Appends to a path; size-based rotation | shipped |
-| `OtlpSink`  | Batches + posts to an OTLP/HTTP endpoint | **STUB** at v1 (see FRICTION.md) |
+| `OtlpSink`  | Batches + POSTs to an OTLP/HTTP endpoint | shipped (transport live since 2026-06-12; **vendor `pond/http` too**, see below) |
 | `ConsoleSink` | Colored, aligned human-facing console lines (stdout; WARN/ERROR → stderr) | shipped |
 
 Both loci satisfy `std::text::Sink` structurally (`write(s) -> ()`,
@@ -98,13 +98,13 @@ path.{keep_files-1} → path.{keep_files}   (oldest is overwritten)
 ...
 path.1              → path.2
 path                → path.1
-path                ← truncated to ""
+path                ← absent; next append recreates it
 ```
 
-Each shift is implemented as a read-then-write (see FRICTION.md
-`no-rename-no-unlink-in-fs-stdlib`); the bound on every read is
-`max_size_bytes`, so rotation cost is linear in the cap, not in
-total log volume.
+Each shift is one `std::io::fs::rename` (atomic overwrite on
+Linux), so rotation cost is constant — no read-into-memory
+round-trip. After the final shift the active path is absent until
+the next append recreates it (`write_file_append`'s `O_CREAT`).
 
 ## `ConsoleSink` — colored console lines
 
@@ -138,7 +138,7 @@ Demo: `examples/console/` emits one event per level from a
 root + child logger; run with `NO_COLOR=1` to see the plain
 rendering, `2>/dev/null` to see the lane split.
 
-## `OtlpSink` — OTLP/HTTP batch shipper (STUB)
+## `OtlpSink` — OTLP/HTTP batch shipper
 
 ```hale
 locus OtlpSink {
@@ -154,50 +154,56 @@ locus OtlpSink {
     // log.** subscriber — preserves the source severity
     fn on_event(e: std::log::LogEvent);
 
-    fn flush();                          // explicit drain
-    fn pending_payload() -> String;      // OTLP/JSON the would-be POST
-    fn batches_count()    -> Int;
+    fn flush();                          // explicit drain (also fired at dissolve)
+    fn pending_payload() -> String;      // OTLP/JSON the next flush will POST
+    fn batches_count()    -> Int;        // flushes (POST attempts) so far
     fn pending_event_count() -> Int;
-    fn last_error_kind() -> String;
+    fn last_error_kind() -> String;      // "" = last flush delivered (2xx)
     fn last_error_status() -> Int;
     fn last_error_detail() -> String;
 }
 ```
 
-The batching, severity mapping (`std::log::LogEvent.level` → OTLP
-`severityNumber`), and OTLP/JSON payload assembly via
-`std::json::Builder` are wired. **The HTTP POST is stubbed.** See
-FRICTION.md `otlp-transport-stubbed` for the gap; the file ends with
-the exact swap-in needed to lift the stub once consumers vendor
-`pond/http/client` alongside this lib (the v1 no-transitive-import
-rule blocks the direct dep).
+The full pipeline is live: batching, severity mapping
+(`std::log::LogEvent.level` → OTLP `severityNumber`), OTLP/JSON
+payload assembly via `std::json::Builder`, and the HTTP POST
+itself (`http::post(endpoint, body, "application/json")` via
+`pond/http/client`, since 2026-06-12 — see FRICTION.log
+`otlp-transport-stubbed`, closed).
 
-`pending_payload()` returns the OTLP/JSON that *would* be POSTed,
-so a consumer with its own HTTP surface can ship the batch
-externally in the meantime.
+Delivery semantics: a batch flushes when `pending_count` reaches
+`batch_size`, on `flush()`, and at `dissolve()`. The `last_error_*`
+triple is reset per flush and reflects the most recent one — `""`
+means the collector answered 2xx; an `http::HttpError` kind
+(`"connect_failed"`, ...) means the transport failed; `"non_2xx"`
+means the collector rejected the batch. The pending buffer clears
+either way (best-effort shipping); callers needing delivery
+confirmation check `last_error_kind()` after `flush()`.
 
-## Two-channel deviation from CONTRACTS.md — CLOSABLE
+**Vendoring:** consumers using `OtlpSink` must vendor `pond/http`
+alongside `pond/logfmt` (pond design rule 4 — no transitive deps;
+this lib imports `../http/client` internally, so the relative path
+must exist in your vendor tree). You do NOT need your own
+`import "vendor/pond/http/client"` line unless your code names
+`http::*` types itself.
 
-`pond/CONTRACTS.md` lists every Sink method as
-`fallible(IoError)`. Under the pre-v0.8.1 two-channel rule,
-locus methods on user-declared loci could not declare
-`fallible(E)` — the value channel for IO errors had to be
-wrapped via `or self.method(err)` inside the method body. Each
-sink captures the last failure into a `last_kind` /
-`last_errno` (or `last_status`) / `last_path` (or `last_detail`)
-triple readable through accessor methods.
+## Two-channel rule — interface-binding EXEMPTION
 
-→ **v0.8.1 #24 v0.2** (commits `d565d6f` + `98910b9`) narrows
-the rule; user-declared `fn` member fns now carry `fallible(E)`.
-The next source pass restores `FileSink` / `OtlpSink`
-`write` / `line` / `newline` to `() fallible(IoError)` directly
-and retires the last_error accessor triple. See FRICTION.md
-`fallible-on-locus-method`.
+`pond/CONTRACTS.md` (2026-06-08 status note) records this lib as
+EXEMPT from the v0.8.1 `fallible(E)` flip: `write`/`line`/`newline`
+exist to structurally satisfy `std::text::Sink`, whose methods are
+**non-fallible** — a `fallible(E)` signature would break interface
+satisfaction at every consumer that passes a sink where a
+`std::text::Sink` is expected. The methods stay non-fallible and
+surface value-channel failures through the `last_error_*` capture
+triple (`or self.__handle_io(err)` / `or self.__handle_http(err)`
+inside the bodies). See FRICTION.log `fallible-on-locus-method`.
 
 ## Files
 
 - `file_sink.hl` — `FileSink` locus + rotation.
-- `otlp_sink.hl` — `OtlpSink` locus (stub transport, real payload).
+- `otlp_sink.hl` — `OtlpSink` locus (live OTLP/HTTP transport via
+  `pond/http/client`).
 - `console_sink.hl` — `ConsoleSink` locus (colored console lines).
 - `examples/rotated-file/main.hl` — App-locus demo: log 100 events
   with `max_size_bytes: 512`, then walk the rotated chain and
@@ -224,13 +230,14 @@ Expected demo output:
 
 ```
 --- rotated chain state ---
-  active log (/tmp/logfmt-rotated.log): exists, size=0
+  active log (/tmp/logfmt-rotated.log): absent
   rotation .1 (/tmp/logfmt-rotated.log.1): exists, size=530
   rotation .2 (/tmp/logfmt-rotated.log.2): exists, size=530
   rotation .3 (/tmp/logfmt-rotated.log.3): exists, size=530
 rotated-file: rotation verified
 ```
 
-(The active log is empty at end-of-run because the final rotation
-truncated it and no further events were emitted — exactly the
-post-rotation steady state.)
+(The active log is absent at end-of-run because the final
+rotation renamed it to `.1` and no further events were emitted —
+exactly the post-rotation steady state; the next append would
+recreate it.)
