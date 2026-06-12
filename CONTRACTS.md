@@ -7,10 +7,78 @@ below is your binding contract. If you consume a lib, the surface
 below is what you may import.**
 
 Updates to this document during the build-out must be flagged in
-the relevant lib's `FRICTION.md` and recorded as a deviation here.
+the relevant lib's `FRICTION.log` and recorded as a deviation here.
 
 Suggested import aliases are recommendations only — consumers
 choose their own aliases per F.25.
+
+---
+
+## 2026-06-12 status note — post-audit cleanup pass (whole repo)
+
+Upstream's post-audit hardening (hale #129 "WS0–WS5", 2026-06-11, plus
+#130/#132) refuted or closed most of pond's standing blockers. This pass
+brought every lib up to date against hale HEAD `b716696`. Verification:
+all 30 seeds `hale check` clean, every example builds, 22/22
+self-asserting demos pass. Friction records were consolidated into the
+single root **`FRICTION.log`** (one section per lib; the per-lib
+`FRICTION.md` files are gone).
+
+- **sqlite chain UNBLOCKED (WS4 refuted F.1).** `pond/sqlite` is a real
+  pure-`@ffi` driver over system `libsqlite3` (glue.c + `hale.toml
+  [ffi]`; needs `libsqlite3-dev` to build); surface is the locked
+  fallible-member-fn shape. `pond/jobs` runs on it (real prepared
+  binds; `Job` gains the `id: Int` the contract's own `ack`/`fail`
+  required). `pond/migrations` runs on `db::DbDriver` via its new
+  `SqliteDriver` adapter — `sqlite::Db` itself does NOT satisfy
+  `DbDriver` (FRICTION.log § pond/sqlite F.7).
+- **Bus topics (WS3.3).** Cross-file topic decls resolve under
+  `hale build`/`hale run`; the "file-local" rule below (2026-06-08
+  note) was a `hale run <dir>` import bug. BUT `hale check` still
+  resolves file-locally, so topic decls stay CO-LOCATED with their
+  publisher for now (tracing, agent/conversation). `agent/conversation`
+  retired its G1 literal-subject workaround (wire subject is the topic
+  decl now — breaking for out-of-tree literal subscribers);
+  `agent/llm` keeps literal subjects by idiom (two publisher files)
+  and retired the `wire_topics.hl` naming trick (now `topics.hl`).
+- **G34 CLOSED (WS3.4).** Lib-from-lib imports incl. qualified
+  literals work. metrics re-split into seven per-concern files;
+  `_util` is importable from tier libs; tui evaluated importing term
+  and DECLINED by choice (hot-path + vendoring cost). logfmt/tracing
+  restored `import "../http/client"` — **OTLP really POSTs now**
+  (`OtlpSink.__post_batch`, `Tracer.export_otlp`); consumers of those
+  features must vendor `pond/http`.
+- **m90 (#18.6) enforcement.** Locus-returning METHODS are rejected at
+  typecheck; factories are free fns. `nn::forward(model, x)` and
+  `embeddings::to_matrix(e)` migrated (surfaces updated below);
+  math examples and `stats.hl` fixed (they still called removed Mat
+  methods — codegen-only break invisible to `hale check`).
+- **router restoration DONE.** `use(m)` method name, single
+  `RouteEntry{handler: Handler}` vec (3 parallel vecs retired),
+  `Context{req: std::http::Request}`, response headers pass-through.
+- **websocket liveness + RFC conformance.** Recv-timeout ping/pong
+  deadlines on client + server (needs hale #132); random
+  `Sec-WebSocket-Key` + accept validation; per-frame CSPRNG mask keys.
+  `WsError` gains kind `"timeout"`; `build_request`/`parse_response`
+  free-fn args extended (see section).
+- **supervisor/subprocess.** `violate` now legal in lifecycle bodies
+  (workaround retired); `birth_order` stamped in `accept()`;
+  `std::time::monotonic_ns` replaces the Duration stringify shim
+  (drops the `_util/duration_int` import); subprocess fallible flips
+  re-done via the wrap-helper idiom (`or fail E {…err.f}` doesn't
+  bind `err` at codegen — new gotcha, see CLAUDE.md).
+- **New std adoptions repo-wide:** `std::math::{nan,is_nan,
+  int_to_float,float_to_int}` (ASCII round-trips retired),
+  `std::os::getrandom`, `std::io::tcp/tls::set_recv_timeout`.
+- **Verification convention:** libs are gated by `hale check <lib>/`
+  (`hale build` requires `fn main()` at HEAD). `hale check` does NOT
+  exercise codegen — every lib's example build/run is the real gate.
+- **Open upstream items found this pass:** method-frame fresh-locus
+  heap corruption (ml/neural — workarounds shipped, repro matrix in
+  FRICTION.log); `or`-substitute missing LocusRef→Interface coercion
+  (agent/tools); `hale check` topic file-locality divergence; keyed_by
+  routing keys are int-shaped only (blocks per-conversation keying
+  without a contract delta).
 
 ---
 
@@ -27,18 +95,19 @@ Three additions, all shipped + verified in one pass:
   runtime: `App` interface + `Program` loop, typed input events
   (keys/modifiers, SGR mouse, bracketed paste, UTF-8), `Screen`
   cell-grid diff renderer, widgets (Spinner / ProgressBar /
-  List / TextInput). Self-contained seed: G34 blocks importing
-  `term/`, and @ffi symbol non-mangling forces per-lib C
-  prefixes (`tui_*` vs `term_*`) — duplication flagged in both
-  FRICTION.md files.
+  List / TextInput). Self-contained seed: G34 blocked importing
+  `term/` at the time, and @ffi symbol non-mangling forced
+  per-lib C prefixes (`tui_*` vs `term_*`). (2026-06-12: G34 is
+  closed; the import was re-evaluated and declined by choice —
+  see the status note above and FRICTION.log § pond/tui.)
 - **`pond/logfmt/` ConsoleSink (ADDED)** — colored human-facing
   `log.**` sink (badge colors, dim time/path, WARN/ERROR →
   stderr, NO_COLOR honored). FFI-free by design; tty probing is
   the caller's via `color: term::is_tty(2)`.
 
-Upstream asks recorded: `term/FRICTION.md`
+Upstream asks recorded: `FRICTION.log`
 (`panic-exit-bypasses-atexit`, `stdlib-term-primitives`) and
-`tui/FRICTION.md` (`no-append-str-on-bytesbuilder`,
+`FRICTION.log` (`no-append-str-on-bytesbuilder`,
 `unicode-width-heuristic`, `stdin-not-parkable`).
 
 **2026-06-10 — std::term shipped (hale #108–#110); pond FFI
@@ -101,9 +170,11 @@ A repo-wide review against the current Hale compiler. Every seed now
 - **`: schedule` annotation removed (F.31).** `jobs`'s `Worker` and
   the `websocket` echo example dropped it; placement is a consuming
   app's `placement { }` concern.
-- **Bus topic decls are file-local.** `bus { publish T; }` / `T <- v`
-  only resolve a `topic T` declared in the SAME `.hl` file as the
-  publishing locus. Single-publisher libs co-locate the topic
+- **Bus topic decls are file-local.** *(SUPERSEDED by the 2026-06-12
+  note above — this was a `hale run <dir>` import bug, fixed upstream
+  WS3.3; only `hale check` still behaves this way.)* `bus { publish
+  T; }` / `T <- v` only resolve a `topic T` declared in the SAME
+  `.hl` file as the publishing locus. Single-publisher libs co-locate the topic
   (`subprocess`, `ml/neural`); the two-publisher `agent/llm` uses
   literal subjects (`"agent.llm.chunk"`) with the topic decls kept
   for the cross-seed subscriber contract.
@@ -122,7 +193,7 @@ Upstream Hale shipped v0.8.1 on the 2026-05-18 → 2026-05-27
 window. The release narrows several rules pond was authored
 against and adds primitives that retire pond friction. The
 contract surfaces below are still the binding declarations; per-lib
-FRICTION.md tracks the source-side migration status.
+FRICTION.log tracks the source-side migration status.
 
 ### v0.8.1 ships that affect pond contracts
 
@@ -172,7 +243,7 @@ FRICTION.md tracks the source-side migration status.
 The following libs ship a "non-fallible method + `last_error_*`
 accessor + paired fallible free fn" workaround that v0.8.1's
 narrowed two-channel rule retires. Source migrations are not yet
-performed; FRICTION.md tracks each lib individually. We're going for
+performed; FRICTION.log tracks each lib individually. We're going for
 clean breaking changes — no transitional shape, the next source pass
 flips each lib's methods to `fallible(E)`.
 
@@ -200,7 +271,7 @@ flips each lib's methods to `fallible(E)`.
 
 `pond/sqlite/`, `pond/jobs/`, `pond/migrations/` remain on stub
 bodies pending `std::db::sqlite::*` from the compiler team
-(`sqlite/FRICTION.md § F.1`). Their *other* deviations are
+(`FRICTION.log § F.1`). Their *other* deviations are
 mechanically closable today:
 
 - F.5 (`() fallible(E)` not lowering) — closed by `6beb1be`. F.6
@@ -224,16 +295,18 @@ Carry-forward inventory of friction with no upstream movement:
   `jobs/Pool`, `migrations/Runner`. Workaround: flatten cross-seed
   locus refs to scalar fields (`db_path: String`,
   `weights_offset: Int`).
-- **G34 two-hop `_util` imports** — `_util/*` libs are consumable
-  from end-apps and other `_util` libs but not from inside the
-  tier-0..5 pond libs. Tier libs keep local copies of helpers.
-- **G3 / G4 `@form(vec)` factory must be namespace-lotus method**
-  — free fns can't return `LocusRef`. See `math/matrix/` Mat
-  namespace lotus.
-- **`or discard` on Unit-return fallible** — accepts only at parse
-  level; codegen rejects the disposition for `() fallible(E)`.
+- **G34 two-hop `_util` imports** — CLOSED 2026-06-12 (upstream
+  WS3.4): `_util/*` libs are consumable from everywhere, including
+  tier libs; qualified literals work in expression position.
+  Remaining local copies are by-choice, not blocked.
+- **G3 / G4 factory shape** — INVERTED by m90 (#18.6): methods may
+  not return locus values; factories are FREE FNS (`mat::zeros`,
+  `metrics::counter`, `nn::forward`). The old "free fns can't
+  return LocusRef" rule is retired.
+- **`or discard` on Unit-return fallible** — CLOSED 2026-06-12:
+  works at HEAD (probed in jobs/migrations pass).
 - **`or <substitute>` LocusRef → Interface coercion** — see
-  `agent/tools/FRICTION.md § or-fallback-no-locus-to-interface-coerce`.
+  `FRICTION.log § or-fallback-no-locus-to-interface-coerce`.
 - **No transitive imports in v1** — pond's architectural rule, not a
   compiler block. `pond/logfmt::OtlpSink` and `pond/tracing` cannot
   POST OTLP because they can't import `pond/http/client`. Workaround
@@ -242,7 +315,7 @@ Carry-forward inventory of friction with no upstream movement:
 
 Contract surfaces below are the original v1 declarations. Active
 deviations from those surfaces in source are catalogued in each
-lib's FRICTION.md.
+lib's FRICTION.log.
 
 ---
 
@@ -265,11 +338,11 @@ Small single-file utility libs that consolidate duplicate
 helpers. Every util is a namespace lotus operating on
 primitives only (so cross-seed import works at v1).
 
-**Important (KNOWN_GOTCHAS G34).** These utils are consumable
-from end-apps and from other `_util` libs; they are NOT usable
-from inside the existing tier-0/1/2/3/4/5 pond libs because of
-a two-hop codegen breakage. Tier libs keep their local copies
-and flag the duplication in their FRICTION.md.
+**G34 is CLOSED (2026-06-12, upstream WS3.4).** These utils are
+consumable from everywhere — end-apps, other `_util` libs, AND
+tier libs (verified with a real two-hop qualified-literal probe).
+Remaining local helper copies in tier libs are opportunistic
+cleanup, tracked per-lib in FRICTION.log.
 
 ### `pond/_util/intfloat/` — alias `intf`
 
@@ -632,12 +705,14 @@ locus Db {
 }
 ```
 
-> **Current source shape (BLOCKED chain).** Pending `std::db::sqlite::*`
-> (F.1), `Db` ships stub bodies and the query ops are **free fns**
-> (`sqlite::exec(db, sql)`, `query_one`, `query_all`, `prepare`,
-> `step` — all `fallible(DbError)`), not methods. Migrating them onto
-> the `db::DbDriver` method set (so `sqlite::Db` satisfies the
-> interface like `pq::PgConn` does) is part of the F.1 unblock pass.
+> **As-built (2026-06-12, F.1 closed).** `Db` is a real pure-`@ffi`
+> driver over the system `libsqlite3` (`glue.c` + `hale.toml [ffi]
+> link=["sqlite3"]`); all eight SQL ops are member fns
+> `fallible(DbError)` exactly as locked above. `sqlite::Db` does
+> NOT satisfy `db::DbDriver` (signature shapes differ — FRICTION.log
+> § pond/sqlite F.7); `pond/migrations` ships the `SqliteDriver`
+> adapter for `DbDriver` consumers. Build boxes need
+> `libsqlite3-dev`.
 
 ### `pond/router/` — alias `router`
 
@@ -685,7 +760,8 @@ fn set_value(s: Session, key: String, val: String) -> Session;
 ### `pond/jobs/` — alias `jobs`
 
 ```hale
-type Job { kind: String; payload: String; attempt: Int; max_attempts: Int; }
+type Job { id: Int; kind: String; payload: String; attempt: Int; max_attempts: Int; }
+                  // id added 2026-06-12: ack(job_id)/fail(job_id, ..) are uncallable without it
 type JobResult { ok: Bool; detail: String; }
 type JobError { kind: String; detail: String; }
 
@@ -721,7 +797,7 @@ import "vendor/pond/db" as db;
 
 locus Migrator {
     params {
-        driver:   db::DbDriver;          // injected: pq::PgConn / pq::PgPool / sqlite::Db
+        driver:   db::DbDriver;          // injected: pq::PgConn / pq::PgPool / migs::SqliteDriver (adapter over sqlite::Db — see sqlite F.7)
         applied:  Int    = 0;            // count applied this run
         failed:   Bool   = false;        // sticky: once one fails, skip the rest
         last_err: String = "";
@@ -865,7 +941,7 @@ send surface (`send_*`/`close`) is `fallible(WsError)` (v0.8.1).
 
 ```hale
 type WsMessage  { kind: String; text: String; data: Bytes; }  // kind: text|binary|close|...
-type WsError    { kind: String; detail: String; }
+type WsError    { kind: String; detail: String; }             // kinds incl. "timeout" (liveness deadline, 2026-06-12)
 type WsLogEvent { phase: String; detail: String; ... }
 interface WsLogger { fn log(e: WsLogEvent); }                  // NoopWsLogger / StderrWsLogger
 
@@ -880,16 +956,20 @@ locus WsClient {
 }
 
 locus WsServerConn {                           // per-connection server side
-    fn handshake() -> Bool;                    // consume the HTTP Upgrade, send 101
+    params { ping_interval = 0s; pong_timeout = 0s; }   // liveness deadlines (0 = off; added 2026-06-12)
+    fn handshake() -> Bool;                    // consume the HTTP Upgrade, send 101 (bounded by pong_timeout)
     fn read_msg() -> Bool;
     fn send_text(s: String) -> () fallible(WsError);
     fn send_binary(b: Bytes) -> () fallible(WsError);
     fn close() -> () fallible(WsError);
 }
 
-// Frame + handshake free fns (build_request / parse_response /
+// Frame + handshake free fns (build_request(host, path, key,
+// extra_headers) / parse_response(b, expected_accept) /
 // compute_accept / parse_request / build_101_response / emit_frame /
 // peek_header / parse_url, ...) are the lower-level surface.
+// 2026-06-12: build_request takes the caller's random key;
+// parse_response validates Sec-WebSocket-Accept (RFC 6455 § 4.1).
 ```
 
 
@@ -920,8 +1000,13 @@ locus OpenAiClient {
     bus { publish LlmChunk; publish LlmDone; }
 }
 
-topic LlmChunk { payload: String; }
-topic LlmDone  { payload: LlmResponse; }
+type LlmChunkMsg { payload: String; }          // per-topic wrapper types (2026-05-18 sweep)
+type LlmDoneMsg  { payload: LlmResponse; }
+topic LlmChunk { payload: LlmChunkMsg; subject: "agent.llm.chunk"; }
+topic LlmDone  { payload: LlmDoneMsg;  subject: "agent.llm.done";  }
+// Both topics have TWO publisher files, so the clients publish via
+// the literal-subject idiom ("agent.llm.chunk" of type LlmChunkMsg);
+// the wire subjects are a compatibility contract — do not rename.
 ```
 
 ### `pond/agent/tools/` — alias `tools`
@@ -1003,8 +1088,11 @@ type NnError { kind: String; }
 locus Model {
     params { name: String; }
     fn add_dense(input_dim: Int, output_dim: Int, activation: String) -> ();
-    fn forward(x: Matrix) -> Matrix fallible(NnError);
 }
+
+// forward is a FREE FN since 2026-06-12 — m90 rejects
+// locus-returning methods (Matrix is a locus):
+fn forward(model: Model, x: Matrix) -> Matrix fallible(NnError);
 
 locus Trainer {
     params { model: Model; lr: Float = 0.01; batch_size: Int = 32; }
@@ -1021,9 +1109,11 @@ topic TrainStep { payload: TrainStep; }
 
 ### `pond/tui/` — alias `tui`
 
-Elm-shaped full-screen TUI runtime. Self-contained seed (G34:
-no import of `pond/term`; both libs sit on the `std::term`
-primitives — no FFI glue since hale #108–#110). Colors use the pond/term Int encoding; `attrs` is a
+Elm-shaped full-screen TUI runtime. Self-contained seed BY CHOICE
+(2026-06-12: G34 is closed, the `pond/term` import was evaluated
+and declined — hot-path + consumer-vendoring cost beat ~25 lines
+of frozen ANSI fragments; FRICTION.log § pond/tui. Both libs sit
+on the `std::term` primitives — no FFI glue since hale #108–#110). Colors use the pond/term Int encoding; `attrs` is a
 bitmask (1 bold, 2 dim, 4 italic, 8 underline, 16 reverse,
 32 strike). Coordinates: `Screen` is 0-based (x, y); mouse
 events are 1-based terminal cells.
@@ -1095,7 +1185,7 @@ true (or stdin EOF) quits; then `view` + `flush`. After the
 loop, one final `quit` event is delivered on every quit path —
 the app teardown hook (the app locus's own dissolve() does NOT
 fire: interface-typed fields sit outside the F.29 cascade; see
-tui/FRICTION.md `interface-field-skips-dissolve-cascade`). Raw mode
+FRICTION.log `interface-field-skips-dissolve-cascade`). Raw mode
 disables ISIG — Ctrl-C arrives as `key char ch=99 ctrl`. When
 stdin/stdout isn't a tty, raw mode + alt screen are skipped but
 frames still render — with `max_frames` that makes demos

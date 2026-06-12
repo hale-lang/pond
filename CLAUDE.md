@@ -11,51 +11,58 @@ import "vendor/pond/sqlite" as db;
 import "vendor/pond/agent/llm" as llm;
 ```
 
-There is no monorepo-level build. Each lib builds independently with `hale build <lib-path>`. Each example builds with `hale build <lib>/examples/<demo>/`. The `hale` CLI binary is produced from the upstream `hale-lang/hale` compiler repo and assumed on PATH.
+There is no monorepo-level build. Each lib type-checks independently with `hale check <lib-path>` (libs have no `fn main()`, so `hale build` on a bare lib dir errors — that's expected). Each example builds with `hale build <lib>/examples/<demo>/`. The `hale` CLI binary is produced from the upstream `hale-lang/hale` compiler repo and assumed on PATH; keep it fresh — a stale CLI silently uses old lowering (the CLI warns; rebuild with `cargo build -p hale-cli --release`).
 
 ## Authoritative documents (read these before editing)
 
 - **`README.md`** — catalog of every lib by tier, with suggested aliases.
-- **`CONTRACTS.md`** — locked public API surface for every lib. *This is binding.* If you implement a lib, your code must match the surface here. If a constraint forces a deviation, log it in the lib's `FRICTION.md` and reflect it in the dated status note at the top of CONTRACTS.md (currently `## 2026-05-27 status note`).
-- **`<lib>/FRICTION.md`** — per-lib log of deviations from the contract, blocking gaps, and proposed stdlib unblocks. The FRICTION log is often the *primary deliverable* of a BLOCKED lib (e.g. `sqlite/FRICTION.md`).
-- **`<lib>/README.md`** — the as-built surface for that lib (may differ from CONTRACTS.md while deviations are open) and a "When this unblocks" recipe describing the cleanup pass to perform when an upstream primitive lands.
+- **`CONTRACTS.md`** — locked public API surface for every lib. *This is binding.* If you implement a lib, your code must match the surface here. If a constraint forces a deviation, log it in the lib's section of `FRICTION.log` and reflect it in the dated status note at the top of CONTRACTS.md (currently `## 2026-06-12 status note`).
+- **`FRICTION.log`** (repo root) — the single consolidated friction log, one section per lib (consolidated 2026-06-12; the per-lib `FRICTION.md` files are gone). Records deviations from the contract, blocking gaps, upstream bug repros, and proposed stdlib unblocks. Closed entries stay in place as the historical record. Cross-reference as `FRICTION.log § pond/<lib>` plus the entry title.
+- **`<lib>/README.md`** — the as-built surface for that lib (may differ from CONTRACTS.md while deviations are open) and, where relevant, a "When this unblocks" recipe describing the cleanup pass to perform when an upstream gap closes.
 
 ## Hard rules from the broader Hale workspace
 
 These come from the upstream compiler repo's AGENTS.md and apply here:
 
-- **Don't edit `crates/` in the compiler repo.** If a primitive is missing, work within the existing surface or log it as friction — never reach into compiler territory to add it. `pond/sqlite/` (and transitively `pond/jobs/` + `pond/migrations/`) is the one remaining architecturally BLOCKED chain today, waiting on `std::db::sqlite::*` from the compiler team (see `sqlite/FRICTION.md § F.1`).
-- **No `panic` / `assert`.** Every failure routes through `fallible(E)` (value channel) or closure violation (structural channel). Bridge value→structural with the `closure NAME { captures: ...; epoch inline; } / violate NAME;` pattern from `spec/styleguide.md § 7`.
-- **Two-channel rule** (`spec/semantics.md § "Where each channel lives"`, narrowed in v0.8.1 / open-question #24). User-declared `fn` member fns on a locus CAN declare `fallible(E)` (value + heap-bearing payloads, full `or raise` / `or <substitute>` / `or handler(err)` / `or discard` disposition surface). What stays rejected: **substrate-facing surfaces** — lifecycle methods (`birth` / `run` / `accept` / `drain` / `dissolve` / `on_failure`), mode methods (`bulk` / `harmonic` / `resolution`), closure assertions, and bus-subscribed handlers (rejection fires at the subscribe site). Pond was authored against the older blanket rule and most libs still ship the free-fn-plus-sentinel shape; per-lib FRICTION.md tracks which methods are scheduled to flip back to `fallible(E)` in the next source pass.
+- **Don't edit `crates/` in the compiler repo.** If a primitive is missing, work within the existing surface or log it as friction — never reach into compiler territory to add it. Note: `@ffi("c")` is a *library-author* surface that never touches `crates/` — binding a system C library (sqlite, etc.) is in-bounds for pond. The former "sqlite chain is BLOCKED on a stdlib primitive" premise was refuted upstream (WS4, 2026-06-11): `pond/sqlite` is now a real `@ffi` driver and no pond lib is architecturally blocked today.
+- **No `panic` / `assert`.** Every failure routes through `fallible(E)` (value channel) or closure violation (structural channel). Bridge value→structural with the `closure NAME { captures: ...; epoch inline; } / violate NAME;` pattern from `spec/styleguide.md § 7`. Since 2026-06-12, `violate` is accepted inside lifecycle bodies (the old codegen rejection lifted).
+- **Two-channel rule** (`spec/semantics.md § "Where each channel lives"`, narrowed in v0.8.1 / open-question #24). User-declared `fn` member fns on a locus CAN declare `fallible(E)` (value + heap-bearing payloads, full `or raise` / `or <substitute>` / `or handler(err)` / `or discard` disposition surface). What stays rejected: **substrate-facing surfaces** — lifecycle methods (`birth` / `run` / `accept` / `drain` / `dissolve` / `on_failure`), mode methods (`bulk` / `harmonic` / `resolution`), closure assertions, and bus-subscribed handlers (rejection fires at the subscribe site). The repo-wide migration to fallible member fns is DONE (2026-06-08 pass, completed 2026-06-12); `logfmt`'s sinks remain non-fallible by design (they satisfy the non-fallible `std::text::Sink` interface).
 
-## Codegen-v0 limitations that shape the code
+## Compiler-shape rules and gotchas
 
-Several non-obvious patterns in this repo exist because codegen v0 (the current Hale lowering) can't express the more natural shape. Don't "fix" these — they are intentional workarounds tracked in FRICTION logs:
+These shape non-obvious code in this repo. The first is a permanent language rule; the rest are current-compiler behaviors with the live workaround:
 
-- **`@form(vec)` factories must be namespace-lotus methods, not free fns** — free fns can't return `LocusRef`. See KNOWN_GOTCHAS G3 / G4 and the `math/matrix/` Mat namespace lotus pattern in CONTRACTS.md.
-- **Two-hop import codegen break (G34).** `_util/*` libs are consumable from end-apps and from other `_util` libs, but **NOT** from inside the tier-0/1/2/3/4/5 pond libs. The lib import succeeds but `util_alias::SomeNamespace { }` literals fail at codegen with `unsupported in codegen v0: qualified-name struct literal in expression position`. Tier libs keep local copies of the helpers and flag the duplication in FRICTION.md; do not try to migrate them yet.
-- **Bus topic decls are file-local to the publisher (corrected 2026-06-08).** `bus { publish T; }` and `T <- v;` only resolve a `topic T` declared in the **same `.hl` file** as the publishing locus. Cross-file topic references fail with `publish references unknown topic` *regardless of file order* — verified by repro (topic+locus same-file passes; split into separate files fails even when the topic sorts first). Topic **payload-type** resolution, by contrast, **is** seed-global/order-free. So: (a) put the `topic` decl in the same file as its single publisher (`subprocess/process.hl`, `ml/neural/trainer.hl`); (b) when ≥2 files publish the same topic, use the literal-subject form (`publish "wire.subject" of type T;` + `"wire.subject" <- v;`), which works cross-file — `agent/llm` does this across its two client files. NOTE: the older `agent/llm/wire_topics.hl` "name-around-the-bug" trick (renaming `topics.hl` to sort after `types.hl`) does **not** actually work for the publish side — payload-type ordering was never the real constraint — and is being retired.
+- **Methods may not return locus values (m90 / #18.6 CQRS rejection — permanent).** Factories that return loci are **free fns** (`mat::zeros(...)`, `metrics::counter(reg, ...)`, `nn::forward(...)`). This is the *inverse* of the old G3/G4 note ("free fns can't return LocusRef") — that gotcha is retired.
+- **G34 is CLOSED (upstream WS3.4, 2026-06-11).** Pond libs can import other pond libs — including `_util/*` from tier libs — and instantiate their types/loci by qualified literal (`util::KvPack { }` in expression position works). The **re-export barrier still holds by design**: an end app must import a lib itself to name that lib's types. Existing local-copy duplication may be collapsed opportunistically, but it isn't mandatory — `tui` evaluated importing `term` and declined (per-cell hot-path cost + consumer vendoring weight beat ~25 lines of frozen ANSI fragments; see `FRICTION.log § pond/tui`).
+- **Bus topic decls: co-locate with the publisher (for now).** Upstream WS3.3 (2026-06-11) fixed cross-file topic resolution — `bus { publish T; }` / `T <- v;` resolve a `topic T` from a sibling file under `hale build` and `hale run`. BUT `hale check` still resolves topics file-locally (check-vs-build divergence, logged upstream), and `hale check` is this repo's per-lib verification gate — so keep the `topic` decl in the same `.hl` file as its publisher until the divergence closes. When ≥2 files publish the same topic, use the literal-subject form (`publish "wire.subject" of type T;` + `"wire.subject" <- v;`) — `agent/llm` does this across its two client files, and its wire subjects are a compatibility contract (do not rename).
+- **`or fail E { ... }` payloads cannot reference `err`** — typechecks, then codegen fails with `unknown identifier err`. Use the wrap-helper idiom instead: a member fn `fn wrap_x(err: SrcError) fallible(DstError)` that stashes/translates, called as `or self.wrap_x(err) or raise` (see `subprocess/process.hl`, `http/client`).
+- **`-> ()` on a *non-fallible* locus method fails codegen** (`tuple type must have at least 2 elements`) — omit the return type. `-> () fallible(E)` is fine.
+- **`or <substitute>` doesn't coerce LocusRef→Interface at codegen.** Hoist the coercion through a let-ascription: `let noop: Tool = __NoopTool { }; ... entries.get(i) or noop` (see `agent/tools/registry.hl`; upstream repro in `FRICTION.log § pond/agent/tools`).
+- **Green `hale check` does not imply codegen-clean.** Bare libs never reach codegen, so codegen-only breaks (all of the above) hide behind a passing check. Always build and run at least one example after touching a lib.
+- **Upstream memory-safety bug (open):** a Matrix (locus) created via a free-fn return *inside a locus-method frame* and passed into another method corrupts the heap (delayed segfault). Workaround patterns (preallocate + `extract_row_into`; drive training loops from `fn main()` frames) are in `FRICTION.log § pond/ml/neural` with the full repro matrix. Don't "simplify" those shapes until the upstream fix lands.
 
 ## Repo structure (high-level)
 
-- **`_util/*`** — Tier 0 internals; single-file namespace-lotus utilities operating on primitives only. Five today: `intfloat`, `decimal_float`, `duration_int`, `kvpack`, `rowbuf`. See the G34 caveat above.
-- **`http/`, `crypto/`, `subprocess/`, `math/`, `term/`** — Tier 0 infrastructure. `term/` is pure Hale over the `std::term` primitives (hale #108-#110; it was pond's second FFI lib until its glue moved upstream — `heron/` is the only `@ffi` lib again).
-- **`sqlite/`, `router/`, `sessions/`, `jobs/`, `migrations/`** — Tier 1 Rails-shape web stack.
-- **`logfmt/`, `metrics/`, `supervisor/`, `tracing/`** — Tier 2 observability + supervision.
+- **`_util/*`** — Tier 0 internals; single-file namespace-lotus utilities operating on primitives only. Five today: `intfloat`, `decimal_float`, `duration_int`, `kvpack`, `rowbuf`. Importable from anywhere since WS3.4 (the old G34 restriction is gone).
+- **`http/`, `crypto/`, `subprocess/`, `math/`, `term/`** — Tier 0 infrastructure. `term/` is pure Hale over the `std::term` primitives (hale #108-#110).
+- **`sqlite/`, `router/`, `sessions/`, `jobs/`, `migrations/`** — Tier 1 Rails-shape web stack. **All real since 2026-06-12**: `sqlite/` is a pure-`@ffi` driver over the system `libsqlite3` (needs `libsqlite3-dev` at build time); `jobs/` and `migrations/` run on it (`migrations/` via its `SqliteDriver` adapter satisfying `db::DbDriver`).
+- **`logfmt/`, `metrics/`, `supervisor/`, `tracing/`** — Tier 2 observability + supervision. The OTLP exports (logfmt `OtlpSink`, tracing `export_otlp`) really POST via `pond/http/client` — consumers of those features must vendor `pond/http` too.
 - **`db/`, `pq/`** — backend-neutral `DbDriver` interface + Postgres pgwire driver (the Go `database/sql` split).
 - **`agent/{llm,tools,conversation,sandbox,embeddings}/`, `ml/neural/`** — Tier 5 AI / agent orchestration.
-- **`websocket/`** — Tier 3 realtime: RFC 6455 client + server-side upgrade. (`tower/` was removed 2026-06-08 — unused, superseded by F.31 `placement`.)
-- **`tui/`** — Tier 8 DevX: Elm-shaped full-screen TUI runtime (App/Program, typed input events, cell-grid diff renderer, widgets). Self-contained seed: per G34 it does NOT import `term/`; both sit on the `std::term` primitives (no FFI glue since hale #108-#110), so the residual duplication is a few escape-string fragments.
-- **`heron/`** — outlier: tree-sitter grammar for Hale, not a Hale seed. Has its own build chain (npm + Makefile + cargo + tree-sitter CLI). See `heron/README.md`. Generated `src/parser.c` IS checked in so consumers only need `libtree-sitter` at link time, not the tree-sitter CLI.
+- **`websocket/`** — Tier 3 realtime: RFC 6455 client + server-side upgrade, with liveness deadlines (recv-timeout ping/pong) since 2026-06-12.
+- **`tui/`** — Tier 8 DevX: Elm-shaped full-screen TUI runtime (App/Program, typed input events, cell-grid diff renderer, widgets) + real apps as examples (logview, metricsdash, procpanel). Self-contained seed *by choice* (import of `term` evaluated and declined — see FRICTION.log).
+- **`heron/`** — outlier: tree-sitter grammar for Hale, not a Hale seed. Has its own build chain (tree-sitter CLI; see `heron/README.md`). Generated `src/parser.c` IS checked in so consumers only need `libtree-sitter` at link time.
+
+FFI libs: `heron/` (tree-sitter) and `sqlite/` (`glue.c` + `hale.toml [ffi]`). Everything else is pure Hale. Note the `[ffi]` auto-pickup only scans *direct* imports — an end app using `jobs`/`migrations` over sqlite must also `import` sqlite itself (consistent with the vendoring rule below).
 
 Backlog tiers (6, 7, 8 — game/sim, data formats, devx; plus the rest of tier 3 realtime messaging beyond `websocket/`) are listed in `README.md` but not yet built.
 
 ## Design rules to enforce when adding/editing libs
 
 1. Each lib is one Hale seed (one directory of `.hl` files; F.19 per-directory model).
-2. Each lib ships `README.md`, source files, `FRICTION.md`, and `examples/<demo>/` with an agent-runnable demo. The example is part of the deliverable — if a lib is BLOCKED, the example exercises the stub bodies and prints the diagnostic.
-3. Public surface is locked in `CONTRACTS.md`. Deviations require both a `FRICTION.md` entry in the lib and an update to CONTRACTS.md's status note.
-4. **No transitive deps in v1.** A consumer that uses `pond/jobs` (which uses `pond/sqlite`) must vendor both explicitly. Don't paper over this.
+2. Each lib ships `README.md`, source files, a section in the root `FRICTION.log`, and `examples/<demo>/` with an agent-runnable demo. The example is part of the deliverable — and it's also the codegen gate (see gotchas above).
+3. Public surface is locked in `CONTRACTS.md`. Deviations require both a `FRICTION.log` entry in the lib's section and an update to CONTRACTS.md's status note.
+4. **No transitive deps in v1 — at the vendoring level.** Lib-from-lib imports are allowed (`jobs` → `sqlite`, `tracing` → `http/client`), but a consumer app must vendor every lib in the chain explicitly. Don't paper over this.
 5. Every lib matches the six-pattern catalog (App locus / Namespace lotus / Service / Spawned child / Shape type / Free fn). Things outside the catalog get logged as friction, not coded around.
 
 ## Cross-cutting conventions
@@ -63,22 +70,29 @@ Backlog tiers (6, 7, 8 — game/sim, data formats, devx; plus the rest of tier 3
 - **`Bytes` vs `String`** — prefer `Bytes` for binary I/O (HTTP bodies, TCP framing, JSON wire), `String` for human-readable text and stdlib paths.
 - **Tab-separated kv / newline-separated rows** are the v1 collection shape (`Row { data: String }` with tabs; `Rows { csv: String }` with newlines; `RouteParams.path_kv`, `Labels.kv`, etc.). Avoid invented parametric collections — use the index-API pair or a `Matrix` of values, per stdlib precedent (`list_dir_count` + `list_dir_at`).
 - **Error payload types are per-lib.** Each lib declares its own `LibError` shape; cross-lib `or` chains compose normally because every payload sits in its own scope.
-- **Bus subjects via `topic` decls** when the topic is internal to one lib; literal-string subjects only for wildcard subscriptions or runtime-computed paths.
+- **Bus subjects via `topic` decls** when the topic is internal to one lib (decl co-located with the publisher — see gotchas); literal-string subjects for ≥2-publisher topics, wildcard subscriptions, or runtime-computed paths.
 
 ## Build & verify
 
 ```bash
-# Type-check / build a single lib (most pond libs):
-hale build path/to/lib/
+# Type-check a single lib (libs have no fn main – check, don't build):
+hale check path/to/lib/
 
 # Build + run a demo:
 hale build path/to/lib/examples/<demo>/
 ./path/to/lib/examples/<demo>/<demo>     # binary lands next to main.hl
 
+# sqlite (and examples importing it, incl. jobs/migrations demos)
+# additionally need sqlite dev files. With libsqlite3-dev installed
+# the plain build works; on a box with only the runtime .so.0, use
+# user-local shims:
+C_INCLUDE_PATH=$HOME/.local/include LIBRARY_PATH=$HOME/.local/lib \
+  hale build sqlite/examples/kv-demo/
+
 # heron only — tree-sitter grammar regen:
-cd heron && npx tree-sitter generate && npx tree-sitter test
+cd heron && tree-sitter generate && tree-sitter test
 ```
 
-Per `.gitignore`, demo binaries land at `examples/<demo>/<demo>` and `examples/<demo>/main` and must not be committed.
+Per `.gitignore`, demo binaries land at `examples/<demo>/<demo>` and `examples/<demo>/main` and must not be committed (the ignore rule is generic: extensionless files under `examples/` are ignored).
 
-There is no project-wide test runner, no linter, and no CI config in this repo. Verification is per-lib: the lib must type-check under `hale build`, and the demo must build and exhibit the documented behavior (real output on unblocked libs; the `[demo] X error: unsupported — ...` diagnostic on BLOCKED libs).
+There is no project-wide test runner, no linter, and no CI config in this repo. Verification is per-lib: the lib must type-check under `hale check`, and the demo must build and run with the documented behavior. Remember: `hale check` alone does not exercise codegen — the example build/run is the real gate.

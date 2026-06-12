@@ -33,8 +33,9 @@ use. Each lib lives at its own path under `vendor/pond/`.
 
 Small single-file utility libs consolidating duplicate helpers
 surfaced across the main tier libs. Each is a namespace lotus
-operating on primitives only. See `_util/README.md` for the
-codegen limitation that constrains where they're usable.
+operating on primitives only. Importable from anywhere — end
+apps, other `_util` libs, and tier libs — since upstream WS3.4
+(2026-06-11) closed the old G34 two-hop codegen break.
 
 | Path | What it is | Suggested alias |
 |------|------------|------|
@@ -53,7 +54,7 @@ codegen limitation that constrains where they're usable.
 | `subprocess/` | fork/exec wrapper with pipes + timeout | `sub` |
 | `math/matrix/` | Dense matrix + matmul + linalg primitives | `mat` |
 | `math/stats/` | Mean, var, quantile, online moments | `stats` |
-| `term/` | Terminal control: color profiles + styled output (auto-downgrade), ANSI escapes, raw mode (`@ffi` libc shims) | `term` |
+| `term/` | Terminal control: color profiles + styled output (auto-downgrade), ANSI escapes, raw mode — pure Hale over `std::term` | `term` |
 
 ### Tier 1 — Rails-shape web stack
 
@@ -61,17 +62,17 @@ codegen limitation that constrains where they're usable.
 |------|------------|------|
 | `db/` | Backend-neutral `DbDriver` interface (Go database/sql shape) | `db` |
 | `pq/` | Postgres driver (pgwire v3 over TCP) + connection pool; satisfies `DbDriver` | `pq` |
-| `sqlite/` | SQLite adapter (Db locus, fallible(DbError)) — BLOCKED on `std::db::sqlite::*` | `sqlite` |
+| `sqlite/` | SQLite driver — pure `@ffi` over system `libsqlite3` (Db locus, fallible(DbError); needs `libsqlite3-dev` to build) | `sqlite` |
 | `router/` | HTTP router with path params + middleware | `router` |
 | `sessions/` | HMAC-signed cookie sessions | `sess` |
 | `jobs/` | Background job queue + worker pool (sqlite-backed) | `jobs` |
-| `migrations/` | Forward-only migration runner (`Migrator` on `db::DbDriver`) | `migs` |
+| `migrations/` | Forward-only migration runner (`Migrator` on `db::DbDriver`; ships `SqliteDriver` adapter for `sqlite::Db`) | `migs` |
 
 ### Tier 2 — Observability + supervision
 
 | Path | What it is | Suggested alias |
 |------|------------|------|
-| `logfmt/` | Structured log sinks (file/OTLP/colored console) for `std::log` | `logfmt` |
+| `logfmt/` | Structured log sinks (file/OTLP/colored console) for `std::log`; OTLP POSTs via `pond/http` | `logfmt` |
 | `metrics/` | Prometheus-format exposition (counter/gauge/histogram) | `metrics` |
 | `supervisor/` | Erlang-style restart strategies on `on_failure` | `sup` |
 | `tracing/` | Span tree mirroring the locus tower | `trace` |
@@ -80,7 +81,7 @@ codegen limitation that constrains where they're usable.
 
 | Path | What it is | Suggested alias |
 |------|------------|------|
-| `websocket/` | RFC 6455 WebSocket client + server-side upgrade | `ws` |
+| `websocket/` | RFC 6455 WebSocket client + server-side upgrade, ping/pong liveness deadlines | `ws` |
 
 ### Tier 5 — AI / agent orchestration
 
@@ -111,14 +112,17 @@ demands.
 
 1. Each lib is one Hale seed (one directory of `.hl` files;
    F.19 per-directory model).
-2. Each lib ships `README.md`, source files, `FRICTION.md`, and
-   `examples/<demo>/` with an agent-runnable demo.
+2. Each lib ships `README.md`, source files, a section in the
+   root [`FRICTION.log`](./FRICTION.log) (single consolidated
+   log since 2026-06-12), and `examples/<demo>/` with an
+   agent-runnable demo.
 3. Public surface is locked in [`CONTRACTS.md`](./CONTRACTS.md).
    Implementations must match the contract; deviations get
-   logged in the lib's `FRICTION.md` and reflected back in
-   `CONTRACTS.md`.
-4. No transitive deps in v1: a consumer that uses `pond/jobs`
-   (which uses `pond/sqlite`) must vendor both.
+   logged in the lib's `FRICTION.log` section and reflected back
+   in `CONTRACTS.md`.
+4. No transitive deps in v1 — at the vendoring level: a consumer
+   that uses `pond/jobs` (which uses `pond/sqlite`) must vendor
+   both. Lib-from-lib imports themselves are fine.
 5. Every lib matches the six-pattern catalog (App locus /
    Namespace lotus / Service / Spawned child / Shape type /
    Free fn). Things outside the catalog get logged as friction,
