@@ -36,8 +36,13 @@ fn hex_decode(s: String) -> Bytes fallible(HexError) {
     let mut out = std::bytes::from_string("");
     let mut i = 0;
     while i < n {
-        let c0 = char_at_byte(s, i);
-        let c1 = char_at_byte(s, i + 1);
+        // Direct byte inspection via std::str::byte_at_unchecked
+        // (shipped 2026-05-26) — retires the local char_at_byte
+        // helper and its per-call from_string heap copy. Bounds
+        // guaranteed by the loop (i + 1 < n: n is even and i
+        // steps by 2 from 0).
+        let c0 = std::str::byte_at_unchecked(s, i);
+        let c1 = std::str::byte_at_unchecked(s, i + 1);
         let h0 = nibble_value(c0);
         let h1 = nibble_value(c1);
         if h0 < 0 || h1 < 0 {
@@ -76,12 +81,4 @@ fn nibble_value(c: Int) -> Int {
     if c >= 97 && c <= 102 { return c - 97 + 10; }  // 'a'..'f'
     if c >= 65 && c <= 70  { return c - 65 + 10; }  // 'A'..'F'
     return -1;
-}
-
-// Pull byte i of a String as an Int (0..255). Strings are byte
-// sequences in v1 codegen, so `from_string` + `bytes::at` is the
-// canonical way to inspect a char.
-fn char_at_byte(s: String, i: Int) -> Int {
-    let bs = std::bytes::from_string(s);
-    return std::bytes::at(bs, i) or 0;
 }
