@@ -39,7 +39,9 @@ one tool: it's the shared substrate.
 
 v0 grammar mature: covers all of `spec/grammar.ebnf` as
 exercised by iris + hale stdlib (19/19 stdlib files
-parse cleanly, 23/23 corpus tests pass). Hale @ffi wrapper
+parse cleanly, 29/29 corpus tests pass — re-verified 2026-06-12
+with tree-sitter 0.26.9; `tree-sitter generate` leaves the
+checked-in `src/parser.c` unchanged). Hale @ffi wrapper
 + glue.c verified end-to-end against libtree-sitter. Query
 API live (Parser / Tree / Node / Query). Three query files
 ship: highlights.scm, tags.scm, locals.scm.
