@@ -1,143 +1,153 @@
-// kv-demo — minimal "create table, insert, select" against the
-// pond/sqlite surface. Demonstrates the call shape consumers can
-// write today against the stubbed API; the same source compiles
-// against the real implementation once the stdlib sqlite primitive
-// lands (see ../../FRICTION.md).
+// kv-demo — "create table, insert, select" against a REAL SQLite
+// database file, via pond/sqlite's @ffi driver (glue.c over the
+// system libsqlite3; see ../../README.md).
 //
-// Three layers of caveat:
-//   1. The lib is BLOCKED — every db::* free fn currently returns
-//      `fail DbError { kind: "unsupported", ... }`. The demo's
-//      `or self.handle(err)` paths are exercised, not the happy
-//      path. Output today is the diagnostic.
-//   2. The shape demonstrated is the post-unblock shape: open a
-//      Db, create a table, insert a row, select it back. The
-//      demo's body does NOT change when the lib unblocks.
-//   3. Codegen v0 cannot lower unit-fallible fns
-//      (`-> () fallible(E)`) — see ../../FRICTION.md § F.5. The
-//      bind_text / bind_int / finalize signatures deviate from
-//      CONTRACTS.md and return `Int` status codes instead (0 =
-//      SQLITE_OK; non-zero = error). Call sites here use
-//      `let rc = db::bind_text(stmt, 1, "..."); if rc != 0 {...}`
-//      rather than `or self.handle(err)`. Same shape as the
-//      pre-2026-05-16 stdlib filesystem fns (mkdir/write_file
-//      returned Int 0/-1 before the fallible flip).
+// What it exercises:
+//   1. Happy path  — open (birth), DDL, INSERT (rows_affected +
+//      last_insert_rowid), query_one, query_all, and the full
+//      prepare / bind_text / step / finalize parameterized path.
+//   2. Error paths — every failure arrives as a DbError VALUE
+//      through the `or self.handle_*(err)` disposition, never a
+//      crash: bad SQL ("exec_failed"), duplicate primary key
+//      ("constraint", sqlite_code 19), zero-row query_one
+//      ("no_row"), and an unopenable database path ("open_failed",
+//      reported by the first SQL call since birth() — a lifecycle
+//      method — cannot be fallible).
 //
-// Import alias is `db` per pond/CONTRACTS.md.
+// The database lands at /tmp/pond-sqlite-kv-demo.db; the demo
+// drops + recreates its table so reruns are idempotent.
+//
+// Build (needs libsqlite3-dev; the [ffi] section in
+// ../../hale.toml is picked up automatically):
+//     hale build sqlite/examples/kv-demo/
+//     ./sqlite/examples/kv-demo/kv-demo
+//
+// Import alias is `sqlite` per pond/CONTRACTS.md.
 
-import "../.." as db;
+import "../.." as sqlite;
 
-// Error-check fn pattern (styleguide § 7). Catches a DbError from
-// any of the db::* fallible calls and prints it. The locus also
-// declares an inline closure for the structural-failure escalation
-// path; today the stub returns "unsupported" and we keep running
-// (substituting an empty ExecResult / Row / Rows) so the demo's
-// trace shows every call shape. A real consumer would `violate`
-// here when the kind indicates a fatal connection state.
 locus KvDemo {
     params {
-        // Path for the demo. ":memory:" once unblocked. Today
-        // the path is ignored by the stub `birth()`.
-        path: String = ":memory:";
-
-        // Last-seen error detail, captured by the inline closure.
-        last_error: String = "";
+        path:        String = "/tmp/pond-sqlite-kv-demo.db";
+        // Count of DbErrors seen by the handlers; the deliberate
+        // error-path section expects exactly four.
+        errors_seen: Int    = 0;
     }
 
-    closure fatal_db { captures: last_error; epoch inline; }
-
-    // Error-check fns: one per success type the call sites expect.
-    // Each updates `self.last_error` (closure-captured) and prints
-    // the diagnostic; today they return the zero-value for the
-    // success type so the demo continues past the stub.
-    fn handle_exec(e: db::DbError) -> db::ExecResult {
-        self.last_error = e.detail;
-        println("[kv-demo] db error (exec): ", e.kind, " -- ", e.detail);
-        return db::ExecResult { };
+    // Error-check fns (styleguide § 7): one per success type the
+    // call sites expect. Each prints the full DbError payload and
+    // substitutes a zero-value so the demo keeps running.
+    fn handle_exec(e: sqlite::DbError) -> sqlite::ExecResult {
+        self.errors_seen = self.errors_seen + 1;
+        println("[kv-demo] DbError: kind=", e.kind,
+                " sqlite_code=", to_string(e.sqlite_code),
+                " detail=", e.detail);
+        return sqlite::ExecResult { };
     }
-    fn handle_row(e: db::DbError) -> db::Row {
-        self.last_error = e.detail;
-        println("[kv-demo] db error (row): ", e.kind, " -- ", e.detail);
-        return db::Row { };
+    fn handle_row(e: sqlite::DbError) -> sqlite::Row {
+        self.errors_seen = self.errors_seen + 1;
+        println("[kv-demo] DbError: kind=", e.kind,
+                " sqlite_code=", to_string(e.sqlite_code),
+                " detail=", e.detail);
+        return sqlite::Row { };
     }
-    fn handle_rows(e: db::DbError) -> db::Rows {
-        self.last_error = e.detail;
-        println("[kv-demo] db error (rows): ", e.kind, " -- ", e.detail);
-        return db::Rows { };
+    fn handle_rows(e: sqlite::DbError) -> sqlite::Rows {
+        self.errors_seen = self.errors_seen + 1;
+        println("[kv-demo] DbError: kind=", e.kind,
+                " sqlite_code=", to_string(e.sqlite_code),
+                " detail=", e.detail);
+        return sqlite::Rows { };
     }
-    fn handle_prepare(e: db::DbError) -> Int {
-        self.last_error = e.detail;
-        println("[kv-demo] db error (prepare): ", e.kind, " -- ", e.detail);
+    fn handle_stmt(e: sqlite::DbError) -> Int {
+        self.errors_seen = self.errors_seen + 1;
+        println("[kv-demo] DbError: kind=", e.kind,
+                " sqlite_code=", to_string(e.sqlite_code),
+                " detail=", e.detail);
         return 0;
+    }
+    fn handle_unit(e: sqlite::DbError) {
+        self.errors_seen = self.errors_seen + 1;
+        println("[kv-demo] DbError: kind=", e.kind,
+                " sqlite_code=", to_string(e.sqlite_code),
+                " detail=", e.detail);
     }
 
     run() {
-        // Open a Db. `let`-binding means the Db's `dissolve()`
-        // (which closes the connection once unblocked) fires at
-        // run()'s scope exit per the m82 deferred-dissolve rule.
-        let conn = db::Db { path: self.path };
+        println("[kv-demo] opening ", self.path);
+        // `let`-bound Db: dissolve() (which closes the connection)
+        // fires at run()'s scope exit per the m82 deferred-dissolve
+        // rule.
+        let conn = sqlite::Db { path: self.path };
 
-        // 1. DDL: create a key-value table.
-        let r1 = db::exec(
-            conn,
-            "CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)"
-        ) or self.handle_exec(err);
+        // ---- happy path ----
+
+        // 1. DDL. Drop first so reruns are idempotent.
+        let r0 = conn.exec("DROP TABLE IF EXISTS kv")
+            or self.handle_exec(err);
+        let r1 = conn.exec("CREATE TABLE kv (k TEXT PRIMARY KEY, v TEXT)")
+            or self.handle_exec(err);
         println("[kv-demo] CREATE TABLE: rows_affected=",
                 to_string(r1.rows_affected));
 
-        // 2. Insert a row.
-        let r2 = db::exec(
-            conn,
+        // 2. Inserts — rows_affected + last_insert_rowid are real.
+        let r2 = conn.exec(
             "INSERT INTO kv (k, v) VALUES ('greeting', 'hello, pond')"
         ) or self.handle_exec(err);
-        println("[kv-demo] INSERT: rows_affected=",
+        println("[kv-demo] INSERT greeting: rows_affected=",
                 to_string(r2.rows_affected),
-                "  last_insert_rowid=",
-                to_string(r2.last_insert_rowid));
+                " last_insert_rowid=", to_string(r2.last_insert_rowid));
+        let r3 = conn.exec(
+            "INSERT INTO kv (k, v) VALUES ('farewell', 'goodbye, stub era')"
+        ) or self.handle_exec(err);
+        println("[kv-demo] INSERT farewell: rows_affected=",
+                to_string(r3.rows_affected),
+                " last_insert_rowid=", to_string(r3.last_insert_rowid));
 
-        // 3. SELECT one back via query_one. The tab-separated row
-        // payload is `k\tv`.
-        let row = db::query_one(
-            conn,
+        // 3. query_one — tab-separated columns in Row.data.
+        let row = conn.query_one(
             "SELECT k, v FROM kv WHERE k = 'greeting'"
         ) or self.handle_row(err);
         println("[kv-demo] SELECT one: ", row.data);
 
-        // 4. SELECT all to show the multi-row shape.
-        let rows = db::query_all(
-            conn,
-            "SELECT k, v FROM kv ORDER BY k"
-        ) or self.handle_rows(err);
+        // 4. query_all — newline-separated rows.
+        let rows = conn.query_all("SELECT k, v FROM kv ORDER BY k")
+            or self.handle_rows(err);
         println("[kv-demo] SELECT all (newline-separated rows):");
         println(rows.csv);
 
-        // 5. Prepare / bind / step / finalize — full parameterized
-        // path. `bind_text` / `bind_int` / `finalize` return Int
-        // status codes (0 = SQLITE_OK; see FRICTION.md § F.5) so
-        // call sites use `if rc != 0 { ... }` instead of
-        // `or self.handle(err)`. `prepare` and `step` keep the
-        // fallible(DbError) shape and use the error-check fn.
-        let stmt = db::prepare(
-            conn,
-            "SELECT v FROM kv WHERE k = ?1"
-        ) or self.handle_prepare(err);
+        // 5. prepare / bind / step / finalize — parameterized path.
+        let stmt = conn.prepare("SELECT v FROM kv WHERE k = ?1")
+            or self.handle_stmt(err);
         if stmt > 0 {
-            let bind_rc = conn.bind_text(stmt, 1, "greeting");
-            if bind_rc != 0 {
-                println("[kv-demo] bind_text rc=", to_string(bind_rc),
-                        " (stub mode)");
-            }
-            let r = db::step(stmt) or self.handle_row(err);
+            conn.bind_text(stmt, 1, "farewell") or self.handle_unit(err);
+            let r = conn.step(stmt) or self.handle_row(err);
             println("[kv-demo] prepared step: ", r.data);
-            let fin_rc = conn.finalize(stmt);
-            if fin_rc != 0 {
-                println("[kv-demo] finalize rc=", to_string(fin_rc),
-                        " (stub mode)");
-            }
-        } else {
-            println("[kv-demo] prepare returned 0 handle (stub mode)");
+            conn.finalize(stmt) or self.handle_unit(err);
         }
 
-        println("[kv-demo] done (last_error=", self.last_error, ")");
+        // ---- error paths (each prints a DbError payload; none crash) ----
+        println("[kv-demo] -- deliberate error paths --");
+
+        // a. Bad SQL → kind="exec_failed", sqlite_code=1 (SQLITE_ERROR).
+        let bad1 = conn.exec("THIS IS NOT SQL") or self.handle_exec(err);
+
+        // b. Duplicate primary key → kind="constraint", sqlite_code=19.
+        let bad2 = conn.exec(
+            "INSERT INTO kv (k, v) VALUES ('greeting', 'dupe')"
+        ) or self.handle_exec(err);
+
+        // c. Zero-row query_one → kind="no_row".
+        let bad3 = conn.query_one("SELECT v FROM kv WHERE k = 'missing'")
+            or self.handle_row(err);
+
+        // d. Unopenable path: birth() can't be fallible, so the
+        //    open failure surfaces as kind="open_failed" on the
+        //    first SQL call against the dead connection.
+        let dead = sqlite::Db { path: "/nonexistent-dir/kv.db" };
+        let bad4 = dead.exec("SELECT 1") or self.handle_exec(err);
+
+        println("[kv-demo] done: errors_seen=",
+                to_string(self.errors_seen), " (expected 4)");
     }
 }
 

@@ -1,37 +1,58 @@
-# pond/sqlite — SQLite adapter (BLOCKED on stdlib primitive)
+# pond/sqlite — SQLite driver (pure `@ffi`, WORKING)
 
-Connection + query surface around SQLite. Per CONTRACTS.md the
-intent is a Service-locus `Db` (birth opens the connection,
-dissolve closes it) and a small fallible(DbError) query surface
-covering exec / query_one / query_all / prepare-bind-step-finalize.
+Connection + query surface around SQLite: a Service-locus `Db`
+(birth opens the connection, dissolve closes it) and a
+`fallible(DbError)` member-fn surface covering exec / query_one /
+query_all / prepare-bind-step-finalize — the CONTRACTS.md
+§ pond/sqlite shape, implemented for real.
 
-## Status (2026-05-16): BLOCKED
+## Status (2026-06-12): UNBLOCKED — real driver, no stdlib wait
 
-This lib does **not** currently call SQLite. The stdlib
-(`runtime/stdlib/`) ships no `std::db::sqlite::*` primitive and no
-generic FFI surface; AGENTS.md's `Don't edit crates/` rule
-forbids adding one here. The shape below is the contract;
-every `fallible(DbError)` call returns
-`fail DbError { kind: "unsupported", ... }` today. The same
-source recompiles against a real implementation once the stdlib
-primitive lands — see [`FRICTION.md`](./FRICTION.md) for the
-proposed `std::db::sqlite::*` surface that would unblock this.
+This lib **calls SQLite**. The long-standing "BLOCKED on
+`std::db::sqlite::*`" premise was refuted upstream (WS4 post-audit
+pass, `hale/notes/sqlite-via-ffi-recipe.md`): `@ffi("c")` is the
+library-author C-binding surface — no stdlib primitive needed, and
+none will ship. The driver is a pure pond library:
 
-The library type-checks and builds as stubs so consumers
-(`pond/jobs/`, `pond/migrations/`, a future SqliteStore lib,
-app code) can write against the surface today and pick up the
-real engine for free when it ships.
+- `glue.c` — thin `lotus_sqlite_*` shims over `sqlite3_*`
+  (handles cross the boundary as `Int` addresses; error sentinels,
+  never exceptions).
+- `ffi.hl` — the `@ffi("c")` extern declarations.
+- `hale.toml` — `[ffi] csrc = ["glue.c"], link = ["sqlite3"]`,
+  picked up **automatically** when a program imports this lib
+  (spec/ffi.md § hale.toml auto-pickup).
+- `db.hl` — the Hale wrapper: sentinel codes →
+  `fail DbError { kind, sqlite_code, detail }`; sqlite-owned
+  string pointers (`errmsg`, `column_text`) cloned immediately via
+  `std::str::clone`.
+
+### Build requirement
+
+The build host needs the **libsqlite3 development package**
+(`sqlite3.h` + `-lsqlite3`):
+
+```bash
+sudo apt install libsqlite3-dev     # debian/ubuntu
+brew install sqlite3                # macos
+```
+
+Deploy hosts need only the runtime shared library. This is the
+same class of system dep as the existing `-lssl` / `-lcrypto`
+usage elsewhere in the workspace. (On a box with the runtime `.so`
+but no dev package, point the toolchain at local shims:
+`C_INCLUDE_PATH=... LIBRARY_PATH=... hale build ...` — the shipped
+`hale.toml` stays canonical.)
 
 ## Suggested alias
 
 ```hale
-import "vendor/pond/sqlite" as db;
+import "vendor/pond/sqlite" as sqlite;
 ```
 
-The bare `db` alias matches `pond/CONTRACTS.md`'s suggestion and
-the `pond/README.md` catalog entry.
+(`sqlite`, per pond/CONTRACTS.md — the older `db` alias now
+belongs to the backend-neutral `pond/db` interface lib.)
 
-## Surface (as built)
+## Surface (as built — matches CONTRACTS.md § pond/sqlite exactly)
 
 ```hale
 type DbError    { kind: String; sqlite_code: Int; detail: String; }
@@ -41,123 +62,108 @@ type ExecResult { rows_affected: Int; last_insert_rowid: Int; }
 
 locus Db {
     params { path: String = ":memory:"; conn_handle: Int = -1; }
-    birth()   { /* open conn — stub stamps 0 */ }
-    dissolve()/* close conn — stub no-ops    */ }
-
-    // bind/finalize live on the locus (see "Deviations" below).
-    fn bind_text(stmt: Int, idx: Int, val: String) -> Int;  // 0 = OK
-    fn bind_int (stmt: Int, idx: Int, val: Int)    -> Int;  // 0 = OK
-    fn finalize(stmt: Int) -> Int;                          // 0 = OK
+    fn exec(sql: String) -> ExecResult fallible(DbError);
+    fn query_one(sql: String) -> Row fallible(DbError);   // zero rows → kind="no_row"
+    fn query_all(sql: String) -> Rows fallible(DbError);  // zero rows → csv="" (success)
+    fn prepare(sql: String) -> Int fallible(DbError);     // returns stmt handle
+    fn bind_text(stmt: Int, idx: Int, val: String) -> () fallible(DbError);  // idx 1-indexed
+    fn bind_int(stmt: Int, idx: Int, val: Int) -> () fallible(DbError);
+    fn step(stmt: Int) -> Row fallible(DbError);          // SQLITE_DONE → kind="no_row"
+    fn finalize(stmt: Int) -> () fallible(DbError);
 }
-
-// Naturally-fallible query surface lives as free fns:
-fn exec(db: Db, sql: String) -> ExecResult fallible(DbError);
-fn query_one(db: Db, sql: String) -> Row    fallible(DbError);
-fn query_all(db: Db, sql: String) -> Rows   fallible(DbError);
-fn prepare(db: Db, sql: String) -> Int      fallible(DbError);
-fn step(stmt: Int) -> Row                   fallible(DbError);
 ```
 
-### Deviations from CONTRACTS.md
+Call sites:
 
-Three independent forcing functions land the shape above:
+```hale
+let conn = sqlite::Db { path: "/tmp/app.db" };       // birth opens; dissolve closes at scope exit
+let r    = conn.exec("INSERT INTO kv VALUES ('k','v')") or raise;
+let row  = conn.query_one("SELECT v FROM kv WHERE k = 'k'") or self.handle(err);
 
-1. **Two-channel rule (pre-v0.8.1)** (`spec/semantics.md`
-   § "Where each channel lives"). CONTRACTS.md lists the eight
-   SQL ops as locus methods on `Db` with `fallible(DbError)`
-   returns. Under the pre-v0.8.1 rule that declaration shape was
-   type-illegal; the implementation migrated the fallible SQL
-   surface to free fns taking a `Db` ref — call sites read
-   `db::exec(conn, sql)` instead of `conn.exec(sql)`. → **v0.8.1
-   #24 v0.2 narrows the rule**; the contract surface is now
-   type-legal again and folds back into `Db` methods on the F.1
-   unblock pass.
+let stmt = conn.prepare("SELECT v FROM kv WHERE k = ?1") or raise;
+conn.bind_text(stmt, 1, "k") or raise;
+let one  = conn.step(stmt) or raise;
+conn.finalize(stmt) or raise;
+```
 
-2. **Codegen v0 can't lower `() fallible(E)` (pre-v0.8.1).** Three of
-   CONTRACTS.md's eight ops return unit (`bind_text` /
-   `bind_int` / `finalize`); the `() fallible(E)` shape hits a
-   codegen-v0 limitation (`tuple type must have at least 2
-   elements; got 0`). Even decl-only triggers it. Workaround:
-   return `Int` status code (0 = SQLITE_OK), same pattern as
-   pre-2026-05-16 `std::io::fs::mkdir`.
+### Semantics worth knowing
 
-3. **Codegen v0 can't lower non-fallible cross-seed path calls
-   in expression position (pre-A3).** `let n = db::bind_text(...)`
-   from a consumer file failed with `unsupported in codegen v0:
-   path call db::bind_text in expression position`. Locus methods
-   on imported loci DO codegen, so bind/finalize migrated from
-   free fns to Db methods. → **Closed 2026-05-17 (A3,
-   `f9068fa`)**; the historic workaround stays in source until
-   the F.1 unblock pass.
-
-The three combine to put `exec` / `query_one` / `query_all` /
-`prepare` / `step` as free fns (fallible, codegen accepts those
-cross-seed) and `bind_text` / `bind_int` / `finalize` as Db
-methods (non-fallible Int-status, codegen accepts those cross-
-seed). **As of v0.8.1 the F.5 + F.6 codegen restrictions both
-lifted** — `() fallible(E)` lowers (`6beb1be`), and cross-seed
-non-fallible path-calls work (A3 closed pre-window). The F.2
-two-channel deviation is also type-legal again post-#24 v0.2. The
-entire SQL surface collapses back into `Db` methods declaring
-`fallible(DbError)` on the F.1 unblock pass; the deviation
-described above is the still-shipped source shape, not a forward
-constraint. See FRICTION.md § F.2, § F.5 (both tagged CLOSABLE
-on F.1) and the Resolution checklist.
-
-The Service-locus shape of `Db` (params + birth + dissolve) is
-preserved; only the SQL surface migrates.
+- **`DbError.kind` vocabulary** — `"open_failed"`, `"exec_failed"`,
+  `"prepare_failed"`, `"step_failed"`, `"bind_failed"`,
+  `"finalize_failed"`, `"no_row"`, plus the cross-cutting engine
+  states that override the per-op kind: `"busy"` (SQLITE_BUSY /
+  LOCKED), `"constraint"` (19), `"io"` (10). `sqlite_code` is the
+  raw SQLITE_* result code; `detail` is `sqlite3_errmsg`.
+- **Open failure is reported by the first SQL call**, not by
+  `birth()` — lifecycle methods cannot be `fallible(E)` (two-channel
+  rule), so a failed `sqlite3_open` stamps `conn_handle = 0` and
+  every member fn fails with `kind="open_failed"` carrying the real
+  open errmsg. No panic, no structural violation for a recoverable
+  condition. Handle sentinels: `-1` never birthed, `0` open failed,
+  `>0` live.
+- **`dissolve()` cannot fail**: the close rc is dropped in glue.c;
+  a SQLITE_BUSY close (statements left unfinalized) leaks the
+  handle rather than crashing. Finalize what you prepare.
+- **NULL columns read as `""`** — the v0 tab-separated `Row` shape
+  has no NULL channel.
+- **Not satisfied: `db::DbDriver`.** The contract's fallible-method
+  surface is signature-incompatible with the non-fallible
+  `ok`/`err`-packed interface in `pond/db` — see FRICTION.log § F.7
+  before injecting `sqlite::Db` where a `db::DbDriver` is expected.
 
 ## Files
 
 - `types.hl` — `DbError`, `Row`, `Rows`, `ExecResult` (pattern 5).
-- `db.hl` — the `Db` service locus (pattern 3, stub
-  birth/dissolve).
-- `query.hl` — the eight free fns (pattern 6, every body stubs
-  with `fail DbError { kind: "unsupported", ... }`).
-- `examples/kv-demo/main.hl` — create-table + insert + select
-  demonstration. Exercises every fallible call shape via the
-  styleguide § 7 error-check fn pattern.
+- `ffi.hl` — `@ffi("c")` extern decls for the glue shims.
+- `glue.c` — C shims over `sqlite3_*` (compiled into consumers via
+  hale.toml auto-pickup).
+- `hale.toml` — `[ffi]` link surface.
+- `db.hl` — the `Db` service locus (pattern 3) carrying the whole
+  SQL member-fn surface, plus private helpers.
+- `examples/kv-demo/` — real create/insert/select round-trip
+  against `/tmp/pond-sqlite-kv-demo.db`, plus four deliberate
+  error paths (bad SQL, constraint violation, zero-row query_one,
+  unopenable path) each surfacing a `DbError` value.
 
 ## Verification
 
 ```bash
-hale build \
-    pond/sqlite/
+hale check sqlite/                       # ok: 3 file(s) typechecked
+hale build sqlite/examples/kv-demo/      # picks up [ffi] automatically
+./sqlite/examples/kv-demo/kv-demo
 ```
 
-The library type-checks today against the stubbed bodies. The
-example builds independently and runs end-to-end; today every
-db::* call hits the stub branch and prints
-`[kv-demo] db error (...): unsupported — ...`. The same example
-will run a real CREATE/INSERT/SELECT once the stdlib primitive
-lands.
+Expected output (abridged): real `rows_affected` /
+`last_insert_rowid`, the selected rows, and then four
+`[kv-demo] DbError: kind=...` lines ending with
+`done: errors_seen=4 (expected 4)`. Reruns are idempotent (the
+demo drops + recreates its table). The produced db file is a
+normal SQLite database, readable by any external client.
 
-## When this unblocks
+## When this unblocks → executed-cleanup record (2026-06-12)
 
-Once `std::db::sqlite::*` (proposed in FRICTION.md § F.1) ships:
+This section used to be the "recipe to run when `std::db::sqlite::*`
+ships." The premise died (no primitive will ship); the cleanup ran
+2026-06-12 against the `@ffi` recipe instead. What was done:
 
-1. `db.hl`'s `birth()` stub becomes `self.conn_handle =
-   std::db::sqlite::open(self.path);`, `dissolve()` calls
-   `std::db::sqlite::close(self.conn_handle);` on the `>0`
-   branch.
-2. `query.hl`'s five free-fn bodies replace the
-   `fail DbError { kind: "unsupported", ... }` lines with the
-   real primitive call + result translation. The signatures stay
-   identical.
-3. `db.hl`'s three `bind_text` / `bind_int` / `finalize` method
-   bodies replace `return -1;` with the matching
-   `return std::db::sqlite::...;` call.
-4. `examples/kv-demo/main.hl`'s `or self.handle_*(err)` paths
-   stop firing and the happy-path `println` lines carry real
-   data.
+1. **Driver implemented as pure `@ffi`** — added `glue.c`,
+   `ffi.hl`, `hale.toml`; no compiler/stdlib change, no `crates/`
+   edit (the `@ffi` surface never touches compiler territory).
+2. **`birth()` / `dissolve()` un-stubbed** — real
+   `lotus_sqlite_open` / `lotus_sqlite_close`; the
+   `conn_handle = 0` "stub-birthed" marker was repurposed as the
+   "open failed" sentinel.
+3. **Free-fn shim deleted** (`query.hl`) — the SQL surface folded
+   back into `Db` member fns declared `fallible(DbError)`,
+   restoring CONTRACTS.md verbatim (FRICTION § F.2 closed; the
+   v0.8.1 two-channel narrowing made it legal).
+4. **`bind_text` / `bind_int` / `finalize` flipped** from
+   Int-status methods to `() fallible(DbError)` (FRICTION § F.5
+   closed; upstream `6beb1be` fixed the lowering).
+5. **kv-demo made real** — stub-diagnostic walkthrough replaced
+   with a live round-trip + deliberate error paths.
 
-Once codegen v0 grows `() fallible(E)` lowering AND cross-seed
-non-fallible path-call lowering (FRICTION.md § F.5 / § F.6):
-
-5. `bind_text` / `bind_int` / `finalize` graduate from Db methods
-   back to free fns in `query.hl` with the original
-   `-> () fallible(DbError)` signatures. Consumers update from
-   `conn.bind_text(...)` to `db::bind_text(conn, ...)`.
-
-Once both stdlib AND codegen unblock, `FRICTION.md` collapses to
-resolved-entries linking the relevant changelog stamps.
+Remaining follow-ups live in FRICTION.log: § F.4 (row-helper
+export, deferred) and § F.7 (`db::DbDriver` adapter so
+`sqlite::Db` can be injected through the interface — needed by
+`pond/migrations`' contract comment).

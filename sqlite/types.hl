@@ -8,29 +8,34 @@
 //   type ExecResult { rows_affected, last_insert_rowid }
 //
 // All four are pure-data records (pattern 5). DbError is the
-// fallible(DbError) payload across every free fn in the lib;
-// Row / Rows / ExecResult are the success-channel return shapes.
-//
-// Status (2026-05-16): this lib is BLOCKED on a stdlib sqlite
-// primitive — see FRICTION.md. Per AGENTS.md "don't edit crates/",
-// the FFI surface a real adapter would need (sqlite3_open / step /
-// bind / finalize / close) cannot be added here. The shapes below
-// are the contract; method bodies in db.hl / query.hl return
-// sentinel zero-values and TODO comments until the stdlib
-// primitive lands. Consumers can write against this surface today
-// and the code will recompile against the real implementation.
+// fallible(DbError) payload across every SQL member fn on the Db
+// locus (db.hl); Row / Rows / ExecResult are the success-channel
+// return shapes.
 
 // DbError — fallible(DbError) payload for every fallible surface.
 //
-// `kind` is one of (today): "unsupported" (stub return — stdlib
-// sqlite primitive missing). Once unblocked the kind vocabulary
-// grows to: "open_failed", "prepare_failed", "step_failed",
-// "bind_failed", "finalize_failed", "close_failed", "no_row",
-// "constraint", "busy", "io" — mirroring SQLite's primary error
-// classes. `sqlite_code` carries the raw SQLITE_* result code
-// (0 / SQLITE_ROW / SQLITE_DONE / SQLITE_BUSY / ...) so callers
-// who care about the underlying engine state can branch on it.
-// `detail` is the human-readable explanation suitable for log
+// `kind` vocabulary:
+//   "open_failed"     — sqlite3_open failed at birth (or the Db
+//                       was never birthed); reported by the first
+//                       SQL call, not by birth() (lifecycle
+//                       methods can't be fallible)
+//   "exec_failed"     — sqlite3_exec returned an error
+//   "prepare_failed"  — statement compilation failed (syntax, ...)
+//   "step_failed"     — sqlite3_step returned an engine error
+//   "bind_failed"     — parameter bind rejected (range, ...)
+//   "finalize_failed" — finalize reported the last step's error
+//   "no_row"          — query_one matched zero rows, or step hit
+//                       SQLITE_DONE
+//   "busy"            — SQLITE_BUSY / SQLITE_LOCKED (overrides the
+//                       per-op kind)
+//   "constraint"      — SQLITE_CONSTRAINT (overrides the per-op kind)
+//   "io"              — SQLITE_IOERR (overrides the per-op kind)
+//
+// `sqlite_code` carries the raw SQLITE_* result code (1 = ERROR,
+// 5 = BUSY, 19 = CONSTRAINT, 100 = ROW, 101 = DONE, ...) so
+// callers who care about the underlying engine state can branch
+// on it. `detail` is sqlite3_errmsg at the moment of failure
+// (cloned — see db.hl's ownership note), suitable for log
 // emission.
 type DbError {
     kind:        String = "";
@@ -42,8 +47,8 @@ type DbError {
 // `data`. The tab-separated shape mirrors stdlib's
 // `list_dir_at` / kv-string convention and avoids the
 // parametric `String[]` Hale v1 doesn't have. Empty `data`
-// = no columns selected; an all-empty-string single column is
-// represented as `""` (a tab-separated payload with one element).
+// = no columns selected; NULL columns read as "" (no NULL
+// channel in the v0 row shape).
 type Row {
     data: String = "";
 }
@@ -53,7 +58,8 @@ type Row {
 //
 //     a\tb\tc\nd\te\tf
 //
-// Empty `csv` = zero rows. The "csv" field name matches
+// Empty `csv` = zero rows (a successful empty result, distinct
+// from query_one's "no_row" fail). The "csv" field name matches
 // CONTRACTS.md's spelling even though the separator is tab+newline
 // rather than comma; the substantive shape is "tabular rows as
 // String," not literal CSV.
@@ -64,8 +70,7 @@ type Rows {
 // ExecResult — what a non-query (INSERT / UPDATE / DELETE / DDL)
 // statement reports back. `rows_affected` is SQLite's `changes()`;
 // `last_insert_rowid` is `last_insert_rowid()` (0 if not an INSERT
-// into an INTEGER PRIMARY KEY table). Both default to 0 so a stub
-// build produces a consistent zero-value.
+// into a rowid table).
 type ExecResult {
     rows_affected:     Int = 0;
     last_insert_rowid: Int = 0;
