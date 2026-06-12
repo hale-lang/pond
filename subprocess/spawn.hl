@@ -93,7 +93,7 @@ fn spawn(opts: SpawnOpts) -> Output fallible(SpawnError) {
     // Closing stdin explicitly would require a primitive that
     // doesn't exist yet; most tools (cat, sort, python -) drain
     // their pipe buffer and exit on EOF after the read returns
-    // short. Gap documented in FRICTION.md.
+    // short. Gap documented in FRICTION.log.
     let code = std::process::wait(c) or wrap_wait(err) or raise;
     let out_s = std::process::read_stdout(c) or wrap_pipe_str(err) or raise;
     let err_s = std::process::read_stderr(c) or wrap_pipe_str(err) or raise;
@@ -113,7 +113,7 @@ fn spawn(opts: SpawnOpts) -> Output fallible(SpawnError) {
 // cwd/env/stdin, no timeout). Returns the same Output on
 // success.
 //
-// Contract deviation (FRICTION.md): the CONTRACTS.md surface
+// Contract deviation (FRICTION.log): the CONTRACTS.md surface
 // names this `run`, but `run` is a reserved lifecycle keyword
 // in Hale's grammar and a fn-decl named `run` parse-errors.
 // The lib exports `run_cmd` instead. Consumer impact is
@@ -171,6 +171,14 @@ fn wrap_pipe_str(e: IoError) -> String fallible(SpawnError) {
 }
 
 fn wrap_wait(e: IoError) -> Int fallible(SpawnError) {
+    fail SpawnError {
+        kind:   "io",
+        detail: e.kind + ": " + e.path,
+        errno:  e.errno,
+    };
+}
+
+fn wrap_kill(e: IoError) -> () fallible(SpawnError) {
     fail SpawnError {
         kind:   "io",
         detail: e.kind + ": " + e.path,

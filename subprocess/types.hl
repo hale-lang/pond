@@ -14,7 +14,7 @@
 //
 // Status (2026-05-18): UNBLOCKED + WIRED. The bodies in
 // spawn.hl / process.hl route through `std::process::run` /
-// `std::process::spawn` (shipped 2026-05-17); see FRICTION.md
+// `std::process::spawn` (shipped 2026-05-17); see FRICTION.log
 // for the small set of forwarded no-ops (cwd, env, timeout_ms).
 
 // SpawnOpts — input descriptor for a single subprocess invocation.
@@ -34,7 +34,7 @@ type SpawnOpts {
     args:       String = "";
     cwd:        String = "";
     env:        String = "";
-    stdin:      Bytes;
+    stdin:      Bytes  = std::bytes::from_string("");
     timeout_ms: Int    = 0;
 }
 
@@ -67,7 +67,7 @@ type Output {
 // `kind` is one of: "spawn_failed" (fork/exec didn't take —
 // maps from upstream IoError kinds "not_found", "permission_
 // denied", "invalid"), "io" (pipe read/write failure), "timeout"
-// (timeout_ms hit — currently reserved, see FRICTION.md),
+// (timeout_ms hit — currently reserved, see FRICTION.log),
 // "killed" (signaled with no exit code recovered). The
 // "unsupported" tag from the pre-2026-05-17 blocked era is no
 // longer produced.
