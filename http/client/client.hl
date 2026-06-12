@@ -29,15 +29,18 @@
 //
 // FRICTION: this is a hand-rolled LRU because @form(lru_cache)
 // isn't in v1. A future cleanup pass might lift it into a pond
-// util. Logged in FRICTION.md.
+// util. Logged in FRICTION.log.
 //
 // FRICTION: parallel arrays instead of a `type` of records —
 // because @form(vec) of a user type currently composes awkwardly
 // with manual LRU-shuffling indices, and we don't want a
 // dependency on @form here. Eight ints + eight strings is fine.
-// (Constants used to live here, but cross-seed `const` lookups
-// don't resolve at v1, so we inline literal values at use sites.
-// See FRICTION.md.)
+// Defaults for the one-shot free-fn surface. (These consts were
+// inlined as literals while cross-seed `const` lookups didn't
+// resolve at codegen; that gap closed at HEAD — re-verified
+// 2026-06-12 — so the named consts are restored. See FRICTION.log.)
+const DEFAULT_USER_AGENT: String = "pond/http 0.1";
+const DEFAULT_MAX_BODY: Int = 16777216;
 
 // Translate a connect-time IoError into an HttpError and raise
 // via the chained or-clause. Always fails; the success-type
@@ -205,7 +208,7 @@ fn get(url_str: String) -> Response fallible(HttpError) {
         headers: "",
         body: b""
     };
-    return __round_trip_oneshot(req, "pond/http 0.1", 16777216) or raise;
+    return __round_trip_oneshot(req, DEFAULT_USER_AGENT, DEFAULT_MAX_BODY) or raise;
 }
 
 fn post(url_str: String, body: Bytes, content_type: String) -> Response fallible(HttpError) {
@@ -218,12 +221,12 @@ fn post(url_str: String, body: Bytes, content_type: String) -> Response fallible
         headers: headers,
         body: body
     };
-    return __round_trip_oneshot(req, "pond/http 0.1", 16777216) or raise;
+    return __round_trip_oneshot(req, DEFAULT_USER_AGENT, DEFAULT_MAX_BODY) or raise;
 }
 
 fn request(req: Request) -> Response fallible(HttpError) {
     let _ = __check_scheme(req.url.scheme) or raise;
-    return __round_trip_oneshot(req, "pond/http 0.1", 16777216) or raise;
+    return __round_trip_oneshot(req, DEFAULT_USER_AGENT, DEFAULT_MAX_BODY) or raise;
 }
 
 // =====================================================================
@@ -233,7 +236,7 @@ fn request(req: Request) -> Response fallible(HttpError) {
 // Per the contract: params { user_agent, timeout_ms, max_retries }
 // plus methods get / post / request that match the free-fn surface.
 //
-// The connection pool is hand-rolled (see FRICTION.md). Each slot
+// The connection pool is hand-rolled (see FRICTION.log). Each slot
 // stores host, port, and fd; slot 0 is most recently used. On a
 // request:
 //   1. parse URL, derive host:port

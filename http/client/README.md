@@ -4,14 +4,11 @@ HTTP/1.1 client built on `std::io::tcp::*` plus
 `std::io::tls::*`. Exposes `get` / `post` / `request` free fns
 for one-shot calls, plus a `Client` locus with a connection-
 pool slot set and retry-with-backoff for callers that want a
-stable per-host handle. Returns `Response` or
-`fallible(HttpError)` on the free-fn surface; the `Client`
-methods currently route value-channel errors into
-`self.last_error_*()` accessors per the pre-v0.8.1 two-channel
-rule. → **Closable per v0.8.1 #24 v0.2** (commits `d565d6f` +
-`98910b9`); next source pass flips `Client.get` / `.post` /
-`.request` to `fallible(HttpError)` directly and retires the
-last-error accessors.
+stable per-host handle. Every entry point — the free fns AND
+the `Client` methods — returns `Response fallible(HttpError)`
+per the contract (the pre-v0.8.1 `last_error_*()` accessor
+workaround was retired 2026-06-08; the as-built surface equals
+CONTRACTS.md).
 
 Both `http://` and `https://` URLs work — the scheme picks
 between plain TCP and TLS at connect time, and the
