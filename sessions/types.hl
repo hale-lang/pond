@@ -22,7 +22,7 @@
 //      in pond/router and `Labels { kv: String }` in pond/metrics
 //      — the lib family converged on tab-separated for the same
 //      reason. (Logged as a duplicate-suspected candidate in
-//      FRICTION.md.)
+//      FRICTION.log.)
 type Session {
     id:   String = "";
     data: String = "";
