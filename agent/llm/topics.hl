@@ -18,14 +18,12 @@
 // (text concatenated from every chunk, plus the vendor-
 // reported stop_reason + usage counts).
 //
-// Filename note (`wire_topics.hl` rather than `topics.hl`):
-// F.19 per-directory seed model bundles `.hl` files in
-// alphabetical order and codegen v0 processes type decls in
-// that order, so `topic LlmDone { payload: LlmDoneMsg; ...; }`
-// needs `LlmDoneMsg` / `LlmResponse` (in `types.hl`) to be
-// earlier in the bundle. `t < ty` lexically, so a literal
-// `topics.hl` would land before `types.hl` and fail with
-// "unknown type name" diagnostics. Logged in FRICTION.md.
+// Filename note (2026-06-12): this file was `wire_topics.hl`
+// until upstream WS3.3 (2026-06-11) retired the rename-around-
+// sort-order trick — type and topic resolution is order-free
+// at HEAD (43300e5), so the natural `topics.hl` name builds
+// even though it sorts before `types.hl`. See FRICTION.log
+// § codegen-file-order (CLOSED).
 //
 // Naming note (topic-ident form, 2026-05-18 sweep): the bus
 // requires a user-defined type at every publish site (raw
@@ -33,9 +31,17 @@
 // wrapper type per topic — `LlmChunkMsg` / `LlmDoneMsg`. The
 // topic ident itself (`LlmChunk` / `LlmDone`) is the
 // addressable channel; the wrapper carries the actual data
-// the subscriber unpacks. Prior to the rename-asymmetry fix
-// (`f9068fa`) the publish sites had to use literal subjects
-// (`"agent.llm.chunk" <- ...`); that workaround is now gone.
+// the subscriber unpacks.
+//
+// Publish-side note: BOTH client files (anthropic.hl +
+// openai.hl) publish the chunk/done channels, so the publish
+// sites use the literal-subject form (`publish
+// "agent.llm.chunk" of type LlmChunkMsg;`) — the standing
+// idiom for topics with >= 2 publisher files. The `subject:`
+// strings below are the source of truth those literals stay
+// byte-identical to; cross-seed subscribers (pond/agent/
+// conversation) wire `subscribe llm::LlmChunk` against these
+// decls.
 
 type LlmChunkMsg { payload: String;      }
 type LlmDoneMsg  { payload: LlmResponse; }

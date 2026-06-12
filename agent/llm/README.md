@@ -6,13 +6,18 @@ Suggested import alias: **`llm`**
 import "vendor/pond/agent/llm" as llm;
 ```
 
-## Status (2026-05-18)
+## Status (2026-06-12)
 
 The library builds clean and the public surface matches
 `pond/CONTRACTS.md § pond/agent/llm/`. One load-bearing caveat
 remains (eager-buffering on the streaming path); the prior TLS
-gap closed 2026-05-18 with `std::io::tls::*` shipping upstream
-and the source-level wire-up landing in this commit.
+gap closed 2026-05-18 with `std::io::tls::*` shipping upstream.
+2026-06-08: `complete()` is a `fallible(LlmError)` member fn
+directly (v0.8.1 two-channel narrowing); the `last_error_*`
+accessor triple is gone. 2026-06-12: `wire_topics.hl` renamed
+to its natural `topics.hl` — upstream WS3.3 made cross-file
+type/topic resolution order-free, retiring the sort-order
+naming trick (FRICTION.log § codegen-file-order, CLOSED).
 
 ### TLS — `api.anthropic.com` over HTTPS now dials directly
 
@@ -47,7 +52,7 @@ flow (one round-trip drain, then one pass over the body).
 For short prompts the difference is invisible. For long
 generations the user sees nothing until the whole response is
 in memory, then receives every chunk in a burst. Logged as a
-follow-up in `FRICTION.md`.
+follow-up in `FRICTION.log`.
 
 ## Public surface
 
@@ -63,68 +68,56 @@ type LlmError    { kind: String; status: Int; detail: String; }
 locus AnthropicClient {
     params { api_key: String; base_url: String = "https://api.anthropic.com";
              default_model: String = "claude-opus-4-7"; }
-    fn complete(req: LlmRequest) -> LlmResponse;        // see deviation note
-    fn stream(req: LlmRequest);                         // see deviation note
-    bus { publish "agent.llm.chunk" of type LlmChunk;
-          publish "agent.llm.done"  of type LlmDone; }
+    fn complete(req: LlmRequest) -> LlmResponse fallible(LlmError);
+    fn stream(req: LlmRequest);
+    bus { publish "agent.llm.chunk" of type LlmChunkMsg;
+          publish "agent.llm.done"  of type LlmDoneMsg; }
 }
 
 locus OpenAiClient {
     params { api_key: String; base_url: String = "https://api.openai.com";
              default_model: String = "gpt-4o"; }
-    fn complete(req: LlmRequest) -> LlmResponse;        // see deviation note
-    fn stream(req: LlmRequest);                         // see deviation note
-    bus { publish "agent.llm.chunk" of type LlmChunk;
-          publish "agent.llm.done"  of type LlmDone; }
+    fn complete(req: LlmRequest) -> LlmResponse fallible(LlmError);
+    fn stream(req: LlmRequest);
+    bus { publish "agent.llm.chunk" of type LlmChunkMsg;
+          publish "agent.llm.done"  of type LlmDoneMsg; }
 }
 
-type LlmChunk { payload: String;      }
-type LlmDone  { payload: LlmResponse; }
+// topics.hl — wrapper payload types + subscriber-facing topics
+type LlmChunkMsg { payload: String;      }
+type LlmDoneMsg  { payload: LlmResponse; }
+topic LlmChunk { payload: LlmChunkMsg; subject: "agent.llm.chunk"; }
+topic LlmDone  { payload: LlmDoneMsg;  subject: "agent.llm.done";  }
 
-// Free-fn surface — same shapes, with the value-channel
-// `fallible(LlmError)` annotation that locus methods can't carry.
+// Free-fn kernels — same shapes; the methods wrap these. Also a
+// public value-channel entry point.
 fn anthropic_complete(api_key, base_url, req, max_body)
     -> LlmResponse fallible(LlmError);
 fn openai_complete(api_key, base_url, req, max_body)
     -> LlmResponse fallible(LlmError);
 ```
 
-### Two-channel deviation — CLOSABLE
+### Wire subjects — compatibility contract
 
-Under the pre-v0.8.1 two-channel rule, user-declared locus
-methods could not declare `fallible(E)`. CONTRACTS.md lists
-`complete()` and `stream()` as locus methods with fallible
-returns; the implementation deviates in the standard way:
+The wire subjects `"agent.llm.chunk"` and `"agent.llm.done"`
+are a cross-seed compatibility contract: `pond/agent/
+conversation` (and any other subscriber) wires against them.
+They must stay byte-identical to the `subject:` fields of the
+`topic LlmChunk` / `topic LlmDone` decls in `topics.hl` — do
+not rename them.
 
-- Methods are non-fallible. They wrap the matching free-fn
-  kernel (`anthropic_complete`, `openai_complete`,
-  `__anthropic_fetch_sse`, `__openai_fetch_sse`) with the
-  standard `or self.__record(err)` clause from
-  `spec/styleguide.md § 7`.
-- The captured error is readable through
-  `client.last_error_kind()`, `client.last_error_status()`,
-  and `client.last_error_detail()`. A successful call leaves
-  `last_error_kind()` returning `""`.
-- Consumers that want hard fallible semantics call the free
-  fns directly: `let r = llm::anthropic_complete(key, url,
-  req, max_body) or raise;`.
-
-→ **v0.8.1 #24 v0.2** (commits `d565d6f` + `98910b9`) narrows
-the rule; user-declared `fn` member fns now carry `fallible(E)`.
-Next source pass restores `AnthropicClient.complete` /
-`OpenAiClient.complete` to `-> LlmResponse fallible(LlmError)`
-on the locus directly and retires the `__record` /
-`last_error_*` accessor triple.
-
-### Bus subjects
-
-Both clients publish on the **topic-ident** form (canonical
-per spec/semantics.md § Topic declarations):
-`topic LlmChunk { payload: LlmChunkMsg; subject:
-"agent.llm.chunk"; }` and `topic LlmDone { payload: LlmDoneMsg;
-subject: "agent.llm.done"; }`. The bus requires a user-defined
-type at every publish site, so each topic wraps its payload in
-a thin `*Msg` struct.
+Publish side: both client files (`anthropic.hl` + `openai.hl`)
+publish the same chunk/done channels, so the publish sites use
+the **literal-subject** form (`publish "agent.llm.chunk" of
+type LlmChunkMsg;` / `"agent.llm.chunk" <- LlmChunkMsg { ... };`)
+— the standing idiom for topics with two or more publisher
+files. Since upstream WS3.3 (2026-06-11) the plain `topic T`
+ident form also resolves across sibling files (the old
+file-locality behavior was a `hale run` import bug), so this is
+an idiom choice now, not a workaround — see FRICTION.log
+§ bus-literal-subjects. The bus requires a user-defined type at
+every publish site, so each topic wraps its payload in a thin
+`*Msg` struct.
 
 Subscribers wire up by topic ident (no `of type T` — the
 topic carries the payload type):
@@ -162,12 +155,13 @@ locus Talker {
             max_tokens:  64,
             temperature: 0.7
         };
-        let resp = client.complete(req);
-        if len(client.last_error_kind()) > 0 {
-            println("error: ", client.last_error_detail());
-        } else {
-            println(resp.text);
-        }
+        // `run()` is a lifecycle method (non-fallible), so the
+        // fallible complete() is dispositioned with `or` — here a
+        // substitute; see examples/echo-completion for the
+        // `or self.__on_err(err)` error-sink shape that keeps the
+        // LlmError diagnosis.
+        let resp = client.complete(req) or llm::LlmResponse { };
+        println(resp.text);
     }
 }
 
@@ -188,7 +182,7 @@ use for the same reason).
 | `wire.hl`         | JSON body builders + response parsers          |
 | `anthropic.hl`    | `AnthropicClient` locus + free-fn kernels      |
 | `openai.hl`       | `OpenAiClient` locus + free-fn kernels         |
-| `wire_topics.hl`  | `LlmChunk` / `LlmDone` topic decls + `LlmChunkMsg` / `LlmDoneMsg` payload wrappers |
+| `topics.hl`       | `LlmChunk` / `LlmDone` topic decls + `LlmChunkMsg` / `LlmDoneMsg` payload wrappers (was `wire_topics.hl` until 2026-06-12) |
 
 ## Demo
 
@@ -241,7 +235,7 @@ Per `pond/README.md`'s no-transitive-deps rule, this lib in
 principle depends on `pond/http/client` (alias `http`) for
 URL parsing + the HTTP request/response shapes. In practice
 `pond/http/client` does not currently build cleanly (a
-parallel build issue — see `FRICTION.md § dependency-on-http-
+parallel build issue — see `FRICTION.log § dependency-on-http-
 client`), so the lib reaches into `std::io::tcp::*` and
 `std::str::index_of` directly, with an inline URL parser
 (`anthropic.hl § __parse_base_url`). Once http/client lands
