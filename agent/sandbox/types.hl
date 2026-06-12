@@ -14,7 +14,7 @@
 // implementation pass landed alongside this lib's wire-up, so
 // the methods below now drive real subprocess invocations
 // (via `sub::run_cmd` + `std::io::fs::mktemp` / `write_file`
-// / `unlink`). See FRICTION.md for the small set of forwarded
+// / `unlink`). See FRICTION.log for the small set of forwarded
 // no-ops (`timeout_ms`, `memory_limit_mb`).
 
 // SandboxResult — the success payload of a sandboxed run.
@@ -36,7 +36,7 @@ type SandboxResult {
 // `kind` is one of:
 //   "timeout"       — the run exceeded `timeout_ms`.
 //   "oom"           — the run exceeded `memory_limit_mb` (reserved;
-//                     not yet enforced — see FRICTION.md).
+//                     not yet enforced — see FRICTION.log).
 //   "spawn_failed"  — the underlying subprocess invocation failed
 //                     (including the current "lib is blocked"
 //                     state — `detail` carries the subprocess

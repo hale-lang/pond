@@ -20,7 +20,7 @@ best-effort basis afterwards.
 `memory_limit_mb` is plumbed for forward compat but currently a
 documented no-op (no upstream rlimit hook). `timeout_ms` likewise
 isn't enforced because `std::process::run` has no wall-clock
-cutoff — see FRICTION.md for both.
+cutoff — see FRICTION.log for both.
 
 ## Surface
 
@@ -61,7 +61,7 @@ let r2 = sb.run_file("/srv/agent/scripts/probe.py") or raise;
 
 - `"timeout"`      — wall-clock `timeout_ms` elapsed; the runtime
                      was killed before completing (RESERVED — not
-                     yet enforced, see FRICTION.md).
+                     yet enforced, see FRICTION.log).
 - `"oom"`          — RESERVED for future use; surfaced once
                      `pond/subprocess` plumbs rlimit-style memory
                      enforcement.
