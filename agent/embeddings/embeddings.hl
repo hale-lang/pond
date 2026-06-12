@@ -22,7 +22,7 @@
 //       qualified type `mat::Matrix` ... not registered in user_loci ...
 //       sequencing issue: type_expr_to_codegen_ty called before
 //       pass A0/A1 populated this name
-//   (See FRICTION.md.) Locus *method* params CAN hold cross-seed
+//   (See FRICTION.log.) Locus *method* params CAN hold cross-seed
 //   locus refs (the same diagnostic doesn't fire there), so `add` /
 //   `search` take the Matrix directly.
 //
@@ -45,10 +45,11 @@
 //     `FloatBuf`               for the parallel-arrays shape).
 //   - `Embedding` / `SearchHit`
 //                            — pattern 5 (shape types).
-//   - `cosine_from_parts`, `format_hit_row`, `mat_nan`, etc.
+//   - `cosine_from_parts`, `format_hit_row`, `to_matrix`, etc.
 //                            — pattern 6 (pure helper free fns).
-//   - The `Mat` namespace lotus from pond/math/matrix supplies all
-//     matrix factory ops.
+//   - pond/math/matrix's free-fn surface (`mat::from_rows`,
+//     `mat::dot`, ...) supplies all matrix factory ops (the Mat
+//     namespace lotus was retired by the v0.8.2 m90 enforcement).
 
 import "../../math/matrix" as mat;
 
@@ -159,11 +160,11 @@ locus Store {
         if q_mag == 0.0 {
             fail EmbError { kind: "zero_magnitude" };
         }
-        // Compute per-row scores into a parallel Float vec. The
-        // loop sits inline rather than in a free helper because
-        // codegen v0 rejects passing the receiver locus by name
-        // (`Expr::KwSelf` in value position) into a free fn arg —
-        // self-method calls work, free-fn-with-self-arg does not.
+        // Compute per-row scores into a parallel Float vec.
+        // (Historical note: this loop was forced inline because
+        // codegen v0 rejected `self` as a free-fn value arg;
+        // that gate lifted — verified 2026-06-12 — but the
+        // inline shape is kept as-is. See FRICTION.log.)
         let scores = FloatBuf { };
         let mut sr = 0;
         while sr < cnt {
@@ -194,7 +195,7 @@ locus Store {
                     out = out + "\n";
                 }
                 out = out + format_hit_row(id, s, meta);
-                scores.set(best, mat_nan()) or discard;
+                scores.set(best, std::math::nan()) or discard;
                 picks = picks + 1;
             }
         }
@@ -302,27 +303,20 @@ locus Store {
 
 // ----- free fns (pattern 6) -----
 
-// IEEE 754 NaN sentinel via Mat namespace lotus. Free fn wrapper
-// so we don't instantiate Mat at every call site.
-fn mat_nan() -> Float {
-    let mx = mat::Mat { };
-    return mx.nan_sentinel();
-}
-
-fn mat_is_nan(f: Float) -> Bool {
-    let mx = mat::Mat { };
-    return mx.is_nan(f);
-}
+// NaN production/detection now comes straight from
+// `std::math::nan()` / `std::math::is_nan()` (shipped upstream;
+// FRICTION.log "No Float::NAN / std::math::nan() constant" closed
+// 2026-06-12). The old `mat_nan()` / `mat_is_nan()` wrappers
+// around the matrix lib's sentinels are gone.
 
 // Magnitude of a Matrix interpreted as a flat vector (storage
 // order; same shape used by pond/math/matrix's `dot`). Returns
 // 0.0 on empty.
 //
-// Duplicate-suspected (FRICTION.md): a "magnitude / norm" helper
+// Duplicate-suspected (FRICTION.log): a "magnitude / norm" helper
 // is a natural extension of pond/math/matrix's `dot`.
 fn vector_magnitude_from_matrix(m: mat::Matrix) -> Float {
-    let mx = mat::Mat { };
-    let d = mx.dot(m, m);
+    let d = mat::dot(m, m);
     if d <= 0.0 {
         return 0.0;
     }
@@ -352,7 +346,7 @@ fn argmax_skipping_nan(scores: FloatBuf) -> Int {
     let mut i = 0;
     while i < n {
         let v = scores.get(i) or 0.0;
-        if !mat_is_nan(v) {
+        if !std::math::is_nan(v) {
             if best < 0 {
                 best = i;
                 best_v = v;
@@ -400,11 +394,6 @@ fn embedding_from_matrix(id: String, vector: mat::Matrix, metadata: String) -> E
     };
 }
 
-// Inverse of `embedding_from_matrix` lives on a namespace lotus
-// (`EmbeddingOps`) because free fns can't return a Matrix locus
-// ref (KNOWN_GOTCHAS G3 — `free-fn return of LocusRef`). Same
-// pattern as pond/math/matrix's `Mat` namespace lotus.
-
 // Count comma-separated fields in `s`. An empty string is zero
 // fields; "1.0" is one field; "1.0,2.0,3.0" is three. Used by
 // `matrix_from_embedding` to size the Matrix; mirrors the inline
@@ -426,23 +415,27 @@ fn csv_field_count(s: String) -> Int {
     return count;
 }
 
-// ----- EmbeddingOps namespace lotus (pattern 2) -----
+// Reconstruct a 1xN Matrix from an Embedding's CSV vector.
+// Inverse of `embedding_from_matrix`. Empty `vector_csv`
+// produces a 1x0 Matrix; bad cells substitute 0.0 (per
+// `mat::from_rows`).
 //
-// Methods that return Matrix locus refs live here per
-// KNOWN_GOTCHAS G3 — free fns can't return loci, only locus
-// methods get the m90 heap-alloc return path. Consumers
-// instantiate once: `let eo = emb::EmbeddingOps { };` then
-// dispatch.
+// Free fn as of 2026-06-12: hale v0.8.2's m90 enforcement
+// (#18.6, "methods on loci may not return locus values")
+// inverted KNOWN_GOTCHAS G3 — locus-method returns of loci are
+// now REJECTED and free fns are the blessed entity-creation
+// path. Mirrors pond/math/matrix's Mat → free-fn extraction.
+fn to_matrix(e: Embedding) -> mat::Matrix {
+    let n = csv_field_count(e.vector_csv);
+    return mat::from_rows(1, n, e.vector_csv);
+}
+
+// EmbeddingOps — retired namespace lotus, kept as an empty
+// placeholder for backwards source compat (callers that
+// construct `emb::EmbeddingOps { }` still typecheck). Its one
+// method (`to_matrix`) moved to the free fn above per the m90
+// enforcement. Same placeholder convention as
+// pond/math/matrix's `Mat`.
 locus EmbeddingOps {
     params { }
-
-    // Reconstruct a 1xN Matrix from an Embedding's CSV vector.
-    // Inverse of `embedding_from_matrix`. Empty `vector_csv`
-    // produces a 1x0 Matrix; bad cells substitute 0.0 (per
-    // `Mat.from_rows`).
-    fn to_matrix(e: Embedding) -> mat::Matrix {
-        let mx = mat::Mat { };
-        let n = csv_field_count(e.vector_csv);
-        return mx.from_rows(1, n, e.vector_csv);
-    }
 }

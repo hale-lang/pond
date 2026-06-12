@@ -6,19 +6,19 @@ Suggested alias: `emb`.
 import "vendor/pond/agent/embeddings" as emb;
 import "vendor/pond/math/matrix"      as mat;
 
-let mx    = mat::Mat { };
 let store = emb::Store { dim: 4 };
 
-// Insert a few vectors.
-let v_red    = mx.from_rows(1, 4, "1.0, 0.0, 0.0, 0.0");
-let v_red2   = mx.from_rows(1, 4, "2.0, 1.0, 0.0, 0.0");
-let v_green  = mx.from_rows(1, 4, "0.0, 1.0, 0.0, 0.0");
+// Insert a few vectors (matrix factories are free fns as of
+// hale v0.8.2's m90 enforcement).
+let v_red    = mat::from_rows(1, 4, "1.0, 0.0, 0.0, 0.0");
+let v_red2   = mat::from_rows(1, 4, "2.0, 1.0, 0.0, 0.0");
+let v_green  = mat::from_rows(1, 4, "0.0, 1.0, 0.0, 0.0");
 store.add("red",   v_red,   "primary axis");
 store.add("red2",  v_red2,  "near red");
 store.add("green", v_green, "orthogonal");
 
 // Top-k cosine search against a query.
-let q    = mx.from_rows(1, 4, "3.0, 1.0, 0.0, 0.0");
+let q    = mat::from_rows(1, 4, "3.0, 1.0, 0.0, 0.0");
 let rows = store.search(q, 3);
 println(rows.csv);
 //   red2  0.989949  near red
@@ -45,36 +45,26 @@ CONTRACTS.md declared
 must be primitives or value-typed structs — locus refs (the
 `Matrix` field inside `Embedding`) are rejected at typecheck per
 `spec/forms.md`. Parallel arrays are the v1 substitute. See
-FRICTION.md.
+FRICTION.log.
 
 ## `Store` surface
 
-| Method                                    | Returns | Failure shape                                     |
-|-------------------------------------------|---------|---------------------------------------------------|
-| `add(id, vector: Matrix, metadata)`       | —       | silent no-op on `vector.len() != dim`             |
-| `search(query: Matrix, k: Int)`           | `Rows`  | empty `Rows` on dim mismatch / zero magnitude / `k <= 0` |
-| `remove(id: String)`                      | —       | silent no-op when id not found                    |
-| `count()`                                 | `Int`   | infallible                                        |
+| Method                                    | Returns                          |
+|-------------------------------------------|----------------------------------|
+| `add(id, vector: Matrix, metadata)`       | `() fallible(EmbError)`          |
+| `search(query: Matrix, k: Int)`           | `Rows fallible(EmbError)`        |
+| `remove(id: String)`                      | `() fallible(EmbError)`          |
+| `count()`                                 | `Int` (infallible)               |
 
-Methods are currently infallible per the pre-v0.8.1 two-channel
-rule (`KNOWN_GOTCHAS G4` — old form: locus methods can't declare
-`fallible(E)`). Sentinel-substitute on bad input; the typed-error
-surface lives in sibling free fns (`_checked` variants).
-→ **v0.8.1 #24 v0.2 narrows the rule** (commits `d565d6f` +
-`98910b9`); user-declared `fn` member fns now carry
-`fallible(E)`. Next source pass flips `add` / `search` / `remove`
-to `fallible(EmbError)` directly and retires the `_checked` pairs.
-
-## Free-fn fallible surface
-
-| Free fn                                                  | Returns                       |
-|----------------------------------------------------------|-------------------------------|
-| `add_checked(s: Store, id, vector: Matrix, metadata)`    | `Int fallible(EmbError)`      |
-| `search_checked(s: Store, query: Matrix, k: Int)`        | `Rows fallible(EmbError)`     |
-| `remove_checked(s: Store, id: String)`                   | `Int fallible(EmbError)`      |
+`add` / `search` / `remove` are `fallible(EmbError)` methods
+directly, matching CONTRACTS.md (migrated 2026-06-08 under the
+v0.8.1 #24 v0.2 two-channel narrowing; the old sentinel-substitute
+methods and paired `*_checked` free fns are retired). Callers
+dispose via the standard surface:
 
 ```hale
-let _ = emb::add_checked(store, "x", v, "meta") or self.handle(err);
+store.add("x", v, "meta") or discard;
+let rows = store.search(q, 3) or emb::Rows { csv: "" };
 ```
 
 `EmbError.kind` is one of `"dim_mismatch"`, `"bad_k"`,
@@ -120,16 +110,18 @@ type Embedding {
 
 CONTRACTS.md declared `vector: Matrix` (a locus ref). Cross-seed
 `type` fields can't hold a qualified locus ref at v1 (codegen
-crashes in pass A0; see FRICTION.md). The `vector_csv` field is
+crashes in pass A0; see FRICTION.log). The `vector_csv` field is
 the row-major CSV serialization — round-trips via
-`embedding_from_matrix` / `EmbeddingOps.to_matrix`. The Store's
+`embedding_from_matrix` / `to_matrix` (both free fns). The Store's
 surface doesn't consume `Embedding` directly — `add` takes the
 Matrix straight through.
 
 ```hale
-let e  = emb::embedding_from_matrix("id", v, "meta");
-let eo = emb::EmbeddingOps { };
-let m  = eo.to_matrix(e);
+let e = emb::embedding_from_matrix("id", v, "meta");
+let m = emb::to_matrix(e);
+// (`emb::EmbeddingOps { }` is a retired empty placeholder —
+// its `to_matrix` moved to the free fn per the v0.8.2 m90
+// enforcement; see FRICTION.log 2026-06-12.)
 ```
 
 ## Example
@@ -154,13 +146,14 @@ ok   #3 = green
 
 Embeds 5 hand-crafted 4-dim vectors, queries with a 6th, verifies
 the top-3 against by-inspection ordering. Exercises the dim-
-mismatch `search_checked` path and the `remove` path.
+mismatch `search` failure path (`or report_dim_mismatch(err)`) and the `remove` path.
 
 ## Files
 
 - `embeddings.hl` — `Store`, parallel `@form(vec)` sub-loci,
   Embedding / SearchHit / Rows / EmbError shape types,
-  `EmbeddingOps` namespace lotus, fallible free fns.
+  free-fn surface (`to_matrix`, `embedding_from_matrix`, ...),
+  retired `EmbeddingOps` placeholder.
 - `examples/topk-demo/main.hl` — end-to-end demo.
-- `FRICTION.md` — contract deviations, language gaps,
+- `FRICTION.log` — contract deviations, language gaps,
   duplication suspicions.
