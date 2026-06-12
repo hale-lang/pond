@@ -1,110 +1,124 @@
-// email-worker — minimal end-to-end demo for pond/jobs.
+// email-worker — end-to-end demo for pond/jobs over the REAL
+// pond/sqlite driver.
 //
-// Per the assignment brief:
-//   1. Enqueue 10 "send_email" jobs.
-//   2. Start a Pool with 2 workers.
-//   3. Verify all 10 process (print "sent: <id>" per job;
-//      handler does nothing real).
+// What it does:
+//   1. Opens /tmp/pond-jobs-email-demo.db and drops the queue
+//      table so every run starts fresh (idempotent).
+//   2. Constructs a jobs::Queue over the connection (birth runs
+//      the schema bringup) and enqueues 10 "send_email" jobs plus
+//      one poison "send_fax" job (max_attempts = 2).
+//   3. Runs a jobs::Pool with 2 workers and exit_on_empty, so the
+//      workers drain the queue and exit. The handler prints one
+//      "sent:" line per delivered email; the poison job is
+//      rejected, retried once (attempt 0 → 1), then dead-lettered.
+//   4. Verifies the row states in the real table:
+//      done=10, failed=1, ready=0.
 //
-// **Stub mode (FRICTION.md)**: this demo runs against
-// `Pool { simulate: true }` because pond/sqlite is stubbed and
-// the real `dequeue` returns kind="db" with detail="unsupported".
-// In simulate mode the Workers bypass the queue and call the
-// handler `max_jobs_per_worker` times each; with 2 workers × 5
-// jobs/worker the handler fires 10 times and the brief's
-// "10 sent lines" target lands. When pond/sqlite unblocks, the
-// `simulate: true` line goes away and the same `enqueue` loop
-// + `Pool` instantiation drive the real queue.
+// Per pond's no-transitive-deps rule (and hale.toml [ffi]
+// auto-pickup, which only scans DIRECT imports), this app imports
+// pond/sqlite itself even though pond/jobs also uses it.
 //
-// The handler is `__send_email` (top-level free fn — fn-pointer
-// fields take a top-level fn name; see pond/jobs/pool.hl on
-// default_handler). It prints the per-job line and returns
-// JobResult { ok: true } so the pool would ack the row in real
-// mode. Identifier = "<kind>:<payload>" so the user-visible
-// trace matches what the SQL row would carry.
+// Build & run (the [ffi] section links libsqlite3):
+//     hale build jobs/examples/email-worker/
+//     ./jobs/examples/email-worker/email-worker
 
 import "../.." as jobs;
+import "../../../sqlite" as sqlite;
 
-fn __send_email(j: jobs::Job) -> jobs::JobResult {
-    println("sent: ", j.kind, ":", j.payload);
-    return jobs::JobResult { ok: true, detail: "delivered" };
+// EmailHandler — satisfies jobs::JobHandler structurally
+// (fn invoke(j) -> JobResult). Delivers "send_email" jobs;
+// bounces anything else so the demo exercises the retry +
+// dead-letter path too.
+locus EmailHandler {
+    params { delivered: Int = 0; }
+    fn invoke(j: jobs::Job) -> jobs::JobResult {
+        if j.kind == "send_email" {
+            self.delivered = self.delivered + 1;
+            println("sent: #", to_string(j.id), " ", j.payload);
+            return jobs::JobResult { ok: true, detail: "delivered" };
+        }
+        println("bounce: #", to_string(j.id), " kind '", j.kind,
+                "' (attempt ", to_string(j.attempt), "/",
+                to_string(j.max_attempts), ")");
+        return jobs::JobResult { ok: false, detail: "unknown kind" };
+    }
 }
 
 locus EmailWorkerDemo {
     params {
-        // Path passed through to Queue / Pool. ":memory:" is the
-        // default once pond/sqlite unblocks; today it's ignored
-        // by the stub.
-        path: String = ":memory:";
+        path:       String = "/tmp/pond-jobs-email-demo.db";
+        total_jobs: Int    = 10;
+        workers:    Int    = 2;
+    }
 
-        // Job count target. The brief says 10; with 2 workers
-        // each running 5 jobs we land on the target.
-        total_jobs:        Int = 10;
-        workers:           Int = 2;
-        per_worker_target: Int = 5;
+    // Enqueue error bridge: print and substitute id 0.
+    fn note(e: jobs::JobError) -> Int {
+        println("[email-worker] JobError: ", e.kind, " — ", e.detail);
+        return 0;
+    }
+
+    // The pool lives inside this member fn so its dissolve cascade
+    // (which joins every worker) completes before run() verifies
+    // the table.
+    fn run_pool(q: jobs::Queue, h: EmailHandler) -> Int {
+        let pool = jobs::Pool {
+            queue:         q,
+            workers:       self.workers,
+            handler:       h,
+            exit_on_empty: true,
+        };
+        let _ = pool;
+        return 0;
     }
 
     run() {
-        // 1. Bring up the queue. Queue.birth() runs CREATE TABLE
-        //    IF NOT EXISTS via pond/sqlite (stubbed today, but
-        //    the call still type-checks and the shape demonstrates
-        //    the unblock path).
-        let q = jobs::Queue { db_path: self.path };
+        println("[email-worker] db: ", self.path);
+        let conn = sqlite::Db { path: self.path };
 
-        // 2. Enqueue 10 "send_email" jobs. Each enqueue is a free
-        //    fn taking the Queue ref; failure routes through
-        //    `or __ignore_enqueue(err)` so the stub's
-        //    "unsupported" return doesn't drag the run() body
-        //    down — the enqueue surface is exercised regardless.
+        // Fresh start every run (self-cleaning).
+        let _ = conn.exec("DROP TABLE IF EXISTS pond_jobs")
+            or sqlite::ExecResult { };
+
+        // Queue.birth() runs CREATE TABLE IF NOT EXISTS.
+        let q = jobs::Queue { db: conn };
+
+        // Enqueue 10 send_email jobs + 1 poison job.
         let mut i = 0;
         while i < self.total_jobs {
             let payload = "to=user" + to_string(i) + "@example.com";
-            let _ = jobs::enqueue(q, "send_email", payload, 3)
-                or __ignore_enqueue(err);
+            let id = q.enqueue("send_email", payload, 3) or self.note(err);
+            let _ = id;
             i = i + 1;
         }
+        let _ = q.enqueue("send_fax", "to=nobody", 2) or self.note(err);
         println("[email-worker] enqueued ", to_string(self.total_jobs),
-                " send_email jobs");
+                " send_email jobs + 1 poison send_fax job");
 
-        // 3. Start the Pool. `simulate: true` is the stub-mode
-        //    switch (see FRICTION.md): workers bypass the queue
-        //    and synthesize their own Jobs so the handler fires
-        //    even though pond/sqlite is down. Each worker hits
-        //    `max_jobs_per_worker` invocations and exits; the
-        //    Pool's dissolve cascade pthread_joins them.
-        //
-        //    Let-bound so the Pool's lifetime covers the run()
-        //    scope (per m82). When run() returns, Pool's
-        //    dissolve fires, which cascades into each Worker's
-        //    dissolve (which pthread_joins). By the time the
-        //    next println below runs, every worker has exited.
-        let pool = jobs::Pool {
-            db_path:                 self.path,
-            workers:                 self.workers,
-            max_jobs_per_worker:     self.per_worker_target,
-            simulate:                true,
-            simulate_kind:           "send_email",
-            simulate_payload_prefix: "to=user",
-            handler:                 __send_email,
-        };
-        let _ = pool;
-
+        // Drain the queue through the pool.
+        let h = EmailHandler { };
+        let _ = self.run_pool(q, h);
         println("[email-worker] pool drained; all workers joined");
-    }
-}
 
-// __ignore_enqueue — error-bridge for the demo's enqueue loop.
-// Today pond/jobs::enqueue returns kind="db" ("unsupported")
-// from the stub; we acknowledge it and continue so the demo
-// still produces output. A production caller would `or raise`
-// (escalating to the parent's on_failure) or stash the err for
-// metrics.
-fn __ignore_enqueue(e: jobs::JobError) -> Int {
-    // Quiet by default — uncomment the println for stub-mode
-    // diagnostics. The brief asks for 10 "sent:" lines, not for
-    // 10 "enqueue stub:" lines.
-    let _ = e;
-    return 0;
+        // Verify against the real table.
+        let done = conn.query_one(
+            "SELECT count(*) FROM pond_jobs WHERE state = 'done'"
+        ) or sqlite::Row { data: "?" };
+        let failed = conn.query_one(
+            "SELECT count(*) FROM pond_jobs WHERE state = 'failed'"
+        ) or sqlite::Row { data: "?" };
+        let ready = conn.query_one(
+            "SELECT count(*) FROM pond_jobs WHERE state = 'ready'"
+        ) or sqlite::Row { data: "?" };
+        println("[email-worker] table states: done=", done.data,
+                " failed=", failed.data, " ready=", ready.data);
+
+        if done.data == to_string(self.total_jobs) && failed.data == "1" {
+            println("[email-worker] OK — ", done.data,
+                    " delivered + acked, 1 dead-lettered after retry");
+        } else {
+            println("[email-worker] FAIL — unexpected row states");
+        }
+    }
 }
 
 fn main() {

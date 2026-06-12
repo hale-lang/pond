@@ -1,283 +1,140 @@
-# pond/jobs — background job queue + worker pool (BLOCKED on pond/sqlite)
+# pond/jobs — SQLite-backed background job queue
 
-SQLite-backed job queue (`Queue`) plus a pinned-worker pool
-(`Pool` + `Worker`). At-least-once semantics with retry: a worker
-that picks up a job either acks it on `JobResult.ok = true` or
-fails it (with retry, until `max_attempts` is reached, then
-dead-letter).
-
-## Status (2026-05-16): BLOCKED
-
-Transitively BLOCKED on the stdlib sqlite primitive: pond/jobs
-imports pond/sqlite, and pond/sqlite is itself stub-mode until
-`std::db::sqlite::*` ships in `runtime/stdlib/`. See
-[`FRICTION.md`](./FRICTION.md) for the full chain.
-
-The library type-checks and builds end-to-end against the
-stubbed pond/sqlite. The Pool / Worker / handler shape is
-exercised by the demo via the explicit `simulate: true` switch
-(see Pool below); once pond/sqlite unblocks the same source
-recompiles against a real SQLite-backed queue with no contract
-change.
-
-## Suggested alias
+Suggested import alias: **`jobs`**
 
 ```hale
-import "vendor/pond/jobs" as jobs;
+import "vendor/pond/jobs"   as jobs;
+import "vendor/pond/sqlite" as sqlite;   // jobs' backing store — vendor it too
 ```
 
-The bare `jobs` alias matches `pond/CONTRACTS.md`'s suggestion
-and the `pond/README.md` catalog entry.
+## Status (2026-06-12): WORKING — real queue over the real pond/sqlite driver
+
+The stub era is over. pond/sqlite is a real `@ffi` SQLite driver,
+and this lib's queue ops run real SQL: enqueue inserts a row
+(with bind parameters), dequeue claims the oldest ready row with
+a raced-update check, ack/fail drive the row state machine, and
+the Pool/Worker pair drains the queue through a user handler.
+`examples/email-worker/` round-trips 11 real jobs end-to-end.
 
 ## Surface (as built)
 
+Matches CONTRACTS.md § pond/jobs, with one shape deviation —
+`Job.id` (see FRICTION.log item 6) — and two additive Pool params
+(item 5).
+
 ```hale
-type Job       { kind: String; payload: String;
-                 attempt: Int; max_attempts: Int; }
+type Job       { id: Int; kind: String; payload: String;
+                 attempt: Int; max_attempts: Int; }   // id: deviation, see below
 type JobResult { ok: Bool; detail: String; }
-type JobError  { kind: String; detail: String; }
+type JobError  { kind: String; detail: String; }      // "empty" | "db" | "not_found"
 
 interface JobHandler {
     fn invoke(j: Job) -> JobResult;
 }
 
-locus Queue {
-    params { db_path: String = ":memory:";
-             table:   String = "pond_jobs";
-             conn_handle: Int = -1;
-             last_error:  String = ""; }
-    birth()   { /* CREATE TABLE IF NOT EXISTS pond_jobs ... */ }
-    dissolve(){ /* no-op */ }
+locus Queue {                              // sqlite-backed
+    params { db: sqlite::Db; table: String = "pond_jobs"; }
+    fn enqueue(kind: String, payload: String, max_attempts: Int) -> Int fallible(JobError);
+    fn dequeue() -> Job fallible(JobError);            // empty → fail kind="empty"
+    fn ack(job_id: Int) -> () fallible(JobError);
+    fn fail(job_id: Int, retry: Bool) -> () fallible(JobError);
 }
 
-fn enqueue(q: Queue, kind: String, payload: String,
-           max_attempts: Int) -> Int  fallible(JobError);
-fn dequeue(q: Queue)                  -> Job  fallible(JobError);
-fn ack(q: Queue, job_id: Int)         -> Bool fallible(JobError);
-fn fail_job(q: Queue, job_id: Int, retry: Bool) -> Bool fallible(JobError);
-
-locus Pool {
-    params { db_path: String = ":memory:";
-             table:   String = "pond_jobs";
-             workers: Int = 4;
-             max_jobs_per_worker: Int = 0;
-             simulate: Bool = false;
-             handler: fn(Job) -> JobResult = default_handler; }
-    accept(w: Worker) { }
-    birth()      { /* spawn N pinned Workers as Pool children */ }
-    run()        { /* no-op; workers carry the work */ }
-    drain()      { /* cascade drains children first */ }
-    dissolve()   { /* cascade pthread_joins each Worker */ }
-    on_failure(w: Worker, err: ClosureViolation) {
-        restart(w);
+locus Pool {                               // worker pool
+    params {
+        queue: Queue;
+        workers: Int = 4;
+        handler: JobHandler;
+        max_jobs_per_worker: Int = 0;      // additive: bounded-exit shape
+        exit_on_empty: Bool = false;       // additive: batch-exit shape
     }
-}
-
-// Pinned thread placement is now the consuming app's choice via its
-// main locus `placement { worker_field: pinned(core = N); }` block
-// (F.31 removed the per-locus `: schedule` annotation).
-locus Worker {
-    params { worker_id: Int; db_path; table;
-             max_jobs: Int; simulate: Bool;
-             handler: fn(Job) -> JobResult; }
-    run() { /* dequeue → invoke → ack/fail loop */ }
-}
-```
-
-### Deviations from CONTRACTS.md (all logged in FRICTION.md)
-
-CONTRACTS.md sketches:
-
-```hale
-locus Queue {
-    params { db: Db; table: String = "pond_jobs"; }
-    fn enqueue(...) -> Int fallible(JobError);
-    fn dequeue() -> Job   fallible(JobError);
-    fn ack(id)    -> ()   fallible(JobError);
-    fn fail(id,r) -> ()   fallible(JobError);
-}
-locus Pool {
-    params { queue: Queue; workers: Int = 4; handler: JobHandler; }
     birth() { /* spawn workers */ }
     drain() { /* finish in-flight */ }
 }
 ```
 
-Five v1 language gaps force the as-built shape:
+Call shape:
 
-1. **Locus methods can't be `fallible(E)`** (two-channel rule,
-   `spec/semantics.md` § "Where each channel lives"). The four
-   queue methods migrate to **free fns** taking a `Queue` ref
-   in `query.hl`. Same translation pond/sqlite did for its
-   `exec` / `query_one` / `prepare` etc. surface. → **v0.8.1
-   #24 v0.2 narrows this rule** (commits `d565d6f` + `98910b9`);
-   the next source pass folds the queue methods back onto
-   `Queue` directly, gated on the sqlite F.1 unblock.
+```hale
+let conn = sqlite::Db { path: "/tmp/app.db" };   // caller owns the connection
+let q    = jobs::Queue { db: conn };             // birth() runs CREATE TABLE IF NOT EXISTS
 
-2. **Locus refs can't sit in another locus's params/fields**
-   (`spec/types.md` § F.20 Phase B notes the gap for interfaces;
-   the slot-restriction logic in `spec/semantics.md` extends to
-   ordinary params — a stored Db / Queue would orphan its
-   lifecycle when the holder dissolves). So:
-   - `Queue.params.db: Db` → `Queue.params.db_path: String`
-     (mirrors a future SqliteStore lib).
-   - `Pool.params.queue: Queue` → `Pool.params.db_path` +
-     `Pool.params.table` (the queue identity, not the queue
-     handle).
+let id = q.enqueue("send_email", "to=a@example.com", 3) or self.handle(err);
 
-3. **Interface values can't sit in locus params/fields**
-   (`spec/types.md` § F.20 Phase B). `Pool.params.handler:
-   JobHandler` → `Pool.params.handler: fn(Job) -> JobResult`.
-   Same fn-pointer-shadow pattern pond/router/ uses for
-   `Route.handler` / `MwEntry.before`. The
-   `interface JobHandler` declaration in `interfaces.hl` stays
-   as forward-compat scaffolding — once interface values can sit
-   in fields the call site doesn't change.
+locus EmailHandler {
+    params { delivered: Int = 0; }
+    fn invoke(j: jobs::Job) -> jobs::JobResult { ... }   // satisfies JobHandler
+}
 
-4. **`-> () fallible(E)` return type rejected by codegen v0**
-   (FRICTION.md item 12). `ack(id) -> () fallible(JobError)`
-   and `fail(id, retry) -> () fallible(JobError)` both grow a
-   `Bool` return (always `true` on success; divergent on
-   failure). Same workaround the future store-pattern lib's `sqlite_put` uses.
+jobs::Pool { queue: q, workers: 2, handler: EmailHandler { }, exit_on_empty: true };
+```
 
-5. **`fn fail()` shadows the `fail` keyword** inside its own
-   body (FRICTION.md item 13). The dead-letter/retry surface is
-   `fail_job(id, retry)` instead of `fail(id, retry)`.
+### Semantics worth knowing
 
-Two stub-mode additions on `Pool`:
-
-- `max_jobs_per_worker: Int = 0` — per-worker invocation cap.
-  Necessary because workers are pinned (no inter-thread shutdown
-  signal yet apart from mailbox-shutdown, and Worker doesn't
-  declare `bus`) so the bounded-run shape is how `drain()`
-  cascades cleanly.
-- `simulate: Bool = false` — stub-mode switch. When `true`,
-  workers bypass `dequeue` and synthesize Jobs so the handler
-  fires `max_jobs_per_worker` times. The demo uses this; production
-  code with pond/sqlite unblocked sets `simulate: false` (the
-  default).
+- **`Job.id`** is the queue row id, stamped by `dequeue()` so the
+  worker can `ack(j.id)` / `fail(j.id, retry)`. CONTRACTS.md omits
+  it (its own ack/fail surface is uncallable without it) — the
+  amendment is proposed in FRICTION.log item 6.
+- **Row state machine** — `ready` → (dequeue) → `in_flight` →
+  (ack) → `done`, or (fail retry=true) → `ready` with
+  `attempt + 1`, or (fail retry=false) → `failed` (dead-letter;
+  the row stays for audit). Workers compute
+  `retry = attempt + 1 < max_attempts`.
+- **Claim race** — dequeue's UPDATE carries `AND state = 'ready'`;
+  losing the race rescans (bounded at 100) instead of surfacing an
+  error.
+- **Queue.birth() can't be fallible** (lifecycle): a schema
+  bringup failure stamps an internal `schema_error` and every op
+  fails `kind="db"` until fixed — the same first-call reporting
+  pattern pond/sqlite uses for open failures.
+- **Worker exit** — there is no parent→worker stop signal yet
+  (FRICTION.log item 14). Bound the loop with
+  `max_jobs_per_worker > 0` and/or `exit_on_empty: true`
+  (batch shape); defaults poll forever (daemon shape).
+- **Payload caveat** — `kind` must not contain tab/newline;
+  `payload` may contain tabs (it's parsed as the row remainder)
+  but not newlines.
+- **Reentrancy** — queue ops bridge sqlite errors through private
+  stash fields, so a single Queue locus must not be driven from
+  truly parallel (pinned) workers; cooperative placement (the
+  default) is fine. See FRICTION.log item 16.
 
 ## Files
 
 - `types.hl` — `Job`, `JobResult`, `JobError` (pattern 5).
-- `interfaces.hl` — `JobHandler` interface decl (pattern 6
-  scaffolding for the Phase B Pool.handler param).
-- `queue.hl` — the `Queue` service locus (pattern 3, stub
-  birth that runs CREATE TABLE through pond/sqlite).
-- `query.hl` — the four queue free fns (pattern 6).
-- `pool.hl` — `Pool` (cooperative service locus, pattern 3) +
-  `Worker` (pinned service locus, also pattern 3).
-- `examples/email-worker/main.hl` — enqueue 10 + 2-worker Pool
-  demo. Runs in stub-mode (`simulate: true`); prints
-  `sent: send_email:to=userN@example.com` per job.
+- `interfaces.hl` — `interface JobHandler` (structural, F.20).
+- `queue.hl` — the `Queue` service locus: schema bringup + the
+  four queue ops (+ private stash-bridge helpers).
+- `pool.hl` — `Pool` (cooperative parent) + `Worker` (child
+  running the dequeue → invoke → ack/fail loop).
+- `examples/email-worker/` — end-to-end demo (below).
 
-## Example — enqueue + Pool
+## Build & verify
 
-```hale
-import "vendor/pond/jobs" as jobs;
-
-// Top-level handler — fn-pointer fields take a fn name, not a
-// `self.method` reference (spec/types.md § "Types may hold
-// fn(...) fields; dispatch via record.field(args)").
-fn send_email(j: jobs::Job) -> jobs::JobResult {
-    println("sending: ", j.payload);
-    return jobs::JobResult { ok: true, detail: "delivered" };
-}
-
-locus App {
-    run() {
-        // Bring up the queue. Queue.birth() runs the schema
-        // migration; let-binding means dissolve happens at
-        // run()'s scope exit.
-        let q = jobs::Queue { db_path: "/tmp/jobs.db" };
-
-        // Enqueue a few jobs.
-        let mut i = 0;
-        while i < 10 {
-            let _ = jobs::enqueue(q, "send_email",
-                "to=user" + to_string(i) + "@example.com", 3)
-                or 0;
-            i = i + 1;
-        }
-
-        // Start a pool. 4 pinned worker pthreads spin up; each
-        // exits after `max_jobs_per_worker` invocations. Let-
-        // binding means Pool's dissolve (which pthread_joins
-        // each worker) fires at scope-exit.
-        let pool = jobs::Pool {
-            db_path:             "/tmp/jobs.db",
-            workers:             4,
-            max_jobs_per_worker: 3,         // 4*3 = 12 jobs handled
-            handler:             send_email,
-        };
-        let _ = pool;
-    }
-}
-
-fn main() {
-    App { };
-}
-```
-
-The shape above is the post-unblock surface — exactly the code
-you write once pond/sqlite is wired. The demo at
-`examples/email-worker/main.hl` adds `simulate: true` so it runs
-today against the stubbed backing.
-
-## Verification
+Anything that links pond/sqlite needs libsqlite3 dev headers
+(`apt install libsqlite3-dev`; on a host with only the runtime
+`.so`, point the toolchain at local shims via `C_INCLUDE_PATH` /
+`LIBRARY_PATH`). The end app must import pond/sqlite DIRECTLY —
+hale.toml `[ffi]` auto-pickup scans only direct imports, and
+pond's no-transitive-deps rule requires the explicit vendor
+anyway (verified: an app importing only pond/jobs fails at link
+with `undefined reference to lotus_sqlite_...`).
 
 ```bash
-# Library typechecks (no `fn main()` — `build` would error
-# "program has no `fn main()`", same as every other pond lib).
-hale check \
-    pond/jobs/
-
-# Example builds + runs end-to-end via the stub-mode workers
-# (Pool { simulate: true }).
-hale build \
-    pond/jobs/examples/email-worker/
-pond/jobs/examples/email-worker/email-worker
+hale check jobs/                            # typecheck the lib (no main)
+hale build jobs/examples/email-worker/      # [ffi] picked up via the demo's direct sqlite import
+./jobs/examples/email-worker/email-worker
 ```
 
-Expected output:
+Expected output: 10 `sent: #<id> to=user<n>@example.com` lines,
+two `bounce: #11 ...` lines (the poison job, attempt 0 then 1),
+then
 
 ```
-[email-worker] enqueued 10 send_email jobs
-sent: send_email:to=user0:0
-sent: send_email:to=user0:1
-sent: send_email:to=user0:2
-sent: send_email:to=user0:3
-sent: send_email:to=user0:4
-sent: send_email:to=user1:0
-sent: send_email:to=user1:1
-sent: send_email:to=user1:2
-sent: send_email:to=user1:3
-sent: send_email:to=user1:4
-[email-worker] pool drained; all workers joined
+[email-worker] table states: done=10 failed=1 ready=0
+[email-worker] OK — 10 delivered + acked, 1 dead-lettered after retry
 ```
 
-10 `sent:` lines, 2 workers (each handles 5), deterministic
-completion. The `to=user<wid>:<n>` payload is what the simulate
-mode synthesizes — when pond/sqlite unblocks and `simulate: true`
-goes away, the same handler sees the real `to=userN@example.com`
-payloads that the `jobs::enqueue` loop above puts into the
-queue.
-
-## When this unblocks
-
-Once `std::db::sqlite::*` ships and pond/sqlite drops its
-"unsupported" stubs:
-
-1. `queue.hl` Queue.birth() runs the real CREATE TABLE; the
-   schema lands in the SQLite file.
-2. `query.hl`'s four bodies issue real `db::exec` / `db::query_one`
-   calls. Today's `__bridge_db_*` paths stop firing on the happy
-   path.
-3. `pool.hl` Worker.run()'s `__run_real` branch starts processing
-   real rows. The `simulate: true` switch goes away from the
-   demo.
-4. CONTRACTS.md is amended per FRICTION.md to reflect the
-   two-channel + Phase-B-interface translations as the
-   permanent shape (the gaps in 1–3 above will outlast the
-   sqlite primitive itself; the contract amendments are the
-   right long-term resolution).
+Reruns are idempotent (the demo drops + recreates its table). The
+db file (`/tmp/pond-jobs-email-demo.db`) is a normal SQLite
+database, readable by any external client.
