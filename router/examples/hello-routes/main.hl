@@ -59,7 +59,7 @@ locus Greet {
 // `router::Middleware` structurally.
 locus LogMw {
     fn before(ctx: router::Context) -> router::Context {
-        eprintln(ctx.method, " ", ctx.path);
+        eprintln(ctx.req.method, " ", ctx.req.path);
         return ctx;
     }
     fn after(ctx: router::Context, resp: router::Response) -> router::Response {
@@ -89,10 +89,15 @@ fn main() {
         i = i + 1;
     }
 
+    // Contract surface restored 2026-06-12: registration is via
+    // Router METHODS (`r.add(...)`, `r.use(...)`) — the free-fn
+    // shims `router::add(r, ...)` / `router::use_before(r, ...)`
+    // are retired now that LocusRef → Interface coercion fires
+    // at method-arg sites.
     let r = router::Router { };
-    router::add(r, "GET", "/", Root { });
-    router::add(r, "GET", "/greet/:name", Greet { });
-    router::use_before(r, LogMw { });
+    r.add("GET", "/", Root { });
+    r.add("GET", "/greet/:name", Greet { });
+    r.use(LogMw { });
 
     std::http::Server {
         host:          "127.0.0.1",

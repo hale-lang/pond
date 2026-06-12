@@ -29,38 +29,44 @@ type RouteParams {
 }
 
 // Context is the per-request bundle threaded through the
-// middleware chain and into the matched handler. The contract
-// names a single `req: Request` field, but at v1 user `type`
-// records can't carry path-qualified stdlib types as fields —
-// the codegen pass A0 order (user types first, stdlib types
-// appended) means `std::http::Request` isn't registered yet
-// when this declaration is lowered. See FRICTION.md
-// "context-req-field" for the workaround: we flatten the
-// Request's user-readable fields into Context directly, which
-// preserves the read-only access pattern (`ctx.method`,
-// `ctx.path`, `ctx.headers`, `ctx.body`) without the storage-
-// layer block.
+// middleware chain and into the matched handler. Per the
+// contract it carries the parsed `std::http::Request` nested
+// under `req` plus the per-request capture state under
+// `params`. Handlers read `ctx.req.method` / `ctx.req.path`
+// / `ctx.req.headers` / `ctx.req.body`. (The 2026-05-16
+// "context-req-field" flatten — pass-A0 ordering rejected
+// qualified stdlib types in user type fields — closed at HEAD
+// 2026-06-12; this is the contract shape restored.) Note
+// `ctx.req.path` is the RAW request target including any
+// query string; the matcher strips it for route matching and
+// `ctx.params.qs` carries the query half.
 type Context {
-    method:  String;
-    path:    String;
-    headers: String;
-    body:    String;
-    params:  RouteParams;
+    req:    std::http::Request;
+    params: RouteParams;
 }
 
 // Response — pond/router's local Response shape.
 //
 // Same fields as `std::http::Response` (status / content_type
-// / body); declared locally because user `type` records can't
-// carry path-qualified stdlib types in field positions at v1
-// (see FRICTION.md "context-req-field" / "response-in-fn-ptr-
-// field" for the codegen-pass-A0 ordering gap). The Router
-// converts a router::Response into a std::http::Response at
-// the std::http::Server boundary; handler authors write the
-// router type. The two shapes are field-equal so the
-// conversion is one struct-literal at the boundary.
+// / body). Originally declared locally because the pass-A0
+// ordering gap rejected qualified stdlib types in user type
+// fields; that gap closed at HEAD (2026-06-12), but the local
+// type is KEPT: Hale has no type-alias/re-export surface, so
+// the alternative is handler authors writing
+// `std::http::Response` literals directly — a consumer-facing
+// signature break with no ergonomic win. The Router converts
+// at the std::http::Server boundary; the conversion is one
+// field-equal struct-literal copy (see FRICTION.log
+// "response-in-fn-ptr-field" for the refreshed status).
 type Response {
     status:       Int    = 200;
     content_type: String = "text/plain";
+    // Additional response header lines (Set-Cookie, CORS,
+    // X-Custom-*), CRLF-joined with no trailing CRLF — same
+    // shape as `std::http::Response.headers` (the C11 field
+    // shipped upstream; wired through 2026-06-12). The Server
+    // still emits the fixed Content-Type / Content-Length /
+    // Connection block unconditionally.
+    headers:      String = "";
     body:         String = "";
 }

@@ -51,7 +51,7 @@ fn __router_kv_lookup(blob: String, name: String, sep: String) -> String {
 // Internal: lookup against an `&`-separated `=`-paired query
 // string. Walks pair-by-pair so a long qs with the lookup-
 // target early returns without scanning the rest. URL-
-// decoding is NOT performed at v1 — see FRICTION.md
+// decoding is NOT performed at v1 — see FRICTION.log
 // "url-decoding".
 fn __router_query_lookup(qs: String, name: String) -> String {
     let total = len(qs);
