@@ -25,13 +25,10 @@ fn near_eq(actual: Float, expected: Float, eps: Float, label: String) {
 
 locus StatsDemo {
     run() {
-        // Build a 1x5 row-vec Matrix of small Floats. `zeros`
-        // lives on the `Mat` namespace lotus (matrix factory
-        // methods stay on the namespace lotus per G3 — free fns
-        // can't return Matrix locus refs); instantiate once and
-        // dispatch.
-        let mx = mat::Mat { };
-        let xs = mx.zeros(1, 5);
+        // Build a 1x5 row-vec Matrix of small Floats. `zeros` is
+        // a free fn post-m90 (locus methods may not return locus
+        // values; free fns may — hale v0.8.2 / commit 04657b1).
+        let xs = mat::zeros(1, 5);
         // `Matrix.set_at` is non-fallible (silent no-op on OOB);
         // the fallible variant is the free fn `mat::set_at_checked`.
         xs.set_at(0, 0, 2.0);

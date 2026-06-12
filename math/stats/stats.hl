@@ -30,7 +30,7 @@ fn mean(xs: mat::Matrix) -> Float {
         acc = acc + v;
         i = i + 1;
     }
-    return acc / (0.0 + n);
+    return acc / std::math::int_to_float(n);
 }
 
 // `variance(xs)` — population variance (divides by N, not N-1).
@@ -51,7 +51,7 @@ fn variance(xs: mat::Matrix) -> Float {
         acc = acc + d * d;
         i = i + 1;
     }
-    return acc / (0.0 + n);
+    return acc / std::math::int_to_float(n);
 }
 
 // `stddev(xs)` — population standard deviation. sqrt of variance.
@@ -80,11 +80,9 @@ fn quantile(xs: mat::Matrix, q: Float) -> Float fallible(StatsError) {
         fail StatsError { kind: "out_of_range" };
     }
     // Copy into a 1xN scratch and sort in-place.
-    // `mat::zeros` lives on the `Mat` namespace lotus (G3 — free
-    // fns can't return Matrix locus refs); instantiate once and
-    // dispatch.
-    let mx = mat::Mat { };
-    let scratch = mx.zeros(1, n);
+    // `mat::zeros` is a free fn post-m90 (locus methods may not
+    // return locus values; free fns may).
+    let scratch = mat::zeros(1, n);
     let mut i = 0;
     while i < n {
         let v = xs.get(i) or 0.0;
@@ -94,15 +92,15 @@ fn quantile(xs: mat::Matrix, q: Float) -> Float fallible(StatsError) {
     scratch.sort();
     // Linear interpolation between the two surrounding order
     // statistics. h = q*(N-1) is the fractional rank.
-    let h = q * (0.0 + (n - 1));
-    let lo_idx = Int(std::math::floor(h));
-    let hi_idx = Int(std::math::ceil(h));
+    let h = q * std::math::int_to_float(n - 1);
+    let lo_idx = std::math::float_to_int(std::math::floor(h));
+    let hi_idx = std::math::float_to_int(std::math::ceil(h));
     let lo_v = scratch.get(lo_idx) or 0.0;
     if lo_idx == hi_idx {
         return lo_v;
     }
     let hi_v = scratch.get(hi_idx) or 0.0;
-    let frac = h - (0.0 + lo_idx);
+    let frac = h - std::math::int_to_float(lo_idx);
     return lo_v + frac * (hi_v - lo_v);
 }
 
@@ -111,8 +109,7 @@ fn quantile(xs: mat::Matrix, q: Float) -> Float fallible(StatsError) {
 // convention as mean/variance/stddev).
 fn min_max(xs: mat::Matrix) -> mat::Matrix {
     let n = xs.len();
-    let mx = mat::Mat { };
-    let out = mx.zeros(1, 2);
+    let out = mat::zeros(1, 2);
     if n == 0 {
         return out;
     }
