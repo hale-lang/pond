@@ -1,180 +1,139 @@
-# pond/migrations — schema migration runner
+# pond/migrations — forward-only schema migrations
 
 Suggested import alias: **`migs`**
 
 ```hale
 import "vendor/pond/migrations" as migs;
-import "vendor/pond/sqlite"     as db;
+import "vendor/pond/db"         as db;       // the driver interface Migrator runs on
+import "vendor/pond/sqlite"     as sqlite;   // if using the SqliteDriver adapter
 ```
 
-## Status (2026-05-16): consumer-ready, runtime-blocked
+## Status (2026-06-12): WORKING — backend-neutral, real sqlite path
 
-The library itself builds and runs (`hale build pond/migrations/`
-produces a working `migrate` binary). Iteration, sorting,
-pending-detection, and the up/down driver all work end-to-end —
-verified against the bundled `examples/blog-schema/` demo.
+Rewritten 2026-05-29 onto the `pond/db` `DbDriver` interface
+(data-driven, forward-only, idempotent); this pass wired the
+sqlite backend for real. `examples/blog-schema/` applies two
+migrations to an actual SQLite file, prints the
+`schema_migrations` rows, and proves the re-run no-op.
 
-Every actual SQL operation routes through `pond/sqlite::exec` /
-`query_one`, which is **architecturally blocked** on a stdlib
-sqlite primitive (see `pond/sqlite/FRICTION.md`). So today every
-`migrate up` call applies zero migrations and surfaces a
-diagnostic line; the day sqlite unblocks, no source change in
-`pond/migrations/` is needed for migrations to actually execute.
+## Model
 
-## Migration file naming convention
+Migrations are supplied by the caller as `(version, name,
+up_sql)` triples, applied in ascending version order. `apply()`
+records each in `schema_migrations` and skips any `version <=`
+the recorded max — re-running the full set is a no-op. Data-driven
+rather than directory-scanning: the app embeds its ordered
+migration calls (no fs access, no embed step), and it works
+against ANY backend the DbDriver covers (postgres via pq, sqlite
+via the bundled adapter).
 
-```
-<dir>/
-    001_create_posts.sql        — apply this migration
-    001_create_posts.down.sql   — roll this migration back
-    002_add_comments.sql
-    002_add_comments.down.sql
-    ...
-```
+**Forward-only.** No down migrations — reversal is a new forward
+migration.
 
-- **Prefix is the version**: zero-padded integer (`NNN_`). Padding
-  to 3 digits is the convention; ASCII sort on the padded prefix
-  matches numeric order, which is how the runner orders files.
-- **Description is freeform**: anything after the underscore is
-  ignored by the runner; it surfaces in `pending()` rows for
-  readability.
-- **`.sql` extension required** for the up-migration; the down
-  sibling appends `.down.sql` to the stem (the runner derives it
-  by stripping `.sql` and appending).
-- **Down siblings are optional** for `up`; required for `down`. If
-  a `down` is requested and no `.down.sql` exists for a version
-  being rolled back, `migrate_down` fails with
-  `MigrationError { kind: "down_missing", ... }` and stops.
+**Atomicity.** Each migration travels as one multi-statement
+exec (`<up_sql>; INSERT INTO schema_migrations ...`). Postgres
+runs that as a single implicit transaction (mid-failure rolls the
+whole migration back); sqlite's `sqlite3_exec` is per-statement
+autocommit, so sqlite consumers wanting file-level atomicity put
+`BEGIN`/`COMMIT` inside their own `up_sql` (see FRICTION.log
+item 7).
 
-Files that don't match the `NNN_` prefix pattern (e.g. a README in
-the migrations directory) are silently ignored. Files ending in
-`.down.sql` are skipped during the up-iteration — they're loaded
-on demand by `migrate_down`.
+## Surface (as built)
 
-## Surface
-
-The CONTRACTS.md surface, plus two documented deviations (see
-`FRICTION.md`).
-
-### Free-fn surface (the four CONTRACTS.md `Runner.*` methods,
-translated to take a `Runner` first argument under the
-pre-v0.8.1 two-channel rule; → **closable per v0.8.1 #24 v0.2**,
-to be folded back onto `Runner` in the F.1 unblock pass):
+`Migrator` matches CONTRACTS.md § pond/migrations verbatim.
+`SqliteDriver` is additive — this lib's resolution of the
+sqlite/db interface mismatch (FRICTION.log item 11 / sqlite F.7).
 
 ```hale
-fn current_version(r: Runner) -> Int fallible(MigrationError);
-fn pending(r: Runner)         -> db::Rows fallible(MigrationError);
-fn migrate_up(r: Runner, target: Int)   -> Int fallible(MigrationError);
-fn migrate_down(r: Runner, target: Int) -> Int fallible(MigrationError);
-```
-
-- `current_version(r)` — highest applied version, or 0 if none.
-- `pending(r)` — newline-separated rows of `version\tfilename`
-  for every up-migration with version > current.
-- `migrate_up(r, target)` — apply pending migrations up to and
-  including `target`. Pass `-1` to apply all. Returns the count
-  of migrations applied.
-- `migrate_down(r, target)` — roll back applied migrations down
-  to (but not including) `target`. Pass `-1` for full rollback.
-  Returns the count rolled back.
-
-### Runner locus
-
-```hale
-locus Runner {
+locus Migrator {
     params {
-        db_path: String = ":memory:";
-        dir:     String = "migrations";
-        ready:   Int    = 0;
-        table:   String = "pond_migrations";
+        driver:   db::DbDriver;   // injected: pq::PgConn / pq::PgPool / migs::SqliteDriver
+        applied:  Int    = 0;     // count applied this run
+        failed:   Bool   = false; // sticky: once one fails, skip the rest
+        last_err: String = "";
     }
-    birth() { /* CREATE TABLE IF NOT EXISTS the tracking table */ }
+    fn ensure() -> Bool;                 // create the tracking table if absent
+    fn current_version() -> Int;
+    fn apply(version: Int, name: String, up_sql: String) -> Bool;  // idempotent
+    fn ok() -> Bool;
+}
+
+locus SqliteDriver {                     // db::DbDriver adapter over pond/sqlite
+    params { conn: sqlite::Db; }
+    // satisfies db::DbDriver: backend/open/close/exec/query_one/query_all/
+    // exec_params/query_params/begin/commit/rollback/tx_status
 }
 ```
 
-The `db_path` field is the SQLite path (mirrored from `db::Db.path`);
-the runner constructs its own Db handles inside the free-fn surface
-because the v1 codegen rejects locus-typed `params` fields (see
-`FRICTION.md`).
+Errors ride the db `ok`/`err` value shape (interface methods
+can't be fallible per F.20), not a `fallible(MigrationError)`
+surface: a failed migration prints a `[migrate] FAILED ...` line,
+latches `failed`, and `apply()` returns `false` for the rest of
+the sequence.
 
-### MigrationError shape
+### Why `SqliteDriver` exists
+
+`sqlite::Db`'s locked contract surface is fallible-method shaped
+(`exec(sql) -> ExecResult fallible(DbError)`), which cannot
+structurally satisfy the non-fallible, `ok`/`err`-packed
+`db::DbDriver` — so the CONTRACTS.md note that `sqlite::Db` is
+directly injectable is unimplementable as written (sqlite
+FRICTION § F.7). The adapter wraps a caller-owned `sqlite::Db`,
+catches every `DbError` on the value channel, and repacks it into
+the `db::*` result shapes — usable by ANY DbDriver consumer, not
+just Migrator.
+
+## Usage
 
 ```hale
-type MigrationError { kind: String; detail: String; version: Int; }
+let conn = sqlite::Db { path: "/var/lib/app/app.db" };  // caller owns lifecycle
+let m = migs::Migrator { driver: migs::SqliteDriver { conn: conn } };
+
+let _ = m.ensure();
+let _ = m.apply(1, "create_posts",  "CREATE TABLE posts (...)");
+let _ = m.apply(2, "add_comments",  "CREATE TABLE comments (...)");
+if !m.ok() { println("migration failed: ", m.last_err); }
 ```
 
-`kind` vocabulary: `"io"`, `"bad_filename"`, `"duplicate"`,
-`"down_missing"`, `"exec_failed"`, `"version_table"`,
-`"below_zero"`, `"above_latest"`. `version` is the migration the
-runner was attempting when the failure fired (0 for pre-iteration
-errors).
-
-## CLI
-
-The `migrate` binary (produced by `hale build pond/migrations/`)
-is the App-locus pattern wrapper around the free-fn surface.
-
-```
-$ migrate status                            # default: ":memory:", "migrations"
-$ migrate status _ ./prod.db ./db/migrations
-$ migrate up                                # apply all pending
-$ migrate up 5                              # apply through version 5
-$ migrate down 0                            # roll all back to version 0
-$ migrate down 3                            # roll back to version 3
-```
-
-argv shape:
-
-| Slot   | Meaning                            | Default       |
-|--------|------------------------------------|---------------|
-| `[1]`  | verb (`up` \| `down` \| `status`)  | `"status"`    |
-| `[2]`  | target version (Int)               | `-1`          |
-| `[3]`  | sqlite path                        | `":memory:"`  |
-| `[4]`  | migrations directory               | `"migrations"`|
-
-Positional defaults rather than `--flags` (the same choice
-pond/subprocess made). When you need a different path with the
-default verb / target, pass `_` (or any non-integer) as the
-target — the CLI's argv parser only sets target if it parses as an
-Int.
-
-## Example
-
-```bash
-cd pond/migrations/examples/blog-schema
-./blog-schema
-```
-
-The demo:
-
-1. constructs a `Runner` against `:memory:` and the example dir
-   (which holds `001_create_posts.sql` + `002_add_comments.sql`);
-2. calls `migrate_up(r, -1)` to apply everything;
-3. SELECTs `posts` and `comments` from `sqlite_master` to verify
-   tables exist.
-
-Today the demo prints `BLOCKED on 'exec_failed'` because db::exec
-is stubbed. Post-unblock it prints `OK — both tables created`
-without source change.
+Against postgres, swap the driver injection for a `pq::PgConn` —
+nothing else changes.
 
 ## Files
 
-| File             | Role                                                   |
-|------------------|--------------------------------------------------------|
-| `errors.hl`      | `type MigrationError`                                  |
-| `runner.hl`      | `locus Runner` (state + tracking-table birth)          |
-| `migrate.hl`     | The four free fns + internal scan / apply helpers      |
-| `cli.hl`         | `locus Migrate` App-locus + `fn main()`                |
-| `examples/blog-schema/` | Two-migration end-to-end demo                   |
+| File               | Role                                                  |
+|--------------------|-------------------------------------------------------|
+| `migrate.hl`       | `locus Migrator` over `db::DbDriver`                  |
+| `sqlite_driver.hl` | `locus SqliteDriver` — db::DbDriver adapter (F.7)     |
+| `examples/blog-schema/` | Two-migration end-to-end demo against real sqlite |
 
-## Verification
+## Build & verify
+
+The sqlite path needs libsqlite3 dev headers on the build host
+(`apt install libsqlite3-dev`; or `C_INCLUDE_PATH`/`LIBRARY_PATH`
+shims). The end app must import pond/sqlite DIRECTLY — hale.toml
+`[ffi]` auto-pickup scans only direct imports (and pond's
+no-transitive-deps rule requires the explicit vendor of pond/db
+and pond/sqlite anyway).
 
 ```bash
-hale build \
-    pond/migrations/
+hale check migrations/                          # typecheck the lib (no main)
+hale build migrations/examples/blog-schema/
+./migrations/examples/blog-schema/blog-schema
 ```
 
-Type-checks and codegens cleanly. The demo additionally exercises
-the full directory-scan → sort → iterate → exec pipeline against
-the real fs surface; the SQL execution path is stubbed pending
-sqlite's stdlib primitive.
+Expected output:
+
+```
+[migrate] applied v1 create_posts
+[migrate] applied v2 add_comments
+[blog-schema] first run: applied=2 ok=true current_version=2
+[blog-schema] re-run   : applied=0 ok=true current_version=2
+[blog-schema] schema_migrations rows (n=2):
+1	create_posts	2026-06-12T...Z
+2	add_comments	2026-06-12T...Z
+[blog-schema] OK — 2 applied, re-run no-op, both tables exist
+```
+
+Reruns of the binary are idempotent (the demo drops its tables at
+start, then proves the no-op with a second Migrator round in the
+same run).
