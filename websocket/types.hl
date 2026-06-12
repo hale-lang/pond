@@ -82,6 +82,13 @@ interface WsLogger {
 //   "framing"        — peer sent a malformed WebSocket frame.
 //   "close"          — peer initiated graceful close (only
 //                      surfaces when `auto_reconnect = false`).
+//   "timeout"        — a recv deadline fired: no handshake
+//                      response within `pong_timeout`, or the
+//                      peer went silent past `ping_interval` and
+//                      then failed to answer the liveness ping
+//                      within `pong_timeout` (peer presumed
+//                      dead; only surfaces from read_msg when
+//                      `auto_reconnect = false`).
 //   "max_retries"    — auto-reconnect gave up after exhausting
 //                      `max_retries`.
 type WsError {
