@@ -9,24 +9,17 @@
 // locus whose method set covers this signature structurally
 // satisfies the interface.
 //
-// **Deviation from CONTRACTS.md (logged in FRICTION.md):** the
-// contract sketches `Pool.params { ... handler: JobHandler }` —
-// an interface value stored in a locus param. Per
-// spec/types.md § F.20 Phase B (2026-05-11): "Returning an
-// interface value from a fn, storing one in a locus param/field,
-// or putting interfaces in arrays/tuples is not yet supported."
-// The v1 implementation accepts a fn-pointer shadow instead:
+// As of HEAD 43300e5 (2026-06-12), interface values CAN sit in
+// locus params, so `Pool.params.handler: JobHandler` holds one
+// directly — the fn-pointer shadow this file used to document is
+// gone. Consumers declare a handler locus:
 //
-//   locus Pool {
-//       params { ..., handler: fn(Job) -> JobResult = default_handler; }
+//   locus EmailHandler {
+//       params { sent: Int = 0; }
+//       fn invoke(j: jobs::Job) -> jobs::JobResult { ... }
 //   }
-//
-// This mirrors `pond/router/`'s Route/MwEntry fn-pointer-shadow
-// pattern (see pond/router/interfaces.hl). The interface is
-// declared here for forward-compatibility — once interface values
-// can sit in locus fields, the Pool's `handler` param will accept
-// a `JobHandler` directly and the fn-pointer shadow goes away
-// with no source change at the call site.
+//   ...
+//   jobs::Pool { queue: q, handler: EmailHandler { }, ... };
 
 interface JobHandler {
     fn invoke(j: Job) -> JobResult;
