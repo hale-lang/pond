@@ -8,13 +8,14 @@
 //
 // In-tree the example reaches the lib via a relative path.
 //
-// Status (2026-05-16): the lib is BLOCKED on a stdlib spawn
-// primitive (see ../../FRICTION.md). Every fallible call below
-// resolves to `fail SpawnError { kind: "unsupported", ... }` —
-// the `or self.report(err)` clauses route the gap through the
-// handler. The whole shape is exactly what consumer code will
-// look like the day the primitive ships; only the assertions
-// at the bottom flip from "all unsupported" to "child ran."
+// Status (2026-06-12): UNBLOCKED — the lib routes through
+// `std::process::run` / `std::process::spawn` (shipped
+// 2026-05-17). The demo exercises all three surfaces: the
+// `run_cmd` convenience wrapper, the full `SpawnOpts` path, and
+// the long-lived `Process` locus (spawn-at-birth → wait →
+// ProcessExit publish). Expected output: exit code 0 and 16
+// stdout bytes from /bin/echo, then `streaming wait code = 0`
+// from the Process locus path.
 
 import "../.." as sub;
 
@@ -49,29 +50,19 @@ locus RunDemo {
         };
         let _ = sub::spawn(opts) or self.report(err);
 
-        // Long-lived streaming shape — Process locus with bus
-        // topics. Commented out at v1 because of an upstream
-        // compiler bug: when an imported lib's locus contains
-        // `publish TopicName;`, the topic ident in the publish
-        // doesn't go through the seed-rename map (only the topic
-        // *decl* does). Bug filed in ../../FRICTION.md § 4. The
-        // shape consumers will write once the bug is fixed:
-        //
-        //     let p = sub::Process { cmd:  self.cmd,
-        //                            args: self.args };
-        //     p.send_stdin(std::bytes::from_string(""));
-        //     let st = p.wait();
-        //     println("streaming wait code = ", st.code);
-        //
-        // Subscribers wire up via:
-        //     subscribe sub::StdoutLine as on_line;
-        //     subscribe sub::ProcessExit as on_exit;
-
-        // Surface the stub-state to stdout so the demo's exit
-        // code matches its message ("blocked, here's why").
-        if self.last_kind == "unsupported" {
-            println("run-demo: BLOCKED on stdlib spawn primitive — see FRICTION.md");
-        }
+        // Long-lived streaming shape — Process locus. birth()
+        // spawns the child; wait() blocks, publishes ProcessExit,
+        // and returns the ExitStatus. (The historical "publish
+        // ident doesn't go through the seed-rename map" blocker
+        // is fixed at HEAD — WS3.3, 2026-06-11.) Subscribers can
+        // wire up via `subscribe sub::ProcessExit as on_exit;`.
+        // NOTE: don't pipe stdin to a read-until-EOF child here —
+        // there's still no stdin-close primitive (FRICTION.log),
+        // so e.g. `/bin/cat` would block forever on wait().
+        let p = sub::Process { cmd: self.cmd, args: self.args };
+        let st = p.wait()
+            or sub::ExitStatus { code: -99, signaled: false, signal: 0 };
+        println("run-demo: streaming wait code = ", st.code);
     }
 
     // Error-check fn — converts the value-channel SpawnError

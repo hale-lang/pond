@@ -35,7 +35,7 @@
 // line-by-line drain loop wants non-blocking I/O + a yield point
 // pond doesn't expose yet. The send_stdin / signal / wait surface
 // is fully functional; the StdoutLine/StderrLine streaming side is
-// documented as a gap in FRICTION.md and remains future work.
+// documented as a gap in FRICTION.log and remains future work.
 
 topic StdoutLine  { payload: String;     subject: "subprocess.stdout"; }
 topic StderrLine  { payload: String;     subject: "subprocess.stderr"; }
@@ -50,8 +50,12 @@ locus Process {
         // Held Child handle from std::process::spawn. Its own
         // dissolve() reaps the child (TERM → 100ms → KILL); we
         // declare it as a param so the m82 deferred-dissolve frame
-        // chains its cleanup after Process's dissolve.
-        child:       std::process::Child;
+        // chains its cleanup after Process's dissolve. The default
+        // is the pid=-1 "never spawned" sentinel literal — without
+        // a default, consumers can't instantiate Process at all
+        // (codegen: "param `child` is required"); birth() replaces
+        // it with the real handle.
+        child:       std::process::Child = std::process::Child { };
         // Captured by `fatal_spawn` so the parent's on_failure can
         // read the spawn-failure detail off the frozen child.
         spawn_error: String = "";
@@ -101,17 +105,18 @@ locus Process {
             };
         }
         let s = std::str::from_bytes(b);
-        std::process::write_stdin(self.child, s) or fail SpawnError {
-            kind:   "io",
-            detail: err.kind + ": " + err.path,
-            errno:  err.errno,
-        };
+        // G6 cross-payload translation: `or fail E { ... err.f ... }`
+        // typechecks but codegen v0 doesn't bind `err` inside the
+        // or-fail literal ("unknown identifier `err`"), so route
+        // through the wrap_* helper fns in spawn.hl instead.
+        let _ = std::process::write_stdin(self.child, s)
+            or wrap_pipe_int(err) or raise;
     }
 
     // signal — request the child terminate. The upstream
     // `std::process::kill` runs a fixed SIGTERM → 100ms grace →
     // SIGKILL escalation; the `sig` argument is therefore currently
-    // ignored (documented no-op — see FRICTION.md).
+    // ignored (documented no-op — see FRICTION.log).
     fn signal(sig: Int) -> () fallible(SpawnError) {
         let _ = sig;
         if self.pid <= 0 {
@@ -121,11 +126,7 @@ locus Process {
                 errno:  0,
             };
         }
-        std::process::kill(self.child) or fail SpawnError {
-            kind:   "io",
-            detail: err.kind + ": " + err.path,
-            errno:  err.errno,
-        };
+        std::process::kill(self.child) or (wrap_kill(err) or raise);
     }
 
     // wait — block until the child exits, publish ProcessExit, and
@@ -138,11 +139,8 @@ locus Process {
                 errno:  0,
             };
         }
-        let code = std::process::wait(self.child) or fail SpawnError {
-            kind:   "io",
-            detail: err.kind + ": " + err.path,
-            errno:  err.errno,
-        };
+        let code = std::process::wait(self.child)
+            or wrap_wait(err) or raise;
         let st = ExitStatus {
             code:     code,
             signaled: code < 0,
