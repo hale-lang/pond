@@ -36,9 +36,27 @@ locus WsServerConn {
         // ---- inputs ----
         conn_fd: Int = -1;
 
+        // Liveness cadences, mirroring WsClient (2026-06-12;
+        // std::io::tcp::set_recv_timeout + the -2 recv-timeout
+        // sentinel on recv_into):
+        //
+        //   - `ping_interval` — steady-state recv deadline. A
+        //     client silent that long gets a proactive ping.
+        //   - `pong_timeout`  — post-ping deadline; silence past
+        //     it ⇒ peer presumed dead, read_msg returns false
+        //     with last_error.kind == "timeout". Also bounds the
+        //     handshake() wait for the upgrade request.
+        //   - Either at 0 disables that deadline (recv blocks).
+        //
+        // Any inbound bytes count as liveness and re-arm
+        // `ping_interval`.
+        ping_interval: Duration = 30s;
+        pong_timeout:  Duration = 10s;
+
         // ---- internal state ----
         handshake_done: Bool = false;
         connected:      Bool = false;
+        awaiting_pong:  Bool = false;
 
         rx_buf: std::bytes::BytesBuilder
               = std::bytes::BytesBuilder { initial_cap: 8192 };
@@ -85,6 +103,11 @@ locus WsServerConn {
     fn handshake() -> Bool {
         let stream = std::io::tcp::Stream { conn_fd: self.conn_fd, owns_fd: false };
 
+        // Bound the upgrade-request wait: a client that connects
+        // and then goes silent can't park this conn forever.
+        self.awaiting_pong = false;
+        self.set_recv_deadline(self.pong_timeout);
+
         // Read until we have a full HTTP request (terminated by
         // \r\n\r\n). Cap at 16 KB — anything bigger isn't a
         // real handshake.
@@ -92,8 +115,21 @@ locus WsServerConn {
         let mut total = 0;
         let cap = 16384;
         while total < cap {
-            let chunk = stream.recv_bytes(self.recv_chunk);
-            let got = len(chunk);
+            let got = std::io::tcp::recv_into(self.conn_fd, self.rx_buf, self.recv_chunk);
+            if got == -2 {
+                self.last_error = WsError {
+                    kind:   "timeout",
+                    detail: "no upgrade request within pong_timeout",
+                };
+                self.logger.on_event(WsLogEvent {
+                    phase:  "handshake",
+                    detail: "upgrade request timed out",
+                    bytes:  total,
+                    op:     -1,
+                });
+                self.connected = false;
+                return false;
+            }
             if got <= 0 {
                 self.last_error = WsError {
                     kind:   "handshake",
@@ -108,7 +144,6 @@ locus WsServerConn {
                 self.connected = false;
                 return false;
             }
-            self.rx_buf.append(chunk);
             total = total + got;
             let snap = self.rx_buf.snapshot();
             let s = std::str::from_bytes(snap);
@@ -144,6 +179,9 @@ locus WsServerConn {
         self.handshake_done = true;
         self.rx_buf.clear();
 
+        // Steady-state liveness deadline from here on.
+        self.set_recv_deadline(self.ping_interval);
+
         self.logger.on_event(WsLogEvent {
             phase:  "handshake",
             detail: "101 sent for path " + req.path,
@@ -171,17 +209,9 @@ locus WsServerConn {
         while true {
             // Ensure we have at least 2 bytes (min frame header).
             while self.rx_buf.len() < 2 {
-                let chunk = stream.recv_bytes(self.recv_chunk);
-                let got = len(chunk);
-                if got <= 0 {
-                    self.last_error = WsError {
-                        kind:   "io",
-                        detail: "peer closed",
-                    };
-                    self.connected = false;
+                if !self.pump_recv() {
                     return false;
                 }
-                self.rx_buf.append(chunk);
             }
 
             let buf = self.rx_buf.snapshot();
@@ -192,17 +222,9 @@ locus WsServerConn {
 
             // Wait until we have the full frame.
             while self.rx_buf.len() < hdr.total {
-                let chunk = stream.recv_bytes(self.recv_chunk);
-                let got = len(chunk);
-                if got <= 0 {
-                    self.last_error = WsError {
-                        kind:   "io",
-                        detail: "peer closed mid-frame",
-                    };
-                    self.connected = false;
+                if !self.pump_recv() {
                     return false;
                 }
-                self.rx_buf.append(chunk);
             }
 
             let full = self.rx_buf.snapshot();
@@ -276,6 +298,70 @@ locus WsServerConn {
             }
         }
         return false;
+    }
+
+    // pump_recv — one liveness-bounded recv into rx_buf. Returns
+    // true when bytes arrived; false when the connection is dead
+    // (last_error set, connected = false). On a recv deadline
+    // (-2 sentinel) it sends a proactive ping and gives the peer
+    // `pong_timeout` to produce any traffic; a second deadline
+    // expiry declares the peer dead.
+    fn pump_recv() -> Bool {
+        while true {
+            let got = std::io::tcp::recv_into(self.conn_fd, self.rx_buf, self.recv_chunk);
+            if got > 0 {
+                if self.awaiting_pong {
+                    self.awaiting_pong = false;
+                    self.set_recv_deadline(self.ping_interval);
+                }
+                return true;
+            }
+            if got == -2 {
+                if self.awaiting_pong {
+                    self.awaiting_pong = false;
+                    self.connected = false;
+                    self.last_error = WsError {
+                        kind:   "timeout",
+                        detail: "no pong within pong_timeout; peer presumed dead",
+                    };
+                    self.logger.on_event(WsLogEvent {
+                        phase:  "error",
+                        detail: "pong deadline exceeded; peer presumed dead",
+                        bytes:  0,
+                        op:     -1,
+                    });
+                    return false;
+                }
+                // First silence: proactive ping (best-effort),
+                // then arm the pong deadline.
+                self.awaiting_pong = true;
+                let stream = std::io::tcp::Stream { conn_fd: self.conn_fd, owns_fd: false };
+                let ping = emit_server_frame(true, 9, b"");
+                let n = stream.send_bytes(ping);
+                if n >= 0 {
+                    self.frames_sent = self.frames_sent + 1;
+                }
+                self.set_recv_deadline(self.pong_timeout);
+            } else {
+                // EOF (0) or fatal recv error (< 0, not -2).
+                self.last_error = WsError {
+                    kind:   "io",
+                    detail: "peer closed",
+                };
+                self.connected = false;
+                return false;
+            }
+        }
+        return false;
+    }
+
+    // set_recv_deadline — arm SO_RCVTIMEO on the wrapped fd.
+    // d = 0 disables. A setsockopt failure degrades to the old
+    // fully-blocking recv, so it is dropped rather than bubbled.
+    fn set_recv_deadline(d: Duration) {
+        if self.conn_fd >= 0 {
+            std::io::tcp::set_recv_timeout(self.conn_fd, d) or discard;
+        }
     }
 
     // send_text / send_binary — owner-called outbound surface, so

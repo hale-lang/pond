@@ -1,6 +1,8 @@
 // pond/websocket/examples/echo-client — minimal end-to-end exercise.
 //
-// Connects to wss://echo.websocket.events, sends a few text frames,
+// Connects to a WebSocket echo server (default
+// wss://echo.websocket.events; pass a ws://host:port/path URL as
+// argv[1] to target e.g. a local server), sends a few text frames,
 // prints the echoes, exits cleanly.
 //
 // Build:
@@ -8,6 +10,7 @@
 //
 // Run:
 //   ./pond/websocket/examples/echo-client/echo-client
+//   ./pond/websocket/examples/echo-client/echo-client ws://127.0.0.1:9001/
 //
 // Shape (post-refactor 2026-05-19): owner-driven recv. EchoTap
 // owns the WsClient as a child locus, drives the recv loop from
@@ -26,8 +29,14 @@ locus EchoTap {
     run() {
         println("=== echo-client ===");
 
+        let mut url = std::env::arg(1);
+        if url == "" {
+            url = "wss://echo.websocket.events";
+        }
+        println("[echo] url = ", url);
+
         let conn = ws::WsClient {
-            url:            "wss://echo.websocket.events",
+            url:            url,
             auto_reconnect: true,
             max_retries:    3,
             reconnect_initial: 1s,
@@ -35,9 +44,6 @@ locus EchoTap {
             ping_interval:  30s,
             pong_timeout:   10s,
             recv_chunk:     4096,
-            rx_buf:         std::bytes::from_string(""),
-            last_message:   ws::WsMessage { },
-            last_error:     ws::WsError { },
         };
 
         let mut bail = false;

@@ -5,17 +5,15 @@
 // success the socket transitions from HTTP into the framed
 // WebSocket protocol surface.
 //
-// **Substrate gaps logged in FRICTION.md.**
+// **Key + accept validation (closed 2026-06-12).**
 //
-// `Sec-WebSocket-Key` is supposed to be 16 random bytes
-// base64-encoded; the server replies with
-// `Sec-WebSocket-Accept = base64(sha1(key + GUID))` per § 4.1.
-// v1 stdlib lacks both base64 and sha1; we ship with a
-// deterministic key and DO NOT validate the server's accept
-// header. The protocol still works (the server's accept value
-// has no further role after the handshake), but the lib trusts
-// the peer is a real WebSocket server. Production deployments
-// MUST add a sha1 primitive + base64 codec; logged.
+// `Sec-WebSocket-Key` is 16 CSPRNG bytes (`std::os::getrandom`)
+// base64-encoded per § 4.1; the server replies with
+// `Sec-WebSocket-Accept = base64(sha1(key + GUID))`, which the
+// client now validates via `compute_accept` (std::crypto::sha1 +
+// std::text::base64::encode). The old deterministic-key /
+// no-validation shape is retired — see FRICTION.log
+// § "stdlib gap: SHA-1 + base64" [CLOSED 2026-06-12].
 
 // HandshakeRequest — the HTTP/1.1 upgrade bytes the client
 // sends after a successful TCP / TLS connect.
@@ -25,19 +23,23 @@
 //   Host: <host>
 //   Upgrade: websocket
 //   Connection: Upgrade
-//   Sec-WebSocket-Key: <16-byte base64; deterministic at v1>
+//   Sec-WebSocket-Key: <base64 of 16 CSPRNG bytes; caller supplies>
 //   Sec-WebSocket-Version: 13
+//
+// `key` is the base64-encoded 16-byte nonce the caller generated
+// (WsClient draws it from `std::os::getrandom(16)` per connect and
+// keeps it to validate the server's Sec-WebSocket-Accept).
 //
 // Optional headers (subprotocol, extensions, custom auth) can be
 // appended by the caller via the `extra_headers` param on
 // `WsClient`; this builder takes that String verbatim, so the
 // caller is responsible for CRLF-terminating each line.
-fn build_request(host: String, path: String, extra_headers: String) -> Bytes {
+fn build_request(host: String, path: String, key: String, extra_headers: String) -> Bytes {
     let mut s = "GET " + path + " HTTP/1.1\r\n";
     s = s + "Host: " + host + "\r\n";
     s = s + "Upgrade: websocket\r\n";
     s = s + "Connection: Upgrade\r\n";
-    s = s + "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n";  // FRICTION: hardcoded
+    s = s + "Sec-WebSocket-Key: " + key + "\r\n";
     s = s + "Sec-WebSocket-Version: 13\r\n";
     if len(extra_headers) > 0 {
         s = s + extra_headers;
@@ -55,16 +57,18 @@ fn build_request(host: String, path: String, extra_headers: String) -> Bytes {
 // final `\r\n\r\n`; the caller's recv buffer keeps any tail
 // (which is the first WebSocket frame).
 //
-// Validates only:
+// Validates:
 //   - First line starts with "HTTP/1.1 101 " (any reason
 //     phrase passes).
+//   - `Sec-WebSocket-Accept` matches `expected_accept` (the
+//     caller's `compute_accept(key)` — RFC 6455 § 4.1 step 4).
+//     Pass `expected_accept = ""` to skip (lower-level callers
+//     that don't track the key).
 //
-// FRICTION: a v2 pass should validate
+// FRICTION: a v2 pass could additionally gate on
 //   - Upgrade: websocket (case-insensitive)
 //   - Connection: Upgrade
-//   - Sec-WebSocket-Accept matches the expected sha1+base64.
-// Each gate needs primitives the v1 stdlib doesn't surface yet.
-fn parse_response(b: Bytes) -> Int fallible(WsError) {
+fn parse_response(b: Bytes, expected_accept: String) -> Int fallible(WsError) {
     let total = len(b);
     if total < 12 {
         return 0;     // need at least "HTTP/1.1 NNN" before deciding
@@ -86,7 +90,66 @@ fn parse_response(b: Bytes) -> Int fallible(WsError) {
             detail: "server did not return 101 Switching Protocols: " + s[0..end],
         };
     }
+
+    // Validate Sec-WebSocket-Accept (RFC 6455 § 4.1: "If the
+    // response lacks a Sec-WebSocket-Accept header field or [it]
+    // does not equal the expected value, the client MUST fail the
+    // WebSocket connection").
+    if expected_accept != "" {
+        let got = header_value(s, end, "sec-websocket-accept");
+        if got == "" {
+            fail WsError {
+                kind:   "handshake",
+                detail: "server response lacks Sec-WebSocket-Accept",
+            };
+        }
+        if got != expected_accept {
+            fail WsError {
+                kind:   "handshake",
+                detail: "Sec-WebSocket-Accept mismatch: " + got,
+            };
+        }
+    }
     return end + 4;     // consume up to and including \r\n\r\n
+}
+
+// header_value — find one header's value in the raw header block
+// `s[0..head_end]`. Name match is case-insensitive (RFC 7230
+// § 3.2); leading LWS in the value is skipped. Returns "" when
+// the header is absent (or present with an empty value).
+fn header_value(s: String, head_end: Int, name_lc: String) -> String {
+    let first_crlf = std::str::index_of(s, "\r\n");
+    if first_crlf < 0 {
+        return "";
+    }
+    let mut cursor = first_crlf + 2;
+    while cursor < head_end {
+        let mut line = "";
+        let line_end = std::str::index_of(s[cursor..head_end], "\r\n");
+        if line_end < 0 {
+            line = s[cursor..head_end];
+            cursor = head_end;
+        } else {
+            line = s[cursor..cursor+line_end];
+            cursor = cursor + line_end + 2;
+        }
+        let colon = std::str::index_of(line, ":");
+        if colon >= 1 {
+            if std::str::lower(line[0..colon]) == name_lc {
+                let line_len = len(line);
+                let mut vs = colon + 1;
+                while vs < line_len {
+                    let ch = line[vs..vs+1];
+                    if ch != " " && ch != "\t" {
+                        return line[vs..line_len];
+                    }
+                    vs = vs + 1;
+                }
+                return "";
+            }
+        }
+    }
+    return "";
 }
 
 // ends_with_crlf — small helper for the extra-headers stitcher.
@@ -105,11 +168,10 @@ fn ends_with_crlf(s: String) -> Bool {
 // request, compute Sec-WebSocket-Accept per RFC 6455 § 4.2.2,
 // and assemble the 101 Switching Protocols response.
 //
-// Now that std::crypto::sha1 + std::text::base64::encode exist
-// (verified 2026-05-28 against compiler tests
-// crates/hale-codegen/tests/sha1_base64.rs), the FRICTION note
-// at the head of this file is stale for the server side: the
-// math is fully expressible.
+// Uses the same std::crypto::sha1 + std::text::base64::encode
+// pair the client-side accept validation rides (verified
+// 2026-05-28 against compiler tests
+// crates/hale-codegen/tests/sha1_base64.rs).
 //
 // Per RFC 6455 § 4.2.2:
 //   Sec-WebSocket-Accept = base64(sha1(client_key + WS_MAGIC_GUID))

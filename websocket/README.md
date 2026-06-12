@@ -1,4 +1,4 @@
-# pond/websocket — RFC 6455 client
+# pond/websocket — RFC 6455 client + server-side upgrade
 
 Suggested import alias: **`ws`**
 
@@ -32,16 +32,13 @@ locus EchoTap {
             ping_interval:  30s,
             pong_timeout:   10s,
             recv_chunk:     4096,
-            rx_buf:         std::bytes::from_string(""),
-            last_message:   ws::WsMessage { },
-            last_error:     ws::WsError { },
         };
 
         if !conn.open() {
             println("open failed: ", conn.last_error.detail);
         }
 
-        let _ = conn.send_text("hello from pond/websocket");
+        conn.send_text("hello from pond/websocket") or discard;
 
         // Owner-driven recv loop. Zero copy from conn's arena
         // into the dispatch handler (typed contract read).
@@ -57,7 +54,7 @@ locus EchoTap {
             }
         }
 
-        conn.close();
+        conn.close() or discard;
     }
 }
 
@@ -85,11 +82,13 @@ blocking I/O.
 
 ## Surface
 
-| Member       | Shape                                                                  |
-|--------------|------------------------------------------------------------------------|
-| `WsMessage`  | type — `{ kind, text, bytes }`                                         |
-| `WsError`    | type — `{ kind, detail }`                                              |
-| `WsClient`   | locus — see below                                                      |
+| Member         | Shape                                                                |
+|----------------|----------------------------------------------------------------------|
+| `WsMessage`    | type — `{ kind, text, bytes }`                                       |
+| `WsError`      | type — `{ kind, detail }`                                            |
+| `WsClient`     | locus — see below                                                    |
+| `WsServerConn` | locus — server-side per-connection mirror (`server.hl`)              |
+| `WsLogger`     | interface — `NoopWsLogger` / `StderrWsLogger` sinks (`loggers.hl`)   |
 
 ## `WsClient` locus
 
@@ -118,11 +117,16 @@ locus WsClient {
 
     fn open()                 -> Bool;
     fn read_msg()             -> Bool;
-    fn send_text(s: String)   -> Bool;
-    fn send_bytes(b: Bytes)   -> Bool;
-    fn close();
+    fn send_text(s: String)   -> () fallible(WsError);
+    fn send_bytes(b: Bytes)   -> () fallible(WsError);
+    fn close()                -> () fallible(WsError);
 }
 ```
+
+The blocking owner-driven pumps (`open` / `read_msg`) return
+`Bool` with details on `self.last_error` so run-loop predicates
+stay clean; the owner-called send surface is `fallible(WsError)`
+(v0.8.1 two-channel rule — see FRICTION.log).
 
 ### `open() -> Bool`
 
@@ -130,6 +134,13 @@ Explicit dial + TLS + WS handshake. Idempotent if already
 connected. If `auto_reconnect = true`, internally retries up to
 `max_retries` (with `reconnect_initial` delay between attempts —
 exponential schedule is a FRICTION item) before giving up.
+
+Generates a fresh `Sec-WebSocket-Key` (16 CSPRNG bytes via
+`std::os::getrandom`, base64) per connect and validates the
+server's `Sec-WebSocket-Accept` (RFC 6455 § 4.1). The wait for
+the handshake response is bounded by `pong_timeout` — a server
+that accepts the socket but never completes the upgrade fails the
+connect with `last_error.kind = "timeout"`.
 
 Returns true on success; false with `last_error` set on failure.
 
@@ -145,20 +156,42 @@ transparently:
   else return false with kind `"close"`
 - transient I/O drop → if `auto_reconnect`, reconnect + keep
   looping; else return false with kind `"io"`
+- peer silence → liveness deadlines (below); dead peer either
+  reconnects or returns false with kind `"timeout"`
 
 Returns true with `self.last_message` set; false with
 `self.last_error` set on fatal error.
 
-### `send_text(s) -> Bool` / `send_bytes(b) -> Bool`
+### Liveness deadlines (`ping_interval` / `pong_timeout`)
 
-Emit a single frame. Returns true on a clean write; false with
-`last_error` set on failure.
+Enforced as of 2026-06-12 via `std::io::{tcp,tls}::set_recv_timeout`
+and the `-2` recv-timeout sentinel:
 
-### `close()`
+- A recv that sees no bytes for `ping_interval` (default 30s)
+  triggers a proactive ping and re-arms the deadline to
+  `pong_timeout` (default 10s).
+- Any inbound bytes (not just a literal pong) re-arm
+  `ping_interval`.
+- Silence past the second deadline ⇒ peer presumed dead: socket
+  torn down, then reconnect (`auto_reconnect`) or `read_msg`
+  returns false with `last_error.kind = "timeout"`.
+- Setting either to `0` disables that deadline (recv blocks
+  indefinitely — the pre-2026-06-12 behavior).
 
-Send an RFC 6455 close frame (opcode 0x8) and tear down the
-socket. After `close()`, `connected` is false and `read_msg` /
-`send_*` will return false unless `open()` is called again.
+So a half-open connection or a peer that stops answering can
+stall `read_msg` for at most `ping_interval + pong_timeout`.
+
+### `send_text(s)` / `send_bytes(b)` — `() fallible(WsError)`
+
+Emit a single frame. Mask keys are drawn from
+`std::os::getrandom(4)` per frame (RFC 6455 § 5.3). Address the
+error channel with `or raise` / `or discard` / `or handler(err)`.
+
+### `close() -> () fallible(WsError)`
+
+Send an RFC 6455 close frame (opcode 0x8, best-effort) and tear
+down the socket. After `close()`, `connected` is false and
+`read_msg` / `send_*` will fail unless `open()` is called again.
 
 ## URL parsing
 
@@ -167,7 +200,7 @@ Default ports: 80 for `ws`, 443 for `wss`. `wss` routes through
 `std::io::tls::connect`; `ws` through `std::io::tcp::connect`.
 
 IPv6 literal hosts (`[::1]:8080`) are not parsed at v1 — see
-FRICTION.md.
+FRICTION.log.
 
 ## Pattern catalog
 
@@ -185,36 +218,44 @@ isolation without a live socket.
 
 - ✅ Handshake send (`GET … HTTP/1.1 + Upgrade: websocket`)
 - ✅ Status-line validation (`HTTP/1.1 101 …`)
+- ✅ Random `Sec-WebSocket-Key` (16 CSPRNG bytes per connect) +
+  `Sec-WebSocket-Accept` validation (sha1 + base64; § 4.1)
 - ✅ Frame parse / emit (text / binary / close / ping / pong)
 - ✅ Fragmentation reassembly (continuation frames → one
   `WsMessage` after FIN)
-- ✅ Client→server masking (mandatory per § 5.3)
+- ✅ Client→server masking with per-frame CSPRNG keys (§ 5.3)
 - ✅ Ping auto-reply (server pings get a pong with same payload)
-- ⚠️ `Sec-WebSocket-Key` / `Sec-WebSocket-Accept` validation
-  **stubbed** — needs SHA-1 + base64 stdlib primitives. See
-  FRICTION.md.
+- ✅ Proactive pings + pong-deadline liveness on both loci
+  (`ping_interval` / `pong_timeout`, enforced 2026-06-12)
+- ✅ Server-side upgrade + unmasked server-shape framing
+  (`WsServerConn`; mirrors the client surface, plus
+  `handshake()` and the same liveness cadences)
 - ⚠️ Frames > 2³¹ bytes rejected (no Int64 wide math at v1).
-- ⚠️ Pong-deadline live-tracking partial; `pong_timeout` accepted
-  but not enforced. FRICTION.md § stale-detect.
 
 ## Examples
 
 ```bash
 hale build pond/websocket/examples/echo-client/
 ./pond/websocket/examples/echo-client/echo-client
+# or against a local server:
+./pond/websocket/examples/echo-client/echo-client ws://127.0.0.1:9001/
 ```
 
-The example connects to `wss://echo.websocket.events`, sends a
-few text frames, prints the echoes, and exits.
+The example connects to `wss://echo.websocket.events` (or the
+`ws://` / `wss://` URL passed as argv[1]), sends a few text
+frames, prints the echoes, and exits.
 
 ## Files
 
-- `types.hl` — `WsMessage`, `WsError`
+- `types.hl` — `WsMessage`, `WsError`, `WsLogEvent`, `WsLogger`
 - `frame.hl` — RFC 6455 frame parse + emit + opcode mapping
-- `handshake.hl` — HTTP/1.1 upgrade request + response parse
+- `handshake.hl` — HTTP/1.1 upgrade request/response (client) +
+  upgrade parse / accept compute / 101 response (server)
 - `client.hl` — `WsClient` locus + `parse_url`
+- `server.hl` — `WsServerConn` per-connection server locus
+- `loggers.hl` — `NoopWsLogger` / `StderrWsLogger` sinks
 - `examples/echo-client/main.hl` — runnable echo demo
-- `FRICTION.md` — gaps, deviations, substrate asks
+- `FRICTION.log` — gaps, deviations, substrate asks
 
 ## Cross-references
 

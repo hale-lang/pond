@@ -60,9 +60,23 @@ locus WsClient {
         reconnect_initial: Duration = 1s;
         reconnect_max: Duration = 30s;
 
-        // Keepalive / stale-detect cadences. Reactive only at v1:
-        // peer pings get auto-replied with pong; proactive pings +
-        // pong-deadline live-tracking are FRICTION items.
+        // Keepalive / stale-detect cadences (enforced 2026-06-12
+        // via std::io::{tcp,tls}::set_recv_timeout + the -2
+        // recv-timeout sentinel on recv_into):
+        //
+        //   - `ping_interval` is the steady-state recv deadline.
+        //     When the peer is silent that long, read_msg sends a
+        //     proactive ping and arms `pong_timeout`.
+        //   - `pong_timeout` is the post-ping deadline. Silence
+        //     past it ⇒ peer presumed dead: the socket is torn
+        //     down and read_msg reconnects (auto_reconnect) or
+        //     returns false with last_error.kind == "timeout".
+        //   - Either at 0 disables that deadline (recv blocks,
+        //     the pre-2026-06-12 behavior).
+        //
+        // Any inbound bytes (not just a literal pong) count as
+        // liveness and re-arm `ping_interval`. `pong_timeout`
+        // also bounds the handshake-response wait in open().
         ping_interval: Duration = 30s;
         pong_timeout: Duration = 10s;
 
@@ -80,6 +94,16 @@ locus WsClient {
         sock: Int = -1;
         tls: Int = -1;
         connected: Bool = false;
+
+        // Liveness state: true between "silence deadline fired,
+        // ping sent" and the next inbound byte. A second deadline
+        // expiry while set ⇒ dead peer.
+        awaiting_pong: Bool = false;
+
+        // The base64 Sec-WebSocket-Key sent on the current
+        // connect (16 CSPRNG bytes via std::os::getrandom);
+        // kept to validate the server's Sec-WebSocket-Accept.
+        ws_key: String = "";
 
         // Recv accumulator (rx_buf) and fragment-reassembly buffer
         // (frag_buf) are held as BytesBuilder child loci on
@@ -111,7 +135,11 @@ locus WsClient {
         scratch_buf: std::bytes::BytesBuilder
                    = std::bytes::BytesBuilder { initial_cap: 128 };
 
-        // Outbound mask seed. CSPRNG-seeded mask is a FRICTION item.
+        // Outbound mask fallback seed. Per-frame mask keys come
+        // from std::os::getrandom(4) (RFC 6455 § 5.3 unpredictable
+        // keys — closed 2026-06-12); this LCG state only advances
+        // on the never-in-practice getrandom failure path so a
+        // send still proceeds.
         mask_seed: Int = 0xCAFEBABE;
 
         // ---- exposed surface (read by owner via contract) ----
@@ -259,7 +287,36 @@ locus WsClient {
                     // destination primitive (Phase 1). Zero
                     // allocation in g_bus_payload_arena per frame.
                     let got = self.recv_into_rx();
-                    if got <= 0 {
+                    if got == -2 {
+                        // Recv deadline fired (-2 = retryable
+                        // timeout sentinel, not a dead socket).
+                        if self.awaiting_pong {
+                            // Pinged at the last deadline and got
+                            // nothing back within pong_timeout —
+                            // peer presumed dead.
+                            self.awaiting_pong = false;
+                            self.logger.on_event(WsLogEvent {
+                                phase: "error",
+                                detail: "pong deadline exceeded; peer presumed dead" });
+                            self.close_sock();
+                            self.connected = false;
+                            if !self.auto_reconnect {
+                                self.last_error = WsError {
+                                    kind: "timeout",
+                                    detail: "no pong within pong_timeout",
+                                };
+                                bail = true;
+                            }
+                            // else: loop tries to reopen
+                        } else {
+                            // First silence: proactive ping, then
+                            // give the peer pong_timeout to answer.
+                            self.awaiting_pong = true;
+                            let empty = std::bytes::from_string("");
+                            self.send_frame_internal(9, empty) or discard;
+                            self.set_recv_deadline(self.pong_timeout);
+                        }
+                    } else if got <= 0 {
                         // EOF (got==0) or read error (got<0).
                         self.close_sock();
                         self.connected = false;
@@ -456,8 +513,7 @@ locus WsClient {
     // (control-channel, owner does not call it) addresses it with
     // `or discard`.
     fn send_frame_internal(opcode: Int, payload: Bytes) -> () fallible(WsError) {
-        self.mask_seed = self.mask_seed * 1664525 + 1013904223;
-        let frame = emit_frame(true, opcode, payload, self.mask_seed);
+        let frame = emit_frame(true, opcode, payload, self.next_mask_seed());
         let n = self.write_all(frame);
         if n < 0 {
             self.logger.on_event(WsLogEvent {
@@ -470,6 +526,37 @@ locus WsClient {
             bytes: len(payload), op: opcode });
     }
 
+    // next_mask_seed — fresh 32-bit mask key per outbound frame.
+    // RFC 6455 § 5.3 wants per-frame unpredictable keys; mask keys
+    // ride the wire in cleartext, so an LCG chain is predictable
+    // from any observed frame. Draw 4 CSPRNG bytes per frame; on
+    // the (never-in-practice) getrandom failure path fall back to
+    // advancing the LCG so the send still proceeds.
+    fn next_mask_seed() -> Int {
+        let raw = std::os::getrandom(4) or std::bytes::from_string("");
+        if len(raw) == 4 {
+            let k0 = byte_at(raw, 0);
+            let k1 = byte_at(raw, 1);
+            let k2 = byte_at(raw, 2);
+            let k3 = byte_at(raw, 3);
+            return k0 * 16777216 + k1 * 65536 + k2 * 256 + k3;
+        }
+        self.mask_seed = self.mask_seed * 1664525 + 1013904223;
+        return self.mask_seed;
+    }
+
+    // set_recv_deadline — arm SO_RCVTIMEO on the active transport
+    // (handle-aware tls sibling when on wss). d = 0 disables. A
+    // setsockopt failure degrades to the old fully-blocking recv,
+    // so it is logged-and-dropped rather than bubbled.
+    fn set_recv_deadline(d: Duration) {
+        if self.tls >= 0 {
+            std::io::tls::set_recv_timeout(self.tls, d) or discard;
+        } else if self.sock >= 0 {
+            std::io::tcp::set_recv_timeout(self.sock, d) or discard;
+        }
+    }
+
     fn write_all(b: Bytes) -> Int {
         if self.tls >= 0 {
             return std::io::tls::send_bytes(self.tls, b);
@@ -479,8 +566,12 @@ locus WsClient {
 
     // recv_into_rx — pulls up to recv_chunk bytes from the active
     // socket directly into rx_buf's tail (zero alloc in
-    // g_bus_payload_arena). Returns POSIX read(2) semantics:
-    // > 0 bytes appended, 0 peer closed, < 0 fatal.
+    // g_bus_payload_arena). Returns POSIX read(2) semantics plus
+    // the timeout sentinel: > 0 bytes appended, 0 peer closed,
+    // -2 recv deadline fired (retryable), other < 0 fatal.
+    //
+    // Any received bytes prove peer liveness: clear awaiting_pong
+    // and re-arm the steady-state ping_interval deadline.
     fn recv_into_rx() -> Int {
         let got = if self.tls >= 0 {
             std::io::tls::recv_into(self.tls, self.rx_buf, self.recv_chunk)
@@ -490,9 +581,16 @@ locus WsClient {
         if got > 0 {
             self.logger.on_event(WsLogEvent {
                 phase: "recv", detail: "bytes from socket", bytes: got });
+            if self.awaiting_pong {
+                self.awaiting_pong = false;
+                self.set_recv_deadline(self.ping_interval);
+            }
         } else if got == 0 {
             self.logger.on_event(WsLogEvent {
                 phase: "recv", detail: "eof or empty" });
+        } else if got == -2 {
+            self.logger.on_event(WsLogEvent {
+                phase: "recv", detail: "recv deadline fired" });
         } else {
             self.logger.on_event(WsLogEvent {
                 phase: "error", detail: "recv_into negative" });
@@ -527,7 +625,30 @@ locus WsClient {
                 phase: "dial", detail: "tcp connect ok" });
         }
 
-        let req = build_request(self.host, self.path, self.extra_headers);
+        // Bound the handshake-response wait: a server that accepts
+        // the TCP/TLS connection but never answers the upgrade
+        // can't hang us past pong_timeout.
+        self.awaiting_pong = false;
+        self.set_recv_deadline(self.pong_timeout);
+
+        // Fresh Sec-WebSocket-Key per connect: 16 CSPRNG bytes,
+        // base64-encoded (RFC 6455 § 4.1). Kept on self to verify
+        // the server's Sec-WebSocket-Accept below.
+        let key_raw = std::os::getrandom(16) or std::bytes::from_string("");
+        if len(key_raw) != 16 {
+            self.last_error = WsError {
+                kind: "io",
+                detail: "getrandom failed for Sec-WebSocket-Key",
+            };
+            self.logger.on_event(WsLogEvent {
+                phase: "error", detail: "getrandom failed" });
+            self.close_sock();
+            return false;
+        }
+        self.ws_key = std::text::base64::encode(key_raw);
+        let expected_accept = compute_accept(self.ws_key);
+
+        let req = build_request(self.host, self.path, self.ws_key, self.extra_headers);
         let wrote = self.write_all(req);
         if wrote < 0 {
             self.last_error = WsError { kind: "io", detail: "handshake send failed" };
@@ -546,11 +667,24 @@ locus WsClient {
         let mut tries = 0;
         while tries < 100 {
             let got = self.recv_into_rx();
+            if got == -2 {
+                // Recv deadline fired mid-handshake: server
+                // accepted but never finished the upgrade.
+                self.last_error = WsError {
+                    kind: "timeout",
+                    detail: "no handshake response within pong_timeout",
+                };
+                self.logger.on_event(WsLogEvent {
+                    phase: "error", detail: "handshake response timed out" });
+                self.close_sock();
+                return false;
+            }
             if got <= 0 {
                 tries = tries + 1;
             } else {
                 let view = self.rx_buf.view();
-                let consumed = parse_response(view) or self.handshake_fail(err);
+                let consumed = parse_response(view, expected_accept)
+                    or self.handshake_fail(err);
                 if self.last_error.kind == "handshake" {
                     self.logger.on_event(WsLogEvent {
                         phase: "error", detail: self.last_error.detail });
@@ -564,6 +698,8 @@ locus WsClient {
                     // front; remaining bytes are the first inbound
                     // frame data.
                     self.rx_buf.shift_front(consumed);
+                    // Steady-state liveness deadline from here on.
+                    self.set_recv_deadline(self.ping_interval);
                     return true;
                 }
             }

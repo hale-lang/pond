@@ -251,7 +251,7 @@ fn emit_frame(fin: Bool, opcode: Int, payload: Bytes, mask_seed: Int) -> Bytes {
     // bytes from `mask_seed` via the same arithmetic-shift
     // shape `downstream-consumer::SyntheticFeed` uses for
     // its LCG. Production code should reseed from
-    // `std::os::getrandom` per connection; see FRICTION.md.
+    // `std::os::getrandom` per connection; see FRICTION.log.
     let mut s = mask_seed;
     if s < 0 { s = 0 - s; }
     let mk0 = s - (s / 256) * 256;
