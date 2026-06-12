@@ -98,5 +98,5 @@ hale build \
 ```
 
 The library itself builds independently; the demo additionally
-needs `pond/math/matrix` to be built — see FRICTION.md if the
+needs `pond/math/matrix` to be built — see FRICTION.log if the
 sibling lib lags.

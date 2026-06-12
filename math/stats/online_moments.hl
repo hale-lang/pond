@@ -29,7 +29,7 @@ locus OnlineMoments {
     fn observe(x: Float) {
         self.n = self.n + 1;
         let delta = x - self.mean;
-        self.mean = self.mean + delta / (0.0 + self.n);
+        self.mean = self.mean + delta / std::math::int_to_float(self.n);
         let delta2 = x - self.mean;
         self.m2 = self.m2 + delta * delta2;
     }
@@ -47,6 +47,6 @@ locus OnlineMoments {
         if self.n == 0 {
             return 0.0;
         }
-        return self.m2 / (0.0 + self.n);
+        return self.m2 / std::math::int_to_float(self.n);
     }
 }
