@@ -53,7 +53,7 @@ type SupStrategy {
 // spec/tokens.md § Recovery primitives — restart, restart_in_place,
 // quarantine, reorganize, bubble) and is rejected in field-name
 // position by the parser. The lib spells the field `policy` and
-// the FRICTION.md notes the deviation; the type-shape (one String
+// the FRICTION.log notes the deviation; the type-shape (one String
 // field carrying one of three values) is otherwise contract-faithful.
 type ChildSpec {
     name:   String = "";

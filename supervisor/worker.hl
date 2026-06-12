@@ -53,34 +53,25 @@ locus Worker {
     // § "Inline closure violation").
     closure failed { captures: name, last_error; epoch inline; }
 
-    // birth — print arrival and delegate to fail_now() if the
-    // fail_on_birth flag is set. Per spec/semantics.md
-    // § "Inline closure violation", `violate` is documented as legal
-    // in lifecycle method bodies — but codegen v0 rejects it there
-    // ("`violate` outside a user fn"), so we route the violate
-    // through the regular member fn fail_now() instead. The
-    // observable behavior is identical: birth runs, calls fail_now,
-    // which sets last_error and violates `failed`; the violate is
-    // divergent, birth never sees the next statement, and the parent
-    // reads c.last_error / c.name through the child handle in
-    // on_failure (spec/semantics.md § "Reading the audit state").
-    //
-    // The codegen gap is logged in FRICTION.md.
+    // birth — print arrival and fire the `failed` closure inline if
+    // the fail_on_birth flag is set. Per spec/semantics.md
+    // § "Inline closure violation", `violate` is legal in lifecycle
+    // method bodies — codegen rejected it pre-HEAD ("`violate`
+    // outside a user fn"; the lib routed through a fail_now() member
+    // fn), but the gap closed at HEAD (verified 2026-06-12, see
+    // FRICTION.log), so this is the styleguide shape: last_error is
+    // tagged with the deterministic-test reason so consumers can
+    // distinguish "birth chose to fail" from a real fail() call,
+    // the violate is divergent, and the parent reads c.last_error /
+    // c.name through the child handle in on_failure
+    // (spec/semantics.md § "Reading the audit state").
     birth() {
         println("Worker.birth name=", self.name, " kind=", self.kind,
                 " payload=", self.payload);
         if self.fail_on_birth {
-            self.fail_now();
+            self.last_error = "deliberate failure-on-birth for name=" + self.name;
+            violate failed;
         }
-    }
-
-    // fail_now — internal helper invoked by birth's fail_on_birth
-    // branch. Same shape as fail(reason) below but tags the
-    // last_error with the deterministic-test reason so consumers can
-    // distinguish "birth chose to fail" from a real fail() call.
-    fn fail_now() {
-        self.last_error = "deliberate failure-on-birth for name=" + self.name;
-        violate failed;
     }
 
     // fail(reason) — the canonical "this worker has decided it cannot
