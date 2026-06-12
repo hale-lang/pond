@@ -6,7 +6,7 @@
 // forward / train_step time to slice the right weight + bias
 // windows out of the model's flat parameter buffer.
 //
-// **Deviation from CONTRACTS.md** (logged in FRICTION.md).
+// **Deviation from CONTRACTS.md** (logged in FRICTION.log).
 // CONTRACTS.md declares:
 //
 //     type Layer { name: String; weights: Matrix; biases: Matrix;

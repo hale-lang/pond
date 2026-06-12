@@ -6,30 +6,36 @@ Suggested alias: `nn`.
 import "vendor/pond/math/matrix" as mat;
 import "vendor/pond/ml/neural"   as nn;
 
-let mx = mat::Mat { };
-
 let model = nn::Model {
     name:       "xor",
-    last_error: nn::NnError { },
     rng_state:  42,
 };
 model.add_dense(2, 3, "sigmoid");
 model.add_dense(3, 1, "sigmoid");
 
-let xs = mx.from_rows(4, 2, "0,0, 0,1, 1,0, 1,1");
-let ys = mx.from_rows(4, 1, "0, 1, 1, 0");
+let xs = mat::from_rows(4, 2, "0,0, 0,1, 1,0, 1,1");
+let ys = mat::from_rows(4, 1, "0, 1, 1, 0");
 
 let trainer = nn::Trainer {
     lr:         0.5,
     batch_size: 4,
-    last_error: nn::NnError { },
 };
-trainer.fit(model, xs, ys, 5000);
+trainer.fit(model, xs, ys, 5000) or raise;
 
-let x = mx.from_rows(2, 1, "1.0, 0.0");
-let p = model.forward(x);                 // 3x1 → 1x1 col
+let x = mat::from_rows(2, 1, "1.0, 0.0");
+let p = nn::forward(model, x) or raise;   // free fn (m90); 2x1 in → 1x1 out
 println(p.get(0) or 0.0);                  // ~0.98
 ```
+
+> **Heap-corruption caveat (hale HEAD, 2026-06-12).** A Matrix
+> manufactured inside a locus METHOD frame and passed into
+> `model.train_step` (which is what `Trainer.fit` does
+> internally) corrupts the heap — fit completes correctly but
+> the process can segfault at a later allocation. Until the
+> upstream fix lands, either drive `model.train_step` directly
+> from `fn main()`/free-fn chains, or make the `fit` call the
+> last allocation-bearing act of the program. See FRICTION.log
+> "method-frame-fresh locus args corrupt the heap".
 
 ## Scope — what "autograd-lite" means here
 
@@ -47,8 +53,8 @@ What you get:
   `"sigmoid" | "relu" | "tanh" | "linear"`.
 - **No graph, no tape.** Backward is hand-coded against the
   forward pass inside `Model.train_step`. The four supported
-  activations have closed-form derivatives wired into
-  `NnOps.backprop_activation`. New activations require editing
+  activations have closed-form derivatives wired into the
+  `backprop_activation` free fn. New activations require editing
   `activate_one` + `activation_deriv` together.
 - **SGD only.** One sample, one update; no Adam / momentum /
   weight-decay. Per-sample order is the dataset's row order
@@ -78,10 +84,11 @@ type Layer {
 
 CONTRACTS.md declares `weights: Matrix; biases: Matrix;` —
 deviated to (offset, count) Int windows because v1 type records
-can't carry locus refs (FRICTION.md "layer-stores-windows-not-matrices").
+can't carry locus refs (FRICTION.log "layer-stores-windows-not-matrices").
 The Matrix surface is preserved everywhere it matters: the
-read-side helpers `Model.load_weights(layer)` and
-`Model.load_biases(layer)` rebuild a fresh Matrix per call.
+read-side helpers `load_weights(model, layer)` and
+`load_biases(model, layer)` (free fns per the v0.8.2 m90
+enforcement) rebuild a fresh Matrix per call.
 
 ### `nn::Model` — owner of weights + biases
 
@@ -95,41 +102,44 @@ locus Model {
         params_len:  Int;
         gen:         Int;
         era:         Int;
-        last_error:  NnError;
         rng_state:   Int;          // LCG seed for Xavier init
     }
     fn add_dense(input_dim: Int, output_dim: Int, activation: String);
-    fn forward(x: Matrix) -> Matrix;          // shape mismatch → error sentinel
-    fn train_step(x: Matrix, y: Matrix, lr: Float) -> Float;   // NaN on shape err
+    fn train_step(x: Matrix, y: Matrix, lr: Float) -> Float fallible(NnError);
     fn layer_at(i: Int) -> Layer;
-    fn load_weights(layer: Layer) -> Matrix;
-    fn load_biases(layer: Layer) -> Matrix;
 
-    // state-mirroring surface (non-fallible under the pre-v0.8.1
-    // two-channel rule; errors land on `self.last_error`).
+    // state-mirroring surface
     fn version() -> NnVersion;
     fn snapshot_bytes() -> Bytes;
-    fn apply_delta(d: Bytes);
+    fn apply_delta(d: Bytes) -> () fallible(NnError);
 }
+
+// Module-level free fns (v0.8.2 m90 enforcement: locus methods
+// may not return locus values; free fns may):
+fn forward(model: Model, x: Matrix) -> Matrix fallible(NnError);
+fn load_weights(model: Model, layer: Layer) -> Matrix;
+fn load_biases(model: Model, layer: Layer) -> Matrix;
+fn extract_row(m: Matrix, r: Int, cols: Int) -> Matrix;
+fn extract_row_into(m: Matrix, r: Int, cols: Int, out: Matrix);
 ```
 
-`forward(x)` returns the matrix error sentinel
-(`mat::Mat.is_error(out)`) on shape mismatch and stashes a
-populated `last_error`. `train_step(x, y, lr)` does forward +
-backward + per-sample SGD update; returns the sample's MSE loss
-(or `mat::Mat.nan_sentinel()` on shape mismatch). → **Closable
-per v0.8.1 #24 v0.2** (commits `d565d6f` + `98910b9`); next
-source pass restores `forward` / `apply_delta` / `Trainer.fit`
-to `fallible(NnError)` directly and retires the sentinel +
-`last_error` pattern.
+`forward(model, x)` fails with kind="empty_model" /
+"shape_mismatch" on the value channel. `train_step(x, y, lr)`
+does forward + backward + per-sample SGD update and returns the
+sample's MSE loss; shape errors `fail NnError { ... }`.
+CONTRACTS.md declares `forward` as a `Model` method — the m90
+enforcement forbids that shape (locus-valued returns); the free
+fn is the deviation, logged in FRICTION.log. `NnOps` survives
+only as an empty placeholder locus.
 
 ### `nn::Trainer` — service locus, publishes TrainStepEvent
 
 ```hale
 locus Trainer {
-    params { lr: Float = 0.01; batch_size: Int = 32; last_error: NnError; }
-    bus { publish "nn.TrainStep" of type TrainStep; }
-    fn fit(model: Model, xs: Matrix, ys: Matrix, epochs: Int);
+    params { lr: Float = 0.01; batch_size: Int = 32; }
+    bus { publish TrainStepEvent; }
+    fn fit(model: Model, xs: Matrix, ys: Matrix, epochs: Int)
+        -> () fallible(NnError);
 }
 ```
 
@@ -137,18 +147,16 @@ locus Trainer {
 epoch publishes a `TrainStepEvent` carrying the epoch's mean
 loss. `batch_size` is accepted for forward-compat but the v1
 implementation is per-sample SGD (effective batch_size=1) —
-see FRICTION.md "batch-size-stub".
+see FRICTION.log "batch-size-stub".
 
-CONTRACTS.md declares `params { model: Model; ... }` and
-`fit(xs, ys, epochs) -> () fallible(NnError)`. Both deviated.
-`model` moved to a fit-arg (locus refs can't sit in another
-locus's params — still open). The fallible(E) marker dropped
-under the pre-v0.8.1 two-channel rule → **now closable per
-v0.8.1 #24 v0.2**; next source pass restores `fit` to
-`() fallible(NnError)` (the `() fallible(E)` lowering also
-shipped, `6beb1be`). The `model: Model` param deviation stays
-until cross-seed locus-refs-in-locus-params lands. Full
-context in FRICTION.md.
+CONTRACTS.md declares `params { model: Model; ... }`; `model`
+moved to a fit-arg (locus refs can't sit in another locus's
+params — still open). `fit` is `() fallible(NnError)` per the
+contract. Internally fit reuses two preallocated row buffers
+via `extract_row_into` instead of allocating per sample — part
+mitigation for the heap-corruption caveat above (fit completes
+correctly; the corruption fires on later allocations). Full
+context in FRICTION.log.
 
 ### `nn::TrainStep` + `nn::TrainStepEvent` — per-epoch metric
 
@@ -177,10 +185,9 @@ type NnError { kind: String; detail: String; }
 |---------------|----------------------------------------------------------|
 | `errors.hl`   | `NnError` payload type.                                  |
 | `metrics.hl`  | `TrainStep` per-epoch metric record.                     |
-| `topics.hl`   | `TrainStepEvent` bus topic with explicit `nn.TrainStep` subject (KNOWN_GOTCHAS G1 workaround). |
 | `layer.hl`    | `Layer` shape type carrying (offset, count) windows.     |
-| `model.hl`    | `Model` locus (`@form(vec)` of Float), `NnOps` namespace lotus (Matrix helpers — G3 workaround), `FwdCache` + `OffsetTable` per-train_step buffers, `NnVersion` shape type. |
-| `trainer.hl`  | `Trainer` service locus.                                 |
+| `model.hl`    | `Model` locus (`@form(vec)` of Float), matrix-shaping free fns (former `NnOps` methods; the locus is an empty placeholder now), `FwdCache` + `OffsetTable` per-train_step buffers, `NnVersion` shape type. |
+| `trainer.hl`  | `Trainer` service locus + the `TrainStepEvent` topic decl (explicit `nn.TrainStep` subject), co-located with its single publisher. |
 
 `FwdCache` and `OffsetTable` are `@form(vec)` sibling loci
 let-bound inside `Model.train_step` for the forward-pass
@@ -192,15 +199,13 @@ activation cache. Both dissolve at `train_step`'s scope exit.
 $ hale build \
       pond/ml/neural/examples/xor-trainer/
 $ pond/ml/neural/examples/xor-trainer/xor-trainer
-[xor] training 2-2-1 MLP for 5000 epochs ...
+[xor] training 2-3-1 MLP for 5000 epochs ...
 [xor]   epoch=1 loss=0.286837
-[xor]   epoch=500 loss=0.0171117
 [xor]   epoch=1000 loss=0.00245043
 [xor]   epoch=2000 loss=0.000824435
 [xor]   epoch=3000 loss=0.000486876
 [xor]   epoch=4000 loss=0.000343538
 [xor]   epoch=5000 loss=0.000264721
-ok   trainer.last_error empty
 ok   final loss 0.000264721 < 0.05
 ok   XOR(0,0) = 0
 ok   XOR(0,1) = 1
@@ -211,22 +216,26 @@ ok   XOR(1,1) = 0
   f(0,1) = 0.983393
   f(1,0) = 0.983591
   f(1,1) = 0.0212664
-ok   snapshot round-trip clean
 ok   copy XOR(0,1) = 1
 ok   copy XOR(1,1) = 0
+[xor] exercising Trainer.fit + TrainStepEvent (500 epochs, fresh model) ...
+[xor]   trainer epoch=1 loss=0.286837
+[xor]   trainer epoch=100 loss=0.28696
+[xor]   trainer epoch=500 loss=0.0171117
+ok   trainer last_loss 0.0171117 < 0.05
 [xor] xor-trainer demo complete
 ```
 
 The 2-3-1 topology trains reliably across seeds in a few
 thousand epochs; a 2-2-1 net falls into the classic
 local-minimum failure mode for most random initializations
-(see FRICTION.md "xor-2-2-1-init-sensitive").
+(see FRICTION.log "xor-2-2-1-init-sensitive").
 
 ## See also
 
-- `pond/math/matrix/README.md` — `Matrix` + `Mat` substrate that
-  this lib stands on top of.
+- `pond/math/matrix/README.md` — `Matrix` + free-fn substrate
+  that this lib stands on top of.
   the Model satisfies.
 - `pond/CONTRACTS.md § pond/ml/neural/` — the binding contract.
-- `pond/ml/neural/FRICTION.md` — deviations from the contract,
+- `FRICTION.log` — deviations from the contract,
   language gaps, duplication suspicions.
