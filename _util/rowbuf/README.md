@@ -44,8 +44,14 @@ while i < count {
 
 See `examples/smoke/` for the minimal exercising demo.
 
-## v1 codegen limitation
+## Two-hop import status — G34 CLOSED (2026-06-12)
 
-Cannot be imported from inside an existing pond lib that gets
-cross-seed-imported by an app (two-hop import, KNOWN_GOTCHAS G34).
-End-apps and `_util` libs can consume directly.
+The two-hop codegen break (KNOWN_GOTCHAS G34) that kept pond
+tier libs from importing `_util` libs is closed upstream (WS3.4,
+2026-06-11) and re-verified in pond on 2026-06-12: an
+`app -> lib -> _util` chain using a qualified `alias::Lotus { }`
+literal in expression position inside the intermediate lib
+builds and runs clean. End-apps, `_util` libs, and pond tier
+libs can all consume this lib directly. Tier libs still carrying
+local copies of these helpers collapse them in their own cleanup
+passes (tracked per-lib in FRICTION.log).

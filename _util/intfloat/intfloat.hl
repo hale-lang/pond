@@ -8,7 +8,7 @@
 // rejects, and `Int(g)` only goes Float -> Int.
 //
 // See pond/KNOWN_GOTCHAS.md G30 for the gap, and
-// pond/ml/neural/FRICTION.md for the original surfacing.
+// FRICTION.log for the original surfacing.
 //
 // All callable surface lives on the `IntFloat` namespace lotus
 // (per pond/KNOWN_GOTCHAS.md G11 — cross-seed non-fallible free

@@ -38,31 +38,31 @@ fn main() {
 }
 ```
 
-## Codegen limitation (KNOWN_GOTCHAS G34)
+## Codegen limitation (KNOWN_GOTCHAS G34) — CLOSED (2026-06-12)
 
-The `_util` libs are intended for direct consumption by
-**applications** (and other `_util` libs). They are **NOT usable
-from inside existing pond tier libs** at v1 because of a codegen
-breakage along the two-hop import chain `app -> pond/lib ->
-pond/_util/lib`. The lib import itself succeeds, but
+**Historical:** at v1 the `_util` libs were NOT usable from
+inside pond tier libs — the two-hop import chain `app ->
+pond/lib -> pond/_util/lib` typechecked, but
 `util_alias::SomeNamespace { }` literals inside the intermediate
-lib's body fail at codegen time with:
+lib failed at codegen with `unsupported in codegen v0:
+qualified-name struct literal in expression position`.
 
-```
-codegen error: unsupported in codegen v0:
-  qualified-name struct literal `util_alias::Type` in expression position
-```
+**Closed:** upstream WS3.4 (2026-06-11) fixed qualified
+struct/locus literals in expression and return position inside
+an intermediate lib, single- and multi-file. Re-verified in pond
+on 2026-06-12 at upstream 43300e5 with a two-hop probe: an app
+importing a middle lib that imports the real
+`pond/_util/kvpack` (plus `pond/term`) and constructs
+`kv::KvPack { }` / `term::Styler { profile: 3 }` in expression
+position — builds and runs clean, output correct
+(`a=1\tb=2`, bold SGR wrap).
 
-(The smoke tests under each util prove direct consumption works;
-the cleanup pass also produced minimal repros of the two-hop
-failure mode.)
-
-So the existing pond libs keep their local copies for now and
-flag the duplication in their FRICTION.md files; new apps and
-new pond libs that are NOT meant to be cross-seed-imported can
-use these utils freely. When the codegen gap closes, the
-existing copies can collapse to imports of these surfaces
-mechanically.
+So tier libs CAN now import `_util` libs. The existing tier
+libs' local helper copies have NOT yet been migrated — each
+lib's FRICTION.log flags its duplication, and the collapse
+happens in that lib's own cleanup pass, not here. Note the
+re-export barrier still holds by design: an app that wants to
+name a `_util` type must import that `_util` lib itself.
 
 ## Adding a new util
 
