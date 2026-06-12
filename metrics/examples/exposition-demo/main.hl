@@ -8,11 +8,10 @@
 //
 // Construction note: `metrics::Registry` requires its `store`
 // and `histograms` `@form(...)` fields to be passed in
-// explicitly. Default-init of a locus-typed field via a
-// struct literal default at v1 breaks at first access (see
-// `pond/metrics/FRICTION.md`); the workaround is to construct
-// the substrate slots in the demo's scope and pass them
-// through.
+// explicitly — the locked CONTRACTS.md surface declares them
+// default-less. (The historical locus-field default-init
+// segfault that originally forced this was fixed upstream;
+// see `FRICTION.log`, RESOLVED 2026-06-12.)
 //
 // Labels constructors are bare free fns post-A3 / hale
 // `f9068fa` (`metrics::labels_one(...)` etc.) — the pre-A3
@@ -40,12 +39,15 @@ fn expect_contains(body: String, needle: String, label: String) {
 // out of a lifecycle body so we can use the helpful fn-level
 // idioms (early return) without bumping against the "no
 // `return` in lifecycle bodies" v0 limitation.
-fn drive(reg: metrics::Registry, mx: mat::Mat) {
+fn drive(reg: metrics::Registry) {
     // Register a counter. Labels constructed via bare free fns.
+    // Factories are free fns taking Registry as the first arg
+    // per hale v0.8.2 m90 / the CONTRACTS.md CQRS no-locus-
+    // return rule (2026-06-08).
     let lbl_get = metrics::labels_one("method", "GET");
-    let requests = reg.counter("http_requests_total", lbl_get);
+    let requests = metrics::counter(reg, "http_requests_total", lbl_get);
     let lbl_none = metrics::labels_empty();
-    let temp = reg.gauge("process_resident_memory_bytes", lbl_none);
+    let temp = metrics::gauge(reg, "process_resident_memory_bytes", lbl_none);
 
     // Exercise mutation. inc + inc + add(3.0) = 5.
     requests.inc();
@@ -54,9 +56,9 @@ fn drive(reg: metrics::Registry, mx: mat::Mat) {
     temp.set(123456.0);
 
     // Histogram round-trips bucket bounds through Matrix.
-    let buckets = mx.from_rows(1, 4, "0.005, 0.05, 0.5, 1.0");
+    let buckets = mat::from_rows(1, 4, "0.005, 0.05, 0.5, 1.0");
     let lbl_hist = metrics::labels_one("method", "GET");
-    let req_dur = reg.histogram("http_request_duration_seconds", buckets, lbl_hist);
+    let req_dur = metrics::histogram(reg, "http_request_duration_seconds", buckets, lbl_hist);
     req_dur.observe(0.001);
     req_dur.observe(0.04);
     req_dur.observe(0.4);
@@ -105,8 +107,7 @@ fn drive(reg: metrics::Registry, mx: mat::Mat) {
 
 fn main() {
     // Construct the substrate slots first, then thread them into
-    // the Registry. Two-step construction sidesteps the v1
-    // default-init bug on locus-typed fields.
+    // the Registry (the contract's two-step construction shape).
     let store = metrics::MetricMap { };
     let hl    = metrics::HistogramList { };
     let reg   = metrics::Registry {
@@ -114,6 +115,5 @@ fn main() {
         store:      store,
         histograms: hl
     };
-    let mx  = mat::Mat { };
-    drive(reg, mx);
+    drive(reg);
 }

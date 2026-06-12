@@ -15,12 +15,15 @@ suggestion and the entry in `pond/README.md`.
 
 ## Dependence
 
-This lib has a hard source dependency on `pond/math/matrix` —
-`Registry.histogram(name, buckets, labels)` accepts a `Matrix`
-of bucket upper bounds, so the import is needed even if your
-app never registers a histogram. Vendor both libs into your
-app; the v1 transitive-dep rule (`pond/README.md` § "Design
-rules") makes that explicit.
+This lib has a source dependency on `pond/math/matrix` —
+`metrics::histogram(reg, name, buckets, labels)` accepts a
+`Matrix` of bucket upper bounds. Vendor both libs into your
+app per the v1 transitive-dep rule (`pond/README.md` §
+"Design rules"). As of upstream HEAD `43300e5` (2026-06-12)
+consumers that never register a histogram no longer need
+their own `math/matrix` import just to build against this
+lib — the import is only required where you construct the
+`buckets` Matrix value (see `FRICTION.log`).
 
 ## Surface
 
@@ -39,11 +42,14 @@ locus Registry {                                    // single instance per app
     params { namespace: String = "";
              store: MetricMap;
              histograms: HistogramList; }
-    fn counter(name: String, labels: Labels) -> Counter;
-    fn gauge(name: String, labels: Labels) -> Gauge;
-    fn histogram(name: String, buckets: Matrix, labels: Labels) -> Histogram;
     fn render() -> String;                          // Prometheus text format
 }
+
+// factories are FREE FNS (methods may not return loci — m90):
+fn counter(reg: Registry, name: String, labels: Labels) -> Counter;
+fn gauge(reg: Registry, name: String, labels: Labels) -> Gauge;
+fn histogram(reg: Registry, name: String,
+             buckets: mat::Matrix, labels: Labels) -> Histogram;
 
 locus Counter   { fn inc() -> (); fn add(v: Float) -> (); }
 locus Gauge     { fn set(v: Float) -> (); fn inc() -> (); fn dec() -> (); }
@@ -67,8 +73,10 @@ internally:
   for bucket bounds + cumulative counts + sum + observation
   count per registered histogram series.
 
-Factories (`counter`, `gauge`, `histogram`) idempotently
-register the series and return a thin handle locus. Per AGENTS.md's
+Factories (`metrics::counter`, `metrics::gauge`,
+`metrics::histogram` — free fns taking the Registry as first
+arg) idempotently register the series and return a thin handle
+locus. Per AGENTS.md's
 two-channel rule (`spec/semantics.md § Where each channel
 lives`) the handle methods (`Counter.inc`, `Gauge.set`, ...) are
 infallible — failures during the `@form(...)`-synthesized
@@ -77,14 +85,14 @@ don't bubble up the structural channel.
 
 ### Counter / Gauge / Histogram (pattern-3 handle loci)
 
-Thin handles returned by Registry factories. Each carries direct
-references to the underlying storage slots (`store: MetricMap`,
-plus `histograms: HistogramList` for `Histogram`) and routes
-every mutation inline. State lives in those slots; the handles
-themselves are stateless modulo their addressing fields. The
-handle pattern passes slots-of-self rather than `self` because
-the latter trips a codegen v0 issue at the method-returns-
-locus-with-self-as-field site — see `FRICTION.md`.
+Thin handles returned by the factory free fns. Each carries
+direct references to the underlying storage slots
+(`store: MetricMap`, plus `histograms: HistogramList` for
+`Histogram`) and routes every mutation inline. State lives in
+those slots; the handles themselves are stateless modulo their
+addressing fields. The factories are free fns (not Registry
+methods) because hale v0.8.2's m90 / CQRS rule forbids locus
+methods from returning locus values — see `FRICTION.log`.
 
 ### Histogram structural invariant
 
@@ -127,14 +135,14 @@ let labels = metrics::labels_one("method", "GET");
 import "vendor/pond/metrics" as metrics;
 import "vendor/pond/math/matrix" as mat;
 
-fn drive(reg: metrics::Registry, mx: mat::Mat) {
-    let hits = reg.counter("http_requests_total",
+fn drive(reg: metrics::Registry) {
+    let hits = metrics::counter(reg, "http_requests_total",
         metrics::labels_one("method", "GET"));
-    let mem  = reg.gauge("process_resident_memory_bytes",
+    let mem  = metrics::gauge(reg, "process_resident_memory_bytes",
         metrics::labels_empty());
-    let dur  = reg.histogram(
+    let dur  = metrics::histogram(reg,
         "http_request_duration_seconds",
-        mx.from_rows(1, 4, "0.005, 0.05, 0.5, 1.0"),
+        mat::from_rows(1, 4, "0.005, 0.05, 0.5, 1.0"),
         metrics::labels_one("method", "GET")
     );
 
@@ -165,9 +173,7 @@ fn main() {
     let reg   = metrics::Registry {
         namespace: "myapp", store: store, histograms: hl
     };
-    let lab = metrics::Lab { };
-    let mx  = mat::Mat { };
-    drive(reg, lab, mx);
+    drive(reg);
 
     // Serve /metrics over HTTP:
     // std::http::Server {
@@ -179,9 +185,19 @@ fn main() {
 
 ## Files
 
-- `metrics.hl` — the whole lib (single-file seed; see
-  `FRICTION.md` for why cross-file resolution forced the
-  consolidation).
+Seven per-concern files (re-split 2026-06-12 after the
+upstream cross-file pass-A registration fix; the consolidated
+`metrics.hl` is retired — see `FRICTION.log`):
+
+- `types.hl` — `Labels`, `MetricEntry`, `HistogramData` shapes.
+- `storage.hl` — `MetricMap` (`@form(hashmap, sync =
+  serialized)`) + `HistogramList` (`@form(vec)`).
+- `labels.hl` — `labels_*` constructors + `metric_key`.
+- `helpers.hl` — CSV-token + Prometheus-rendering free fns.
+- `registry.hl` — the `Registry` locus (`render()`).
+- `handles.hl` — `counter` / `gauge` / `histogram` factory
+  free fns + `Counter` / `Gauge` / `Histogram` handle loci.
+- `endpoint.hl` — `MetricsEndpoint` (`std::http::Handler`).
 - `examples/exposition-demo/main.hl` — registers counter +
   gauge + histogram, mutates them, renders, asserts the body
   contains the expected Prometheus-format lines.
@@ -189,6 +205,7 @@ fn main() {
 ## Verification
 
 ```bash
+hale check pond/metrics/                 # ok: 7 file(s) typechecked
 hale build \
     pond/metrics/examples/exposition-demo/
 pond/metrics/examples/exposition-demo/exposition-demo
@@ -199,5 +216,4 @@ Expected: a dump of the rendered Prometheus body followed by
 
 Building the lib alone (`hale build pond/metrics/`) fails
 with "program has no `fn main()`" per the v1 single-binary
-seed model — same shape every other pond lib follows (see
-`pond/math/stats/README.md`).
+seed model — use `hale check` for lib-level verification.

@@ -1,0 +1,270 @@
+// pond/metrics — factory free fns + Counter / Gauge /
+// Histogram handle loci.
+//
+// Each handle is a thin proxy returned from the factory free
+// fns. The actual metric state lives in the `@form(...)`
+// substrate slots (`store: MetricMap` for counter+gauge+
+// histogram-meta cells, `histograms: HistogramList` for
+// per-histogram bucket / count state). The handle carries
+// direct references to those slots rather than to the
+// Registry itself — `Foo { reg: self, ... }` is unreachable
+// now that m90 bans method-returning-locus outright (see
+// FRICTION.log); the factories take Registry as an explicit
+// first arg and pass its slots through.
+//
+// Per AGENTS.md's two-channel rule, locus methods are
+// infallible. The substrate calls they invoke (`store.set`,
+// `histograms.set`, etc.) carry their own `fallible(E)`
+// returns that the handle bodies absorb inline via `or`
+// clauses. State changes that would constitute a structural
+// failure (e.g. monotonicity violation on histogram buckets)
+// route through the inline closure + `violate` channel.
+
+import "../math/matrix" as mat;
+
+// =====================================================================
+// Factory free fns — entity-creation pattern per hale v0.8.2 m90
+// enforcement. Take Registry as an explicit first arg (since
+// methods on loci may not return locus values). Idempotent on
+// (name, labels): a second call with the same key returns a
+// handle pointing at the same MetricEntry without resetting.
+// =====================================================================
+
+fn counter(reg: Registry, name: String, labels: Labels) -> Counter {
+    let k = metric_key(name, labels);
+    if !reg.store.has(k) {
+        reg.store.set(MetricEntry {
+            key:      k,
+            name:     name,
+            labels:   labels.kv,
+            kind:     0,
+            value:    0.0,
+            hist_idx: -1
+        });
+    }
+    return Counter { store: reg.store, key: k };
+}
+
+fn gauge(reg: Registry, name: String, labels: Labels) -> Gauge {
+    let k = metric_key(name, labels);
+    if !reg.store.has(k) {
+        reg.store.set(MetricEntry {
+            key:      k,
+            name:     name,
+            labels:   labels.kv,
+            kind:     1,
+            value:    0.0,
+            hist_idx: -1
+        });
+    }
+    return Gauge { store: reg.store, key: k };
+}
+
+fn histogram(reg: Registry, name: String,
+             buckets: mat::Matrix, labels: Labels) -> Histogram {
+    let k = metric_key(name, labels);
+    if !reg.store.has(k) {
+        let nb = buckets.len();
+        let bounds_csv = floats_to_csv(buckets);
+        let counts_csv = zero_counts_csv(nb + 1);
+        reg.histograms.push(HistogramData {
+            name:       name,
+            labels:     labels.kv,
+            bounds_csv: bounds_csv,
+            counts_csv: counts_csv,
+            sum:        0.0,
+            count:      0
+        });
+        let new_idx = reg.histograms.len() - 1;
+        reg.store.set(MetricEntry {
+            key:      k,
+            name:     name,
+            labels:   labels.kv,
+            kind:     2,
+            value:    0.0,
+            hist_idx: new_idx
+        });
+    }
+    let e = reg.store.get(k) or MetricEntry { };
+    return Histogram {
+        store:        reg.store,
+        histograms:   reg.histograms,
+        key:          k,
+        hist_idx:     e.hist_idx,
+        bucket_count: buckets.len()
+    };
+}
+
+locus Counter {
+    params {
+        store: MetricMap;
+        key:   String = "";
+    }
+
+    fn inc() {
+        if self.store.has(self.key) {
+            let e = self.store.get(self.key) or MetricEntry { };
+            self.store.set(MetricEntry {
+                key:      e.key,
+                name:     e.name,
+                labels:   e.labels,
+                kind:     e.kind,
+                value:    e.value + 1.0,
+                hist_idx: e.hist_idx
+            });
+        }
+    }
+
+    fn add(v: Float) {
+        if self.store.has(self.key) {
+            let e = self.store.get(self.key) or MetricEntry { };
+            self.store.set(MetricEntry {
+                key:      e.key,
+                name:     e.name,
+                labels:   e.labels,
+                kind:     e.kind,
+                value:    e.value + v,
+                hist_idx: e.hist_idx
+            });
+        }
+    }
+}
+
+locus Gauge {
+    params {
+        store: MetricMap;
+        key:   String = "";
+    }
+
+    fn set(v: Float) {
+        if self.store.has(self.key) {
+            let e = self.store.get(self.key) or MetricEntry { };
+            self.store.set(MetricEntry {
+                key:      e.key,
+                name:     e.name,
+                labels:   e.labels,
+                kind:     e.kind,
+                value:    v,
+                hist_idx: e.hist_idx
+            });
+        }
+    }
+
+    fn inc() {
+        if self.store.has(self.key) {
+            let e = self.store.get(self.key) or MetricEntry { };
+            self.store.set(MetricEntry {
+                key:      e.key,
+                name:     e.name,
+                labels:   e.labels,
+                kind:     e.kind,
+                value:    e.value + 1.0,
+                hist_idx: e.hist_idx
+            });
+        }
+    }
+
+    fn dec() {
+        if self.store.has(self.key) {
+            let e = self.store.get(self.key) or MetricEntry { };
+            self.store.set(MetricEntry {
+                key:      e.key,
+                name:     e.name,
+                labels:   e.labels,
+                kind:     e.kind,
+                value:    e.value - 1.0,
+                hist_idx: e.hist_idx
+            });
+        }
+    }
+}
+
+locus Histogram {
+    params {
+        store:        MetricMap;
+        histograms:   HistogramList;
+        key:          String = "";
+        hist_idx:     Int    = -1;
+        bucket_count: Int    = 0;
+        // `out_of_order` is the closure-monitored invariant:
+        // count of cumulative-bucket pairs where counts[i+1] <
+        // counts[i]. Stays 0 by construction (observe() only
+        // increments cumulatively), so the closure passes
+        // silently. The closure declaration below makes the
+        // invariant audit-channel-observable.
+        out_of_order: Int    = 0;
+    }
+
+    // Inline closure — the "buckets sum monotonically"
+    // structural invariant. `epoch inline` (per
+    // `spec/grammar.ebnf § closure_decl` v1.x-VIOLATE and
+    // `spec/semantics.md § Inline closure violation`) means
+    // the closure never fires automatically; observe() checks
+    // the invariant after each update and fires
+    // `violate buckets_monotonic;` if the count of out-of-
+    // order bucket pairs is non-zero. The `captures` clause
+    // names `out_of_order` so the audit snapshot includes it
+    // in the ClosureViolation payload routed to the parent's
+    // `on_failure`.
+    //
+    // The closure-assertion grammar
+    // (`expr ~~ expr within expr`) doesn't express "for every
+    // pair (i, i+1), counts[i+1] >= counts[i]" directly — the
+    // pair-quantifier shape would require a new accumulator
+    // vocabulary. The error-check-fn pattern from
+    // `spec/styleguide.md § 7` is the canonical bridge: a
+    // value-channel computation
+    // (free fn `count_out_of_order`) folds into a single
+    // scalar (`self.out_of_order`), and the structural channel
+    // fires the named closure when the scalar is non-zero.
+    closure buckets_monotonic {
+        captures: out_of_order;
+        epoch inline;
+    }
+
+    fn observe(v: Float) {
+        if self.hist_idx < 0 {
+            return;
+        }
+        if self.hist_idx >= self.histograms.len() {
+            return;
+        }
+        let h = self.histograms.get(self.hist_idx) or HistogramData { };
+        let nb = len_floats(h.bounds_csv);
+        // Find first bucket whose upper-bound >= v; cumulative-
+        // increment that slot and every later one (the +Inf
+        // bucket is the trailing slot at index nb).
+        let mut hit = nb;
+        let mut i = 0;
+        while i < nb {
+            let b = float_at(h.bounds_csv, i);
+            if v <= b {
+                hit = i;
+                i = nb;
+            } else {
+                i = i + 1;
+            }
+        }
+        let mut counts = h.counts_csv;
+        let mut j = hit;
+        while j <= nb {
+            counts = int_csv_inc_at(counts, j);
+            j = j + 1;
+        }
+        self.histograms.set(self.hist_idx, HistogramData {
+            name:       h.name,
+            labels:     h.labels,
+            bounds_csv: h.bounds_csv,
+            counts_csv: counts,
+            sum:        h.sum + v,
+            count:      h.count + 1
+        }) or discard;
+
+        // Recompute monotonicity invariant; violate if breached.
+        let h2 = self.histograms.get(self.hist_idx) or HistogramData { };
+        self.out_of_order = count_out_of_order(h2.counts_csv);
+        if self.out_of_order > 0 {
+            violate buckets_monotonic;
+        }
+    }
+}

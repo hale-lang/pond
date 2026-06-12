@@ -1,0 +1,38 @@
+// pond/metrics — MetricsEndpoint locus.
+//
+// `std::http::Handler` implementation that serves the
+// Prometheus exposition over HTTP. Per F.20 structural-
+// satisfaction (`spec/stdlib.md § F.20`), any locus whose
+// method set covers `fn handle(req: Request) -> Response` is
+// usable wherever the `std::http::Handler` interface is the
+// declared type. No `impl I for L` ceremony.
+//
+// Used at the app's `std::http::Server` site:
+//
+//     std::http::Server {
+//         port: 9090,
+//         handler: metrics::MetricsEndpoint { registry: reg }
+//     };
+//
+// `registry: Registry` is the same Registry the rest of the
+// app uses to inc/observe metrics. Render is invoked on every
+// request; v1 doesn't cache the rendered body (Prometheus
+// polls are infrequent enough that re-rendering on demand
+// stays cheap). The handler returns the standard
+// `text/plain; version=0.0.4` Content-Type that Prometheus
+// clients sniff.
+
+locus MetricsEndpoint {
+    params {
+        registry: Registry;
+    }
+
+    fn handle(req: std::http::Request) -> std::http::Response {
+        let body = self.registry.render();
+        return std::http::Response {
+            status:       200,
+            content_type: "text/plain; version=0.0.4",
+            body:         body
+        };
+    }
+}

@@ -1,0 +1,106 @@
+// pond/metrics — Registry locus.
+//
+// The single per-app metrics hub. Holds:
+//
+// - `store: MetricMap` — `@form(hashmap)` of MetricEntry cells.
+//   Owns the live scalar value for every counter / gauge and
+//   the discriminator + hist_idx for every histogram.
+// - `histograms: HistogramList` — `@form(vec)` of HistogramData
+//   cells (bucket bounds + cumulative counts + sum + count).
+//   Histogram entries in `store` carry their `hist_idx` here.
+//
+// Factory free fns (`counter`, `gauge`, `histogram` in
+// handles.hl) idempotently register the metric and return a
+// thin handle locus carrying `(store, key, ...)`. Mutation
+// routes through the handle directly — the handle owns a
+// reference to the underlying `MetricMap` (not to Registry
+// itself; see handles.hl for why).
+//
+// Pattern 3 — long-lived service-style locus, no birth/run
+// machinery required. Per AGENTS.md the two-channel rule
+// applies: locus methods are infallible. The
+// `@form(...)`-synthesized methods they invoke (`store.set`,
+// `store.get`, `histograms.push`, etc.) carry their own
+// `fallible(E)` returns that Registry addresses inline with
+// `or` clauses.
+//
+// `namespace`, when non-empty, is prefixed onto every emitted
+// metric name in render() (separated by "_"), matching the
+// Prometheus convention for app-level namespacing.
+//
+// Construct via two-step:
+//
+//     let store = metrics::MetricMap { };
+//     let hl    = metrics::HistogramList { };
+//     let reg   = metrics::Registry {
+//         namespace: "myapp",
+//         store: store,
+//         histograms: hl
+//     };
+//
+// The two `@form(...)`-typed fields are required (no default
+// initializer at v1; see FRICTION.log "default-init of locus-
+// typed param field is broken").
+
+locus Registry {
+    params {
+        namespace:  String        = "";
+        store:      MetricMap;
+        histograms: HistogramList;
+    }
+
+    // Factory methods (counter / gauge / histogram) moved to
+    // free fns in handles.hl per hale v0.8.2's m90 enforcement —
+    // methods on loci may not return locus values. The free-fn
+    // entity-creation pattern (`std::io::file::open`-shaped)
+    // stays compliant; the call site changes from
+    //   reg.counter("name", labels)
+    // to
+    //   metrics::counter(reg, "name", labels)
+    // and the rest of the API surface (Counter.inc / Gauge.set /
+    // Histogram.observe + Registry.render) is unchanged.
+
+    // `render() -> String` — emit Prometheus text exposition
+    // format. Iterates store in hash-table order (deterministic
+    // per `spec/forms.md § @form(hashmap)` `key_at`). One
+    // `# TYPE` line per series, then one sample line; for
+    // histograms, the `_bucket` / `_sum` / `_count` triple
+    // with the per-bucket `le="..."` label.
+    // Exposition build via BytesBuilder. The previous `out = out
+    // + render_*(...)` loop forced the method-scratch arena to
+    // hold N intermediate Strings (one per metric line) before
+    // the final result returned -- with M metrics the scratch
+    // peak was O(M²) bytes. On hot binaries with many
+    // (symbol-labelled) series, that occasionally overflowed
+    // the chunk pool and the surplus chunks settled into glibc
+    // [heap], producing a slow stair-step in RSS even when
+    // every locus arena's residency was flat. See
+    // docs/src/how-tos/keeping-memory-bounded.md for the full
+    // shape + diagnostic workflow.
+    //
+    // BytesBuilder grows in place via doubling: one underlying
+    // buffer absorbs all appends, scratch peak collapses from
+    // O(M²) to O(M) bytes.
+    fn render() -> String {
+        let b = std::bytes::BytesBuilder { initial_cap: 8192 };
+        let n = self.store.len();
+        let mut i = 0;
+        while i < n {
+            let k = self.store.key_at(i) or "";
+            let e = self.store.get(k) or MetricEntry { };
+            if e.kind == 0 {
+                b.append(std::bytes::from_string(render_type_line(self.namespace, e.name, "counter")));
+                b.append(std::bytes::from_string(render_sample(self.namespace, e.name, e.labels, e.value)));
+            } else if e.kind == 1 {
+                b.append(std::bytes::from_string(render_type_line(self.namespace, e.name, "gauge")));
+                b.append(std::bytes::from_string(render_sample(self.namespace, e.name, e.labels, e.value)));
+            } else if e.kind == 2 {
+                b.append(std::bytes::from_string(render_type_line(self.namespace, e.name, "histogram")));
+                let h = self.histograms.get(e.hist_idx) or HistogramData { };
+                b.append(std::bytes::from_string(render_histogram(self.namespace, h)));
+            }
+            i = i + 1;
+        }
+        return std::str::from_bytes(b.finish());
+    }
+}
