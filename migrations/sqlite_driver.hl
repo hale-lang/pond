@@ -1,0 +1,337 @@
+// pond/migrations — SqliteDriver: a db::DbDriver adapter over
+// pond/sqlite's Db.
+//
+// Why this exists (sqlite FRICTION § F.7): CONTRACTS.md says
+// `Migrator.params.driver: db::DbDriver` is injectable with
+// `sqlite::Db` — but the locked § pond/sqlite surface is the
+// fallible-method shape (`exec(sql) -> ExecResult
+// fallible(DbError)` with sqlite-local result types), which is
+// signature-incompatible with the interface's non-fallible
+// `ok`/`err`-packed `db::*` shapes. One locus can't carry both
+// `exec` signatures, so `sqlite::Db` can never satisfy
+// `db::DbDriver` directly.
+//
+// This adapter is the F.7 counterpart on the consumer side: it
+// wraps a caller-owned `sqlite::Db`, catches every DbError on the
+// value channel, and repacks it into the `db::*` result shapes —
+// the same protocol-translation job pq::PgConn does internally.
+// It structurally satisfies the FULL db::DbDriver method set, so
+// it composes with ANY DbDriver consumer, not just Migrator:
+//
+//   let conn = sqlite::Db { path: "/tmp/app.db" };
+//   let drv  = migs::SqliteDriver { conn: conn };
+//   let m    = migs::Migrator { driver: drv };
+//
+// It lives in pond/migrations (rather than pond/sqlite or
+// pond/db) only because this lib is the consumer that needed it
+// first; promoting it to its own seed (or into pond/sqlite) is
+// flagged in FRICTION.log.
+//
+// Error bridging uses the same stash pattern as pond/jobs:
+// `or handler(err)` handlers can't themselves be fallible, so the
+// stash member fns record the first DbError on self and return a
+// sentinel; each public method then packs `self.__err()` into the
+// result's `err` field. First error wins.
+//
+// Lifecycle: the underlying connection belongs to the injected
+// `sqlite::Db` (opened by its birth, closed by its dissolve).
+// `open()` is therefore a connectivity CHECK (SELECT 1 — surfaces
+// a birth-time open failure as a Status), and `close()` is a
+// no-op.
+//
+// Transactions: BEGIN/COMMIT/ROLLBACK ride sqlite's SQL surface;
+// `tx_status()` reports the adapter-tracked state ("idle" |
+// "in_tx" | "aborted"). v0 tracking is optimistic — a failed
+// statement inside a transaction does not flip the state to
+// "aborted" (sqlite, unlike postgres, keeps the txn usable after
+// most statement errors).
+
+import "../db" as db;
+import "../sqlite" as sqlite;
+
+locus SqliteDriver {
+    params {
+        // The wrapped pond/sqlite connection (caller-owned).
+        conn: sqlite::Db;
+
+        // --- private state ---
+        txs:        String = "idle";  // "idle" | "in_tx" | "aborted"
+        err_kind:   String = "";      // DbError stash (see header)
+        err_detail: String = "";
+        err_code:   Int    = 0;
+        row_done:   Bool   = false;   // step() hit SQLITE_DONE
+    }
+
+    // ---- db::DbDriver surface ----
+
+    fn backend() -> String {
+        return "sqlite";
+    }
+
+    // open — connectivity check. The real open happened at the
+    // wrapped Db's birth; a failed open surfaces here (kind
+    // "open_failed") via the first-call reporting pattern.
+    fn open() -> db::Status {
+        self.__clear();
+        let _ = self.conn.query_one("SELECT 1") or self.__stash_row(err);
+        if self.err_kind != "" {
+            return db::Status { ok: false, err: self.__err() };
+        }
+        return db::Status { ok: true };
+    }
+
+    // close — no-op: the wrapped Db closes in its own dissolve().
+    fn close() {
+        let _ = self.txs;
+    }
+
+    fn exec(sql: String) -> db::ExecResult {
+        self.__clear();
+        let r = self.conn.exec(sql) or self.__stash_exec(err);
+        if self.err_kind != "" {
+            return db::ExecResult { ok: false, err: self.__err() };
+        }
+        return db::ExecResult {
+            ok:                true,
+            rows_affected:     r.rows_affected,
+            last_insert_rowid: r.last_insert_rowid,
+        };
+    }
+
+    fn query_one(sql: String) -> db::Row {
+        self.__clear();
+        let r = self.conn.query_one(sql) or self.__stash_row(err);
+        if self.err_kind != "" {
+            return db::Row { ok: false, err: self.__err() };
+        }
+        return db::Row { ok: true, data: r.data };
+    }
+
+    fn query_all(sql: String) -> db::Rows {
+        self.__clear();
+        let r = self.conn.query_all(sql) or self.__stash_rows(err);
+        if self.err_kind != "" {
+            return db::Rows { ok: false, err: self.__err() };
+        }
+        return db::Rows { ok: true, csv: r.csv, n: __count_rows(r.csv) };
+    }
+
+    // exec_params / query_params — $1/$2/... placeholders bound
+    // from `args`. sqlite parses `$N` as a named parameter whose
+    // index follows order of first occurrence, so binding by
+    // position works for the conventional ascending usage. NULL
+    // args are left unbound (sqlite treats unbound parameters as
+    // NULL). All values bind as text — sqlite's type affinity
+    // converts on storage, mirroring the postgres text-format
+    // protocol the interface documents.
+    fn exec_params(sql: String, args: db::Args) -> db::ExecResult {
+        self.__clear();
+        let stmt = self.conn.prepare(sql) or self.__stash_int(err);
+        if self.err_kind == "" {
+            self.__bind_all(stmt, args);
+            let _ = self.conn.step(stmt) or self.__stash_step_done(err);
+            self.conn.finalize(stmt) or self.__stash_unit(err);
+        }
+        if self.err_kind != "" {
+            return db::ExecResult { ok: false, err: self.__err() };
+        }
+        let counts = self.conn.query_one("SELECT changes(), last_insert_rowid()")
+            or self.__stash_row(err);
+        if self.err_kind != "" {
+            return db::ExecResult { ok: false, err: self.__err() };
+        }
+        return db::ExecResult {
+            ok:                true,
+            rows_affected:     __tab_int(counts.data, 0),
+            last_insert_rowid: __tab_int(counts.data, 1),
+        };
+    }
+
+    fn query_params(sql: String, args: db::Args) -> db::Rows {
+        self.__clear();
+        let stmt = self.conn.prepare(sql) or self.__stash_int(err);
+        if self.err_kind != "" {
+            return db::Rows { ok: false, err: self.__err() };
+        }
+        self.__bind_all(stmt, args);
+        let mut csv = "";
+        let mut n = 0;
+        let mut more = self.err_kind == "";
+        while more {
+            self.row_done = false;
+            let row = self.conn.step(stmt) or self.__stash_row_done(err);
+            if self.row_done || self.err_kind != "" {
+                more = false;
+            } else {
+                if n > 0 { csv = csv + "\n"; }
+                csv = csv + row.data;
+                n = n + 1;
+            }
+        }
+        self.conn.finalize(stmt) or self.__stash_unit(err);
+        if self.err_kind != "" {
+            return db::Rows { ok: false, err: self.__err() };
+        }
+        return db::Rows { ok: true, csv: csv, n: n };
+    }
+
+    fn begin() -> db::Status {
+        let r = self.exec("BEGIN");
+        if r.ok {
+            self.txs = "in_tx";
+            return db::Status { ok: true };
+        }
+        return db::Status { ok: false, err: r.err };
+    }
+
+    fn commit() -> db::Status {
+        let r = self.exec("COMMIT");
+        if r.ok {
+            self.txs = "idle";
+            return db::Status { ok: true };
+        }
+        self.txs = "aborted";
+        return db::Status { ok: false, err: r.err };
+    }
+
+    fn rollback() -> db::Status {
+        let r = self.exec("ROLLBACK");
+        if r.ok {
+            self.txs = "idle";
+            return db::Status { ok: true };
+        }
+        self.txs = "aborted";
+        return db::Status { ok: false, err: r.err };
+    }
+
+    fn tx_status() -> String {
+        return self.txs;
+    }
+
+    // ---- private bridge helpers ----
+
+    fn __clear() {
+        self.err_kind = "";
+        self.err_detail = "";
+        self.err_code = 0;
+        self.row_done = false;
+    }
+
+    // First error wins.
+    fn __stash(e: sqlite::DbError) {
+        if self.err_kind == "" {
+            self.err_kind = e.kind;
+            self.err_detail = e.detail;
+            self.err_code = e.sqlite_code;
+        }
+    }
+
+    fn __err() -> db::DbError {
+        return db::DbError {
+            kind:        __map_kind(self.err_kind),
+            engine_code: self.err_code,
+            detail:      self.err_detail,
+        };
+    }
+
+    fn __stash_exec(e: sqlite::DbError) -> sqlite::ExecResult {
+        self.__stash(e);
+        return sqlite::ExecResult { };
+    }
+    fn __stash_row(e: sqlite::DbError) -> sqlite::Row {
+        self.__stash(e);
+        return sqlite::Row { };
+    }
+    fn __stash_rows(e: sqlite::DbError) -> sqlite::Rows {
+        self.__stash(e);
+        return sqlite::Rows { };
+    }
+    fn __stash_int(e: sqlite::DbError) -> Int {
+        self.__stash(e);
+        return 0;
+    }
+    fn __stash_unit(e: sqlite::DbError) {
+        self.__stash(e);
+    }
+    // step on a non-query: SQLITE_DONE ("no_row") is success.
+    fn __stash_step_done(e: sqlite::DbError) -> sqlite::Row {
+        if e.kind != "no_row" {
+            self.__stash(e);
+        }
+        return sqlite::Row { };
+    }
+    // step in a result loop: SQLITE_DONE means "end of rows".
+    fn __stash_row_done(e: sqlite::DbError) -> sqlite::Row {
+        if e.kind == "no_row" {
+            self.row_done = true;
+        } else {
+            self.__stash(e);
+        }
+        return sqlite::Row { };
+    }
+
+    fn __bind_all(stmt: Int, args: db::Args) {
+        let mut i = 0;
+        while i < args.count() {
+            if !args.null_at(i) {
+                self.conn.bind_text(stmt, i + 1, args.val_at(i))
+                    or self.__stash_unit(err);
+            }
+            i = i + 1;
+        }
+    }
+}
+
+// __map_kind — sqlite DbError.kind → backend-neutral db::DbError
+// vocabulary. Shared kinds pass through; the sqlite-specific
+// statement-stage kinds collapse to "query_failed".
+fn __map_kind(kind: String) -> String {
+    if kind == "open_failed" { return "open_failed"; }
+    if kind == "exec_failed" { return "exec_failed"; }
+    if kind == "no_row" { return "no_row"; }
+    if kind == "constraint" { return "constraint"; }
+    if kind == "busy" { return "busy"; }
+    if kind == "io" { return "io"; }
+    return "query_failed";
+}
+
+// __count_rows — row count of a newline-separated Rows.csv.
+fn __count_rows(csv: String) -> Int {
+    let total = len(csv);
+    if total <= 0 { return 0; }
+    let mut n = 1;
+    let mut rest = csv;
+    let mut scanning = true;
+    while scanning {
+        let p = std::str::index_of(rest, "\n");
+        if p < 0 {
+            scanning = false;
+        } else {
+            n = n + 1;
+            rest = rest[(p + 1)..len(rest)];
+        }
+    }
+    return n;
+}
+
+// __tab_int — parse the idx-th tab-separated field as Int (0 on
+// parse failure). Used for the changes()/last_insert_rowid() row.
+fn __tab_int(data: String, idx: Int) -> Int {
+    let mut rest = data;
+    let mut i = 0;
+    while i < idx {
+        let p = std::str::index_of(rest, "\t");
+        if p < 0 {
+            rest = "";
+        } else {
+            rest = rest[(p + 1)..len(rest)];
+        }
+        i = i + 1;
+    }
+    let q = std::str::index_of(rest, "\t");
+    let mut field = rest;
+    if q >= 0 {
+        field = rest[0..q];
+    }
+    return std::str::parse_int(field) or 0;
+}

@@ -28,7 +28,7 @@
 // forward migration (down migrations are a footgun against a live
 // authority DB and almost never run).
 
-import "vendor/pond/db" as db;
+import "../db" as db;
 
 locus Migrator {
     params {
@@ -39,13 +39,21 @@ locus Migrator {
     }
 
     // ensure — create the tracking table if absent. Call once
-    // before the apply() sequence.
+    // before the apply() sequence. The applied_at default is the
+    // one piece of backend-specific DDL: postgres gets a real
+    // timestamptz; sqlite (no now(), no timestamptz) gets an ISO
+    // text stamp via strftime.
     fn ensure() -> Bool {
+        let mut applied_at_ddl = "applied_at timestamptz NOT NULL DEFAULT now()";
+        if self.driver.backend() == "sqlite" {
+            applied_at_ddl = "applied_at text NOT NULL"
+                + " DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))";
+        }
         let e = self.driver.exec(
             "CREATE TABLE IF NOT EXISTS schema_migrations ("
             + "version int PRIMARY KEY, "
             + "name text NOT NULL, "
-            + "applied_at timestamptz NOT NULL DEFAULT now())");
+            + applied_at_ddl + ")");
         if !e.ok {
             self.failed = true;
             self.last_err = "ensure: " + e.err.detail;

@@ -1,121 +1,119 @@
-// blog-schema — minimal pond/migrations consumer demo.
+// blog-schema — pond/migrations end-to-end demo against a REAL
+// SQLite database.
 //
-// Demonstrates the shape consumers will use against the
-// `pond/migrations` (alias `migs`) surface. Vendored normally the
-// import looks like:
+// Vendored normally the imports look like:
 //
 //     import "vendor/pond/migrations" as migs;
-//     import "vendor/pond/sqlite"     as db;
+//     import "vendor/pond/sqlite"     as sqlite;
+//     import "vendor/pond/db"         as db;     // Migrator's driver interface
 //
-// In-tree the example reaches the libs via relative paths.
+// In-tree the example reaches the libs via relative paths. Per
+// pond's no-transitive-deps rule (and hale.toml [ffi] auto-pickup,
+// which only scans DIRECT imports), the app vendors pond/sqlite
+// itself even though only migs::SqliteDriver touches it.
 //
 // The demo:
-//   1. constructs a `migs::Runner` against an in-memory SQLite
-//      DB and this directory as the migrations source;
-//   2. runs `migs::migrate_up(r, -1)` to apply every pending
-//      migration (`001_create_posts.sql`, `002_add_comments.sql`);
-//   3. queries SQLite's `sqlite_master` to verify that `posts`
-//      and `comments` exist as tables;
-//   4. prints `migrate: blog-schema OK` on success or the
-//      diagnostic kind on failure.
+//   1. opens /tmp/pond-migrations-blog-demo.db and drops the demo
+//      tables so every run starts fresh (self-cleaning);
+//   2. wraps the connection in migs::SqliteDriver (the
+//      db::DbDriver adapter — see ../../sqlite_driver.hl) and
+//      runs a Migrator over it: ensure() + apply v1 + apply v2
+//      → 2 applied;
+//   3. runs a SECOND Migrator over the same driver — both
+//      versions are already recorded, so applied = 0 (re-run is a
+//      no-op);
+//   4. prints the schema_migrations rows and verifies via
+//      sqlite_master that `posts` and `comments` exist.
 //
-// Status (2026-05-16): pond/sqlite is BLOCKED on a stdlib sqlite
-// primitive, so every db::exec call routes through the
-// `fail DbError { kind: "unsupported" }` stub. The demo's error-
-// check fn `report` catches every failure and prints the kind;
-// the verification step at the bottom therefore prints a
-// "BLOCKED" notice rather than "OK" until sqlite unblocks. The
-// source itself does not need to change — only the runtime
-// behavior of the underlying db::* calls.
+// Migrations are data-driven (version, name, up_sql) per the
+// 2026-06-08 contract — the SQL lives inline below, not in .sql
+// files scanned from disk.
+//
+// Build & run (the [ffi] section links libsqlite3):
+//     hale build migrations/examples/blog-schema/
+//     ./migrations/examples/blog-schema/blog-schema
 
 import "../.." as migs;
-import "../../../sqlite" as db;
+import "../../../sqlite" as sqlite;
 
 locus BlogSchemaDemo {
     params {
-        // ":memory:" so the demo is self-contained / hermetic.
-        // Override on the command line for a persistent DB.
-        db_path: String = ":memory:";
+        db_path: String = "/tmp/pond-migrations-blog-demo.db";
+    }
 
-        // The directory holding 001_..., 002_..., etc. Default "."
-        // assumes the binary is invoked from the example dir
-        // (`cd examples/blog-schema && ./blog-schema`). Override
-        // positionally to point elsewhere.
-        dir: String = ".";
-
-        // Sentinel captured by `report`: empty = no error seen.
-        last_kind: String = "";
+    // One full migration round: fresh Migrator, ensure, apply both
+    // versions in order. Returns the number applied this round.
+    fn migrate_round(d: migs::SqliteDriver, label: String) -> Int {
+        let m = migs::Migrator { driver: d };
+        let _ = m.ensure();
+        let _ = m.apply(1, "create_posts", __sql_create_posts());
+        let _ = m.apply(2, "add_comments", __sql_add_comments());
+        println("[blog-schema] ", label, ": applied=", to_string(m.applied),
+                " ok=", to_string(m.ok()),
+                " current_version=", to_string(m.current_version()));
+        return m.applied;
     }
 
     run() {
         println("[blog-schema] target db: ", self.db_path);
-        println("[blog-schema] migrations dir: ", self.dir);
+        let conn = sqlite::Db { path: self.db_path };
 
-        // 1. Construct the Runner. Its `birth()` runs CREATE TABLE
-        //    IF NOT EXISTS for the tracking table and flips `ready`.
-        let r = migs::Runner { db_path: self.db_path, dir: self.dir };
+        // Self-cleaning: drop everything this demo creates.
+        let _ = conn.exec(
+            "DROP TABLE IF EXISTS comments; "
+            + "DROP TABLE IF EXISTS posts; "
+            + "DROP TABLE IF EXISTS schema_migrations"
+        ) or sqlite::ExecResult { };
 
-        // 2. Apply every pending migration. The `or report_int(err)`
-        //    arm catches the value-channel MigrationError, prints
-        //    it, and substitutes 0 (zero migrations applied) so
-        //    the demo continues to the verification step.
-        let n_up = migs::migrate_up(r, -1) or self.report_int(err);
-        println("[blog-schema] migrate_up: ", to_string(n_up), " applied");
+        let d = migs::SqliteDriver { conn: conn };
+        println("[blog-schema] driver backend: ", d.backend(),
+                " (open ok=", to_string(d.open().ok), ")");
 
-        // 3. Verify both tables exist via a direct SELECT against
-        //    sqlite_master. The query_one stub today returns
-        //    DbError { kind: "unsupported" }; we surface that the
-        //    same way the migrate_up error arm does.
-        let conn = db::Db { path: self.db_path };
-        let posts_row = db::query_one(
-            conn,
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='posts'"
-        ) or self.report_row(err);
-        let comments_row = db::query_one(
-            conn,
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='comments'"
-        ) or self.report_row(err);
+        // Round 1: both migrations pending → applied = 2.
+        let n1 = self.migrate_round(d, "first run");
 
-        println("[blog-schema] posts table check:    '", posts_row.data, "'");
-        println("[blog-schema] comments table check: '", comments_row.data, "'");
+        // Round 2: same set again → applied = 0 (idempotent).
+        let n2 = self.migrate_round(d, "re-run   ");
 
-        // 4. Banner the overall outcome.
-        if self.last_kind == "" {
-            if posts_row.data == "posts" && comments_row.data == "comments" {
-                println("[blog-schema] OK — both tables created");
-            } else {
-                println("[blog-schema] FAIL — tables missing after migrate_up");
-            }
+        // Show the tracking rows (version \t name \t applied_at).
+        let tracked = d.query_all(
+            "SELECT version, name, applied_at FROM schema_migrations ORDER BY version");
+        println("[blog-schema] schema_migrations rows (n=",
+                to_string(tracked.n), "):");
+        println(tracked.csv);
+
+        // Verify the migrated tables exist for real.
+        let tables = conn.query_all(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+            + " AND name IN ('posts','comments') ORDER BY name"
+        ) or sqlite::Rows { csv: "ERR" };
+        println("[blog-schema] tables present: ", tables.csv);
+
+        if n1 == 2 && n2 == 0 && tables.csv == "comments\nposts" {
+            println("[blog-schema] OK — 2 applied, re-run no-op, both tables exist");
         } else {
-            println("[blog-schema] BLOCKED on '", self.last_kind,
-                    "' — pond/sqlite stdlib primitive not yet shipped");
-            println("[blog-schema]   (see ../../FRICTION.md and pond/sqlite/FRICTION.md)");
+            println("[blog-schema] FAIL — unexpected state");
         }
-    }
-
-    // Error-check fns. Per spec/styleguide.md § 7 these convert
-    // value-channel errors into substituted success values, with
-    // a self-field write so the run() body can branch on
-    // success-vs-failure without re-inspecting err.
-
-    fn report_int(e: migs::MigrationError) -> Int {
-        self.last_kind = e.kind;
-        println("[blog-schema] migs error: ", e.kind, " (v",
-                to_string(e.version), "): ", e.detail);
-        return 0;
-    }
-
-    fn report_row(e: db::DbError) -> db::Row {
-        if self.last_kind == "" { self.last_kind = e.kind; }
-        println("[blog-schema] db error: ", e.kind, ": ", e.detail);
-        return db::Row { data: "" };
     }
 }
 
+// The migration set (forward-only, ascending versions).
+
+fn __sql_create_posts() -> String {
+    return "CREATE TABLE posts ("
+        + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        + "title TEXT NOT NULL, "
+        + "body TEXT NOT NULL DEFAULT '')";
+}
+
+fn __sql_add_comments() -> String {
+    return "CREATE TABLE comments ("
+        + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        + "post_id INTEGER NOT NULL REFERENCES posts(id), "
+        + "author TEXT NOT NULL, "
+        + "body TEXT NOT NULL)";
+}
+
 fn main() {
-    let mut db_path = ":memory:";
-    let mut dir     = ".";
-    if std::env::args_count() > 1 { db_path = std::env::arg(1); }
-    if std::env::args_count() > 2 { dir = std::env::arg(2); }
-    BlogSchemaDemo { db_path: db_path, dir: dir };
+    BlogSchemaDemo { };
 }
