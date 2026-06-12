@@ -38,7 +38,7 @@ locus Greet {
 
 locus LogMw {
     fn before(ctx: router::Context) -> router::Context {
-        eprintln(ctx.method, " ", ctx.path);
+        eprintln(ctx.req.method, " ", ctx.req.path);
         return ctx;
     }
     fn after(ctx: router::Context, resp: router::Response) -> router::Response {
@@ -48,9 +48,9 @@ locus LogMw {
 
 fn main() {
     let r = router::Router { };
-    router::add(r, "GET", "/", Root { });
-    router::add(r, "GET", "/greet/:name", Greet { });
-    router::use_before(r, LogMw { });
+    r.add("GET", "/", Root { });
+    r.add("GET", "/greet/:name", Greet { });
+    r.use(LogMw { });
     std::http::Server {
         port: 8080,
         handler: r,
@@ -65,34 +65,28 @@ satisfy `router::Handler` (one `handle` method) and
 A "before-only" middleware writes the interesting logic in
 `before` and a passthrough `after` — same for "after-only".
 
-`use_before` / `use_after` / `use_mw` are all aliases at v1 —
-they each push a single `Middleware` value onto the chain.
-The three names exist because they read naturally at the call
-site and pre-G20 they were distinct shapes (the
-`use_before(fn)` / `use_after(fn)` fn-pointer convenience halves
-collapsed into Middleware loci when interface storage landed).
-
 ## Public surface
 
 Implements the `pond/router/` section of
-[`../CONTRACTS.md`](../CONTRACTS.md), with two storage-driven
-deviations remaining:
+[`../CONTRACTS.md`](../CONTRACTS.md). The 2026-06-12 pass
+restored the contract surface — registration is via **Router
+methods** (`r.add(method, pattern, h)`, `r.use(m)`), the
+`LocusRef → Interface` coercion now firing at method-arg and
+struct-field sites at HEAD; the free-fn shims (`router::add(r,
+...)`, `router::use_mw` / `use_before` / `use_after`) are
+retired, and `Context` carries the nested
+`req: std::http::Request` per the contract (read
+`ctx.req.method`, `ctx.req.path`, etc.; `ctx.req.path` is the
+raw target — query lookup goes through
+`router::query_param(ctx.params, name)`).
 
-- The registry-shape ops (`add`, `use_mw`, `use_before`,
-  `use_after`) are free fns over `Router` rather than `Router`
-  methods. v1 codegen doesn't apply the `LocusRef → Interface`
-  coercion at user-declared locus-method arg sites; free-fn
-  arg sites DO coerce. Call shape:
-  `router::add(r, "GET", "/", Root { })`.
-- `Router.use(m)` is named `Router.use_mw(m)` (free fn:
-  `router::use_mw(r, m)`). `use` is on the reserved-keyword
-  shortlist and we side-step it.
-
-Both deviations preserve the call-site shape: a consumer writes
-a handler / middleware locus and passes it by name. See
-[`FRICTION.md`](./FRICTION.md) for the why and the path to
-restoring the literal contract once cross-seed method-arg
-interface coercion lands upstream.
+One local-shape note: handlers return `router::Response`, not
+`std::http::Response` — Hale has no alias/re-export surface, so
+the field-equal local type stays and the Router converts at the
+Server boundary. `Response.headers` (CRLF-joined extra header
+lines, e.g. `Set-Cookie`) passes through to
+`std::http::Response.headers`. See
+[`FRICTION.log`](FRICTION.log) for the refreshed log.
 
 ## Demo
 
@@ -119,7 +113,7 @@ that line before issuing requests.
 |------|------|
 | `types.hl` | `RouteParams`, `Context`, `Response` shapes |
 | `interfaces.hl` | `Handler`, `Middleware` structural interfaces |
-| `lists.hl` | `@form(vec)` storage loci (methods, patterns, handlers, middleware) |
+| `lists.hl` | `RouteEntry` shape + `@form(vec)` storage loci (route entries, middleware) |
 | `match.hl` | Pattern split + match + path/query extraction |
 | `params.hl` | `path_param` / `query_param` free fns |
-| `router.hl` | `Router` locus + `NotFound404` default + dispatch chain + free-fn register API |
+| `router.hl` | `Router` locus (add/use/dispatch/handle) + `NotFound404` default + dispatch chain |

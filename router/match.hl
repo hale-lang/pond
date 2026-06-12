@@ -14,7 +14,7 @@
 // `path_param` (in params.hl) walks this back out at lookup
 // time. We chose tab over newline so the encoding survives
 // URL-decoded values that may contain newlines (URL-decoding
-// itself is a v1.x follow-up — see FRICTION.md "url-decoding").
+// itself is a v1.x follow-up — see FRICTION.log "url-decoding").
 
 // `split_path_query(p)` returns the path component (before any
 // `?`) of the request target. Output values are the path

@@ -10,41 +10,33 @@
 // method satisfies std::http::Handler structurally
 // (spec/types.md § F.20 Phase B fat-pointer dispatch).
 //
-// Public surface per CONTRACTS.md (post-G20, 2026-05-18):
+// Public surface per CONTRACTS.md (restored 2026-06-12 — the
+// LocusRef → Interface coercion now fires at locus-method arg
+// sites and struct-literal field-init sites at HEAD, and `use`
+// parses as a method name; the free-fn registration shims
+// `router::add(r, ...)` / `router::use_mw(r, ...)` /
+// `use_before` / `use_after` are retired):
 //
-//   locus Router { params { not_found: Handler = NotFound404 { }; } }
-//   fn add(r: Router, method: String, pattern: String, h: Handler);
-//   fn use_mw(r: Router, m: Middleware);
-//   fn use_before(r: Router, m: Middleware);   // alias for use_mw
-//   fn use_after(r: Router, m: Middleware);    // alias for use_mw
-//   Router.dispatch(req: std::http::Request) -> std::http::Response;
-//   Router.handle(req: std::http::Request) -> std::http::Response;
+//   locus Router {
+//       params { not_found: Handler = NotFound404 { }; }
+//       fn add(method: String, pattern: String, h: Handler);
+//       fn use(m: Middleware);
+//       fn dispatch(req: std::http::Request) -> std::http::Response;
+//       fn handle(req: std::http::Request) -> std::http::Response;
+//   }
 //
-// Two carry-over deviations remain (logged in FRICTION.md):
+// (Signatures elide the contract's `-> ()` — codegen still
+// rejects an explicit unit return on locus methods with a
+// tuple-arity error; see FRICTION.log "unit-return-on-methods".)
 //
-//   - `Context` flattens std::http::Request's user-readable
-//     fields (method/path/headers/body) directly rather than
-//     carrying a nested `req: std::http::Request`. v1 codegen
-//     pass A0 order forces this — see "context-req-field".
-//
-//   - `Response` is the local router::Response, not
-//     std::http::Response. Same codegen pass A0 ordering gap;
-//     Router converts to std::http::Response at the
-//     std::http::Server boundary. See "response-in-fn-ptr-
-//     field".
-//
-// One naming change: `use(m)` is `use_mw(m)`. `use` is on the
-// reserved-keyword shortlist and naming a method/free-fn `use`
-// fights the parser. `use_mw` reads naturally — "use a
-// middleware" — and the rename is local to this lib.
-//
-// Why the registry-shape ops are free fns over Router rather
-// than Router methods: v1 codegen doesn't apply the
-// LocusRef → Interface coercion at user-declared locus method
-// arg sites; the synthesized @form(vec).push DOES coerce, and
-// free-fn arg sites DO coerce. Routing every interface-arg
-// entry point through a free fn that forwards to the vec's
-// push is the pond house style.
+// One remaining local-shape note: handlers return the local
+// `router::Response`, not `std::http::Response`. The pass-A0
+// gap that forced the local type is closed at HEAD, but Hale
+// has no alias/re-export surface, so collapsing the type would
+// just push `std::http::Response` literals onto handler
+// authors. Router converts at the Server boundary instead —
+// one field-equal copy. See FRICTION.log
+// "response-in-fn-ptr-field".
 
 // Default 404 handler — Handler-shaped locus that returns a
 // plain "not found" body. Used as the default value for
@@ -62,14 +54,13 @@ locus NotFound404 {
     }
 }
 
-// `__router_run_chain(handlers, methods, patterns, mws, ctx,
-// not_found)` — walk the middleware chain forward (each
-// before() transforms the Context), find the first matching
-// route, dispatch its handler, then walk the middleware chain
-// backward (each after() transforms the Response). Onion-shape
-// — the same order other frameworks use, but the
-// implementation is straight-line because we have indexed
-// access to every vec.
+// `__router_run_chain(entries, mws, ctx, not_found)` — walk the
+// middleware chain forward (each before() transforms the
+// Context), find the first matching route, dispatch its
+// handler, then walk the middleware chain backward (each
+// after() transforms the Response). Onion-shape — the same
+// order other frameworks use, but the implementation is
+// straight-line because we have indexed access to every vec.
 //
 // Free fn (not a Router method) because lifecycle methods
 // reject `return` per spec/styleguide.md § "Current language
@@ -77,11 +68,9 @@ locus NotFound404 {
 // (it returns the Response). Mirrors the Onboard.run / drive
 // split in the styleguide canonical example.
 fn __router_run_chain(
-    handlers: HandlerList,
-    methods:  MethodList,
-    patterns: PatternList,
-    mws:      MwList,
-    ctx:      Context,
+    entries:   EntryList,
+    mws:       MwList,
+    ctx:       Context,
     not_found: Handler
 ) -> Response {
     // Forward middleware sweep.
@@ -95,28 +84,26 @@ fn __router_run_chain(
     }
 
     // Route lookup. First match wins — consumers order more-
-    // specific patterns before more-general ones.
+    // specific patterns before more-general ones. Matching
+    // runs against the query-stripped path (ctx.req.path is
+    // the raw request target).
+    let path_only = __router_path_only(cur.req.path);
     let mut resp = not_found.handle(cur);
-    let rlen = handlers.len();
+    let rlen = entries.len();
     let mut j = 0;
     while j < rlen {
-        let rmethod  = methods.get(j)  or raise;
-        let rpattern = patterns.get(j) or raise;
-        if rmethod == cur.method {
-            let captures = match_pattern(rpattern, cur.path);
+        let e = entries.get(j) or raise;
+        if e.method == cur.req.method {
+            let captures = match_pattern(e.pattern, path_only);
             if captures != "__nomatch" {
                 cur = Context {
-                    method:  cur.method,
-                    path:    cur.path,
-                    headers: cur.headers,
-                    body:    cur.body,
-                    params:  RouteParams {
+                    req:    cur.req,
+                    params: RouteParams {
                         qs:      cur.params.qs,
                         path_kv: captures
                     }
                 };
-                let h = handlers.get(j) or raise;
-                resp = h.handle(cur);
+                resp = e.handler.handle(cur);
                 break;
             }
         }
@@ -136,13 +123,11 @@ fn __router_run_chain(
 // `__router_to_http(r)` — boundary conversion from the local
 // Response shape to std::http::Response. Field-equal copy;
 // the Server consumes std::http::Response on the wire side.
-// Free fn because it crosses the local/stdlib type boundary
-// and locus methods reject fallible-call addressing
-// patterns we don't need here anyway.
 fn __router_to_http(r: Response) -> std::http::Response {
     return std::http::Response {
         status:       r.status,
         content_type: r.content_type,
+        headers:      r.headers,
         body:         r.body
     };
 }
@@ -155,40 +140,50 @@ locus Router {
         not_found: Handler = NotFound404 { };
         // Route + middleware storage. Child loci default-
         // initialized at Router birth; their dissolves fire
-        // when the Router's enclosing scope exits. Three
-        // parallel vecs for routes (methods / patterns /
-        // handlers) because v1 doesn't coerce LocusRef → Interface
-        // at struct-field-init sites (see FRICTION.md "interface-
-        // in-struct-field"); a single @form(vec) of a
-        // (method, pattern, handler) struct can't be filled
-        // by the consumer passing a concrete handler locus.
-        methods:  MethodList  = MethodList  { };
-        patterns: PatternList = PatternList { };
-        handlers: HandlerList = HandlerList { };
-        mws:      MwList      = MwList      { };
+        // when the Router's enclosing scope exits.
+        entries: EntryList = EntryList { };
+        mws:     MwList    = MwList    { };
+    }
+
+    // `add(method, pattern, h)` — register a route. Method is
+    // uppercased on register so consumers can write either case
+    // at the call site without affecting match. Pattern is
+    // stored as-written. The concrete handler locus coerces to
+    // the Handler interface at this method-arg site, then again
+    // into the RouteEntry literal's interface-typed field —
+    // both coerce sites work at HEAD (2026-06-12).
+    fn add(method: String, pattern: String, h: Handler) {
+        self.entries.push(RouteEntry {
+            method:  std::str::upper(method),
+            pattern: pattern,
+            handler: h
+        });
+    }
+
+    // `use(m)` — register a middleware. Contract name restored
+    // 2026-06-12: `use` parses as a method name at HEAD (the
+    // reserved-word collision the 2026-05-16 `use_mw` rename
+    // dodged does not fire in method position).
+    fn use(m: Middleware) {
+        self.mws.push(m);
     }
 
     // `dispatch(req)` — public-API entry point for the route
-    // lookup. Splits the request target into path + query,
-    // builds the initial Context, runs the middleware-route-
-    // middleware chain, returns the std::http::Response (after
-    // boundary conversion from the local Response shape).
+    // lookup. Builds the initial Context (raw Request nested
+    // under `req`, query string split into params.qs), runs the
+    // middleware-route-middleware chain, returns the
+    // std::http::Response (after boundary conversion from the
+    // local Response shape).
     fn dispatch(req: std::http::Request) -> std::http::Response {
-        let path_only = __router_path_only(req.path);
-        let qs = __router_query_only(req.path);
         let ctx = Context {
-            method:  req.method,
-            path:    path_only,
-            headers: req.headers,
-            body:    req.body,
-            params:  RouteParams {
-                qs:      qs,
+            req:    req,
+            params: RouteParams {
+                qs:      __router_query_only(req.path),
                 path_kv: ""
             }
         };
         let r = __router_run_chain(
-            self.handlers, self.methods, self.patterns,
-            self.mws, ctx, self.not_found
+            self.entries, self.mws, ctx, self.not_found
         );
         return __router_to_http(r);
     }
@@ -202,44 +197,4 @@ locus Router {
     fn handle(req: std::http::Request) -> std::http::Response {
         return self.dispatch(req);
     }
-}
-
-// `add(r, method, pattern, h)` — register a route. Method is
-// uppercased on register so consumers can write either case at
-// the call site without affecting match. Pattern is stored
-// as-written. Handler is coerced from LocusRef → Handler at
-// this free-fn arg site (the standard F.20 Phase B path); the
-// internal `.push(h)` then stores the fat-pointer as-is.
-//
-// Free fn (not a Router method) because user-declared locus
-// method args don't yet apply LocusRef → Interface coerce at
-// the call site; routing through a free fn is the v1 shape
-// that compiles (see file header).
-fn add(r: Router, method: String, pattern: String, h: Handler) {
-    r.methods.push(std::str::upper(method));
-    r.patterns.push(pattern);
-    r.handlers.push(h);
-}
-
-// `use_mw(r, m)` — register a middleware. Locus → Interface
-// coercion fires at this free-fn arg site for `m: Middleware`;
-// the inner `.push(m)` stores the Middleware fat-pointer as-is.
-fn use_mw(r: Router, m: Middleware) {
-    r.mws.push(m);
-}
-
-// `use_before(r, m)` — register a middleware whose `before`
-// half carries the logic. Post-G20 this is just a use_mw
-// alias — Middleware is a single value, so there's no "before-
-// only" shape distinct from "full middleware" at the storage
-// layer. Kept because the convenience-name reads naturally and
-// the public surface from the pre-G20 era used it.
-fn use_before(r: Router, m: Middleware) {
-    r.mws.push(m);
-}
-
-// `use_after(r, m)` — register a middleware whose `after`
-// half carries the logic. Same alias rationale as use_before.
-fn use_after(r: Router, m: Middleware) {
-    r.mws.push(m);
 }
