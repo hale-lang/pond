@@ -4,7 +4,7 @@
 // Consolidates the `__duration_to_int` / `__ns_to_seconds` /
 // `__mono_seconds` helpers that duplicate across
 // pond/tracing, pond/sessions, pond/supervisor, downstream-consumer.
-// See pond/KNOWN_GOTCHAS.md and each lib's FRICTION.md.
+// See pond/KNOWN_GOTCHAS.md and each lib's FRICTION.log.
 //
 // Background: `std::time::monotonic()` returns a `Duration`
 // (i64 ns since CLOCK_MONOTONIC origin). The ASCII round-trip

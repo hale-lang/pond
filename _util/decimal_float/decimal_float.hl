@@ -5,7 +5,7 @@
 // helpers that duplicate across downstream-consumer,
 // downstream-consumer, downstream-consumer, downstream-consumer.
 // See pond/KNOWN_GOTCHAS.md G26 for the gap and each of those
-// FRICTION.md files for the duplicate-suspected flag.
+// FRICTION.log files for the duplicate-suspected flag.
 //
 // Caveats (inherited from the originals):
 //   - `to_float` now routes through the substrate primitive
