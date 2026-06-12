@@ -5,39 +5,27 @@
 // `get`, `set`, `len`, etc.) live on the locus already; user-added
 // methods (`at`, `set_at`, `transpose`) sit on top.
 //
-// Surface deviation from CONTRACTS.md (logged in FRICTION.md):
-// `zeros` / `eye` / `from_rows` / `matmul` / `add` / `scale` / `dot`
-// ship as methods on a namespace lotus `Mat` rather than as free
-// fns, and the binary ops carry a SENTINEL-PAIR shape rather than a
-// `fallible(MatrixError)` shape. Two compounding v1 codegen
-// restrictions force this:
+// Surface (matches CONTRACTS.md as updated 2026-06-08):
+// `zeros` / `eye` / `from_rows` / `matmul` / `add` / `scale` /
+// `dot` / `transpose` and the sentinel helpers are FREE FNS.
+// hale v0.8.2's m90 enforcement is the permanent CQRS rule —
+// methods on loci may not return locus values; free fns MAY
+// return loci (commit 04657b1 did the extraction). The empty
+// `locus Mat { }` below is a vestigial namespace placeholder
+// kept for source compat with `mat::Mat { }` instantiations.
 //
-//   * Free fns can't return LocusRef. Codegen rejects with
-//     "locus references shouldn't cross arena boundaries"; the
-//     locus's region would dissolve at the free fn's frame exit,
-//     leaving the caller with a dangling handle. Method returns
-//     escape via the m90 heap-alloc path.
-//   * Locus methods can't declare `fallible(E)` (two-channel rule,
-//     spec/semantics.md § "Where each channel lives").
+// Failure shape: the binary ops are non-fallible and use
+// sentinel-predicate pairs — `matmul` / `add` return
+// `error_matrix()` (a rows=-1, cols=-1 Matrix; check with
+// `is_error(m)`) on shape mismatch, `dot` returns
+// `nan_sentinel()` (check with `is_nan(f)`). The fully-typed
+// `fallible(MatrixError)` surface lives in the `check_*_shapes`
+// free fns the ops consume.
 //
-// The cross-product means a Matrix-producing op that signals
-// failure with a typed payload has no clean v1 surface. The
-// adopted shape: each binary op pairs `Mat.<op>` (returning a
-// Matrix; on shape mismatch returns `Mat.error_matrix()`, a
-// `rows=-1, cols=-1` sentinel) with a sibling `Mat.try_<op>`
-// path-call free-fn predicate that returns the success path's
-// validity bit. Callers check `Mat.is_error(m)` before reading
-// the result.
-//
-// `dot` returns Float; shape-mismatch sentinel is NaN
-// (`Mat.nan_sentinel()`) — checked with the std::math comparison
-// idiom.
-//
-// Locus-method restriction (same two-channel rule): the bounds-
-// checked element access lives on free fns (`at_checked`,
-// `set_at_checked`); the locus's `at` / `set_at` methods substitute
-// sentinels (`0.0` on read OOB, silent no-op on write OOB) so they
-// stay infallible.
+// Bounds-checked element access lives in fallible free fns
+// (`at_checked`, `set_at_checked`); the locus's `at` / `set_at`
+// methods substitute sentinels (`0.0` on read OOB, silent no-op
+// on write OOB) so they stay infallible.
 
 type MatrixError {
     kind: String;
@@ -204,18 +192,16 @@ fn is_error(m: Matrix) -> Bool {
     return false;
 }
 
-// NaN-shaped Float for dot-product mismatch.
+// NaN-shaped Float for dot-product mismatch. Kept as contract
+// surface; bodies delegate to std::math (nan() / is_nan() shipped
+// upstream — the hand-rolled 0.0/0.0 and f != f workarounds are
+// retired, 2026-06-12).
 fn nan_sentinel() -> Float {
-    let a = 0.0;
-    let b = 0.0;
-    return a / b;
+    return std::math::nan();
 }
 
 fn is_nan(f: Float) -> Bool {
-    if f == f {
-        return false;
-    }
-    return true;
+    return std::math::is_nan(f);
 }
 
 fn zeros(rows: Int, cols: Int) -> Matrix {

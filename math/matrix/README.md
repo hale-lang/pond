@@ -5,15 +5,14 @@ Suggested alias: `mat`.
 ```hale
 import "vendor/pond/math/matrix" as mat;
 
-let mx = mat::Mat { };
-let a  = mx.from_rows(2, 3, "1, 2, 3, 4, 5, 6");
-let i2 = mx.eye(2);
-let z  = mx.zeros(3, 3);
-let t  = a.transpose();                    // 3x2
-let s  = mx.scale(a, 2.0);
-let b  = mx.add(a, a);                     // 2x3
-let c  = mx.matmul(i2, a);                 // 2x3 = I * A
-let d  = mx.dot(a, a);                     // Float over flattened
+let a  = mat::from_rows(2, 3, "1, 2, 3, 4, 5, 6");
+let i2 = mat::eye(2);
+let z  = mat::zeros(3, 3);
+let t  = mat::transpose(a);                // 3x2
+let s  = mat::scale(a, 2.0);
+let b  = mat::add(a, a);                   // 2x3
+let c  = mat::matmul(i2, a);               // 2x3 = I * A
+let d  = mat::dot(a, a);                   // Float over flattened
 ```
 
 ## Storage
@@ -27,21 +26,25 @@ buffer. User-added methods on top:
 |-----------------------------|---------|-----------------------------------------|
 | `at(r: Int, c: Int)`        | `Float` | 0.0 on OOB; use `at_checked` for typed err |
 | `set_at(r, c, v: Float)`    | —       | silent no-op on OOB                     |
-| `transpose()`               | `Matrix` | fresh, heap-allocated                  |
+
+(`transpose` is a free fn — see below — because methods may not
+return locus values per the m90 CQRS rule.)
 
 Internal layout: row-major. Element `(r, c)` lives at flat index
 `r * cols + c`. `data: heap of Float` carries `rows * cols` cells.
 First `push` allocates a 4-element buffer; subsequent grows double
 (per `spec/forms.md` § `@form(vec)` lowering).
 
-## Namespace lotus — `Mat`
+## Free-fn surface — factories, binary ops, sentinels
 
-Factories + binary ops live as methods on a `Mat` namespace lotus
-(empty params, methods only — pattern 2 in `spec/styleguide.md`).
-See FRICTION.md for why this isn't the free-fn shape CONTRACTS.md
-declared.
+Factories, binary ops, `transpose`, and the sentinel helpers are
+free fns (`mat::zeros(...)`, etc.) — hale v0.8.2's m90 CQRS rule
+is permanent: locus methods may not return locus values; free fns
+may. The empty `locus Mat { }` remains only as a vestigial
+namespace placeholder so old `mat::Mat { }` instantiations still
+typecheck. Matches CONTRACTS.md (re-cut 2026-06-08).
 
-| Method                                       | Returns  | Failure shape              |
+| Free fn                                      | Returns  | Failure shape              |
 |----------------------------------------------|----------|----------------------------|
 | `zeros(rows: Int, cols: Int)`                | `Matrix` | infallible                 |
 | `eye(n: Int)`                                | `Matrix` | infallible                 |
@@ -52,8 +55,9 @@ declared.
 | `dot(a, b: Matrix)`                          | `Float`  | shape mismatch → NaN (`is_nan`) |
 | `error_matrix()`                             | `Matrix` | sentinel constructor       |
 | `is_error(m: Matrix)`                        | `Bool`   | `m.rows < 0 \|\| m.cols < 0` |
-| `nan_sentinel()`                             | `Float`  | IEEE 754 NaN               |
-| `is_nan(f: Float)`                           | `Bool`   | `f != f`                   |
+| `transpose(m: Matrix)`                       | `Matrix` | infallible                 |
+| `nan_sentinel()`                             | `Float`  | IEEE 754 NaN (delegates `std::math::nan()`) |
+| `is_nan(f: Float)`                           | `Bool`   | delegates `std::math::is_nan(f)` |
 
 ## Free-fn fallible surface
 
@@ -112,8 +116,8 @@ exercises the shape-mismatch sentinel paths for matmul and dot.
 
 ## Files
 
-- `matrix.hl` — the `Matrix` locus, `Mat` namespace, free-fn
-  fallible surface.
+- `matrix.hl` — the `Matrix` locus, the free-fn factory/algebra
+  surface, the vestigial `Mat` placeholder.
 - `examples/matmul-demo/main.hl` — end-to-end demo.
-- `FRICTION.md` — contract deviations, language gaps, duplication
+- `FRICTION.log` — contract deviations, language gaps, duplication
   suspicions.
