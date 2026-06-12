@@ -4,7 +4,7 @@
 // Model.train_step per sample and publishing a TrainStep on the
 // bus once per epoch.
 //
-// **CONTRACTS.md deviation log** (see FRICTION.md):
+// **CONTRACTS.md deviation log** (see FRICTION.log):
 //
 //   1. CONTRACTS.md declares
 //        params { model: Model; lr: Float = 0.01; batch_size: Int = 32; }
@@ -22,16 +22,17 @@
 //      to add once we either (a) ship a fallible-method-on-locus
 //      surface so train_step can accumulate vs apply, or (b)
 //      extend Model with a `zero_grad()` / `apply_grad()` pair.
-//      See FRICTION.md "batch-size-stub".
+//      See FRICTION.log "batch-size-stub".
 
 import "../../math/matrix" as mat;
 
 // Per-epoch training-progress channel. The topic decl lives in
-// THIS file (not a sibling) because `bus { publish T; }` / `T <- v`
-// only resolve a `topic T` declared in the same file as the
-// publishing locus (codegen v0: bus-block topic resolution is
-// file-local, not seed-global — payload-type resolution IS
-// seed-global). Trainer below is the lib's single publisher.
+// THIS file next to its single publisher. (Historical note: it
+// was forced here when codegen v0's bus-block topic resolution
+// was file-local; WS3.3 — upstream post-audit 2026-06-11 —
+// fixed cross-file/cross-seed topic resolution, so a sibling
+// `topics.hl` would also work now. Co-location is kept as the
+// preferred shape for a single-publisher topic.)
 //
 // Deliberate type-vs-topic name split: the payload `type TrainStep`
 // lives in metrics.hl; the channel is named `TrainStepEvent`
@@ -91,15 +92,25 @@ locus Trainer {
         let in_dim = xs.cols;
         let out_dim = ys.cols;
 
+        // Preallocate two reusable row buffers and refill them
+        // in place per sample (extract_row_into). Allocating a
+        // fresh Matrix per sample inside this method loop and
+        // passing it into model.train_step segfaults at hale
+        // HEAD (see FRICTION.log "fresh-locus-arg-to-train_step
+        // segfault", 2026-06-12); the reuse shape is also the
+        // allocation-free hot loop the unbounded-alloc lint
+        // wants.
+        let x_row = mat::zeros(in_dim, 1);
+        let y_row = mat::zeros(out_dim, 1);
+
         let mut e_idx = 1;
         let mut step = 0;
         while e_idx <= epochs {
             let mut sample = 0;
             let mut epoch_loss = 0.0;
-            let ops = NnOps { };
             while sample < n_samples {
-                let x_row = ops.extract_row(xs, sample, in_dim);
-                let y_row = ops.extract_row(ys, sample, out_dim);
+                extract_row_into(xs, sample, in_dim, x_row);
+                extract_row_into(ys, sample, out_dim, y_row);
                 // A shape mismatch in train_step propagates its
                 // own NnError up this call's value channel.
                 let loss = model.train_step(x_row, y_row, self.lr) or raise;
@@ -120,5 +131,5 @@ locus Trainer {
     }
 }
 
-// `extract_row` lives on the NnOps namespace lotus in model.hl
-// (free fns can't return LocusRef at v1 — KNOWN_GOTCHAS G3).
+// `extract_row` is a free fn in model.hl (formerly an NnOps
+// method; moved by the v0.8.2 m90 enforcement — see FRICTION.log).
