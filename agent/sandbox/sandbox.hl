@@ -26,7 +26,7 @@
 // no-op (no rlimit hook on the upstream surface yet);
 // `timeout_ms` likewise isn't enforced because
 // std::process::run has no wall-clock cutoff — see
-// FRICTION.md.
+// FRICTION.log.
 
 import "../../subprocess" as sub;
 
@@ -43,7 +43,7 @@ import "../../subprocess" as sub;
 // absolute path is recommended in production.
 // `timeout_ms` is RESERVED — no upstream wall-clock cutoff yet,
 // so the field is plumbed for forward compat but currently a
-// no-op (FRICTION.md).
+// no-op (FRICTION.log).
 // `memory_limit_mb` is RESERVED — no rlimit hook on the upstream
 // surface yet, so it's a documented no-op at v1.
 locus Sandbox {
