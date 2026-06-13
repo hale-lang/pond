@@ -173,6 +173,25 @@ locus WsClient {
     }
 
     birth() {
+        self.reparse_url();
+    }
+
+    // reparse_url — (re)derive scheme/host/port/path from the
+    // current `self.url`. Called from birth() AND from the top of
+    // connect_once() so a `url` set *after* construction (the
+    // documented config-on-boot pattern — `conn.url = cfg_url`
+    // before the first open()) actually takes effect. Without the
+    // connect-time re-parse, only birth()'s parse of the param
+    // *default* url was ever honored: a later `conn.url = ...`
+    // changed the field but left host/port/scheme pointing at the
+    // stale default, so the dial (SNI) and the HTTP `Host:` header
+    // both targeted the wrong server. Behind a CDN/anycast that
+    // shares one IP across hostnames (e.g. publicnode's Cloudflare
+    // front), the TCP/TLS connect + WS upgrade still *succeed*
+    // against the wrong backend, and a subscription is registered
+    // that silently matches nothing. Idempotent; safe to call per
+    // dial.
+    fn reparse_url() {
         let parts = parse_url(self.url);
         self.scheme = parts.scheme;
         self.host = parts.host;
@@ -599,6 +618,15 @@ locus WsClient {
     }
 
     fn connect_once() -> Bool {
+        // Honor a `url` mutated after birth (config-on-boot): derive
+        // host/port/scheme/path from the live value before every dial.
+        self.reparse_url();
+        if self.scheme == "" {
+            // url malformed (reparse_url set last_error). Nothing to dial.
+            self.logger.on_event(WsLogEvent {
+                phase: "error", detail: "url parse failed" });
+            return false;
+        }
         self.logger.on_event(WsLogEvent {
             phase: "dial", detail: self.host });
         if self.scheme == "wss" {
