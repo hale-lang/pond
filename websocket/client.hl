@@ -151,6 +151,27 @@ locus WsClient {
         frames_sent: Int = 0;
         reconnects: Int = 0;
 
+        // ---- kernel/user RX timestamps (TLS fast-path, hale #146) ----
+        //
+        // Populated by recv_into_rx() on the TLS path: after each
+        // std::io::tls::recv_stamped_into the thread-local stamps are
+        // captured here IMMEDIATELY (errno-style — must read before any
+        // other syscall clobbers them).
+        //
+        //   - rx_kernel_ns: SO_TIMESTAMPNS kernel RX time (wire-arrival).
+        //     0 when the platform/path delivered none (no NIC software
+        //     RX timestamping on this path — e.g. some tun/veth devices).
+        //   - rx_user_ns:   CLOCK_REALTIME captured at SSL_read return
+        //     (always sane; the fallback when kernel_ns is 0).
+        //
+        // These reflect the MOST RECENT recv. A single read_msg() may
+        // span several recvs (partial frames); the value after read_msg()
+        // returns is the stamp of the recv that completed the message.
+        // The tcp path leaves these untouched (fathom is all-TLS; if a
+        // tcp consumer needs them, mirror with tcp::recv_stamped_into).
+        rx_kernel_ns: Int = 0;
+        rx_user_ns:   Int = 0;
+
         // ---- diagnostic logger (injectable) ----
         //
         // Default emits one line per I/O event to stderr. Caller
@@ -170,6 +191,8 @@ locus WsClient {
         expose frames_received: Int;
         expose frames_sent: Int;
         expose reconnects: Int;
+        expose rx_kernel_ns: Int;
+        expose rx_user_ns: Int;
     }
 
     birth() {
@@ -593,7 +616,13 @@ locus WsClient {
     // and re-arm the steady-state ping_interval deadline.
     fn recv_into_rx() -> Int {
         let got = if self.tls >= 0 {
-            std::io::tls::recv_into(self.tls, self.rx_buf, self.recv_chunk)
+            // TLS fast-path (hale #146): recv_into + kernel RX timestamp
+            // capture in one recvmsg. Read the thread-local stamps
+            // IMMEDIATELY after — errno-style, any later syscall clobbers.
+            let g = std::io::tls::recv_stamped_into(self.tls, self.rx_buf, self.recv_chunk);
+            self.rx_kernel_ns = std::io::tls::last_recv_kernel_ns();
+            self.rx_user_ns   = std::io::tls::last_recv_user_ns();
+            g
         } else {
             std::io::tcp::recv_into(self.sock, self.rx_buf, self.recv_chunk)
         };
@@ -638,6 +667,13 @@ locus WsClient {
                 return false;
             }
             self.tls = h;
+            // TLS fast-path setup (hale #146), best-effort like
+            // set_recv_timeout: TCP_NODELAY so partial md frames aren't
+            // Nagle-delayed, and SO_TIMESTAMPNS so recv_stamped_into can
+            // surface a kernel RX (wire-arrival) timestamp. A setsockopt
+            // failure must NOT fail the connection — degrade silently.
+            std::io::tls::set_nodelay(self.tls, true) or discard;
+            std::io::tls::set_rx_timestamps(self.tls, true) or discard;
             self.logger.on_event(WsLogEvent {
                 phase: "tls", detail: "handshake ok" });
         } else {
