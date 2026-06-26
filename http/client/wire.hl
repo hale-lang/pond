@@ -56,7 +56,7 @@ locus __HttpConn {
 // Bytes (via from_string, lossless for ASCII) and ships through
 // __HttpConn.send_bytes so the same path serves both TCP and
 // TLS modes.
-fn __build_request_headers(req: Request, user_agent: String) -> String {
+fn __build_request_headers(req: Request, user_agent: String, keep_alive: Bool) -> String {
     let host = req.url.host;
     let port = req.url.port;
     let path = req.url.path;
@@ -66,7 +66,7 @@ fn __build_request_headers(req: Request, user_agent: String) -> String {
     let host_header = "Host: " + host + ":" + to_string(port) + "\r\n";
     let ua_header   = "User-Agent: " + user_agent + "\r\n";
     let cl_header   = "Content-Length: " + to_string(body_len) + "\r\n";
-    let conn_header = "Connection: close\r\n";
+    let conn_header = if keep_alive { "Connection: keep-alive\r\n" } else { "Connection: close\r\n" };
 
     let request_line = method + " " + path + " HTTP/1.1\r\n";
 
@@ -248,7 +248,7 @@ fn __exchange_one(
     user_agent: String,
     max_body: Int
 ) -> Response {
-    let header_block = __build_request_headers(req, user_agent);
+    let header_block = __build_request_headers(req, user_agent, false);
     s.send_bytes(std::bytes::from_string(header_block));
     if len(req.body) > 0 {
         s.send_bytes(req.body);
