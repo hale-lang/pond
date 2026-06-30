@@ -2893,6 +2893,38 @@ row-major slicing will reach for the same shape.
 No open contract deviations. Satisfies `db::DbDriver`; `hale check`
 clean in-repo.
 
+## [CLOSED 2026-06-30] flaky cold dial: "peer closed mid-response" on a healthy server
+
+`PgConn.open()` dialed once and a single attempt was unreliable: the
+startup handshake against a *perfectly healthy* postgres intermittently
+aborted with `open_failed: startup: peer closed mid-response`. Root cause
+is in `__pump` — the stdlib `recv` contract is `>0` / `0` EOF / `-1`
+fatal / `-2` retryable (spec/stdlib.md `std::io::tcp`), but `recv_bytes`
+returns `Bytes`, collapsing the retryable `-2` (EINTR / transient empty
+read before the server's AuthenticationOk..ReadyForQuery burst lands)
+into `len 0`, which the reader can't distinguish from a real EOF. So a
+retryable read on the connect path was misreported as a peer close.
+
+Repro (fathom, postgres 18): `apps/ledger` cold-booting against
+`fathom-postgres:55432` hit this on a meaningful fraction of boots; the
+*same* process/DSN connected far enough on other attempts to run every
+`CREATE TABLE`. A degraded boot then latched the consumer into
+in-memory-only mode (its own bug), so the transient became a permanent
+silent durability outage.
+
+Fix: bounded retry-with-backoff inside `open()` (extract `__open_once`;
+loop ≤8 attempts, 150ms apart, tearing down the half-open fd between
+tries). A redial reliably succeeds; a genuinely-down server still fails
+`connect` fast each attempt and surfaces the last error. Covers the pool
+too (`PgPool.open` dials through `PgConn.open`).
+
+Evidence: `apps/smoke-pq` 10/10 clean against live pg; `apps/ledger`
+5/5 first-attempt "pg ready" across restarts (was a coin-flip before).
+Proper unblock would be a `recv` surface that preserves the `-2`
+retryable signal so `__pump` can retry the read in place instead of
+redialing — logged for hale (cf. `recv_into`'s `-2` contract, which
+`recv_bytes` discards).
+
 ## Notes / forward work
 
 - **Pool transactions are no-ops.** `PgPool.{begin,commit,rollback}`
