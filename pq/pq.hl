@@ -52,7 +52,46 @@ locus PgConn {
     fn backend() -> String { return "postgres"; }
 
     // open — dial + StartupMessage + read to first ReadyForQuery.
+    //
+    // RETRY: a single dial is unreliable. The startup handshake against a
+    // perfectly healthy server intermittently aborts with a transient
+    // peer-close — __pump's `recv_bytes` returns a zero-length chunk before
+    // the server's AuthenticationOk/ReadyForQuery burst lands, and the
+    // simple-protocol reader can't tell that retryable read (the stdlib
+    // recv contract's `-2`, which `recv_bytes` flattens to len 0) from a
+    // real EOF, so it reports "peer closed mid-response". Observed against
+    // postgres 18 on a fresh cold dial at a meaningful rate; a fresh redial
+    // almost always succeeds on the next attempt. Bounded retries with a
+    // short backoff make open() durable WITHOUT masking a genuinely-down
+    // server: a real refusal fails `connect` fast every attempt and we
+    // still surface the last error after the final try.
     fn open() -> db::Status {
+        let mut attempt = 0;
+        let mut last = db::Status {
+            ok:  false,
+            err: db::DbError { kind: "open_failed", engine_code: 0, detail: "not attempted" },
+        };
+        while attempt < 8 {
+            attempt = attempt + 1;
+            let st = self.__open_once();
+            if st.ok { return st; }
+            last = st;
+            // Tear down any half-open socket (a failed handshake left it
+            // dialed) before the next attempt so we never leak the fd.
+            if self.sock >= 0 {
+                std::io::tcp::__close_fd(self.sock);
+                self.sock = -1;
+            }
+            self.connected = false;
+            self.rx_buf.clear();
+            std::time::sleep(150ms);
+        }
+        return last;
+    }
+
+    // __open_once — one dial + StartupMessage + read-to-ReadyForQuery. The
+    // retry policy lives in open(); this is the single-attempt body.
+    fn __open_once() -> db::Status {
         let fd = std::io::tcp::connect(self.host, self.port)
             or __on_connect_fail(err);
         if fd < 0 {
