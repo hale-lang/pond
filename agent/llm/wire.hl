@@ -2,56 +2,15 @@
 //
 // Free fns (pattern 6) that turn an `LlmRequest` into the
 // vendor's JSON body, and parse the JSON response back into an
-// `LlmResponse`. Two adapter pairs — one per vendor — share the
-// same `__decode_messages` walker over the tab-separated
-// `messages` field on LlmRequest.
+// `LlmResponse`. Both vendor adapters loop `req.messages`
+// (bounded[LlmMsg; 128] since the 2026-07-02 bounded migration —
+// the shared tab-separated walker is gone).
 //
 // Per CONTRACTS.md the request body assembly uses
 // `std::json::Builder` end-to-end. Response parsing leans on
 // `std::json::find_string_field` + `find_int_field` for the
 // flat top-level fields; nested-content arrays are walked with
 // the index-API pattern (no nested-tree shape in v1 json).
-//
-// FRICTION: the tab-separated `messages: String` encoding for
-// LlmRequest paired with this walker is duplicate-suspected —
-// `pond/router::RouteParams` (`path_kv: String` tab-separated
-// kv) and `pond/conversation::Conversation` (history is
-// tab-separated messages) follow the same shape. A
-// `std::iter::TabFields` or similar would lift the pattern.
-// Logged in FRICTION.log.
-
-// __next_field — read one tab-separated field starting at
-// `from`. Returns the field value (excluding the delimiter)
-// and writes the post-delimiter cursor into the second
-// element of the returned `__Slice`. End-of-string yields
-// done=true.
-type __Slice {
-    value: String = "";
-    next:  Int    = 0;
-    done:  Bool   = false;
-}
-
-fn __next_field(s: String, from: Int) -> __Slice {
-    let total = len(s);
-    if from >= total {
-        return __Slice { value: "", next: total, done: true };
-    }
-    let rest = s[from..total];
-    let rest_len = len(rest);
-    let rel = std::str::index_of(rest, "\t");
-    if rel < 0 {
-        return __Slice {
-            value: rest,
-            next:  total,
-            done:  false
-        };
-    }
-    return __Slice {
-        value: rest[0..rel],
-        next:  from + rel + 1,
-        done:  false
-    };
-}
 
 // __emit_message — append one `{"role": ..., "content": ...}`
 // object inside the currently-open messages array. Used by
@@ -100,21 +59,8 @@ fn __build_anthropic_body(req: LlmRequest, stream: Bool) -> String {
     b.bool_field("stream", stream);
 
     b.begin_array_field("messages");
-    let mut cur = 0;
-    let total = len(req.messages);
-    while cur < total {
-        let role = __next_field(req.messages, cur);
-        if role.done { break; }
-        cur = role.next;
-        if cur >= total {
-            // Dangling role with no content — emit empty content
-            // for safety and stop.
-            __emit_message(b, role.value, "");
-            break;
-        }
-        let content = __next_field(req.messages, cur);
-        cur = content.next;
-        __emit_message(b, role.value, content.value);
+    for m in req.messages {
+        __emit_message(b, m.role, m.content);
     }
     b.end_array();
 
@@ -150,19 +96,8 @@ fn __build_openai_body(req: LlmRequest, stream: Bool) -> String {
     if len(req.system) > 0 {
         __emit_message(b, "system", req.system);
     }
-    let mut cur = 0;
-    let total = len(req.messages);
-    while cur < total {
-        let role = __next_field(req.messages, cur);
-        if role.done { break; }
-        cur = role.next;
-        if cur >= total {
-            __emit_message(b, role.value, "");
-            break;
-        }
-        let content = __next_field(req.messages, cur);
-        cur = content.next;
-        __emit_message(b, role.value, content.value);
+    for m in req.messages {
+        __emit_message(b, m.role, m.content);
     }
     b.end_array();
 

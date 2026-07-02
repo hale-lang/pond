@@ -14,40 +14,6 @@
 // (sentinel shape from spec/styleguide.md § "Current language
 // gaps"). Comparisons are case-sensitive.
 
-// Internal: alternating-pair scan over a separator-joined
-// "k<sep>v<sep>k<sep>v" String. Path-kv (tab-separated) and
-// query-string (& between pairs, = between key/value) both
-// reduce to this shape once the surrounding split is done.
-fn __router_kv_lookup(blob: String, name: String, sep: String) -> String {
-    let total = len(blob);
-    if total == 0 {
-        return "";
-    }
-    let sep_len = len(sep);
-    let mut cursor = 0;
-    let mut is_key = true;
-    let mut current_key = "";
-    while cursor < total {
-        let rel = std::str::index_of(blob[cursor..total], sep);
-        let field_end = if rel < 0 { total } else { cursor + rel };
-        let field = blob[cursor..field_end];
-        if is_key {
-            current_key = field;
-            is_key = false;
-        } else {
-            if current_key == name {
-                return field;
-            }
-            is_key = true;
-        }
-        if rel < 0 {
-            return "";
-        }
-        cursor = field_end + sep_len;
-    }
-    return "";
-}
-
 // Internal: lookup against an `&`-separated `=`-paired query
 // string. Walks pair-by-pair so a long qs with the lookup-
 // target early returns without scanning the rest. URL-
@@ -89,7 +55,17 @@ fn __router_query_lookup(qs: String, name: String) -> String {
 // (cross-seed non-fallible free-fn calls lower post-A3 /
 // hale `f9068fa`).
 fn path_param(p: RouteParams, name: String) -> String {
-    return __router_kv_lookup(p.path_kv, name, "\t");
+    // Parallel bounded pair scan (2026-07-02 — was a TSV walk).
+    let n = count(p.path_keys);
+    let mut i = 0;
+    while i < n {
+        let k = at(p.path_keys, i) or "";
+        if k == name {
+            return at(p.path_vals, i) or "";
+        }
+        i = i + 1;
+    }
+    return "";
 }
 
 fn query_param(p: RouteParams, name: String) -> String {

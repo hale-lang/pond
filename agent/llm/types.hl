@@ -11,13 +11,14 @@
 // vendor.
 //
 // `system` carries the system-prompt as a plain String (empty
-// string = no system prompt). `messages` is a tab-separated
-// "role\tcontent\trole\tcontent\t..." stream because Hale v1
-// has no parametric List<T> — same convention pond/router uses
-// for query/path kv blocks, and pond/conversation uses for
-// history. Each pair is one Message; roles are "user" /
-// "assistant" / "system". The wire-format adapters in
-// anthropic.hl / openai.hl unpack this into the vendor's
+// string = no system prompt). `messages` is a bounded list of
+// `LlmMsg` (2026-07-02, bounded[T; N] migration — previously a
+// tab-separated "role\tcontent" stream; the TSV idiom is
+// retired, and content may now contain tabs). Roles are "user" /
+// "assistant" / "system". Capacity 128 bounds one request's
+// message count; push overflow is the caller's `or` arm to
+// handle (drop-oldest, fail, etc.). The wire-format adapters in
+// anthropic.hl / openai.hl walk the list into the vendor's
 // preferred shape.
 //
 // `max_tokens` and `temperature` are decoding knobs. `<= 0` for
@@ -25,10 +26,18 @@
 // adapter skips emitting the field in that case. `temperature`
 // follows the vendor's range (Anthropic: 0..1, OpenAI: 0..2);
 // both accept the field verbatim.
+// LlmMsg — one chat message in an LlmRequest. Local shape (no
+// cross-lib dependency on pond/agent/conversation::Message —
+// that type also carries `ts`, which the vendors don't take).
+type LlmMsg {
+    role:    String = "";
+    content: String = "";
+}
+
 type LlmRequest {
     model:       String = "";
     system:      String = "";
-    messages:    String = "";
+    messages:    bounded[LlmMsg; 128];
     max_tokens:  Int    = 0;
     temperature: Float  = 1.0;
 }

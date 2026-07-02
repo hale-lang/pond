@@ -52,10 +52,17 @@ locus TwoTurn {
             ts:      `2026-05-16T00:00:02Z`,
         });
 
-        // Step 3: print the canonical history view.
-        let hist = c.history();
-        println("[two-turn] history()           =");
-        println(hist);
+        // Step 3: print the retained history (2026-07-02 —
+        // history_count/history_at replace the tab-separated
+        // history() view).
+        println("[two-turn] history_count()     = ", c.history_count());
+        let n = c.history_count();
+        let mut i = 0;
+        while i < n {
+            let m = c.history_at(i);
+            println("[two-turn]   ", m.role, ": ", m.content);
+            i = i + 1;
+        }
     }
 }
 
