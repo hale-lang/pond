@@ -982,8 +982,10 @@ locus WsServerConn {                           // per-connection server side
 ### `pond/agent/llm/` — alias `llm`
 
 ```hale
-type LlmRequest  { model: String; system: String; messages: String;
-                   max_tokens: Int; temperature: Float; }
+type LlmMsg      { role: String; content: String; }
+type LlmRequest  { model: String; system: String;
+                   messages: bounded[LlmMsg; 128];   // 2026-07-02: was
+                   max_tokens: Int; temperature: Float; }  // tab-separated
 type LlmResponse { text: String; stop_reason: String;
                    input_tokens: Int; output_tokens: Int; }
 type LlmError    { kind: String; status: Int; detail: String; }
@@ -1041,9 +1043,10 @@ type Message { role: String; content: String; ts: Time; }
 
 locus Conversation {                      // bounded chat history
     params { system_prompt: String = ""; max_messages: Int = 100; }
-    fn append(m: Message) -> ();
-    fn history() -> String;                // tab-separated messages
-    bus { publish ConversationUpdated; }
+    fn append(m: Message) -> ();          // FIFO-evicts at the cap
+    fn history_count() -> Int;            // 2026-07-02: replaces the
+    fn history_at(i: Int) -> Message;     //  tab-separated history()
+    bus { publish ConversationUpdated; }  //  ("" role past the end)
 }
 
 topic ConversationUpdated { payload: Message; }

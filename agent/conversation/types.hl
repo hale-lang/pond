@@ -14,16 +14,11 @@
 // `ts: Time` shape from `downstream-consumer::Tick` / `downstream-consumer::Quote`
 // per the cross-cutting precedent.
 //
-// **Note on tab-encoding** (see `history()` in
-// `conversation.hl`): role and content are appended into a
-// single tab-separated stream when callers ask for the
-// canonical "history()" representation. Embedded tabs in
-// `content` would corrupt the stream; the conservative v1 stance
-// is "callers don't pass tabs in content" — same convention
-// `pond/router::RouteParams` and `pond/agent/llm::LlmRequest`
-// already use. A future `std::iter::TabFields` (logged in
-// FRICTION.log as duplicate-suspected) would centralize the
-// pattern and could escape the delimiter properly.
+// History is a bounded[Message; 128] on the Conversation locus
+// (2026-07-02, bounded[T; N] migration — previously a
+// tab-separated stream with the "no tabs in content" caveat;
+// content may now contain anything). Access via
+// `history_count()` / `history_at(i)`.
 type Message {
     role:    String = "";
     content: String = "";
