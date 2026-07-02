@@ -63,6 +63,7 @@ fn __raise_connect(e: IoError, host: String, port: Int) -> Int fallible(HttpErro
 fn __dial(host: String, port: Int) -> Int fallible(HttpError) {
     let fd = std::io::tcp::connect(host, port)
         or (__raise_connect(err, host, port) or raise);
+    std::io::tcp::set_nodelay(fd, true) or discard;   // kill Nagle (best-effort)
     return fd;
 }
 
@@ -73,6 +74,7 @@ fn __dial(host: String, port: Int) -> Int fallible(HttpError) {
 fn __dial_tls(host: String, port: Int) -> Int fallible(HttpError) {
     let handle = std::io::tls::connect(host, port)
         or (__raise_connect(err, host, port) or raise);
+    std::io::tls::set_nodelay(handle, true) or discard;   // kill Nagle (best-effort)
     return handle;
 }
 
@@ -267,61 +269,114 @@ locus Client {
         max_retries: Int = 3;
         max_body: Int = 16777216;
 
-        // Pool state — fixed-cap parallel arrays. -1 fd means
-        // "empty slot". Slot 0 is most-recently-used.
-        pool_size: Int = 0;
-        pool_fd0: Int = -1; pool_host0: String = ""; pool_port0: Int = 0;
-        pool_fd1: Int = -1; pool_host1: String = ""; pool_port1: Int = 0;
-        pool_fd2: Int = -1; pool_host2: String = ""; pool_port2: Int = 0;
-        pool_fd3: Int = -1; pool_host3: String = ""; pool_port3: Int = 0;
+        // Opt-in keep-alive: when true, get/post/request reuse pooled
+        // connections (framed reads + `Connection: keep-alive`). Default false
+        // keeps the legacy one-shot + `Connection: close` behavior byte-for-byte
+        // (so existing Client users — pond's LLM clients — are unaffected).
+        keep_alive: Bool = false;
+
+        // Pool state — fixed-cap parallel arrays. -1 fd means "empty slot".
+        // `tls` distinguishes a raw TCP fd from a TLS handle so close() routes
+        // correctly. Slot 0 is most-recently-used.
+        pool_fd0: Int = -1; pool_host0: String = ""; pool_port0: Int = 0; pool_tls0: Bool = false;
+        pool_fd1: Int = -1; pool_host1: String = ""; pool_port1: Int = 0; pool_tls1: Bool = false;
+        pool_fd2: Int = -1; pool_host2: String = ""; pool_port2: Int = 0; pool_tls2: Bool = false;
+        pool_fd3: Int = -1; pool_host3: String = ""; pool_port3: Int = 0; pool_tls3: Bool = false;
     }
 
     fn get(url_str: String) -> Response fallible(HttpError) {
         let u = parse_url(url_str) or raise;
-        let _ = __check_scheme(u.scheme) or raise;
-        let req = Request {
-            method: "GET",
-            url: u,
-            headers: "",
-            body: b""
-        };
-        return __round_trip_with_retry(
-            req, self.user_agent, self.max_body, self.max_retries
-        ) or raise;
+        return self.request(Request { method: "GET", url: u, headers: "", body: b"" }) or raise;
     }
 
     fn post(url_str: String, body: Bytes, content_type: String) -> Response fallible(HttpError) {
         let u = parse_url(url_str) or raise;
-        let _ = __check_scheme(u.scheme) or raise;
-        let req = Request {
-            method: "POST",
-            url: u,
-            headers: "Content-Type: " + content_type,
-            body: body
-        };
-        return __round_trip_with_retry(
-            req, self.user_agent, self.max_body, self.max_retries
+        return self.request(
+            Request { method: "POST", url: u, headers: "Content-Type: " + content_type, body: body }
         ) or raise;
     }
 
     fn request(req: Request) -> Response fallible(HttpError) {
         let _ = __check_scheme(req.url.scheme) or raise;
+        if self.keep_alive { return self.__pooled(req) or raise; }
         return __round_trip_with_retry(
             req, self.user_agent, self.max_body, self.max_retries
         ) or raise;
     }
 
-    // Future: pool slot acquire / release. The connection-pool
-    // implementation is staged in but unused at v1 because
-    // `Connection: close` in the request headers means each
-    // round-trip closes the fd anyway. Keeping the fields so
-    // `keep-alive` can wire in without a params-change.
+    // Keep-alive round-trip: reuse a pooled connection for host:port if present
+    // (one stale-retry), else dial fresh with backoff retry. On success, return
+    // the fd to the pool when the peer left it open (framed + not Connection:
+    // close), else close it. See keepalive.hl for the framing reader.
+    fn __pooled(req: Request) -> Response fallible(HttpError) {
+        let host = req.url.host;
+        let port = req.url.port;
+        let is_tls = req.url.scheme == "https";
+
+        let pfd = self.__pool_take(host, port, is_tls);
+        if pfd >= 0 {
+            let ex = __exchange_on_handle(pfd, is_tls, req, self.user_agent, self.max_body);
+            if ex.ok {
+                if ex.reusable { self.__pool_put(host, port, pfd, is_tls); }
+                else { __close_handle(pfd, is_tls); }
+                return ex.resp;
+            }
+            __close_handle(pfd, is_tls);   // stale; fall through to a fresh dial
+        }
+
+        let mut attempt = 0;
+        let max_attempts = self.max_retries + 1;
+        while attempt < max_attempts {
+            let fd = __dial_nd(host, port, is_tls);
+            if fd >= 0 {
+                let ex = __exchange_on_handle(fd, is_tls, req, self.user_agent, self.max_body);
+                if ex.ok && ex.resp.status < 500 {
+                    if ex.reusable { self.__pool_put(host, port, fd, is_tls); }
+                    else { __close_handle(fd, is_tls); }
+                    return ex.resp;
+                }
+                __close_handle(fd, is_tls);
+            }
+            attempt = attempt + 1;
+            if attempt < max_attempts { std::time::sleep(50ms); }
+        }
+        fail HttpError { kind: "retries_exhausted", status: 0, detail: host + ":" + to_string(port) };
+    }
+
+    // Take an idle pooled fd matching (host, port, is_tls), clearing its slot;
+    // -1 if none.
+    fn __pool_take(host: String, port: Int, is_tls: Bool) -> Int {
+        if self.pool_fd0 >= 0 && self.pool_host0 == host && self.pool_port0 == port && self.pool_tls0 == is_tls {
+            let fd = self.pool_fd0; self.pool_fd0 = -1; self.pool_host0 = ""; self.pool_port0 = 0; self.pool_tls0 = false; return fd;
+        }
+        if self.pool_fd1 >= 0 && self.pool_host1 == host && self.pool_port1 == port && self.pool_tls1 == is_tls {
+            let fd = self.pool_fd1; self.pool_fd1 = -1; self.pool_host1 = ""; self.pool_port1 = 0; self.pool_tls1 = false; return fd;
+        }
+        if self.pool_fd2 >= 0 && self.pool_host2 == host && self.pool_port2 == port && self.pool_tls2 == is_tls {
+            let fd = self.pool_fd2; self.pool_fd2 = -1; self.pool_host2 = ""; self.pool_port2 = 0; self.pool_tls2 = false; return fd;
+        }
+        if self.pool_fd3 >= 0 && self.pool_host3 == host && self.pool_port3 == port && self.pool_tls3 == is_tls {
+            let fd = self.pool_fd3; self.pool_fd3 = -1; self.pool_host3 = ""; self.pool_port3 = 0; self.pool_tls3 = false; return fd;
+        }
+        return -1;
+    }
+
+    // Return an fd to the pool, into the first empty slot; if full, evict slot 3
+    // (closing it) and install there.
+    fn __pool_put(host: String, port: Int, fd: Int, is_tls: Bool) {
+        if self.pool_fd0 < 0 { self.pool_fd0 = fd; self.pool_host0 = host; self.pool_port0 = port; self.pool_tls0 = is_tls; return; }
+        if self.pool_fd1 < 0 { self.pool_fd1 = fd; self.pool_host1 = host; self.pool_port1 = port; self.pool_tls1 = is_tls; return; }
+        if self.pool_fd2 < 0 { self.pool_fd2 = fd; self.pool_host2 = host; self.pool_port2 = port; self.pool_tls2 = is_tls; return; }
+        if self.pool_fd3 < 0 { self.pool_fd3 = fd; self.pool_host3 = host; self.pool_port3 = port; self.pool_tls3 = is_tls; return; }
+        __close_handle(self.pool_fd3, self.pool_tls3);
+        self.pool_fd3 = fd; self.pool_host3 = host; self.pool_port3 = port; self.pool_tls3 = is_tls;
+    }
 
     dissolve() {
-        // Close any cached fds. -1 is a safe no-op for close_fd.
-        std::io::tcp::close_fd(self.pool_fd0);
-        std::io::tcp::close_fd(self.pool_fd1);
-        std::io::tcp::close_fd(self.pool_fd2);
-        std::io::tcp::close_fd(self.pool_fd3);
+        // Close any cached fds (TLS handles vs TCP fds route via __close_handle).
+        __close_handle(self.pool_fd0, self.pool_tls0);
+        __close_handle(self.pool_fd1, self.pool_tls1);
+        __close_handle(self.pool_fd2, self.pool_tls2);
+        __close_handle(self.pool_fd3, self.pool_tls3);
     }
 }

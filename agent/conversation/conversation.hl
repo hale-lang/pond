@@ -52,26 +52,19 @@ locus Conversation {
         // When `append()` would push the count past this cap,
         // the oldest messages are dropped to keep the count at
         // exactly `max_messages`. v1 strategy: simple FIFO
-        // eviction.
+        // eviction. The storage ceiling is the bounded capacity
+        // (128); a max_messages above it is clamped by the
+        // eviction arithmetic.
         max_messages: Int = 100;
 
         // -------- Internal state, exposed as params per the
         //          stateful-locus convention --------
 
-        // Tab-separated `role\tcontent\trole\tcontent...` stream.
-        // Empty when no messages have been appended. The
-        // representation matches the `history()` return shape
-        // exactly so `history()` is a single field read.
-        //
-        // **Tab as delimiter** matches `pond/router::RouteParams`
-        // and `pond/agent/llm::LlmRequest.messages`. Callers
-        // must not embed tabs in `Message.content`; same
-        // convention. A `std::iter::TabFields` helper (logged in
-        // FRICTION.log) would centralize this.
-        history_buf:  String = "";
-
-        // Live message count, for max_messages enforcement.
-        msg_count:    Int    = 0;
+        // Retained history, oldest first (2026-07-02 bounded
+        // migration — was a tab-separated String + msg_count
+        // pair; content may now contain tabs). count() IS the
+        // live message count.
+        history: bounded[Message; 128];
     }
     bus {
         // Topic-decl form per CONTRACTS.md; the old G1
@@ -96,22 +89,31 @@ locus Conversation {
     // `max_messages`. The eviction happens *before* the publish
     // so subscribers observe an already-bounded state.
     fn append(m: Message) {
-        // Encode the message into the tab-separated stream.
-        if len(self.history_buf) > 0 {
-            self.history_buf = self.history_buf + "\t";
+        // Effective retention cap: max_messages clamped to the
+        // bounded storage capacity.
+        let mut cap = self.max_messages;
+        if cap > 128 {
+            cap = 128;
         }
-        self.history_buf = self.history_buf + m.role
-                         + "\t" + m.content;
-        self.msg_count = self.msg_count + 1;
-
-        // Evict from the front if we overshot. Use the free-fn
-        // helper so the eviction algorithm is testable in
-        // isolation and the lifecycle body stays straight-line.
-        if self.msg_count > self.max_messages {
-            let to_drop = self.msg_count - self.max_messages;
-            self.history_buf = drop_front_messages(self.history_buf, to_drop);
-            self.msg_count = self.max_messages;
+        if cap < 1 {
+            cap = 1;
         }
+        // Evict from the front BEFORE pushing when at cap —
+        // shift-left by k then truncate (set/truncate
+        // intrinsics), the bounded drop-front idiom.
+        let n = count(self.history);
+        if n >= cap {
+            let k = n - cap + 1;
+            let mut j = 0;
+            while j < n - k {
+                let mv = at(self.history, j + k)
+                    or Message { };
+                set(self.history, j, mv) or raise;
+                j = j + 1;
+            }
+            truncate(self.history, n - k);
+        }
+        push(self.history, m) or raise;
 
         // Fire the topic. Subscribers see the just-appended
         // message; if they're maintaining their own mirror they
@@ -119,15 +121,16 @@ locus Conversation {
         ConversationUpdated <- m;
     }
 
-    // history() — return the tab-separated stream of all
-    // currently-retained messages. Shape:
-    //
-    //   "role1\tcontent1\trole2\tcontent2\t..."
-    //
-    // Empty string when no messages have been appended. Matches
-    // the `LlmRequest.messages` encoding so callers can wire
-    // history straight into an LLM request body.
-    fn history() -> String {
-        return self.history_buf;
+    // history_count() / history_at(i) — the retained-history
+    // read surface (2026-07-02 — replaces the tab-separated
+    // `history()` String). `history_at` returns an empty
+    // Message (role == "") past the end, per the pond ""-
+    // sentinel convention.
+    fn history_count() -> Int {
+        return count(self.history);
+    }
+
+    fn history_at(i: Int) -> Message {
+        return at(self.history, i) or Message { };
     }
 }

@@ -20,41 +20,31 @@ locus OpenAiClient {
     }
 
     fn complete(req: LlmRequest) -> LlmResponse fallible(LlmError) {
-        let model = req.model;
-        let mut filled = req;
-        if len(model) == 0 {
-            filled = LlmRequest {
-                model:       self.default_model,
-                system:      req.system,
-                messages:    req.messages,
-                max_tokens:  req.max_tokens,
-                temperature: req.temperature
-            };
+        // bounded migration (2026-07-02): default the model
+        // in place — LlmRequest is a pointer-shaped value, and
+        // bounded fields can't be re-spelled in a literal.
+        if len(req.model) == 0 {
+            req.model = self.default_model;
         }
         return openai_complete(
             self.api_key,
             self.base_url,
-            filled,
+            req,
             self.max_body
         ) or raise;
     }
 
     fn stream(req: LlmRequest) {
-        let model = req.model;
-        let mut filled = req;
-        if len(model) == 0 {
-            filled = LlmRequest {
-                model:       self.default_model,
-                system:      req.system,
-                messages:    req.messages,
-                max_tokens:  req.max_tokens,
-                temperature: req.temperature
-            };
+        // bounded migration (2026-07-02): default the model
+        // in place — LlmRequest is a pointer-shaped value, and
+        // bounded fields can't be re-spelled in a literal.
+        if len(req.model) == 0 {
+            req.model = self.default_model;
         }
         let body = __openai_fetch_sse(
             self.api_key,
             self.base_url,
-            filled,
+            req,
             self.max_body
         ) or "__SSE_FAIL";
         if body == "__SSE_FAIL" {
