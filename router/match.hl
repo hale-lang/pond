@@ -126,26 +126,27 @@ fn __router_seg_at(p: String, idx: Int) -> String {
     return "";
 }
 
-// `match_pattern(pattern, path)` — try to bind `path` against
-// `pattern`. Returns a `path_kv`-formatted String of captures
-// on success, or the sentinel "__nomatch" on failure. Empty
-// capture string ("") is a successful match with no captures
-// (a pattern of only literal segments).
+// `match_pattern_into(pattern, path, p)` — try to bind `path`
+// against `pattern`, pushing captures into the bounded pair on
+// `p` (2026-07-02 bounded[T; N] migration — previously returned
+// a tab-separated capture String with a "__nomatch" sentinel).
+// Returns true on match. On any failure the pushed-so-far
+// captures are cleared, so a false return leaves `p` empty —
+// the dispatch loop can try the next pattern with the same
+// RouteParams. Bool-not-fallible for the same reason the old
+// sentinel was: match-failure is the COMMON path.
 //
-// We use a sentinel rather than fallible because match-failure
-// is the common path (one pattern fires per request, dozens
-// may be tried) and fallible's per-call addressing would force
-// the dispatch loop to write `or ""` everywhere, conflating
-// "matched with no captures" and "didn't match". The sentinel
-// is private to the dispatcher; consumers never see it.
-fn match_pattern(pattern: String, path: String) -> String {
+// Capacity overflow (a pattern with more than 8 `:name`
+// segments) is a programming error in the developer-authored
+// route table — `or raise` surfaces it loudly.
+fn match_pattern_into(pattern: String, path: String, p: RouteParams) -> Bool {
     let pn = __router_seg_count(pattern);
     let rn = __router_seg_count(path);
     if pn != rn {
-        return "__nomatch";
+        return false;
     }
-    let mut kv = std::str::builder_new();
-    let mut first = true;
+    clear(p.path_keys);
+    clear(p.path_vals);
     let mut i = 0;
     while i < pn {
         let ps = __router_seg_at(pattern, i);
@@ -153,20 +154,16 @@ fn match_pattern(pattern: String, path: String) -> String {
         let psl = len(ps);
         if psl > 0 && ps[0..1] == ":" {
             // Capture segment. Name is ps[1..] ; value is rs.
-            let name = ps[1..psl];
-            if !first {
-                kv = std::str::builder_append(kv, "\t");
-            }
-            kv = std::str::builder_append(kv, name);
-            kv = std::str::builder_append(kv, "\t");
-            kv = std::str::builder_append(kv, rs);
-            first = false;
+            push(p.path_keys, ps[1..psl]) or raise;
+            push(p.path_vals, rs) or raise;
         } else {
             if ps != rs {
-                return "__nomatch";
+                clear(p.path_keys);
+                clear(p.path_vals);
+                return false;
             }
         }
         i = i + 1;
     }
-    return std::str::builder_finish(kv);
+    return true;
 }

@@ -717,7 +717,11 @@ locus Db {
 ### `pond/router/` — alias `router`
 
 ```hale
-type RouteParams { qs: String; path_kv: String; }  // tab-separated
+type RouteParams {
+    qs:        String;              // raw query string ("a=1&b=2")
+    path_keys: bounded[String; 8];  // path captures (2026-07-02 —
+    path_vals: bounded[String; 8];  //  was tab-separated path_kv)
+}
 type Context { req: Request; params: RouteParams; }
 
 interface Handler {
