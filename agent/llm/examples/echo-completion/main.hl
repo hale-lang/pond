@@ -93,15 +93,18 @@ locus EchoCompletion {
             default_model: model
         };
 
-        // Build the LlmRequest. `messages` is tab-separated
-        // "role\tcontent" pairs (no parametric List<T> at v1).
+        // Build the LlmRequest. `messages` is a bounded list of
+        // LlmMsg (2026-07-02 — was tab-separated pairs).
         let req = llm::LlmRequest {
             model:       model,
             system:      "You are terse.",
-            messages:    "user\t" + self.prompt,
             max_tokens:  64,
             temperature: 0.7
         };
+        push(req.messages, llm::LlmMsg {
+            role:    "user",
+            content: self.prompt
+        }) or raise;
 
         let resp = client.complete(req) or self.__on_err(err);
 
