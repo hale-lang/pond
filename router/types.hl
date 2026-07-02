@@ -7,14 +7,16 @@
 //   type Context     { req: Request; params: RouteParams; }
 //
 // `qs` is the raw query string with the leading `?` stripped
-// ("a=1&b=2"). `path_kv` is a tab-separated alternating key/
-// value list of path captures extracted by the pattern matcher
-// ("id\t42\tslug\thello"). Both representations are flat
-// Strings because v1 has no Map<K,V>; the free fns
-// `path_param` / `query_param` (params.hl) walk them on lookup.
-// Lookup is O(N) per call, which is fine — typical routes have
-// < 5 path params and < 10 query params, so the constant beats
-// any structured-map overhead.
+// ("a=1&b=2") — kept raw because it's a slice of the request
+// target and most requests never read it. Path captures live in
+// the parallel bounded pair `path_keys` / `path_vals`
+// (2026-07-02, bounded[T; N] migration — previously a
+// tab-separated `path_kv: String` walked per lookup; the TSV
+// idiom is retired). Capacity 8 bounds the CAPTURE count, which
+// is the number of `:name` segments in the developer-authored
+// route pattern — exceeding it is a programming error, surfaced
+// by the matcher's `or raise`. Lookup stays O(N) per call;
+// typical routes have < 5 captures.
 //
 // `Context` bundles the parsed request with the matcher's
 // captures so middleware + handlers see a single object.
@@ -24,8 +26,9 @@
 // freely between fns and through interface vtable calls.
 
 type RouteParams {
-    qs:      String = "";
-    path_kv: String = "";
+    qs:        String = "";
+    path_keys: bounded[String; 8];
+    path_vals: bounded[String; 8];
 }
 
 // Context is the per-request bundle threaded through the

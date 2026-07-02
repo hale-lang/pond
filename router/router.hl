@@ -94,15 +94,11 @@ fn __router_run_chain(
     while j < rlen {
         let e = entries.get(j) or raise;
         if e.method == cur.req.method {
-            let captures = match_pattern(e.pattern, path_only);
-            if captures != "__nomatch" {
-                cur = Context {
-                    req:    cur.req,
-                    params: RouteParams {
-                        qs:      cur.params.qs,
-                        path_kv: captures
-                    }
-                };
+            // bounded migration (2026-07-02): captures push
+            // straight into cur.params' bounded pair; a failed
+            // match leaves it cleared, so `cur` is reused across
+            // attempts without rebuilding the Context.
+            if match_pattern_into(e.pattern, path_only, cur.params) {
                 resp = e.handler.handle(cur);
                 break;
             }
@@ -178,8 +174,7 @@ locus Router {
         let ctx = Context {
             req:    req,
             params: RouteParams {
-                qs:      __router_query_only(req.path),
-                path_kv: ""
+                qs: __router_query_only(req.path)
             }
         };
         let r = __router_run_chain(
