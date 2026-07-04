@@ -114,8 +114,9 @@ demands.
    F.19 per-directory model).
 2. Each lib ships `README.md`, source files, a section in the
    root [`FRICTION.log`](./FRICTION.log) (single consolidated
-   log since 2026-06-12), and `examples/<demo>/` with an
-   agent-runnable demo.
+   log since 2026-06-12), `tests/*_test.hl` unit tests (run with
+   `hale test <lib>/`, or `hale test .` for the whole repo), and
+   `examples/<demo>/` with an agent-runnable demo.
 3. Public surface is locked in [`CONTRACTS.md`](./CONTRACTS.md).
    Implementations must match the contract; deviations get
    logged in the lib's `FRICTION.log` section and reflected back
