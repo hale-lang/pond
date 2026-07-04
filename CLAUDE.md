@@ -94,6 +94,12 @@ C_INCLUDE_PATH=$HOME/.local/include LIBRARY_PATH=$HOME/.local/lib \
 hale test path/to/lib/         # discovers <lib>/tests/*_test.hl, compiles + runs each
 hale test path/to/lib/ -run substr   # filter by test-file name
 hale test .                    # repo root: runs every lib's tests
+# CAVEAT: `hale test` skips the @ffi pickup `hale build` runs, so
+# sqlite-importing tests (sqlite/jobs/migrations) fail at link under
+# it (upstream gap — FRICTION.log § pond/sqlite). Interim gate:
+C_INCLUDE_PATH=$HOME/.local/include LIBRARY_PATH=$HOME/.local/lib \
+  hale build sqlite/tests/crud_test.hl && ./sqlite/tests/crud_test
+# (pass = exit 0 + silent; same contract the runner enforces)
 
 # heron only — tree-sitter grammar regen:
 cd heron && tree-sitter generate && tree-sitter test
@@ -101,7 +107,7 @@ cd heron && tree-sitter generate && tree-sitter test
 
 Per `.gitignore`, demo binaries land at `examples/<demo>/<demo>` and `examples/<demo>/main` and must not be committed (the ignore rule is generic: extensionless files under `examples/` are ignored).
 
-Unit tests live at `<lib>/tests/*_test.hl` — a separate directory, NOT loose in the lib dir (a test file's `fn main()` would join the seed and break vendoring consumers). Each test file is an ordinary Hale binary: `import ".." as lib;` at the top, `std::test::assert / assert_eq_int / assert_eq_str` in `fn main()`; pass = exit 0 with no stdout. Because tests build real binaries, `hale test` also exercises codegen — it's a second codegen gate beside the examples.
+Unit tests live at `<lib>/tests/*_test.hl` — a separate directory, NOT loose in the lib dir (a test file's `fn main()` would join the seed and break vendoring consumers). Each test file is an ordinary Hale binary: `import ".." as lib;` at the top (one level up from tests/, not the examples' `../..`), `std::test::assert / assert_eq_int / assert_eq_str` in `fn main()`; pass = exit 0 with no stdout. The no-stdout contract means library paths that print by design (Migrator's apply narration, Worker's birth line, tui's flush-to-stdout) are not unit-testable — cover their silent siblings and leave the printing paths to the examples (see the testability notes in FRICTION.log). Because tests build real binaries, `hale test` also exercises codegen — it's a second codegen gate beside the examples, and it caught three real lib bugs on day one (websocket terminal-header drop, agent/llm JSON key shadowing, tracing attr mangling).
 
 There is no linter and no CI config in this repo. Verification is per-lib, three gates: the lib must type-check under `hale check` (with its allocation warnings triaged — see gotchas), `hale test <lib>/` must pass, and the demo must build and run with the documented behavior. Remember: `hale check` alone does not exercise codegen — the test run and example build/run are the real gates.
 

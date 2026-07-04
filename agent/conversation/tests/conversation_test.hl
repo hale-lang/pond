@@ -1,0 +1,81 @@
+// conversation_test — append/read-back via history_count/history_at,
+// past-end sentinel, FIFO eviction under max_messages (the bounded
+// drop-front migration), and the below-1 cap clamp.
+
+import ".." as conv;
+
+locus ConvTest {
+    run() {
+        // ----- append + read-back -----------------------------------
+        let c = conv::Conversation {
+            system_prompt: "you are terse",
+            max_messages:  10
+        };
+        std::test::assert_eq_int(c.history_count(), 0, "fresh history is empty");
+        std::test::assert_eq_str(c.system_prompt, "you are terse",
+            "system_prompt retained on the locus");
+
+        c.append(conv::Message { role: "user",      content: "hello" });
+        c.append(conv::Message { role: "assistant", content: "hi there" });
+        c.append(conv::Message { role: "user",      content: "how are you" });
+        std::test::assert_eq_int(c.history_count(), 3,
+            "three appends retain three messages");
+
+        let m0 = c.history_at(0);
+        std::test::assert_eq_str(m0.role, "user", "oldest message first");
+        std::test::assert_eq_str(m0.content, "hello", "oldest content kept");
+        let m1 = c.history_at(1);
+        std::test::assert_eq_str(m1.role, "assistant", "middle message role");
+        std::test::assert_eq_str(m1.content, "hi there", "middle content kept");
+        let m2 = c.history_at(2);
+        std::test::assert_eq_str(m2.content, "how are you", "newest content kept");
+
+        // Content may contain tabs since the bounded migration
+        // (the TSV caveat is retired).
+        c.append(conv::Message { role: "user", content: "a\tb\tc" });
+        let mt = c.history_at(3);
+        std::test::assert_eq_str(mt.content, "a\tb\tc",
+            "tab-bearing content survives verbatim");
+
+        // Past-end read returns the empty-Message sentinel.
+        let past = c.history_at(99);
+        std::test::assert_eq_str(past.role, "", "past-end role is empty");
+        std::test::assert_eq_str(past.content, "", "past-end content is empty");
+
+        // ----- FIFO eviction under max_messages ----------------------
+        // Append 7 into a cap-3 conversation: only the newest 3
+        // survive, in order (guards the bounded drop-front idiom).
+        let e = conv::Conversation { max_messages: 3 };
+        let mut i = 0;
+        while i < 7 {
+            e.append(conv::Message {
+                role:    "user",
+                content: "m" + to_string(i)
+            });
+            i = i + 1;
+        }
+        std::test::assert_eq_int(e.history_count(), 3,
+            "cap-3 history holds exactly 3 after 7 appends");
+        let e0 = e.history_at(0);
+        std::test::assert_eq_str(e0.content, "m4",
+            "oldest retained is the 5th append");
+        let e1 = e.history_at(1);
+        std::test::assert_eq_str(e1.content, "m5", "middle retained in order");
+        let e2 = e.history_at(2);
+        std::test::assert_eq_str(e2.content, "m6", "newest retained last");
+
+        // ----- cap below 1 clamps to 1 --------------------------------
+        let one = conv::Conversation { max_messages: 0 };
+        one.append(conv::Message { role: "user", content: "first" });
+        one.append(conv::Message { role: "user", content: "second" });
+        std::test::assert_eq_int(one.history_count(), 1,
+            "max_messages 0 clamps to a 1-message cap");
+        let o0 = one.history_at(0);
+        std::test::assert_eq_str(o0.content, "second",
+            "clamped history keeps only the newest message");
+    }
+}
+
+fn main() {
+    ConvTest { };
+}

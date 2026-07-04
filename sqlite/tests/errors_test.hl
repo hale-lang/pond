@@ -1,0 +1,92 @@
+// pond/sqlite tests — error paths. Every failure arrives as a
+// DbError VALUE via `or <handler>(err)`; the recorder locus
+// stashes the kind so main can assert on it.
+//
+//   - query_one on an empty table  -> kind "no_row"
+//   - bad SQL via exec             -> kind "exec_failed" (code 1)
+//   - bad SQL via prepare          -> kind "prepare_failed"
+//   - duplicate primary key        -> kind "constraint" (code 19)
+//   - never-opened / dead path     -> kind "open_failed"
+//
+// Run:
+//   C_INCLUDE_PATH=$HOME/.local/include LIBRARY_PATH=$HOME/.local/lib \
+//     hale test sqlite/
+
+import ".." as sqlite;
+
+// Rec — records the last DbError kind + code seen by a handler.
+// Same error-check-fn shape as sqlite/examples/kv-demo, minus the
+// prints (a passing test must be silent).
+locus Rec {
+    params {
+        kind: String = "";
+        code: Int    = 0;
+    }
+    fn on_exec(e: sqlite::DbError) -> sqlite::ExecResult {
+        self.kind = e.kind;
+        self.code = e.sqlite_code;
+        return sqlite::ExecResult { };
+    }
+    fn on_row(e: sqlite::DbError) -> sqlite::Row {
+        self.kind = e.kind;
+        self.code = e.sqlite_code;
+        return sqlite::Row { };
+    }
+    fn on_stmt(e: sqlite::DbError) -> Int {
+        self.kind = e.kind;
+        self.code = e.sqlite_code;
+        return -1;
+    }
+    fn take() -> String {
+        let k = self.kind;
+        self.kind = "";
+        self.code = 0;
+        return k;
+    }
+}
+
+fn main() {
+    let path = "/tmp/pond_test_sqlite_errors.db";
+    std::io::fs::unlink(path) or discard;
+
+    let conn = sqlite::Db { path: path };
+    let rec = Rec { };
+
+    let _ = conn.exec("CREATE TABLE kv (k TEXT PRIMARY KEY, v TEXT)")
+        or rec.on_exec(err);
+    std::test::assert_eq_str(rec.take(), "", "CREATE TABLE succeeds");
+
+    // query_one on an empty table -> no_row (an empty result is an
+    // ERROR for query_one, unlike query_all).
+    let r1 = conn.query_one("SELECT v FROM kv WHERE k = 'missing'")
+        or rec.on_row(err);
+    std::test::assert_eq_str(rec.take(), "no_row", "empty query_one fails no_row");
+    std::test::assert_eq_str(r1.data, "", "substitute row is empty");
+
+    // Bad SQL through exec -> exec_failed, SQLITE_ERROR (1).
+    let _ = conn.exec("THIS IS NOT SQL") or rec.on_exec(err);
+    std::test::assert_eq_str(rec.kind, "exec_failed", "bad SQL exec fails exec_failed");
+    std::test::assert_eq_int(rec.code, 1, "exec_failed carries SQLITE_ERROR");
+    let _ = rec.take();
+
+    // Bad SQL through prepare -> prepare_failed, stmt sentinel -1.
+    let stmt = conn.prepare("SELECT FROM WHERE") or rec.on_stmt(err);
+    std::test::assert_eq_str(rec.take(), "prepare_failed", "bad SQL prepare fails");
+    std::test::assert_eq_int(stmt, -1, "prepare substitute is -1");
+
+    // Duplicate primary key -> constraint, SQLITE_CONSTRAINT (19).
+    let _ = conn.exec("INSERT INTO kv (k, v) VALUES ('dup', 'a')")
+        or rec.on_exec(err);
+    std::test::assert_eq_str(rec.take(), "", "first insert succeeds");
+    let _ = conn.exec("INSERT INTO kv (k, v) VALUES ('dup', 'b')")
+        or rec.on_exec(err);
+    std::test::assert_eq_str(rec.kind, "constraint", "duplicate pk fails constraint");
+    std::test::assert_eq_int(rec.code, 19, "constraint carries SQLITE_CONSTRAINT");
+    let _ = rec.take();
+
+    // Unopenable path: birth() can't be fallible, so the failure
+    // surfaces as open_failed on the FIRST SQL call.
+    let dead = sqlite::Db { path: "/nonexistent-dir/pond_test.db" };
+    let _ = dead.exec("SELECT 1") or rec.on_exec(err);
+    std::test::assert_eq_str(rec.take(), "open_failed", "dead path fails open_failed");
+}

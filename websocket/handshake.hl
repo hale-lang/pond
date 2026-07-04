@@ -235,11 +235,17 @@ fn parse_request(b: Bytes) -> WsUpgradeRequest {
         }
     }
 
-    // Walk header lines.
+    // Walk header lines. The final line before the terminating
+    // \r\n\r\n has no trailing \r\n inside [cursor, head_end),
+    // so the no-CRLF branch must still apply it (bug found by
+    // tests/handshake_test.hl 2026-07-04: the last header —
+    // Sec-WebSocket-Version in build_request's emission order —
+    // was silently dropped).
     let mut cursor = first_crlf + 2;
     while cursor < head_end {
         let line_end = std::str::index_of(s[cursor..head_end], "\r\n");
         if line_end < 0 {
+            __apply_header(s[cursor..head_end], out);
             cursor = head_end;
         } else {
             let line = s[cursor..cursor+line_end];

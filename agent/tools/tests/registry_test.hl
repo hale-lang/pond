@@ -1,0 +1,142 @@
+// registry_test — register/dispatch/list over a test Tool locus:
+// happy-path dispatch (content + call_id echo), tool-internal
+// failure via ToolResult.is_error, unknown_tool / empty_name
+// ToolError kinds, and the JSON spec array.
+
+import ".." as tools;
+
+// EchoTool — minimal Tool-shaped locus (F.20 implicit
+// satisfaction: spec() + invoke() is the whole interface).
+locus EchoTool {
+    fn spec() -> tools::ToolSpec {
+        return tools::ToolSpec {
+            name:         "echo",
+            description:  "echo the msg arg back",
+            input_schema: "{\"type\":\"object\"}"
+        };
+    }
+    fn invoke(call: tools::ToolCall) -> tools::ToolResult {
+        let msg = std::json::find_string_field(call.args_json, "msg");
+        return tools::ToolResult {
+            call_id:  call.call_id,
+            content:  "echo:" + msg,
+            is_error: false
+        };
+    }
+}
+
+// BoomTool — always reports a tool-internal failure. Dispatch
+// itself must still SUCCEED for this tool (value channel), with
+// the failure riding in ToolResult.is_error.
+locus BoomTool {
+    fn spec() -> tools::ToolSpec {
+        return tools::ToolSpec {
+            name:        "boom",
+            description: "always fails internally"
+        };
+    }
+    fn invoke(call: tools::ToolCall) -> tools::ToolResult {
+        return tools::ToolResult {
+            call_id:  call.call_id,
+            content:  "kaboom",
+            is_error: true
+        };
+    }
+}
+
+// or-handler: fold a ToolError into a ToolResult so the tests can
+// assert on kind|detail uniformly (same shape as the calc-tool demo).
+fn err_to_result(e: tools::ToolError) -> tools::ToolResult {
+    return tools::ToolResult {
+        call_id:  "",
+        content:  e.kind + "|" + e.detail,
+        is_error: true
+    };
+}
+
+fn has(hay: String, needle: String) -> Bool {
+    return std::str::index_of(hay, needle) >= 0;
+}
+
+locus RegistryTest {
+    run() {
+        let reg = tools::Registry { };
+        std::test::assert_eq_int(reg.count(), 0, "fresh registry is empty");
+
+        // Both registration surfaces: free fn and locus method.
+        let echo = EchoTool { };
+        tools::register(reg, echo);
+        std::test::assert_eq_int(reg.count(), 1, "free-fn register adds a tool");
+        let boom = BoomTool { };
+        reg.register(boom);
+        std::test::assert_eq_int(reg.count(), 2, "method register adds a tool");
+
+        // Happy-path dispatch: content + call_id echo, no error.
+        let call = tools::ToolCall {
+            name:      "echo",
+            args_json: "{\"msg\":\"hi\"}",
+            call_id:   "c-1"
+        };
+        let r = reg.dispatch(call) or err_to_result(err);
+        std::test::assert_eq_str(r.content, "echo:hi",
+            "dispatch routes to the named tool and returns its content");
+        std::test::assert_eq_str(r.call_id, "c-1",
+            "ToolResult echoes the call_id");
+        std::test::assert(!r.is_error, "happy path is not an error");
+
+        // Tool-internal failure: dispatch succeeds, is_error rides back.
+        let bc = tools::ToolCall {
+            name:      "boom",
+            args_json: "{}",
+            call_id:   "c-2"
+        };
+        let rb = reg.dispatch(bc) or err_to_result(err);
+        std::test::assert(rb.is_error, "tool-internal failure sets is_error");
+        std::test::assert_eq_str(rb.content, "kaboom",
+            "tool-internal failure content passes through");
+        std::test::assert_eq_str(rb.call_id, "c-2",
+            "tool-internal failure still echoes call_id");
+
+        // Unknown tool name -> ToolError kind "unknown_tool".
+        let uc = tools::ToolCall {
+            name:      "nonexistent",
+            args_json: "{}",
+            call_id:   "c-3"
+        };
+        let ru = reg.dispatch(uc) or err_to_result(err);
+        std::test::assert(ru.is_error, "unknown tool folds to error result");
+        std::test::assert_eq_str(ru.content,
+            "unknown_tool|no tool registered with name: nonexistent",
+            "unknown tool raises ToolError kind unknown_tool with detail");
+
+        // Empty name -> ToolError kind "empty_name".
+        let ec = tools::ToolCall {
+            name:      "",
+            args_json: "{}",
+            call_id:   "c-4"
+        };
+        let re2 = reg.dispatch(ec) or err_to_result(err);
+        std::test::assert(has(re2.content, "empty_name|"),
+            "empty call name raises ToolError kind empty_name");
+
+        // list(): JSON spec array in registration order, with the
+        // input_schema emitted raw (unquoted).
+        let specs = reg.list();
+        std::test::assert(has(specs, "\"name\": \"echo\""),
+            "spec array carries echo's name");
+        std::test::assert(has(specs, "\"description\": \"echo the msg arg back\""),
+            "spec array carries echo's description");
+        std::test::assert(has(specs, "\"input_schema\": {\"type\":\"object\"}"),
+            "input_schema is emitted as raw JSON, not a quoted string");
+        std::test::assert(has(specs, "\"name\": \"boom\""),
+            "spec array carries boom's name");
+        let ie = std::str::index_of(specs, "\"name\": \"echo\"");
+        let ib = std::str::index_of(specs, "\"name\": \"boom\"");
+        std::test::assert(ie >= 0 && ib > ie,
+            "spec array preserves registration order");
+    }
+}
+
+fn main() {
+    RegistryTest { };
+}

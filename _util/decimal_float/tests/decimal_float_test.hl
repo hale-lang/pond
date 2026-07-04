@@ -1,0 +1,53 @@
+// pond/_util/decimal_float/tests — to_float / from_float
+// round-trips (values exactly representable in binary + the
+// documented 3-decimal staircase), negatives, and abs.
+
+import ".." as decf;
+
+fn abs_f(f: Float) -> Float {
+    if f < 0.0 { return 0.0 - f; }
+    return f;
+}
+
+fn main() {
+    let df = decf::DecimalFloat { };
+
+    // to_float — positive, zero, negative decimals.
+    std::test::assert(abs_f(df.to_float(170.25d) - 170.25) < 0.0001,
+        "to_float(170.25d) ~= 170.25");
+    std::test::assert(abs_f(df.to_float(0.0d) - 0.0) < 0.0001,
+        "to_float(0.0d) ~= 0.0");
+    std::test::assert(abs_f(df.to_float(0.0d - 1.5d) - (0.0 - 1.5)) < 0.0001,
+        "to_float(-1.5d) ~= -1.5");
+
+    // from_float — verified through to_float (Float axis), using
+    // values exact in binary so the 0.001-staircase is exact.
+    std::test::assert(abs_f(df.to_float(df.from_float(170.25)) - 170.25) < 0.0001,
+        "from_float(170.25) round-trips");
+    std::test::assert(abs_f(df.to_float(df.from_float(3.0)) - 3.0) < 0.0001,
+        "from_float(3.0) round-trips");
+    std::test::assert(abs_f(df.to_float(df.from_float(0.0)) - 0.0) < 0.0001,
+        "from_float(0.0) is zero");
+    std::test::assert(abs_f(df.to_float(df.from_float(0.75)) - 0.75) < 0.0001,
+        "from_float(0.75) keeps fractional-only value");
+
+    // Negative round-trip and sign preservation.
+    let neg = df.from_float(0.0 - 2.5);
+    std::test::assert(neg < 0.0d, "from_float(-2.5) is negative");
+    std::test::assert(abs_f(df.to_float(neg) - (0.0 - 2.5)) < 0.0001,
+        "from_float(-2.5) round-trips");
+
+    // Documented precision: 3 decimal places. A 4th place is
+    // dropped (staircase counts whole thousandths).
+    std::test::assert(abs_f(df.to_float(df.from_float(1.2345)) - 1.234) < 0.0005,
+        "from_float(1.2345) keeps 3 decimals");
+
+    // abs — negative flips, positive and zero pass through.
+    std::test::assert(abs_f(df.to_float(df.abs(0.0d - 5.5d)) - 5.5) < 0.0001,
+        "abs(-5.5d) == 5.5d");
+    std::test::assert(abs_f(df.to_float(df.abs(3.25d)) - 3.25) < 0.0001,
+        "abs(3.25d) == 3.25d");
+    std::test::assert(abs_f(df.to_float(df.abs(0.0d)) - 0.0) < 0.0001,
+        "abs(0.0d) == 0.0d");
+    std::test::assert(df.abs(0.0d - 5.5d) > 0.0d, "abs result is positive");
+}

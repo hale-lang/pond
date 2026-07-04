@@ -1,0 +1,59 @@
+// descriptive_test — mean/variance/stddev on known data, min_max,
+// and the documented empty-input-returns-0.0 policy.
+//
+// Data [2, 4, 4, 4, 6]:
+//   mean            = 20/5 = 4.0
+//   population var  = (4+0+0+0+4)/5 = 1.6   (variance divides by N)
+//   stddev          = sqrt(1.6) ~= 1.2649110640673518
+
+import ".." as stats;
+import "../../matrix" as mat;
+
+fn near_eq(actual: Float, expected: Float, msg: String) {
+    let mut diff = actual - expected;
+    if diff < 0.0 {
+        diff = 0.0 - diff;
+    }
+    std::test::assert(diff < 0.000001, msg);
+}
+
+fn main() {
+    let xs = mat::from_rows(1, 5, "2.0, 4.0, 4.0, 4.0, 6.0");
+
+    near_eq(stats::mean(xs), 4.0, "mean of [2,4,4,4,6]");
+    near_eq(stats::variance(xs), 1.6, "population variance (divides by N)");
+    near_eq(stats::stddev(xs), 1.2649110640673518, "stddev = sqrt(1.6)");
+
+    // min_max -> 1x2 [min, max].
+    let mm = stats::min_max(xs);
+    std::test::assert_eq_int(mm.rows, 1, "min_max rows");
+    std::test::assert_eq_int(mm.cols, 2, "min_max cols");
+    near_eq(mm.get(0) or -999.0, 2.0, "min");
+    near_eq(mm.get(1) or -999.0, 6.0, "max");
+
+    // min_max with negatives; single element collapses min == max.
+    let neg = mat::from_rows(1, 3, "-5.0, 0.0, 3.0");
+    let mm2 = stats::min_max(neg);
+    near_eq(mm2.get(0) or -999.0, -5.0, "min with negatives");
+    near_eq(mm2.get(1) or -999.0, 3.0, "max with negatives");
+    let one = mat::from_rows(1, 1, "7.5");
+    let mm3 = stats::min_max(one);
+    near_eq(mm3.get(0) or -999.0, 7.5, "single-element min");
+    near_eq(mm3.get(1) or -999.0, 7.5, "single-element max");
+
+    // Constant data: variance and stddev are 0.
+    let flat = mat::from_rows(1, 4, "3.0, 3.0, 3.0, 3.0");
+    near_eq(stats::mean(flat), 3.0, "mean of constant data");
+    near_eq(stats::variance(flat), 0.0, "variance of constant data");
+    near_eq(stats::stddev(flat), 0.0, "stddev of constant data");
+
+    // Empty input: documented policy returns 0.0 (and [0,0] for min_max).
+    let empty = mat::zeros(0, 0);
+    std::test::assert_eq_int(empty.len(), 0, "empty matrix has len 0");
+    near_eq(stats::mean(empty), 0.0, "mean of empty is 0.0");
+    near_eq(stats::variance(empty), 0.0, "variance of empty is 0.0");
+    near_eq(stats::stddev(empty), 0.0, "stddev of empty is 0.0");
+    let mme = stats::min_max(empty);
+    near_eq(mme.get(0) or -999.0, 0.0, "min_max of empty min is 0.0");
+    near_eq(mme.get(1) or -999.0, 0.0, "min_max of empty max is 0.0");
+}

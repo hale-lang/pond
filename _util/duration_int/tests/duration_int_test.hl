@@ -1,0 +1,42 @@
+// pond/_util/duration_int/tests — Duration -> Int ns parsing,
+// seconds derivation, and monotonic-clock consistency.
+
+import ".." as durint;
+
+fn main() {
+    let di = durint::DurationInt { };
+
+    // now_ns: positive and monotonic (never decreasing).
+    let ns_a = di.now_ns();
+    let ns_b = di.now_ns();
+    std::test::assert(ns_a > 0, "now_ns() is positive");
+    std::test::assert(ns_b >= ns_a, "now_ns() is monotonic");
+
+    // to_ns on a real Duration value from the monotonic clock:
+    // must parse to a positive Int that sits between two
+    // now_ns() readings (same clock, different return types).
+    let before = di.now_ns();
+    let d = std::time::monotonic();
+    let parsed = di.to_ns(d);
+    let after = di.now_ns();
+    std::test::assert(parsed > 0, "to_ns(monotonic()) is positive");
+    std::test::assert(parsed >= before,
+        "to_ns(monotonic()) >= earlier now_ns()");
+    std::test::assert(parsed <= after,
+        "to_ns(monotonic()) <= later now_ns()");
+
+    // to_seconds is the integer-divide of to_ns for the same
+    // Duration value.
+    let secs = di.to_seconds(d);
+    std::test::assert_eq_int(secs, parsed / 1000000000,
+        "to_seconds(d) == to_ns(d) / 1e9");
+
+    // now_seconds agrees with now_ns()/1e9 to within a second.
+    let s_now = di.now_seconds();
+    let ns_now = di.now_ns();
+    let derived = ns_now / 1000000000;
+    std::test::assert(s_now <= derived,
+        "now_seconds() <= later now_ns()/1e9");
+    std::test::assert(derived - s_now <= 1,
+        "now_seconds() within 1s of now_ns()/1e9");
+}

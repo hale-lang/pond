@@ -1,0 +1,100 @@
+// pond/sessions/tests — sign/verify round-trip with a fixed key and
+// a deterministic clock, tamper/expiry/missing/malformed rejection,
+// kv value accessors, and cookie-header extraction. Pure codec +
+// HMAC logic; no store, no wall clock.
+
+import ".." as sess;
+
+// or-handler for verify_cookie failures: encode err.kind into the
+// id slot so main can assert on it. Signed sessions in this file
+// never carry an id starting with "ERR:".
+fn ver_err(e: sess::SessionError) -> sess::Session {
+    return sess::Session { id: "ERR:" + e.kind, data: "" };
+}
+
+fn main() {
+    let secret = std::bytes::from_string("super-secret-hmac-key-0123456789");
+    let other_secret = std::bytes::from_string("a-completely-different-key-abcde");
+
+    // ---- value accessors (set/get) -----------------------------
+
+    let s0 = sess::Session { id: "u-1", data: "" };
+    let s1 = sess::set_value(s0, "user", "alice");
+    let s2 = sess::set_value(s1, "role", "admin");
+    std::test::assert_eq_str(sess::get_value(s2, "user"), "alice", "get after set");
+    std::test::assert_eq_str(sess::get_value(s2, "role"), "admin", "second key survives");
+    std::test::assert_eq_str(sess::get_value(s2, "missing"), "", "absent key is empty");
+    std::test::assert_eq_str(s2.id, "u-1", "set_value keeps id");
+
+    let s3 = sess::set_value(s2, "user", "bob");
+    std::test::assert_eq_str(sess::get_value(s3, "user"), "bob", "overwrite existing key");
+    std::test::assert_eq_str(sess::get_value(s3, "role"), "admin", "sibling key untouched by overwrite");
+
+    // ---- sign -> verify round-trip -----------------------------
+
+    let now = 100;
+    let cv = sess::sign_payload(secret, s2, now, 3600);
+    std::test::assert(len(cv) > 0, "cookie value non-empty");
+    std::test::assert(std::str::index_of(cv, ".") > 0, "cookie value has payload.mac shape");
+
+    let back = sess::verify_cookie(secret, "session=" + cv, now + 100) or ver_err(err);
+    std::test::assert_eq_str(back.id, "u-1", "round-trip id survives");
+    std::test::assert_eq_str(sess::get_value(back, "user"), "alice", "round-trip data key user");
+    std::test::assert_eq_str(sess::get_value(back, "role"), "admin", "round-trip data key role");
+    std::test::assert_eq_str(sess::get_value(back, "missing"), "", "round-trip absent key");
+
+    // Verify at the exact deadline still passes (expiry is strict >).
+    let edge = sess::verify_cookie(secret, "session=" + cv, now + 3600) or ver_err(err);
+    std::test::assert_eq_str(edge.id, "u-1", "verify at exact deadline passes");
+
+    // Cookie found among other pairs in the header.
+    let multi = "theme=dark; session=" + cv + "; lang=en";
+    let among = sess::verify_cookie(secret, multi, now + 100) or ver_err(err);
+    std::test::assert_eq_str(among.id, "u-1", "session cookie found among other pairs");
+
+    // ---- tamper rejection --------------------------------------
+
+    // Flip the LAST character of the cookie value (the mac half).
+    let cv_len = len(cv);
+    let last_ch = cv[(cv_len - 1)..cv_len];
+    let mut flipped = "A";
+    if last_ch == "A" { flipped = "B"; }
+    let tampered = "session=" + cv[0..(cv_len - 1)] + flipped;
+    let t = sess::verify_cookie(secret, tampered, now + 100) or ver_err(err);
+    std::test::assert_eq_str(t.id, "ERR:tampered", "flipped mac byte rejected as tampered");
+
+    // Right shape, wrong key.
+    let wk = sess::verify_cookie(other_secret, "session=" + cv, now + 100) or ver_err(err);
+    std::test::assert_eq_str(wk.id, "ERR:tampered", "wrong secret rejected as tampered");
+
+    // ---- expiry rejection --------------------------------------
+
+    let ex = sess::verify_cookie(secret, "session=" + cv, now + 3601) or ver_err(err);
+    std::test::assert_eq_str(ex.id, "ERR:expired", "past-deadline cookie rejected as expired");
+
+    // ---- missing / malformed -----------------------------------
+
+    let m1 = sess::verify_cookie(secret, "", now) or ver_err(err);
+    std::test::assert_eq_str(m1.id, "ERR:missing", "empty header is missing");
+
+    let m2 = sess::verify_cookie(secret, "other=foo; another=bar", now) or ver_err(err);
+    std::test::assert_eq_str(m2.id, "ERR:missing", "no session pair is missing");
+
+    let m3 = sess::verify_cookie(secret, "session=nodothere", now) or ver_err(err);
+    std::test::assert_eq_str(m3.id, "ERR:malformed", "no dot separator is malformed");
+
+    let m4 = sess::verify_cookie(secret, "session=.abcd", now) or ver_err(err);
+    std::test::assert_eq_str(m4.id, "ERR:malformed", "empty payload half is malformed");
+
+    let m5 = sess::verify_cookie(secret, "session=abcd.", now) or ver_err(err);
+    std::test::assert_eq_str(m5.id, "ERR:malformed", "empty mac half is malformed");
+
+    // ---- cookie-header extraction (pure string surface) --------
+
+    std::test::assert_eq_str(sess::extract_session_cookie("session=xyz"), "xyz",
+        "extract lone session pair");
+    std::test::assert_eq_str(sess::extract_session_cookie("a=b; session=xyz; c=d"), "xyz",
+        "extract session among pairs");
+    std::test::assert_eq_str(sess::extract_session_cookie("a=b; c=d"), "",
+        "extract absent session is empty");
+}

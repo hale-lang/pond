@@ -1,0 +1,121 @@
+// pond/term/tests — Styler SGR assembly + the color downgrade
+// ladder (truecolor -> 256 -> 16 -> plain). Pure string/Int
+// logic; no tty needed (profiles are passed explicitly).
+
+import ".." as term;
+
+fn main() {
+    let st0 = term::Styler { profile: 0 };
+    let st1 = term::Styler { profile: 1 };
+    let st2 = term::Styler { profile: 2 };
+    let st3 = term::Styler { profile: 3 };
+
+    // ---- rgb packing ----
+    std::test::assert_eq_int(term::rgb(255, 135, 0), 33523456,
+        "rgb(255,135,0) packs to 16777216 + r<<16 + g<<8 + b");
+    std::test::assert_eq_int(term::rgb(0, 0, 0), 16777216,
+        "rgb(0,0,0) is the truecolor floor");
+
+    // ---- profile 0: passthrough ----
+    std::test::assert_eq_str(
+        st0.apply(term::Style { fg: 214, bold: true }, "WARN"), "WARN",
+        "profile 0 returns text unchanged");
+    std::test::assert_eq_str(st0.prefix(term::Style { bold: true }), "",
+        "profile 0 prefix is empty");
+
+    // ---- all-default style: no wrapping even in color profiles ----
+    std::test::assert_eq_str(st3.apply(term::Style { }, "plain"), "plain",
+        "default Style adds nothing");
+
+    // ---- attribute SGRs ----
+    std::test::assert_eq_str(st3.apply(term::Style { bold: true }, "x"),
+        "\x1b[1mx\x1b[0m", "bold wraps with SGR 1 + reset");
+    std::test::assert_eq_str(st3.prefix(term::Style { dim: true }),
+        "\x1b[2m", "dim is SGR 2");
+    std::test::assert_eq_str(st3.prefix(term::Style { italic: true }),
+        "\x1b[3m", "italic is SGR 3");
+    std::test::assert_eq_str(st3.prefix(term::Style { underline: true }),
+        "\x1b[4m", "underline is SGR 4");
+    std::test::assert_eq_str(st3.prefix(term::Style { reverse: true }),
+        "\x1b[7m", "reverse is SGR 7");
+    std::test::assert_eq_str(st3.prefix(term::Style { strike: true }),
+        "\x1b[9m", "strike is SGR 9");
+    // Attributes emit in declaration order, then fg, then bg.
+    std::test::assert_eq_str(
+        st3.prefix(term::Style { bold: true, underline: true, fg: 1, bg: 4 }),
+        "\x1b[1m\x1b[4m\x1b[38;5;1m\x1b[48;5;4m",
+        "attribute order then fg then bg");
+
+    // ---- palette + truecolor SGR forms ----
+    std::test::assert_eq_str(st3.prefix(term::Style { fg: 214 }),
+        "\x1b[38;5;214m", "palette fg uses 38;5");
+    std::test::assert_eq_str(st3.prefix(term::Style { bg: 214 }),
+        "\x1b[48;5;214m", "palette bg uses 48;5");
+    std::test::assert_eq_str(
+        st3.prefix(term::Style { fg: term::rgb(255, 135, 0) }),
+        "\x1b[38;2;255;135;0m", "truecolor fg uses 38;2;r;g;b");
+
+    // ---- downgrade ladder for rgb(255,135,0) ----
+    // profile 2: quantize to the 6x6x6 cube -> xterm 208.
+    std::test::assert_eq_str(
+        st2.prefix(term::Style { fg: term::rgb(255, 135, 0) }),
+        "\x1b[38;5;208m", "truecolor quantizes to 256-palette 208");
+    // profile 1: 208 folds to bright yellow (11).
+    std::test::assert_eq_str(
+        st1.prefix(term::Style { fg: term::rgb(255, 135, 0) }),
+        "\x1b[38;5;11m", "256 index folds to base-16 bright yellow");
+    // profile 1 keeps base-16 indices as-is.
+    std::test::assert_eq_str(st1.prefix(term::Style { fg: 9 }),
+        "\x1b[38;5;9m", "base-16 index passes profile 1 untouched");
+
+    // ---- fit_color ----
+    std::test::assert_eq_int(term::fit_color(3, 12345678), 12345678,
+        "profile 3 passes any value through");
+    std::test::assert_eq_int(term::fit_color(2, 200), 200,
+        "256-index passes profile 2 untouched");
+    std::test::assert_eq_int(term::fit_color(0, -1), -1,
+        "no-color stays no-color");
+    // Gray 128 -> gray-ramp index 244 on 256, then 7 on 16.
+    std::test::assert_eq_int(term::fit_color(2, term::rgb(128, 128, 128)),
+        244, "mid gray quantizes to gray ramp 244");
+    std::test::assert_eq_int(term::fit_color(1, term::rgb(128, 128, 128)),
+        7, "mid gray folds to base-16 white (7)");
+
+    // ---- quantize_256 corners ----
+    std::test::assert_eq_int(term::quantize_256(0), 16,
+        "near-black gray hits cube corner 16");
+    std::test::assert_eq_int(term::quantize_256(255 * 65536 + 255 * 256 + 255),
+        231, "near-white gray hits cube corner 231");
+    std::test::assert_eq_int(term::quantize_256(255 * 65536), 196,
+        "pure red maps to xterm 196");
+    std::test::assert_eq_int(term::quantize_256(255 * 256), 46,
+        "pure green maps to xterm 46");
+    std::test::assert_eq_int(term::quantize_256(255), 21,
+        "pure blue maps to xterm 21");
+
+    // ---- cube_index thresholds ----
+    std::test::assert_eq_int(term::cube_index(0), 0, "cube 0");
+    std::test::assert_eq_int(term::cube_index(47), 0, "cube below 48");
+    std::test::assert_eq_int(term::cube_index(48), 1, "cube step 1 at 48");
+    std::test::assert_eq_int(term::cube_index(114), 1, "cube below 115");
+    std::test::assert_eq_int(term::cube_index(115), 2, "cube step 2 at 115");
+    std::test::assert_eq_int(term::cube_index(255), 5, "cube tops at 5");
+
+    // ---- approx_16 ----
+    std::test::assert_eq_int(term::approx_16(5), 5,
+        "base-16 index unchanged");
+    std::test::assert_eq_int(term::approx_16(196), 9,
+        "xterm red 196 -> bright red 9");
+    std::test::assert_eq_int(term::approx_16(232), 0,
+        "darkest gray -> black");
+    std::test::assert_eq_int(term::approx_16(255), 15,
+        "lightest gray -> bright white");
+
+    // ---- profile_name ----
+    std::test::assert_eq_str(term::profile_name(0), "plain", "name 0");
+    std::test::assert_eq_str(term::profile_name(1), "ansi16", "name 1");
+    std::test::assert_eq_str(term::profile_name(2), "ansi256", "name 2");
+    std::test::assert_eq_str(term::profile_name(3), "truecolor", "name 3");
+    std::test::assert_eq_str(term::profile_name(9), "unknown",
+        "out-of-range profile");
+}

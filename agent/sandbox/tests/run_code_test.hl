@@ -1,0 +1,60 @@
+// pond/agent/sandbox tests — real python3 runs, offline (mirrors
+// examples/run-python, which is the proven surface):
+//
+//   - run_code("print(1)") -> exit 0, stdout "1\n"
+//   - user-code exception  -> nonzero exit + traceback on stderr
+//     (still the SUCCESS channel — the runtime ran)
+//   - nonexistent runtime binary -> SandboxError kind
+//     "spawn_failed" on the value channel
+//
+// timeout_ms / memory_limit_mb are documented no-ops (FRICTION.log
+// § pond/agent/sandbox) so there is nothing to assert about them.
+//
+// Run:  hale test agent/sandbox/
+
+import ".." as sandbox;
+
+// err_result — substitute handler encoding the SandboxError kind
+// into stderr so main can assert on it (exit_code sentinel -1;
+// same shape as the example's `report`, minus the prints).
+fn err_result(e: sandbox::SandboxError) -> sandbox::SandboxResult {
+    return sandbox::SandboxResult {
+        exit_code: -1,
+        stdout:    "",
+        stderr:    "ERR:" + e.kind,
+    };
+}
+
+fn main() {
+    let sb = sandbox::Sandbox {
+        runtime:         "/usr/bin/python3",
+        timeout_ms:      5000,
+        memory_limit_mb: 256,
+    };
+
+    // ---- happy path: trivial snippet, captured stdout ----
+    let r = sb.run_code("print(1)") or err_result(err);
+    std::test::assert_eq_int(r.exit_code, 0, "print(1) exits 0");
+    std::test::assert_eq_str(r.stdout, "1\n", "stdout captured");
+    std::test::assert_eq_str(r.stderr, "", "no stderr on success");
+
+    // ---- user-code failure: success channel, nonzero exit ----
+    let boom = sb.run_code("raise SystemExit(3)") or err_result(err);
+    std::test::assert_eq_int(boom.exit_code, 3, "SystemExit code surfaces");
+
+    let trace = sb.run_code("raise ValueError('nope')") or err_result(err);
+    std::test::assert(trace.exit_code > 0, "exception exits nonzero");
+    std::test::assert(std::str::index_of(trace.stderr, "ValueError") >= 0,
+        "traceback lands on stderr");
+
+    // ---- error path: nonexistent runtime binary ----
+    let dead = sandbox::Sandbox {
+        runtime:         "/nonexistent/pond_test_runtime",
+        timeout_ms:      1000,
+        memory_limit_mb: 64,
+    };
+    let bad = dead.run_code("print(1)") or err_result(err);
+    std::test::assert_eq_int(bad.exit_code, -1, "spawn failure substitutes -1");
+    std::test::assert_eq_str(bad.stderr, "ERR:spawn_failed",
+        "missing runtime fails spawn_failed");
+}

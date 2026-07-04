@@ -1,0 +1,60 @@
+// spec_test — ChildSpec / SupStrategy shapes + the Supervisor's
+// spec-table bookkeeping (add_child, lookup_restart).
+//
+// Everything here is drivable synchronously: no Worker is ever
+// spawned (Worker.birth prints, which would break the no-stdout
+// test contract) and no failure/restart machinery fires. The
+// on_failure / strategy-routing paths stay covered by
+// examples/one-for-one.
+
+import ".." as sup;
+
+fn main() {
+    // ----- ChildSpec defaults -----
+    let d = sup::ChildSpec { };
+    std::test::assert_eq_str(d.name, "", "ChildSpec.name defaults empty");
+    std::test::assert_eq_str(d.policy, "permanent",
+        "ChildSpec.policy defaults to permanent");
+
+    // ----- SupStrategy carries its kind verbatim -----
+    let strat = sup::SupStrategy { kind: "one_for_one" };
+    std::test::assert_eq_str(strat.kind, "one_for_one",
+        "SupStrategy kind round-trips");
+
+    // ----- Supervisor before any add_child -----
+    let s = sup::Supervisor { strategy: strat };
+    std::test::assert_eq_int(s.spec_count, 0, "no specs recorded yet");
+    std::test::assert_eq_int(s.children_seen, 0, "no children accepted yet");
+    std::test::assert_eq_int(s.max_restarts, 3, "max_restarts defaults to 3");
+    std::test::assert_eq_int(s.window_seconds, 60,
+        "window_seconds defaults to 60");
+    std::test::assert_eq_str(s.lookup_restart("anything"), "permanent",
+        "empty spec table falls back to permanent");
+
+    // ----- add_child bookkeeping -----
+    let a = sup::ChildSpec { name: "alpha", policy: "permanent" };
+    let b = sup::ChildSpec { name: "beta",  policy: "transient" };
+    let c = sup::ChildSpec { name: "gamma", policy: "temporary" };
+    s.add_child(a, "alpha");
+    s.add_child(b, "beta");
+    s.add_child(c, "gamma");
+    std::test::assert_eq_int(s.spec_count, 3, "three specs recorded");
+    std::test::assert_eq_str(s.spec_names, "alpha\nbeta\ngamma",
+        "spec_names newline-joined in insertion order");
+    std::test::assert_eq_str(s.spec_restarts, "permanent\ntransient\ntemporary",
+        "spec_restarts parallel to spec_names");
+
+    // ----- lookup_restart: first / middle / last / miss -----
+    std::test::assert_eq_str(s.lookup_restart("alpha"), "permanent",
+        "first entry found");
+    std::test::assert_eq_str(s.lookup_restart("beta"), "transient",
+        "middle entry found");
+    std::test::assert_eq_str(s.lookup_restart("gamma"), "temporary",
+        "last entry found");
+    std::test::assert_eq_str(s.lookup_restart("delta"), "permanent",
+        "unregistered child defaults to permanent");
+    std::test::assert_eq_str(s.lookup_restart("alph"), "permanent",
+        "prefix of a registered name is NOT a match");
+    std::test::assert_eq_str(s.lookup_restart(""), "permanent",
+        "empty name is not a match");
+}

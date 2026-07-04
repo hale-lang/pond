@@ -1,0 +1,80 @@
+// pond/router/tests — pattern matching + param extraction: literal
+// match, :name captures into the bounded pair, mismatch clearing,
+// and raw query-string lookup. Pure matcher logic, no Server.
+
+import ".." as router;
+
+fn main() {
+    let p = router::RouteParams { };
+
+    // ---- literal matches --------------------------------------
+
+    std::test::assert(router::match_pattern_into("/users", "/users", p),
+        "literal match");
+    std::test::assert_eq_int(count(p.path_keys), 0, "literal match captures nothing");
+
+    std::test::assert(router::match_pattern_into("/", "/", p), "root match");
+
+    // Trailing-slash tolerance is symmetric (segments elide).
+    std::test::assert(router::match_pattern_into("/users", "/users/", p),
+        "trailing slash on path tolerated");
+    std::test::assert(router::match_pattern_into("/users/", "/users", p),
+        "trailing slash on pattern tolerated");
+
+    // ---- :param capture ----------------------------------------
+
+    std::test::assert(router::match_pattern_into("/users/:id", "/users/42", p),
+        ":id pattern matches");
+    std::test::assert_eq_int(count(p.path_keys), 1, "one capture key");
+    std::test::assert_eq_int(count(p.path_vals), 1, "one capture value");
+    std::test::assert_eq_str(at(p.path_keys, 0) or "", "id", "capture key is id");
+    std::test::assert_eq_str(at(p.path_vals, 0) or "", "42", "capture value is 42");
+    std::test::assert_eq_str(router::path_param(p, "id"), "42", "path_param finds id");
+    std::test::assert_eq_str(router::path_param(p, "nope"), "", "path_param absent key is empty");
+
+    // Multiple captures interleaved with literals.
+    std::test::assert(router::match_pattern_into("/a/:x/b/:y", "/a/1/b/two", p),
+        "two-capture pattern matches");
+    std::test::assert_eq_int(count(p.path_keys), 2, "two capture keys");
+    std::test::assert_eq_str(router::path_param(p, "x"), "1", "first capture");
+    std::test::assert_eq_str(router::path_param(p, "y"), "two", "second capture");
+    std::test::assert_eq_str(at(p.path_keys, 1) or "", "y", "second key via at()");
+
+    // ---- mismatches clear the captures -------------------------
+
+    // Literal tail differs AFTER a capture was pushed: the push
+    // must be rolled back so the next pattern starts clean.
+    std::test::assert(!router::match_pattern_into("/users/:id/edit", "/users/42/delete", p),
+        "literal tail mismatch rejects");
+    std::test::assert_eq_int(count(p.path_keys), 0, "mismatch clears capture keys");
+    std::test::assert_eq_int(count(p.path_vals), 0, "mismatch clears capture values");
+
+    // Segment-count mismatches.
+    std::test::assert(!router::match_pattern_into("/users", "/users/42", p),
+        "extra path segment rejects");
+    std::test::assert(!router::match_pattern_into("/users/:id", "/users", p),
+        "missing capture segment rejects");
+
+    // Plain literal mismatch.
+    std::test::assert(!router::match_pattern_into("/posts", "/users", p),
+        "different literal rejects");
+    std::test::assert_eq_int(count(p.path_keys), 0, "still no captures after rejects");
+
+    // A failed match leaves p reusable: match again and re-capture.
+    std::test::assert(router::match_pattern_into("/users/:id", "/users/7", p),
+        "params reusable after mismatch");
+    std::test::assert_eq_str(router::path_param(p, "id"), "7", "fresh capture after reuse");
+
+    // ---- query_param: raw passthrough ---------------------------
+
+    let q = router::RouteParams { qs: "a=1&b=2&q=a%20b&empty=" };
+    std::test::assert_eq_str(router::query_param(q, "a"), "1", "query a=1");
+    std::test::assert_eq_str(router::query_param(q, "b"), "2", "query b=2");
+    std::test::assert_eq_str(router::query_param(q, "q"), "a%20b",
+        "query value passes through raw (no URL-decoding at v1)");
+    std::test::assert_eq_str(router::query_param(q, "empty"), "", "empty value is empty string");
+    std::test::assert_eq_str(router::query_param(q, "missing"), "", "absent query key is empty");
+
+    let q2 = router::RouteParams { };
+    std::test::assert_eq_str(router::query_param(q2, "a"), "", "empty query string yields empty");
+}

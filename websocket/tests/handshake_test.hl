@@ -1,0 +1,160 @@
+// pond/websocket/tests — RFC 6455 § 4 handshake pure fns: the
+// known-vector accept-key derivation, upgrade-request build/parse,
+// and 101-response build/validate. No sockets.
+
+import ".." as ws;
+
+// RFC 6455 § 4.2.2 worked example: this key must derive exactly
+// this accept value.
+fn rfc_key() -> String { return "dGhlIHNhbXBsZSBub25jZQ=="; }
+fn rfc_accept() -> String { return "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="; }
+
+// or-handler for parse_response failures: handshake errors surface
+// as -2, anything else as -3 (success is a positive byte count;
+// "need more bytes" is 0).
+fn hs_err(e: ws::WsError) -> Int {
+    if e.kind == "handshake" { return -2; }
+    return -3;
+}
+
+fn contains(haystack: String, needle: String) -> Bool {
+    return std::str::index_of(haystack, needle) >= 0;
+}
+
+fn main() {
+    // ---- accept-key derivation (RFC 6455 known vector) ----------
+
+    std::test::assert_eq_str(ws::compute_accept(rfc_key()), rfc_accept(),
+        "compute_accept matches the RFC 6455 Section 4.2.2 vector");
+    std::test::assert_eq_str(ws::ws_magic_guid(),
+        "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", "magic GUID");
+    std::test::assert(ws::compute_accept("someotherkey0123456789==") != rfc_accept(),
+        "different key derives a different accept");
+
+    // ---- client upgrade request build ----------------------------
+
+    let req = std::str::from_bytes(ws::build_request("example.com", "/chat", rfc_key(), ""));
+    std::test::assert_eq_int(std::str::index_of(req, "GET /chat HTTP/1.1\r\n"), 0,
+        "request line first");
+    std::test::assert(contains(req, "Host: example.com\r\n"), "Host header");
+    std::test::assert(contains(req, "Upgrade: websocket\r\n"), "Upgrade header");
+    std::test::assert(contains(req, "Connection: Upgrade\r\n"), "Connection header");
+    std::test::assert(contains(req, "Sec-WebSocket-Key: " + rfc_key() + "\r\n"), "Key header");
+    std::test::assert(contains(req, "Sec-WebSocket-Version: 13\r\n"), "Version header");
+    let rn = len(req);
+    std::test::assert_eq_str(req[(rn - 4)..rn], "\r\n\r\n", "request CRLF-CRLF terminated");
+
+    // Extra headers are stitched in, CRLF-terminated either way.
+    let req2 = std::str::from_bytes(
+        ws::build_request("example.com", "/", rfc_key(), "X-Auth: tok"));
+    std::test::assert(contains(req2, "X-Auth: tok\r\n"), "extra header without CRLF stitched");
+    let r2n = len(req2);
+    std::test::assert_eq_str(req2[(r2n - 4)..r2n], "\r\n\r\n", "req2 still CRLF-CRLF terminated");
+
+    // ---- server 101 response build + client-side validation ------
+
+    let resp101 = ws::build_101_response(rfc_accept());
+    let resp101_str = std::str::from_bytes(resp101);
+    std::test::assert_eq_int(std::str::index_of(resp101_str, "HTTP/1.1 101 Switching Protocols\r\n"), 0,
+        "101 status line first");
+    std::test::assert(contains(resp101_str, "Sec-WebSocket-Accept: " + rfc_accept() + "\r\n"),
+        "accept header in 101 response");
+
+    // parse_response consumes exactly the header block on a good
+    // handshake (accept validated against the expectation).
+    let consumed = ws::parse_response(resp101, rfc_accept()) or hs_err(err);
+    std::test::assert_eq_int(consumed, len(resp101), "good 101 consumes whole header block");
+
+    // Trailing bytes (first WS frame) stay unconsumed.
+    let with_tail = std::bytes::BytesBuilder { initial_cap: 256 };
+    with_tail.append(resp101);
+    with_tail.append(std::bytes::from_string("FRAMEBYTES"));
+    let consumed_tail = ws::parse_response(with_tail.finish(), rfc_accept()) or hs_err(err);
+    std::test::assert_eq_int(consumed_tail, len(resp101), "tail after handshake not consumed");
+
+    // Empty expected_accept skips the accept check.
+    let skip = ws::parse_response(resp101, "") or hs_err(err);
+    std::test::assert_eq_int(skip, len(resp101), "empty expected_accept skips validation");
+
+    // Accept mismatch fails the handshake.
+    let bad_accept = ws::parse_response(resp101, "AAAAAAAAAAAAAAAAAAAAAAAAAAA=") or hs_err(err);
+    std::test::assert_eq_int(bad_accept, -2, "accept mismatch fails as handshake error");
+
+    // Non-101 status fails the handshake.
+    let resp400 = std::bytes::from_string(
+        "HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+    let not101 = ws::parse_response(resp400, "") or hs_err(err);
+    std::test::assert_eq_int(not101, -2, "non-101 fails as handshake error");
+
+    // Incomplete response (no double-CRLF yet) -> 0, keep reading.
+    let partial = std::bytes::from_string("HTTP/1.1 101 Switching Protocols\r\nUpgrade: web");
+    let more = ws::parse_response(partial, "") or hs_err(err);
+    std::test::assert_eq_int(more, 0, "incomplete response signals 0 (need more bytes)");
+
+    // ---- header_value lookup --------------------------------------
+
+    let hs = resp101_str;
+    let hend = std::str::index_of(hs, "\r\n\r\n");
+    std::test::assert_eq_str(ws::header_value(hs, hend, "sec-websocket-accept"),
+        rfc_accept(), "header_value finds accept (case-insensitive name)");
+    std::test::assert_eq_str(ws::header_value(hs, hend, "upgrade"),
+        "websocket", "header_value finds upgrade");
+    std::test::assert_eq_str(ws::header_value(hs, hend, "x-absent"),
+        "", "header_value absent is empty");
+
+    // ---- server-side upgrade-request parse -------------------------
+
+    let upgrade_bytes = ws::build_request("example.com", "/chat", rfc_key(), "");
+    let up = ws::parse_request(upgrade_bytes);
+    std::test::assert_eq_str(up.path, "/chat", "parsed upgrade path");
+    std::test::assert_eq_str(up.key, rfc_key(), "parsed Sec-WebSocket-Key");
+    std::test::assert(up.has_upgrade, "Upgrade: websocket recognized");
+    // Regression (fixed 2026-07-04): parse_request used to drop the
+    // final header line before the terminating \r\n\r\n —
+    // Sec-WebSocket-Version is last in build_request's layout, so
+    // this assert guards the terminal-line branch.
+    std::test::assert_eq_str(up.version, "13", "terminal header line parses");
+
+    // Hand-written upgrade request, header order shuffled + trailing
+    // pad header, mixed-case names (RFC 7230 case-insensitive match).
+    let crafted = std::bytes::from_string(
+        "GET /room/7 HTTP/1.1\r\n"
+        + "Host: example.com\r\n"
+        + "UPGRADE: WebSocket\r\n"
+        + "Sec-WebSocket-Version: 13\r\n"
+        + "sec-websocket-key: " + rfc_key() + "\r\n"
+        + "Connection: Upgrade\r\n"
+        + "X-Trailer: pad\r\n"
+        + "\r\n");
+    let cup = ws::parse_request(crafted);
+    std::test::assert_eq_str(cup.path, "/room/7", "crafted upgrade path");
+    std::test::assert_eq_str(cup.key, rfc_key(), "crafted key (lowercase header name)");
+    std::test::assert_eq_str(cup.version, "13", "crafted Sec-WebSocket-Version");
+    std::test::assert(cup.has_upgrade, "crafted Upgrade recognized (mixed case)");
+
+    // A plain HTTP request is not an upgrade: key stays empty.
+    let plain = ws::parse_request(std::bytes::from_string(
+        "GET /index.html HTTP/1.1\r\nHost: example.com\r\n\r\n"));
+    std::test::assert_eq_str(plain.key, "", "non-upgrade request has empty key");
+    std::test::assert(!plain.has_upgrade, "non-upgrade request lacks Upgrade header");
+    std::test::assert_eq_str(plain.path, "/index.html", "path still parsed from plain request");
+
+    // Full server-side flow: parse the client request, derive the
+    // accept, and the client-side validator accepts the reply.
+    let accept_key = ws::compute_accept(up.key);
+    std::test::assert_eq_str(accept_key, rfc_accept(), "server derives RFC accept from parsed key");
+    let reply = ws::build_101_response(accept_key);
+    let ok = ws::parse_response(reply, ws::compute_accept(rfc_key())) or hs_err(err);
+    std::test::assert(ok > 0, "end-to-end handshake bytes validate");
+
+    // ---- 400 fallback + small helper --------------------------------
+
+    let b400 = std::str::from_bytes(ws::build_400_response("not an upgrade"));
+    std::test::assert_eq_int(std::str::index_of(b400, "HTTP/1.1 400 Bad Request\r\n"), 0,
+        "400 status line first");
+    std::test::assert(contains(b400, "not an upgrade"), "400 reason in body");
+
+    std::test::assert(ws::ends_with_crlf("line\r\n"), "ends_with_crlf true case");
+    std::test::assert(!ws::ends_with_crlf("line"), "ends_with_crlf false case");
+    std::test::assert(!ws::ends_with_crlf(""), "ends_with_crlf empty case");
+}

@@ -1,0 +1,88 @@
+// pond/pq tests — offline-only. NO postgres server is involved:
+// this covers the pure pgwire v3 codec in wire.hl (message
+// builders + big-endian helpers).
+//
+// SCOPE NOTE: this test imports `../wire` as a SINGLE FILE rather
+// than the whole seed. Importing ".." would pull pq.hl, whose
+// `import "vendor/pond/db"` only resolves in a vendored consumer
+// tree (documented: FRICTION.log § pond/pq, "In-repo build vs
+// check") — so PgConn (incl. its offline not-connected error
+// surface) and build_extended (lives in pq.hl, needs db::Args)
+// cannot be compiled in-tree at all. wire.hl is dependency-free
+// pure Hale, so the codec is fully testable here:
+//
+//   - be32/be16 append + read round trips; bounds-safe byte_at
+//   - build_startup framing (self-length, protocol 196608,
+//     k\0v\0 body, terminating empty key)
+//   - build_query framing ('Q', length excl. type byte,
+//     NUL-terminated SQL)
+//   - build_terminate framing ('X', 4)
+//
+// The connect/handshake/query paths need a live server and stay
+// app-gated (fathom smoke-pq per FRICTION.log).
+//
+// Run:  hale test pq/
+
+import "../wire" as wire;
+
+fn main() {
+    // ---- big-endian helpers round-trip ----
+    let b32 = std::bytes::BytesBuilder { initial_cap: 8 };
+    wire::be32_append(b32, 16909060);            // 0x01020304
+    let raw32 = b32.finish();
+    std::test::assert_eq_int(len(raw32), 4, "be32_append writes 4 bytes");
+    std::test::assert_eq_int(wire::byte_at(raw32, 0), 1, "be32 byte 0");
+    std::test::assert_eq_int(wire::byte_at(raw32, 1), 2, "be32 byte 1");
+    std::test::assert_eq_int(wire::byte_at(raw32, 2), 3, "be32 byte 2");
+    std::test::assert_eq_int(wire::byte_at(raw32, 3), 4, "be32 byte 3");
+    std::test::assert_eq_int(wire::read_be32(raw32, 0), 16909060, "be32 round trip");
+
+    let b16 = std::bytes::BytesBuilder { initial_cap: 4 };
+    wire::be16_append(b16, 43981);               // 0xABCD
+    let raw16 = b16.finish();
+    std::test::assert_eq_int(len(raw16), 2, "be16_append writes 2 bytes");
+    std::test::assert_eq_int(wire::read_be16(raw16, 0), 43981, "be16 round trip");
+
+    // byte_at past the end substitutes 0 (bounds-safe reader).
+    std::test::assert_eq_int(wire::byte_at(raw16, 99), 0, "byte_at out of range is 0");
+
+    // ---- StartupMessage ----
+    // [Int32 total][Int32 196608]["user"\0 user\0 "database"\0 db\0][\0]
+    let su = wire::build_startup("alice", "appdb");
+    // 4 proto + "user\0alice\0"(11) + "database\0appdb\0"(15) + 1 = 31; +4 len = 35
+    std::test::assert_eq_int(len(su), 35, "startup total length");
+    std::test::assert_eq_int(wire::read_be32(su, 0), 35, "startup self-length field");
+    std::test::assert_eq_int(wire::read_be32(su, 4), 196608, "protocol 3.0");
+    let ukey = std::str::from_bytes(std::bytes::slice(su, 8, 12));
+    std::test::assert_eq_str(ukey, "user", "first param key");
+    std::test::assert_eq_int(wire::byte_at(su, 12), 0, "key NUL");
+    let uval = std::str::from_bytes(std::bytes::slice(su, 13, 18));
+    std::test::assert_eq_str(uval, "alice", "user value");
+    let dkey = std::str::from_bytes(std::bytes::slice(su, 19, 27));
+    std::test::assert_eq_str(dkey, "database", "second param key");
+    let dval = std::str::from_bytes(std::bytes::slice(su, 28, 33));
+    std::test::assert_eq_str(dval, "appdb", "database value");
+    std::test::assert_eq_int(wire::byte_at(su, 34), 0, "terminating empty key");
+
+    // ---- simple Query ----
+    // ['Q'][Int32 len][sql\0]
+    let q = wire::build_query("SELECT 1");
+    std::test::assert_eq_int(len(q), 14, "query total length");
+    std::test::assert_eq_int(wire::byte_at(q, 0), 81, "type byte 'Q'");
+    std::test::assert_eq_int(wire::read_be32(q, 1), 13, "length field excludes type byte");
+    let sql = std::str::from_bytes(std::bytes::slice(q, 5, 13));
+    std::test::assert_eq_str(sql, "SELECT 1", "sql payload");
+    std::test::assert_eq_int(wire::byte_at(q, 13), 0, "sql NUL terminator");
+
+    // Empty SQL still frames correctly (len = NUL + length field).
+    let q0 = wire::build_query("");
+    std::test::assert_eq_int(len(q0), 6, "empty query total length");
+    std::test::assert_eq_int(wire::read_be32(q0, 1), 5, "empty query length field");
+    std::test::assert_eq_int(wire::byte_at(q0, 5), 0, "empty query NUL");
+
+    // ---- Terminate ----
+    let x = wire::build_terminate();
+    std::test::assert_eq_int(len(x), 5, "terminate is 5 bytes");
+    std::test::assert_eq_int(wire::byte_at(x, 0), 88, "type byte 'X'");
+    std::test::assert_eq_int(wire::read_be32(x, 1), 4, "terminate length 4");
+}
