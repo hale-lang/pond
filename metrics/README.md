@@ -193,7 +193,7 @@ upstream cross-file pass-A registration fix; the consolidated
 - `storage.hl` — `MetricMap` (`@form(hashmap, sync =
   serialized)`) + `HistogramList` (`@form(vec)`).
 - `labels.hl` — `labels_*` constructors + `metric_key`.
-- `helpers.hl` — CSV-token + Prometheus-rendering free fns.
+- `helpers.hl` — label-token + Prometheus-rendering free fns (histogram bucket storage is bounded[T; N] since 2026-07-04; the CSV accessors are gone).
 - `registry.hl` — the `Registry` locus (`render()`).
 - `handles.hl` — `counter` / `gauge` / `histogram` factory
   free fns + `Counter` / `Gauge` / `Histogram` handle loci.

@@ -273,11 +273,18 @@ locus WsServerConn {
                 } else {
                     if kind == "continuation" {
                         self.frag_buf.append(payload);
-                        self.last_message = WsMessage {
-                            kind:  self.frag_kind,
-                            text:  self.frag_buf.text_view(),
-                            bytes: self.frag_buf.view(),
-                        };
+                        // In-place mutation, not a whole-value
+                        // WsMessage replace: a replaced struct
+                        // accumulates per message in the locus
+                        // arena for the connection's lifetime
+                        // (default-on unbounded-alloc warning;
+                        // upstream audit's true-positive class).
+                        // kind only re-anchors on a transition.
+                        if self.last_message.kind != self.frag_kind {
+                            self.last_message.kind = self.frag_kind;
+                        }
+                        self.last_message.text  = self.frag_buf.text_view();
+                        self.last_message.bytes = self.frag_buf.view();
                         self.frag_kind = "";
                     } else {
                         // Single-frame message — stash into
@@ -287,11 +294,13 @@ locus WsServerConn {
                         // return).
                         self.frag_buf.clear();
                         self.frag_buf.append(payload);
-                        self.last_message = WsMessage {
-                            kind:  kind,
-                            text:  self.frag_buf.text_view(),
-                            bytes: self.frag_buf.view(),
-                        };
+                        // In-place for the same reason as the
+                        // continuation arm above.
+                        if self.last_message.kind != kind {
+                            self.last_message.kind = kind;
+                        }
+                        self.last_message.text  = self.frag_buf.text_view();
+                        self.last_message.bytes = self.frag_buf.view();
                     }
                     return true;
                 }
@@ -307,6 +316,20 @@ locus WsServerConn {
     // `pong_timeout` to produce any traffic; a second deadline
     // expiry declares the peer dead.
     fn pump_recv() -> Bool {
+        // Loop-invariant hoists: this single activation lives for
+        // the whole connection, so anything allocated inside the
+        // loop accumulates per iteration (default-on
+        // unbounded-alloc warning). The fd wrapper, the empty
+        // ping frame, and the pong-death log event are all
+        // constant for the connection.
+        let stream = std::io::tcp::Stream { conn_fd: self.conn_fd, owns_fd: false };
+        let ping = emit_server_frame(true, 9, b"");
+        let pong_dead = WsLogEvent {
+            phase:  "error",
+            detail: "pong deadline exceeded; peer presumed dead",
+            bytes:  0,
+            op:     -1,
+        };
         while true {
             let got = std::io::tcp::recv_into(self.conn_fd, self.rx_buf, self.recv_chunk);
             if got > 0 {
@@ -324,19 +347,12 @@ locus WsServerConn {
                         kind:   "timeout",
                         detail: "no pong within pong_timeout; peer presumed dead",
                     };
-                    self.logger.on_event(WsLogEvent {
-                        phase:  "error",
-                        detail: "pong deadline exceeded; peer presumed dead",
-                        bytes:  0,
-                        op:     -1,
-                    });
+                    self.logger.on_event(pong_dead);
                     return false;
                 }
                 // First silence: proactive ping (best-effort),
                 // then arm the pong deadline.
                 self.awaiting_pong = true;
-                let stream = std::io::tcp::Stream { conn_fd: self.conn_fd, owns_fd: false };
-                let ping = emit_server_frame(true, 9, b"");
                 let n = stream.send_bytes(ping);
                 if n >= 0 {
                     self.frames_sent = self.frames_sent + 1;

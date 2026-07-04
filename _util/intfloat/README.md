@@ -1,4 +1,12 @@
-# pond/_util/intfloat — Int ↔ Float bridge
+# pond/_util/intfloat — Int ↔ Float bridge — **DEPRECATED**
+
+**Deprecated 2026-07-04.** Upstream ships the whole surface
+natively: `std::math::int_to_float` / `float_to_int`, plus
+`round` / `trunc` for the rounding variants. New code should
+call `std::math` directly. The lotus remains as thin delegates
+(no more ASCII roundtrip) so already-vendored consumers keep
+compiling; it will be removed in a future major cut. Zero
+in-tree consumers as of 2026-07-04.
 
 Suggested alias: `intf`.
 

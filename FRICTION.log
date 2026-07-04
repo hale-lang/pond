@@ -20,6 +20,7 @@ Conventions (unchanged from the per-lib era):
 - Cross-references: "FRICTION.log § pond/<lib>" + the entry title.
 
 Sections:
+  pond/_util/intfloat
   pond/agent/conversation
   pond/agent/embeddings
   pond/agent/llm
@@ -46,6 +47,28 @@ Sections:
   pond/tui
   pond/websocket
 
+
+======================================================================
+ pond/_util/intfloat
+======================================================================
+
+# pond/_util/intfloat — FRICTION
+
+## DEPRECATED 2026-07-04 — surface superseded by std::math
+
+`std::math::int_to_float` / `float_to_int` (upstream 2026-06-11)
+and `std::math::round` / `trunc` (2026-06-14) cover this lib's
+whole reason to exist. The lotus body now delegates to std::math
+(the ASCII roundtrip through `parse_float(to_string(n))` is
+gone) and the lib is marked deprecated in its README; kept as a
+compatibility shim for vendored consumers. Zero in-tree
+consumers remain. Removal is a future major-cut decision —
+flagged for the root catalog.
+
+The underlying language gap this lib papered over is NOT closed:
+`let f: Float = i;` and `0.0 + n` widening still reject
+(retested 2026-07-04 at hale 400ac68; see
+§ pond/ml/neural "int-to-float-ascription-rejected").
 
 ======================================================================
  pond/agent/conversation
@@ -420,6 +443,16 @@ NaN-marker behavior (picked rows are skipped on later passes).
   result" returns — composes with router / sqlite / jobs / etc.
   No new shape invented.
 
+
+## unbounded-alloc triage — 2026-07-04
+
+Four default-on warnings, all vec-inserts in `Store::add` /
+`Store::remove_at`: TRUE-but-by-design — a vector store grows
+with what the consumer adds (add), and remove_at rebuilds the
+parallel vecs (compaction churn is bounded by store size).
+Growth is the lib's documented purpose; bounding it is the
+consumer's policy (cap checks before add). No source change;
+revisit if a `max_items` param gets contract'd.
 
 ======================================================================
  pond/agent/llm
@@ -1207,6 +1240,21 @@ with `n` even), so the swap is safe. sign-demo passes, including
 the hex round-trip.
 
 
+## additive: sha512 / hmac_sha512 — 2026-07-04
+
+Upstream shipped `std::crypto::{sha512, hmac_sha512}` (hale
+`045577a`). This lib adds the matching thin delegates
+`sha512(input)` / `hmac_sha512(key, message)` — additive
+CONTRACTS.md extension, annotated inline in the surface block.
+sign-demo unchanged and passing.
+
+## unbounded-alloc triage — 2026-07-04
+
+The one default-on warning (`hex_decode`'s `HexError` literal
+"inside an unbounded loop") is FP-shaped: the loop is bounded
+by the input string length and the `fail` exits it. No source
+change.
+
 ======================================================================
  pond/db
 ======================================================================
@@ -1380,6 +1428,30 @@ shape.
 duplicate-suspected: LRU pool — may belong in a future
 `@form(lru_cache, max = N)` form or a `pond/util/lru/` lib.
 The hand-rolled shape works at v1 but doesn't compose.
+
+**2026-07-04: `@form(lru_cache, cap = N)` SHIPPED upstream —
+evaluated for this pool and DECLINED.** Two structural
+mismatches, both fatal for a pool of live fds:
+(1) no `remove` — `__pool_take` hands ownership of an fd to the
+caller and must vacate the slot, but the form's surface is only
+put/get/contains/len (a get leaves the entry live, so one fd
+could be handed out twice);
+(2) no eviction hook — `put` over cap silently drops the LRU
+entry, and a silently dropped cell that OWNS an open fd is an
+fd leak (the hand-rolled evict path closes it first).
+The form fits pure-value caches; resource pools need
+take-semantics + an eviction callback. Upstream ask sharpened:
+`remove(k)` + `put_evicting(x) -> S` (returning the displaced
+cell) would make `@form(lru_cache)` pool-capable. Entry stays
+open on that ask; the hand-rolled pool stays.
+
+**Also triaged 2026-07-04:** the 12 default-on unbounded-alloc
+warnings on `keepalive.hl` (`__FramedRead`/`__ChunkScan`/bytes
+literals in the recv loops) and `client.hl`
+(`__round_trip_with_retry`'s HttpError) are the classifier's
+documented residual-FP class — loops runtime-bounded by
+`max_body` / `max_attempts` in scratch-reclaimed frames. No
+source change.
 
 ## Out-of-scope notes
 
@@ -1653,6 +1725,17 @@ into a `fail JobError`. Consequences worth knowing:
   `sqlite::Db` (file-backed path) — the rows are shared via the
   file, the stash is not.
 
+
+## unbounded-alloc triage — 2026-07-04
+
+One default-on warning: `Worker::__on_dequeue_err` returns a
+sentinel `Job { }` per failed dequeue poll inside the worker's
+run loop — real accumulation, but at poll rate with an
+all-default struct (~tens of KB/day at 100 ms polls). Accepted
+for now; the clean fix (activation-boundary retire for plain
+fields) is staged upstream in notes/anchor-retirement.md.
+Revisit when that lands or if a workload runs workers hot for
+weeks.
 
 ======================================================================
  pond/logfmt
@@ -2210,7 +2293,19 @@ re-split) are likely to surface in a parallel
 second consumer materializes; staying inside the metrics seed
 for now per the "only edit pond/metrics/" rule.
 
-## duplicate-suspected: tab-separated string accessors
+## duplicate-suspected: tab-separated string accessors — NARROWED 2026-07-04
+
+**2026-07-04:** the histogram half of this family is GONE —
+`HistogramData.bounds_csv`/`counts_csv` migrated to
+`bounded[Float; 32]` / `bounded[Int; 33]` (the sanctioned
+fixed-capacity shape since hale shipped `bounded[T; N]`), so
+`float_at`, `int_at`, `int_csv_inc_at`, `zero_counts_csv`, and
+`floats_to_csv` are deleted. What survives is `nth_tab_token` +
+`len_floats` serving `render_labels` over the contract-locked
+`Labels { kv: String }` shape. A Labels migration to bounded
+pairs is possible but is a CONTRACTS.md delta rippling through
+every metric constructor — deferred until a workload pushes
+(logged here as the candidate). Original entry:
 
 The `nth_tab_token`, `len_floats`, `int_at`, `float_at`,
 `int_csv_inc_at` family in `helpers.hl` re-implements a tiny
@@ -2295,13 +2390,23 @@ the assertion form.
    Registry-per-app is the documented use, so this isn't
    reachable in practice.
 
-## deviation: histogram observe() walks the buckets linearly
+## deviation: histogram observe() walks the buckets linearly — HALVED 2026-07-04
 
 `Histogram.observe` walks bounds[] front-to-back looking for
 the first bound `>= v`. O(B) per observe. The Prometheus
 convention is B in the 5–20 range so linear is the right
 shape; if a workload demands large-B histograms, a binary
 search would slot in cleanly here.
+
+**2026-07-04:** the expensive half of the O(B) — the
+tab-string parse + re-serialize + fresh String per observe —
+is gone with the bounded[T; N] migration (counts update via
+the in-place `set` intrinsic on the local copy, then one
+`vec.set` write-back; capacity 32 buckets, clamped at
+creation). Registry.render() also moved off the O(cap×len)
+`key_at` walk onto `for e in store.entries` (hale's batched
+form-iteration surface). Exposition-demo passes all format
+checks unchanged.
 
 ## design-question: render() doesn't sort metric series
 
@@ -2957,6 +3062,12 @@ row-major slicing will reach for the same shape.
   minimum and only learn 3-of-4 corners. The README + the demo
   use 2-3-1 to make the demo deterministic across runs.
 
+
+## unbounded-alloc triage — 2026-07-04
+
+One default-on warning: `parse_layer_at`'s `Layer` literal "in
+an unbounded loop" — FP-shaped; the loop is bounded by the
+model's layer count (single digits). No source change.
 
 ======================================================================
  pond/pq
@@ -4526,6 +4637,27 @@ final-`quit`-event workaround stays the framework contract
 (and stays even if the cascade gap closes).
 
 
+## unbounded-alloc triage — 2026-07-04 (deferred: needs a dedicated pass)
+
+The default-on analysis flags 45 sites, in two classes:
+
+1. **`Event` structs** returned per input byte from the parser
+   free fns (`__key_from_byte`, `__utf8_char`) and consumed in
+   `Program::run`'s app-lifetime loop — true accumulation, but
+   at human input rate (~100 B/keypress; MBs over a full day of
+   continuous typing).
+2. **`Screen` vec-inserts** (`set_cell`/`clear`/`resize`/
+   `flush`) — per-frame cell churn against the cell grid;
+   needs real reading to split refill-in-place (fine) from
+   growth (leak).
+
+Neither class is fixed in the 2026-07-04 pass — 45 sites in the
+hot render path deserve their own focused bounded-memory pass
+with before/after RSS measurement (same bar the upstream audit
+used), not drive-by edits. Interim risk assessment: interactive
+apps are human-rate bounded; the logview/metricsdash demos run
+minutes, not weeks. Logged as the next tui work item.
+
 ======================================================================
  pond/websocket
 ======================================================================
@@ -4734,9 +4866,22 @@ deliberately omitted at v1:
   the listen/accept/dispatch shape; see `server.hl`'s head
   comment for the F.35 pattern)
 
-## suspected duplicate: arithmetic XOR-byte helper
+## suspected duplicate: arithmetic XOR-byte helper — **CLOSED 2026-07-04**
 
-`pond/_util/intfloat::xor8` is the only place pond computes
+**Closed:** upstream shipped `BytesBuilder.xor_mask(src, key)`
+(hale `227db57`, "the WebSocket masking primitive") — one
+reserve + word-at-a-time pass XORing against an LE-packed
+repeating 4-byte key. `frame.hl` now masks (`emit_frame`) and
+unmasks (`unmask_into` slow path) through it; the local
+arithmetic `xor8` bit-decomposition helper and `pick_mask_byte`
+are deleted (replaced by `pack_mask_key`, packing mk0..mk3
+little-endian). Verified: masked + unmasked frames round-trip
+byte-identically (emit → peek_header → unmask_into probe);
+echo-client builds. The broader ask (bitwise XOR at the
+language level) is still real for crypto-shaped code, but no
+pond lib hand-rolls byte XOR anymore. Original entry below.
+
+[historical] `pond/_util/intfloat::xor8` is the only place pond computes
 byte-wise XOR (v1 has no bitwise XOR in expression position —
 G12 in `pond/KNOWN_GOTCHAS.md`). This lib uses it for both
 frame mask + unmask. Same shape `pond/crypto::hmac_sha256` will
@@ -4746,3 +4891,30 @@ implementation.
 A `std::math::xor8(a: Int, b: Int) -> Int` primitive (or surfacing
 bitwise XOR at the language level) would let `_util/intfloat`
 collapse. Logged.
+
+## unbounded-alloc triage: 9 → 0 warnings — 2026-07-04
+
+The default-on unbounded-alloc analysis flagged nine sites; the
+upstream full-corpus audit had already confirmed this lib's
+per-message class as a true production leak ("pond websocket
+last_message.kind per message"). All nine fixed:
+
+- `last_message` (client `try_peel_one`, server `read_msg` ×2):
+  whole-value `WsMessage` replace per received message →
+  in-place field mutation; `kind` re-anchors only on a
+  text/binary transition (steady single-kind streams allocate
+  nothing per message).
+- `last_error` (client `reparse_url` + the four recv-path
+  bridge handlers): whole-value `WsError` replace per failed
+  frame/dial → in-place `kind`/`detail` field writes.
+- server `pump_recv`: the fd `Stream` wrapper, the empty ping
+  frame, and the pong-death `WsLogEvent` hoisted above the
+  connection-lifetime loop (all loop-invariant).
+
+`hale check websocket` is now warning-free. Residual known
+limitation (upstream, not ours): replacing a heap String FIELD
+still orphans the old clone in the locus arena (the TP-3
+anchor-clone class — retirement shipped for @form(hashmap)
+cells only; plain-field retire is staged upstream in
+notes/anchor-retirement.md). Our in-place shape minimizes the
+churn to error-path detail strings and kind transitions.

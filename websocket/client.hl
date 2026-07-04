@@ -221,10 +221,10 @@ locus WsClient {
         self.port = parts.port;
         self.path = parts.path;
         if parts.error_kind != "" {
-            self.last_error = WsError {
-                kind: parts.error_kind,
-                detail: parts.error_detail,
-            };
+            // In-place (a whole-value replace grows the arena per
+            // dial; re-dials loop on reconnect).
+            self.last_error.kind = parts.error_kind;
+            self.last_error.detail = parts.error_detail;
         }
     }
 
@@ -496,11 +496,17 @@ locus WsClient {
             // (frag_buf only mutated on the next new-data frame,
             // above) preserves the view across heartbeats / pings
             // between FIN and the next data start.
-            self.last_message = WsMessage {
-                kind:  self.frag_kind,
-                text:  self.frag_buf.text_view(),
-                bytes: self.frag_buf.view(),
-            };
+            // In-place mutation, not a whole-value WsMessage
+            // replace — a replaced struct accumulates per message
+            // in the locus arena for the connection's lifetime
+            // (the upstream audit's confirmed true-positive:
+            // "last_message.kind per message"). kind only
+            // re-anchors on a text/binary transition.
+            if self.last_message.kind != self.frag_kind {
+                self.last_message.kind = self.frag_kind;
+            }
+            self.last_message.text  = self.frag_buf.text_view();
+            self.last_message.bytes = self.frag_buf.view();
             self.frag_kind = "";
             return 3;
         }
@@ -792,23 +798,32 @@ locus WsClient {
 
     // ===== error-check fns (styleguide § 7) =====
 
+    // These bridge handlers fire once per failed recv/frame —
+    // an unbounded path on a hostile or flaky peer — so they
+    // mutate last_error in place instead of replacing the
+    // struct (the whole-value replace is the per-iteration
+    // arena-growth shape the default-on alloc warning flags).
     fn io_substitute_int(_e: IoError) -> Int {
-        self.last_error = WsError { kind: "io", detail: "io failure" };
+        self.last_error.kind = "io";
+        self.last_error.detail = "io failure";
         return -1;
     }
 
     fn io_substitute_bytes(_e: IoError) -> Bytes {
-        self.last_error = WsError { kind: "io", detail: "io failure" };
+        self.last_error.kind = "io";
+        self.last_error.detail = "io failure";
         return std::bytes::from_string("");
     }
 
     fn handshake_fail(e: WsError) -> Int {
-        self.last_error = WsError { kind: "handshake", detail: e.detail };
+        self.last_error.kind = "handshake";
+        self.last_error.detail = e.detail;
         return -1;
     }
 
     fn framing_fail_hdr(e: WsError) -> FrameHeader {
-        self.last_error = WsError { kind: "framing", detail: e.detail };
+        self.last_error.kind = "framing";
+        self.last_error.detail = e.detail;
         return FrameHeader { };
     }
 }

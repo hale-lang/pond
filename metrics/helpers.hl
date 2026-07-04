@@ -9,29 +9,6 @@ import "../math/matrix" as mat;
 
 // ----- bucket-bounds + counts serialization -----
 
-// `floats_to_csv(m)` — flatten a Matrix's elements (storage
-// order) into a tab-separated Float string. Used at histogram
-// register time to pack the bucket bounds into the
-// HistogramData cell (which can't hold a Matrix ref directly).
-fn floats_to_csv(m: mat::Matrix) -> String {
-    let n = m.len();
-    if n == 0 {
-        return "";
-    }
-    let mut out = "";
-    let mut i = 0;
-    while i < n {
-        let v = m.get(i) or 0.0;
-        if i == 0 {
-            out = to_string(v);
-        } else {
-            out = out + "\t" + to_string(v);
-        }
-        i = i + 1;
-    }
-    return out;
-}
-
 // `len_floats(s)` — count of tab-separated tokens in `s`.
 // Zero for empty. Shared between Float and Int CSV paths
 // (tokenization is identical).
@@ -79,74 +56,20 @@ fn nth_tab_token(s: String, i: Int) -> String {
     return "";
 }
 
-// `float_at(s, i)` — i-th Float token. Returns 0.0 on OOB or
-// parse failure (sentinel).
-fn float_at(s: String, i: Int) -> Float {
-    let tok = nth_tab_token(s, i);
-    return std::str::parse_float(tok) or 0.0;
-}
-
-// `int_at(s, i)` — i-th Int token. 0 on OOB.
-fn int_at(s: String, i: Int) -> Int {
-    let tok = nth_tab_token(s, i);
-    return std::str::parse_int(tok) or 0;
-}
-
-// `zero_counts_csv(n)` — build a tab-separated string of `n`
-// zero counts. Used at histogram-register time to seed the
-// cumulative-counts buffer with the right slot count.
-fn zero_counts_csv(n: Int) -> String {
-    if n <= 0 {
-        return "";
-    }
-    let mut out = "0";
-    let mut i = 1;
-    while i < n {
-        out = out + "\t0";
-        i = i + 1;
-    }
-    return out;
-}
-
-// `int_csv_inc_at(s, i)` — return a new CSV where token i is
-// incremented by 1; rest unchanged. Out-of-range is a no-op.
-fn int_csv_inc_at(s: String, i: Int) -> String {
-    let n = len_floats(s);
-    if i < 0 {
-        return s;
-    }
-    if i >= n {
-        return s;
-    }
-    let mut out = "";
-    let mut j = 0;
-    while j < n {
-        let cur = int_at(s, j);
-        let new_val = if j == i { cur + 1 } else { cur };
-        if j == 0 {
-            out = to_string(new_val);
-        } else {
-            out = out + "\t" + to_string(new_val);
-        }
-        j = j + 1;
-    }
-    return out;
-}
-
 // `count_out_of_order(s)` — count pairs where counts[i+1] <
 // counts[i] (cumulative-monotonicity invariant violation).
 // Zero for a well-formed cumulative-counts vector. The
 // Histogram locus's closure-monitored field tracks this.
-fn count_out_of_order(s: String) -> Int {
-    let n = len_floats(s);
+fn count_out_of_order(h: HistogramData) -> Int {
+    let n = count(h.counts);
     if n <= 1 {
         return 0;
     }
     let mut violations = 0;
-    let mut prev = int_at(s, 0);
+    let mut prev = at(h.counts, 0) or 0;
     let mut j = 1;
     while j < n {
-        let cur = int_at(s, j);
+        let cur = at(h.counts, j) or 0;
         if cur < prev {
             violations = violations + 1;
         }
@@ -247,19 +170,19 @@ fn render_sample(ns: String, name: String, labels: String, value: Float) -> Stri
 // See docs/src/how-tos/keeping-memory-bounded.md.
 fn render_histogram(ns: String, h: HistogramData) -> String {
     let full = prom_full_name(ns, h.name);
-    let nb = len_floats(h.bounds_csv);
-    let nc = len_floats(h.counts_csv);
+    let nb = count(h.bounds);
+    let nc = count(h.counts);
     let b = std::bytes::BytesBuilder { initial_cap: 1024 };
     let mut i = 0;
     while i < nb {
-        let bound = nth_tab_token(h.bounds_csv, i);
-        let cnt = int_at(h.counts_csv, i);
+        let bound = to_string(at(h.bounds, i) or 0.0);
+        let cnt = at(h.counts, i) or 0;
         let lab = render_labels_with_le(h.labels, bound);
         b.append(std::bytes::from_string(full + "_bucket" + lab + " " + to_string(cnt) + "\n"));
         i = i + 1;
     }
     if nc > nb {
-        let inf_cnt = int_at(h.counts_csv, nb);
+        let inf_cnt = at(h.counts, nb) or 0;
         let lab_inf = render_labels_with_le(h.labels, "+Inf");
         b.append(std::bytes::from_string(full + "_bucket" + lab_inf + " " + to_string(inf_cnt) + "\n"));
     }
