@@ -15,6 +15,15 @@
 !**/examples/**/
 !**/examples/**/*.*
 
+# Test binaries — `hale test` compiles to a temp dir, but the interim
+# workaround for @ffi-linking tests (`hale test` skips the hale.toml
+# [ffi] pickup, so sqlite/jobs/migrations tests are verified via
+# `hale build <lib>/tests/<x>_test.hl` + run) drops extensionless
+# binaries next to the test source. Same rule shape as examples/.
+**/tests/**
+!**/tests/**/
+!**/tests/**/*.*
+
 # Library-root binaries (a CLI shape, e.g. migrations/migrations)
 /migrations/migrations
 

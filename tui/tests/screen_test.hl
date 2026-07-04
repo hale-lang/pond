@@ -1,0 +1,139 @@
+// screen_test — cell grid (resize/set_cell/put/clear/fill), UTF-8
+// decode + wide-char continuation cells, char_width/rgb helpers,
+// append_codepoint encoding, and the SGR emit/dedup core of the
+// diff renderer (via emit_sgr into the frame builder — flush()
+// itself writes the frame to stdout, so a silent test can't call
+// it; the builder content is asserted directly instead).
+
+import ".." as tui;
+
+fn cell_at(s: tui::Screen, x: Int, y: Int) -> tui::Cell {
+    return s.cells.get(y * s.w + x) or tui::Cell { };
+}
+
+fn has(hay: String, needle: String) -> Bool {
+    return std::str::index_of(hay, needle) >= 0;
+}
+
+fn main() {
+    // ----- resize sizes the grid and flags a full redraw ------------
+    let s = tui::Screen { };
+    s.resize(4, 3);
+    std::test::assert_eq_int(s.w, 4, "resize sets w");
+    std::test::assert_eq_int(s.h, 3, "resize sets h");
+    std::test::assert(s.cells.len() >= 12, "grid grows to w*h cells");
+    std::test::assert(s.full_redraw, "resize forces full redraw");
+
+    // ----- clear blanks every cell ------------------------------------
+    s.clear();
+    let c00 = cell_at(s, 0, 0);
+    std::test::assert_eq_int(c00.ch, 32, "cleared cell is a space");
+    std::test::assert_eq_int(c00.fg, -1, "cleared cell has default fg");
+    std::test::assert_eq_int(c00.attrs, 0, "cleared cell has no attrs");
+
+    // ----- set_cell round-trip -----------------------------------------
+    s.set_cell(1, 1, 65, 2, 7, 1);
+    let c11 = cell_at(s, 1, 1);
+    std::test::assert_eq_int(c11.ch, 65, "set_cell stores the codepoint");
+    std::test::assert_eq_int(c11.fg, 2, "set_cell stores fg");
+    std::test::assert_eq_int(c11.bg, 7, "set_cell stores bg");
+    std::test::assert_eq_int(c11.attrs, 1, "set_cell stores attrs");
+
+    // Out-of-bounds writes are ignored (never land anywhere).
+    s.set_cell(4, 0, 66, -1, -1, 0);
+    s.set_cell(0, 3, 66, -1, -1, 0);
+    s.set_cell(-1, 0, 66, -1, -1, 0);
+    s.set_cell(0, -1, 66, -1, -1, 0);
+    let mut found_b = false;
+    let mut i = 0;
+    while i < 12 {
+        let ci = s.cells.get(i) or tui::Cell { };
+        if ci.ch == 66 { found_b = true; }
+        i = i + 1;
+    }
+    std::test::assert(!found_b, "OOB set_cell writes nowhere");
+
+    // Control chars are clamped to space so frames can't tear.
+    s.set_cell(0, 0, 7, -1, -1, 0);
+    let cbel = cell_at(s, 0, 0);
+    std::test::assert_eq_int(cbel.ch, 32, "control codepoint clamps to space");
+
+    // ----- put: ASCII + right-edge clipping ------------------------------
+    s.clear();
+    s.print(2, 0, "abc");   // w=4: 'a'@2, 'b'@3, 'c' clipped
+    let pa = cell_at(s, 2, 0);
+    let pb = cell_at(s, 3, 0);
+    std::test::assert_eq_int(pa.ch, 97, "put writes first char");
+    std::test::assert_eq_int(pb.ch, 98, "put writes second char");
+
+    // ----- put: wide char takes two cells ---------------------------------
+    s.put(0, 1, "中", -1, -1, 0);
+    let w0 = cell_at(s, 0, 1);
+    let w1 = cell_at(s, 1, 1);
+    std::test::assert_eq_int(w0.ch, 20013, "wide char decoded from UTF-8");
+    std::test::assert_eq_int(w1.ch, 0, "second cell is a continuation marker");
+
+    // Multi-byte decode positions the following char correctly.
+    s.put(0, 2, "中x", -1, -1, 0);
+    let wx = cell_at(s, 2, 2);
+    std::test::assert_eq_int(wx.ch, 120, "char after wide char lands 2 cells in");
+
+    // ----- fill sets the background across the rect -------------------------
+    s.clear();
+    s.fill(0, 0, 2, 2, 4);
+    let f00 = cell_at(s, 0, 0);
+    let f11 = cell_at(s, 1, 1);
+    let f20 = cell_at(s, 2, 0);
+    std::test::assert_eq_int(f00.bg, 4, "fill sets bg inside the rect");
+    std::test::assert_eq_int(f11.bg, 4, "fill covers the rect corner");
+    std::test::assert_eq_int(f20.bg, -1, "fill leaves cells outside the rect");
+
+    // ----- cursor state -------------------------------------------------------
+    s.set_cursor(3, 2);
+    std::test::assert_eq_int(s.cursor_x, 3, "set_cursor stores x");
+    std::test::assert_eq_int(s.cursor_y, 2, "set_cursor stores y");
+    s.hide_cursor();
+    std::test::assert_eq_int(s.cursor_x, -1, "hide_cursor resets x");
+
+    // ----- char_width / rgb ---------------------------------------------------
+    std::test::assert_eq_int(tui::char_width(65), 1, "ASCII is narrow");
+    std::test::assert_eq_int(tui::char_width(20013), 2, "CJK is wide");
+    std::test::assert_eq_int(tui::char_width(769), 0, "combining mark is zero-width");
+    std::test::assert_eq_int(tui::char_width(0), 0, "continuation marker is zero-width");
+    std::test::assert_eq_int(tui::rgb(255, 0, 0), 33488896, "rgb packs truecolor red");
+    std::test::assert_eq_int(tui::rgb(1, 2, 3), 16777216 + 65536 + 512 + 3,
+        "rgb packs channel bytes");
+
+    // ----- append_codepoint emits UTF-8 -----------------------------------------
+    let b = std::bytes::BytesBuilder { initial_cap: 16 };
+    tui::append_codepoint(b, 65);      // 1-byte
+    tui::append_codepoint(b, 233);     // 2-byte (é)
+    tui::append_codepoint(b, 20013);   // 3-byte (中)
+    tui::append_codepoint(b, 128512);  // 4-byte (emoji)
+    std::test::assert_eq_str(std::str::clone(b.text_view()), "Aé中😀",
+        "append_codepoint round-trips 1/2/3/4-byte UTF-8");
+
+    // ----- emit_sgr: style runs + dedup (the flush() SGR core) ------------------
+    // flush() writes the assembled frame to stdout (one write(2)),
+    // which a passing test must not produce — so the SGR emitter is
+    // exercised directly against the frame builder it feeds.
+    let s2 = tui::Screen { };
+    s2.emit_sgr(2, 5, 1);
+    let f1 = std::str::clone(s2.frame.text_view());
+    std::test::assert(has(f1, "\x1b[1m"), "bold attr emits SGR 1");
+    std::test::assert(has(f1, "\x1b[38;5;2m"), "palette fg emits 38;5");
+    std::test::assert(has(f1, "\x1b[48;5;5m"), "palette bg emits 48;5");
+
+    // Same style again: dedup, nothing appended.
+    s2.emit_sgr(2, 5, 1);
+    let f2 = std::str::clone(s2.frame.text_view());
+    std::test::assert_eq_int(len(f2), len(f1),
+        "unchanged style emits no SGR bytes");
+
+    // Style change resets then re-emits.
+    s2.emit_sgr(tui::rgb(1, 2, 3), -1, 0);
+    let f3 = std::str::clone(s2.frame.text_view());
+    std::test::assert(len(f3) > len(f2), "style change emits a new run");
+    std::test::assert(has(f3, "\x1b[38;2;1;2;3m"),
+        "truecolor fg emits 38;2;r;g;b");
+}

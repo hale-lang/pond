@@ -1,0 +1,98 @@
+// rotation_test — FileSink size-based rotation with a tiny cap.
+//
+// keep_files: 2 and max_size_bytes: 100. Each "batch" is three
+// 40-byte lines (39 chars + newline), so the third append pushes
+// the file to 120 > 100 and triggers exactly one rotation per
+// batch. The chain policy under keep_files=2:
+//
+//     .1 -> .2   (atomic rename-overwrite; evicts the old .2)
+//     path -> .1
+//     path       absent until the next append recreates it
+//
+// So after three batches: .1 = batch3, .2 = batch2, batch1 is
+// evicted, .3 never exists, and the active path is absent until
+// something writes again.
+
+import ".." as logfmt;
+
+fn read_all(path: String) -> String {
+    let s = std::io::fs::read_file(path) or "";
+    return s;
+}
+
+fn cleanup_chain(path: String) {
+    std::io::fs::unlink(path) or discard;
+    std::io::fs::unlink(path + ".1") or discard;
+    std::io::fs::unlink(path + ".2") or discard;
+    std::io::fs::unlink(path + ".3") or discard;
+}
+
+// One 39-char line body: tag (2) + "-" + digit + "-" (5 total)
+// plus 34 filler chars. line() appends the newline → 40 bytes.
+fn row(tag: String, i: Int) -> String {
+    return tag + "-" + to_string(i) + "-"
+        + "0123456789012345678901234567890123";
+}
+
+// The file content one full batch produces (three rows, each
+// newline-terminated).
+fn batch_content(tag: String) -> String {
+    return row(tag, 1) + "\n" + row(tag, 2) + "\n" + row(tag, 3) + "\n";
+}
+
+fn write_batch(sink: logfmt::FileSink, tag: String) {
+    sink.line(row(tag, 1));   // size 40  — under cap
+    sink.line(row(tag, 2));   // size 80  — under cap
+    sink.line(row(tag, 3));   // size 120 — over cap: rotate
+}
+
+fn main() {
+    let path = "/tmp/pond_logfmt_rotation_test.log";
+    cleanup_chain(path);
+
+    let sink = logfmt::FileSink {
+        path:           path,
+        max_size_bytes: 100,
+        keep_files:     2
+    };
+
+    // ----- batch 1: first rotation -----
+    write_batch(sink, "b1");
+    std::test::assert(!std::io::fs::file_exists(path),
+        "active path absent right after rotation");
+    std::test::assert_eq_str(read_all(path + ".1"), batch_content("b1"),
+        ".1 holds batch 1 after first rotation");
+    std::test::assert(!std::io::fs::file_exists(path + ".2"),
+        "no .2 after a single rotation");
+
+    // ----- batch 2: chain shifts -----
+    write_batch(sink, "b2");
+    std::test::assert_eq_str(read_all(path + ".1"), batch_content("b2"),
+        ".1 holds batch 2 after second rotation");
+    std::test::assert_eq_str(read_all(path + ".2"), batch_content("b1"),
+        ".2 holds batch 1 after second rotation");
+
+    // ----- batch 3: oldest evicted, keep_files bound holds -----
+    write_batch(sink, "b3");
+    std::test::assert_eq_str(read_all(path + ".1"), batch_content("b3"),
+        ".1 holds batch 3 after third rotation");
+    std::test::assert_eq_str(read_all(path + ".2"), batch_content("b2"),
+        ".2 holds batch 2 (batch 1 evicted by rename-overwrite)");
+    std::test::assert(!std::io::fs::file_exists(path + ".3"),
+        "keep_files=2 never creates .3");
+    std::test::assert(!std::io::fs::file_exists(path),
+        "active path absent again after third rotation");
+
+    // ----- a small write recreates the active file, no rotation -----
+    sink.line("tail");
+    std::test::assert_eq_str(read_all(path), "tail\n",
+        "append after rotation recreates the active file");
+    std::test::assert_eq_str(read_all(path + ".1"), batch_content("b3"),
+        "small write under the cap does not rotate");
+
+    // ----- clean run: no IO errors captured -----
+    std::test::assert_eq_str(sink.last_error_kind(), "",
+        "no io error recorded during rotations");
+
+    cleanup_chain(path);
+}
