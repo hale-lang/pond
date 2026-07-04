@@ -1,0 +1,64 @@
+// file_sink_test — FileSink Sink-shape writes (write/line/newline)
+// and log-event formatting (level names) verified by reading the
+// file back. No console sink anywhere in this test: FileSink is
+// the only sink the no-stdout test contract allows.
+
+import ".." as logfmt;
+
+fn read_all(path: String) -> String {
+    let s = std::io::fs::read_file(path) or "";
+    return s;
+}
+
+fn cleanup(path: String) {
+    std::io::fs::unlink(path) or discard;
+}
+
+fn main() {
+    let path = "/tmp/pond_logfmt_file_sink_test.log";
+    cleanup(path);
+
+    // Cap far above anything this test writes — no rotation here
+    // (rotation has its own test).
+    let sink = logfmt::FileSink {
+        path:           path,
+        max_size_bytes: 1000000,
+        keep_files:     2
+    };
+
+    // ----- std::text::Sink-shape surface -----
+    sink.write("abc");
+    sink.write("def");
+    sink.line("line-1");
+    sink.newline();
+    std::test::assert_eq_str(read_all(path), "abcdefline-1\n\n",
+        "write appends verbatim; line adds newline; newline is bare");
+
+    // ----- log-event formatting: level names -----
+    cleanup(path);
+    let e1 = std::log::LogEvent { level: 1, msg: "hello",  path: "app" };
+    let e2 = std::log::LogEvent { level: 2, msg: "careful", path: "app.db" };
+    let e3 = std::log::LogEvent { level: 3, msg: "boom",   path: "app" };
+    let e4 = std::log::LogEvent { level: 4, msg: "dbg",    path: "app" };
+    let e5 = std::log::LogEvent { level: 5, msg: "trc",    path: "app" };
+    let e9 = std::log::LogEvent { level: 9, msg: "odd",    path: "app" };
+    sink.on_event(e1);
+    sink.on_event(e2);
+    sink.on_event(e3);
+    sink.on_event(e4);
+    sink.on_event(e5);
+    sink.on_event(e9);
+    std::test::assert_eq_str(read_all(path),
+        "[INFO app] hello\n[WARN app.db] careful\n[ERROR app] boom\n[DEBUG app] dbg\n[TRACE app] trc\n[? app] odd\n",
+        "each level maps to its name; unknown level renders ?");
+
+    // ----- no IO errors captured along the way -----
+    std::test::assert_eq_str(sink.last_error_kind(), "",
+        "no io error recorded");
+    std::test::assert_eq_int(sink.last_error_errno(), 0,
+        "no errno recorded");
+    std::test::assert_eq_str(sink.last_error_path(), "",
+        "no error path recorded");
+
+    cleanup(path);
+}

@@ -1,0 +1,149 @@
+// tracer_test — Tracer start_span / end_span / add_attr.
+//
+// Completed spans are observed through the public surfaces only:
+// a bus subscriber on trace::SpanCompleted (instantiated BEFORE
+// the Tracer per the bus-ordering rule) captures each published
+// Span's fields, and the Tracer's packed buffers are read through
+// the locus params. No export_otlp call anywhere — no network.
+
+import ".." as trace;
+
+// CaptureSink — records the first two completed spans into
+// dedicated fields (attrs carry embedded tabs, so packed-row
+// storage would garble them; discrete params keep the
+// assertions exact).
+locus CaptureSink {
+    params {
+        count:   Int = 0;
+
+        id1:     String = "";
+        parent1: String = "";
+        name1:   String = "";
+        attrs1:  String = "";
+
+        id2:     String = "";
+        parent2: String = "";
+        name2:   String = "";
+        attrs2:  String = "";
+
+        // Every span must have start_ns > 0 and end_ns >= start_ns.
+        times_ok: Bool = true;
+    }
+
+    bus {
+        subscribe trace::SpanCompleted as on_span;
+    }
+
+    fn on_span(s: trace::Span) {
+        if self.count == 0 {
+            self.id1     = s.id.id;
+            self.parent1 = s.parent.id;
+            self.name1   = s.name;
+            self.attrs1  = s.attrs;
+        }
+        if self.count == 1 {
+            self.id2     = s.id.id;
+            self.parent2 = s.parent.id;
+            self.name2   = s.name;
+            self.attrs2  = s.attrs;
+        }
+        if s.start_ns <= 0 {
+            self.times_ok = false;
+        }
+        if s.end_ns < s.start_ns {
+            self.times_ok = false;
+        }
+        self.count = self.count + 1;
+    }
+}
+
+// Count newline-terminated rows in a packed buffer.
+fn row_count(buf: String) -> Int {
+    let n = len(buf);
+    let mut rows = 0;
+    let mut i = 0;
+    while i < n {
+        if buf[i..i + 1] == "\n" {
+            rows = rows + 1;
+        }
+        i = i + 1;
+    }
+    return rows;
+}
+
+fn main() {
+    // Subscriber first, publisher second (bus-ordering rule).
+    let sink = CaptureSink { };
+    let tr = trace::Tracer { service_name: "tracer-test" };
+
+    // ----- ids are a deterministic 1-based decimal counter -----
+    let root = tr.start_span("request.handle", trace::SpanId { id: "" });
+    std::test::assert_eq_str(root.id, "1", "first span gets id 1");
+    let child = tr.start_span("db.query", root);
+    std::test::assert_eq_str(child.id, "2", "second span gets id 2");
+    std::test::assert_eq_int(row_count(tr.open_buf), 2,
+        "two open spans in the open buffer");
+
+    // ----- add_attr -----
+    //
+    // NOTE (as-built behavior, deviates from the types.hl doc):
+    // attrs are stored as `key=value\t...` INSIDE a tab-separated
+    // row, so every RowBuf field re-parse (add_attr rebuild,
+    // end_span) truncates the attrs field at its first embedded
+    // tab. Net effect: the documented trailing tab is stripped,
+    // and a SECOND add_attr loses the separator between entries
+    // ("k1=v1k2=v2"). This test pins the stable single-attr shape
+    // only; the multi-attr mangling is logged as friction.
+    tr.add_attr(child, "db.statement", "SELECT 1");
+
+    // add_attr on a never-opened id is a silent no-op.
+    tr.add_attr(trace::SpanId { id: "77" }, "k", "v");
+    std::test::assert_eq_int(row_count(tr.open_buf), 2,
+        "no-op add_attr leaves the open buffer intact");
+
+    // ----- end child: publishes SpanCompleted -----
+    tr.end_span(child);
+    std::test::assert_eq_int(sink.count, 1, "one completed span");
+    std::test::assert_eq_str(sink.id1, "2", "completed span id");
+    std::test::assert_eq_str(sink.parent1, "1",
+        "child's parent points at the root span");
+    std::test::assert_eq_str(sink.name1, "db.query", "completed span name");
+    std::test::assert_eq_str(sink.attrs1, "db.statement=SELECT 1",
+        "single attr survives to the published span (trailing tab stripped by the row re-parse; see NOTE above)");
+    std::test::assert_eq_int(row_count(tr.open_buf), 1,
+        "child removed from the open buffer");
+    std::test::assert_eq_int(row_count(tr.completed_buf), 1,
+        "child stashed in the export buffer");
+
+    // ----- double end_span is a silent no-op -----
+    tr.end_span(child);
+    std::test::assert_eq_int(sink.count, 1,
+        "double end_span publishes nothing");
+    std::test::assert_eq_int(row_count(tr.completed_buf), 1,
+        "double end_span adds no export row");
+
+    // end_span on a never-opened id is also a no-op.
+    tr.end_span(trace::SpanId { id: "99" });
+    std::test::assert_eq_int(sink.count, 1,
+        "end_span on unknown id publishes nothing");
+
+    // ----- end root -----
+    tr.end_span(root);
+    std::test::assert_eq_int(sink.count, 2, "both spans completed");
+    std::test::assert_eq_str(sink.id2, "1", "root id completed second");
+    std::test::assert_eq_str(sink.parent2, "",
+        "root has the empty parent sentinel");
+    std::test::assert_eq_str(sink.name2, "request.handle", "root name");
+    std::test::assert_eq_str(sink.attrs2, "", "root has no attrs");
+    std::test::assert_eq_str(tr.open_buf, "",
+        "open buffer fully drained");
+    std::test::assert_eq_int(row_count(tr.completed_buf), 2,
+        "both spans await export");
+    std::test::assert(sink.times_ok,
+        "every span had start_ns > 0 and end_ns >= start_ns");
+
+    // ----- fresh spans keep counting monotonically -----
+    let third = tr.start_span("later", trace::SpanId { id: "" });
+    std::test::assert_eq_str(third.id, "3",
+        "ids never recycle after end_span");
+}

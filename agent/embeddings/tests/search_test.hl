@@ -1,0 +1,166 @@
+// search_test — Store add + top-k cosine search: exact-match id
+// ranks first, descending order, k > count truncation, empty-store
+// result, and the fallible surface (bad_k / dim_mismatch /
+// zero_magnitude) with error kinds captured via or-handler.
+
+import ".." as emb;
+import "../../../math/matrix" as mat;
+
+// Records the EmbError kind seen by an `or handler(err)` disposition.
+locus ErrProbe {
+    params { kind: String = ""; }
+    fn set_kind(k: String) {
+        self.kind = k;
+    }
+}
+
+fn rows_err(p: ErrProbe, e: emb::EmbError) -> emb::Rows {
+    p.set_kind(e.kind);
+    return emb::Rows { csv: "" };
+}
+
+fn near_eq(actual: Float, expected: Float, msg: String) {
+    let mut diff = actual - expected;
+    if diff < 0.0 {
+        diff = 0.0 - diff;
+    }
+    std::test::assert(diff < 0.000001, msg);
+}
+
+// Pull the `i`-th newline-separated row from `csv`; "" on OOR.
+fn nth_line(csv: String, i: Int) -> String {
+    let n = len(csv);
+    let mut start = 0;
+    let mut row_idx = 0;
+    let mut j = 0;
+    while j < n {
+        let ch = std::str::substring(csv, j, j + 1);
+        if ch == "\n" {
+            if row_idx == i {
+                return std::str::substring(csv, start, j);
+            }
+            row_idx = row_idx + 1;
+            start = j + 1;
+        }
+        j = j + 1;
+    }
+    if row_idx == i {
+        return std::str::substring(csv, start, n);
+    }
+    return "";
+}
+
+// id = first tab-separated field of row i.
+fn nth_id(csv: String, i: Int) -> String {
+    let row = nth_line(csv, i);
+    if len(row) == 0 {
+        return "";
+    }
+    let tab_at = std::str::index_of(row, "\t");
+    if tab_at < 0 {
+        return row;
+    }
+    return std::str::substring(row, 0, tab_at);
+}
+
+// score = second tab-separated field of row i, parsed as Float.
+fn nth_score(csv: String, i: Int) -> Float {
+    let row = nth_line(csv, i);
+    let t1 = std::str::index_of(row, "\t");
+    if t1 < 0 {
+        return -999.0;
+    }
+    let rest = std::str::substring(row, t1 + 1, len(row));
+    let t2 = std::str::index_of(rest, "\t");
+    if t2 < 0 {
+        return -999.0;
+    }
+    let s = std::str::substring(rest, 0, t2);
+    return std::str::parse_float(s) or -999.0;
+}
+
+// Number of newline-separated rows ("" = 0).
+fn line_count(csv: String) -> Int {
+    let n = len(csv);
+    if n == 0 {
+        return 0;
+    }
+    let mut count = 1;
+    let mut i = 0;
+    while i < n {
+        if std::str::substring(csv, i, i + 1) == "\n" {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+fn main() {
+    // Hand-built 3-dim vectors with unambiguous cosine ordering
+    // against query q = [1, 0, 0]:
+    //   a = [1, 0, 0]      cos = 1.0     (exact match)
+    //   c = [0.9, 0.1, 0]  cos ~ 0.99388
+    //   b = [0, 1, 0]      cos = 0.0
+    //   d = [-1, 0, 0]     cos = -1.0
+    let v_a = mat::from_rows(1, 3, "1.0, 0.0, 0.0");
+    let v_b = mat::from_rows(1, 3, "0.0, 1.0, 0.0");
+    let v_c = mat::from_rows(1, 3, "0.9, 0.1, 0.0");
+    let v_d = mat::from_rows(1, 3, "-1.0, 0.0, 0.0");
+    let q = mat::from_rows(1, 3, "1.0, 0.0, 0.0");
+    let q_short = mat::from_rows(1, 2, "1.0, 0.0");
+    let q_zero = mat::from_rows(1, 3, "0.0, 0.0, 0.0");
+
+    let store = emb::Store { dim: 3 };
+    std::test::assert_eq_int(store.count(), 0, "fresh store count 0");
+
+    // Empty-store search returns empty Rows (documented, not an error).
+    let empty_rows = store.search(q, 3) or emb::Rows { csv: "sentinel" };
+    std::test::assert_eq_str(empty_rows.csv, "", "empty store yields empty csv");
+
+    store.add("a", v_a, "exact") or discard;
+    store.add("b", v_b, "orthogonal") or discard;
+    store.add("c", v_c, "near") or discard;
+    store.add("d", v_d, "anti") or discard;
+    std::test::assert_eq_int(store.count(), 4, "count after 4 adds");
+
+    // Top-2: exact match first with score ~1.0, then the near vector.
+    let top2 = store.search(q, 2) or emb::Rows { csv: "" };
+    std::test::assert_eq_int(line_count(top2.csv), 2, "k=2 returns 2 rows");
+    std::test::assert_eq_str(nth_id(top2.csv, 0), "a", "exact match ranks first");
+    near_eq(nth_score(top2.csv, 0), 1.0, "exact match cosine is 1.0");
+    std::test::assert_eq_str(nth_id(top2.csv, 1), "c", "near vector ranks second");
+    std::test::assert(nth_score(top2.csv, 1) < 1.0, "second score below first");
+    std::test::assert(nth_score(top2.csv, 1) > 0.99, "near-vector cosine ~0.9939");
+
+    // k > count truncates to count; full descending order a, c, b, d.
+    let all = store.search(q, 10) or emb::Rows { csv: "" };
+    std::test::assert_eq_int(line_count(all.csv), 4, "k=10 truncates to count=4");
+    std::test::assert_eq_str(nth_id(all.csv, 0), "a", "rank 1 = a");
+    std::test::assert_eq_str(nth_id(all.csv, 1), "c", "rank 2 = c");
+    std::test::assert_eq_str(nth_id(all.csv, 2), "b", "rank 3 = b (orthogonal)");
+    std::test::assert_eq_str(nth_id(all.csv, 3), "d", "rank 4 = d (anti)");
+    near_eq(nth_score(all.csv, 2), 0.0, "orthogonal cosine is 0.0");
+    near_eq(nth_score(all.csv, 3), -1.0, "anti-parallel cosine is -1.0");
+
+    // Metadata rides along in the third field.
+    let row0 = nth_line(all.csv, 0);
+    std::test::assert_eq_str(row0, "a\t1\texact", "row format id\\tscore\\tmetadata");
+
+    // ---- fallible surface ----
+    let p1 = ErrProbe { };
+    let _r1 = store.search(q, 0) or rows_err(p1, err);
+    std::test::assert_eq_str(p1.kind, "bad_k", "k=0 fails with bad_k");
+
+    let p2 = ErrProbe { };
+    let _r2 = store.search(q_short, 2) or rows_err(p2, err);
+    std::test::assert_eq_str(p2.kind, "dim_mismatch", "short query fails with dim_mismatch");
+
+    let p3 = ErrProbe { };
+    let _r3 = store.search(q_zero, 2) or rows_err(p3, err);
+    std::test::assert_eq_str(p3.kind, "zero_magnitude", "zero query fails with zero_magnitude");
+
+    // add with wrong-dim vector fails and leaves count unchanged.
+    store.add("bad", q_short, "meta") or discard;
+    std::test::assert_eq_int(store.count(), 4, "failed add leaves count unchanged");
+}

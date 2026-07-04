@@ -1,0 +1,105 @@
+// train_step_test — one train_step from the fn main() frame returns
+// a finite positive MSE loss; repeated steps on the same fixed
+// sample reduce the loss; error surface (empty model, bad shapes).
+//
+// NOTE upstream heap-corruption bug family (FRICTION.log §
+// pond/ml/neural "method-frame-fresh locus args corrupt the heap"):
+// everything here runs directly in the fn main() frame — the
+// verified-safe shape. ADDITIONALLY (new repro found while writing
+// this test, 2026-07-04): a Matrix allocated AFTER the receiver
+// Model's @form(vec) buffer has grown (i.e. after add_dense) reads
+// back as all zeros inside that Model's METHOD frame (train_step) —
+// x.get(i) fails and `or 0.0` masks it — while free-fn frames
+// (forward) read the same Matrix fine. Workaround (matches the
+// xor-trainer example's ordering): create every input Matrix BEFORE
+// the first add_dense. Do not reorder the lets below.
+
+import "../../../math/matrix" as mat;
+import ".." as nn;
+
+fn near_eq(actual: Float, expected: Float, msg: String) {
+    let mut diff = actual - expected;
+    if diff < 0.0 {
+        diff = 0.0 - diff;
+    }
+    std::test::assert(diff < 0.000001, msg);
+}
+
+fn main() {
+    // ---- all input matrices FIRST (see ordering note above) ----
+    let x = mat::from_rows(2, 1, "1.0, 0.0");
+    let y = mat::from_rows(1, 1, "1.0");
+    let x3 = mat::from_rows(3, 1, "1.0, 2.0, 3.0");   // wrong input dim
+    let y2 = mat::from_rows(2, 1, "1.0, 0.0");        // wrong target dim
+
+    // ---- models after the matrices ----
+    // 2-3-1 sigmoid MLP, fixed seed for reproducibility; `fresh` is
+    // an identical twin kept untrained for the gradient check.
+    let model = nn::Model { name: "train", rng_state: 42 };
+    model.add_dense(2, 3, "sigmoid");
+    model.add_dense(3, 1, "sigmoid");
+    let fresh = nn::Model { name: "fresh", rng_state: 42 };
+    fresh.add_dense(2, 3, "sigmoid");
+    fresh.add_dense(3, 1, "sigmoid");
+    let empty = nn::Model { name: "empty" };
+
+    // First step: finite, positive loss (untrained net can't be exact).
+    let loss0 = model.train_step(x, y, 0.5) or -1.0;
+    std::test::assert(loss0 >= 0.0, "first train_step loss is not an error/negative");
+    std::test::assert(!std::math::is_nan(loss0), "first loss is not NaN");
+    std::test::assert(loss0 < 1.0, "MSE of sigmoid output vs 1.0 is < 1.0");
+    std::test::assert(loss0 > 0.0, "untrained loss is > 0");
+
+    // Gradient sanity: the step must have moved the layer-0 WEIGHTS
+    // (not just biases — a zeroed-input regression updates only
+    // biases; see the ordering note in the header).
+    let l0 = model.layer_at(0);
+    let lf = fresh.layer_at(0);
+    let w_trained = nn::load_weights(model, l0);
+    let w_fresh = nn::load_weights(fresh, lf);
+    let mut any_changed = false;
+    let mut wi = 0;
+    while wi < 6 {
+        let a = w_trained.get(wi) or 0.0;
+        let b = w_fresh.get(wi) or 0.0;
+        let mut d = a - b;
+        if d < 0.0 {
+            d = 0.0 - d;
+        }
+        if d > 0.0000000001 {
+            any_changed = true;
+        }
+        wi = wi + 1;
+    }
+    std::test::assert(any_changed, "train_step updated layer-0 weights");
+
+    // 50 more steps on the same sample: loss must go down.
+    let mut last = loss0;
+    let mut i = 0;
+    while i < 50 {
+        last = model.train_step(x, y, 0.5) or -1.0;
+        i = i + 1;
+    }
+    std::test::assert(last >= 0.0, "loss stays non-negative across steps");
+    std::test::assert(!std::math::is_nan(last), "loss stays finite across steps");
+    std::test::assert(last < loss0, "repeated steps on fixed sample reduce loss");
+
+    // Prediction moved toward the target y = 1.
+    let out = nn::forward(model, x) or mat::error_matrix();
+    std::test::assert(!mat::is_error(out), "forward after training succeeds");
+    let p = out.get(0) or -999.0;
+    std::test::assert(p > 0.5, "prediction pulled toward target 1.0");
+
+    // ---- fallible surface ----
+    // Empty model.
+    let e_loss = empty.train_step(x, y, 0.5) or -777.0;
+    near_eq(e_loss, -777.0, "train_step on empty model fails (empty_model)");
+
+    // Wrong input dim.
+    let bad_x = model.train_step(x3, y, 0.5) or -777.0;
+    near_eq(bad_x, -777.0, "train_step rejects wrong input dim");
+
+    // Wrong target dim.
+    let bad_y = model.train_step(x, y2, 0.5) or -777.0;
+    near_eq(bad_y, -777.0, "train_step rejects wrong target dim");
+}

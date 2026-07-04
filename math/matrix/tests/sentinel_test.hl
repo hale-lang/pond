@@ -1,0 +1,44 @@
+// sentinel_test — error sentinel on shape mismatch (matmul/add),
+// NaN sentinel on dot mismatch, is_error/is_nan predicates.
+
+import ".." as mat;
+
+fn main() {
+    let a = mat::zeros(2, 3);
+    let b = mat::zeros(2, 3);
+
+    // matmul shape mismatch: 2x3 @ 2x3 (inner dims 3 vs 2) -> error sentinel.
+    let bad = mat::matmul(a, b);
+    std::test::assert(mat::is_error(bad), "matmul shape mismatch yields error sentinel");
+
+    // Compatible matmul is NOT the sentinel.
+    let bt = mat::transpose(b);
+    let ok = mat::matmul(a, bt);
+    std::test::assert(!mat::is_error(ok), "compatible matmul is not error sentinel");
+
+    // add shape mismatch: 2x3 + 3x2.
+    let bad_add = mat::add(a, bt);
+    std::test::assert(mat::is_error(bad_add), "add shape mismatch yields error sentinel");
+    std::test::assert(!mat::is_error(mat::add(a, b)), "same-shape add is not error sentinel");
+
+    // error_matrix itself satisfies is_error.
+    std::test::assert(mat::is_error(mat::error_matrix()), "error_matrix() is_error");
+    std::test::assert(!mat::is_error(mat::zeros(1, 1)), "zeros(1,1) not is_error");
+
+    // dot length mismatch -> NaN sentinel.
+    let short = mat::zeros(1, 2);
+    let d = mat::dot(a, short);
+    std::test::assert(mat::is_nan(d), "dot length mismatch yields NaN sentinel");
+
+    // Well-shaped dot is not NaN.
+    let x = mat::from_rows(1, 3, "1.0, 2.0, 3.0");
+    let y = mat::from_rows(1, 3, "4.0, 5.0, 6.0");
+    let good = mat::dot(x, y);
+    std::test::assert(!mat::is_nan(good), "well-shaped dot is not NaN");
+    std::test::assert(good > 31.9, "dot value lower bound (32)");
+    std::test::assert(good < 32.1, "dot value upper bound (32)");
+
+    // nan_sentinel round-trips through is_nan.
+    std::test::assert(mat::is_nan(mat::nan_sentinel()), "nan_sentinel() is_nan");
+    std::test::assert(!mat::is_nan(0.0), "0.0 is not NaN");
+}

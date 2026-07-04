@@ -1,0 +1,90 @@
+// pond/_util/rowbuf/tests — nth_field, row_count, nth_row,
+// remove_row over the tab+newline row-buffer shape.
+
+import ".." as rb;
+
+fn main() {
+    let rbx = rb::RowBuf { };
+
+    // ---- nth_field ----
+    std::test::assert_eq_str(rbx.nth_field("a\tb\tc", 0), "a",
+        "nth_field 0");
+    std::test::assert_eq_str(rbx.nth_field("a\tb\tc", 1), "b",
+        "nth_field 1");
+    std::test::assert_eq_str(rbx.nth_field("a\tb\tc", 2), "c",
+        "nth_field 2 (last)");
+    std::test::assert_eq_str(rbx.nth_field("a\tb\tc", 3), "",
+        "nth_field out of range");
+    std::test::assert_eq_str(rbx.nth_field("", 0), "",
+        "nth_field on empty row");
+    std::test::assert_eq_str(rbx.nth_field("solo", 0), "solo",
+        "single-field row");
+    // Trailing \n is stripped from the last field only.
+    std::test::assert_eq_str(rbx.nth_field("a\tb\n", 1), "b",
+        "trailing newline stripped");
+    std::test::assert_eq_str(rbx.nth_field("a\tb\n", 0), "a",
+        "earlier field unaffected by trailing newline");
+    // Empty field between tabs.
+    std::test::assert_eq_str(rbx.nth_field("a\t\tc", 1), "",
+        "empty middle field");
+    std::test::assert_eq_str(rbx.nth_field("a\t\tc", 2), "c",
+        "field after empty field");
+
+    // ---- row_count ----
+    std::test::assert_eq_int(rbx.row_count(""), 0, "row_count empty");
+    std::test::assert_eq_int(rbx.row_count("only"), 1,
+        "row_count single row, no trailing newline");
+    std::test::assert_eq_int(rbx.row_count("only\n"), 1,
+        "trailing newline does not inflate count");
+    std::test::assert_eq_int(rbx.row_count("r1\nr2"), 2,
+        "row_count two rows");
+    std::test::assert_eq_int(rbx.row_count("r1\nr2\nr3\n"), 3,
+        "row_count three rows with trailing newline");
+
+    // ---- nth_row ----
+    let buf = "id1\ta\nid2\tb\nid3\tc";
+    std::test::assert_eq_str(rbx.nth_row(buf, 0), "id1\ta", "nth_row 0");
+    std::test::assert_eq_str(rbx.nth_row(buf, 1), "id2\tb", "nth_row 1");
+    std::test::assert_eq_str(rbx.nth_row(buf, 2), "id3\tc",
+        "nth_row last (no trailing newline)");
+    std::test::assert_eq_str(rbx.nth_row(buf, 3), "",
+        "nth_row out of range");
+    std::test::assert_eq_str(rbx.nth_row("", 0), "", "nth_row empty buf");
+    let buft = "id1\ta\nid2\tb\n";
+    std::test::assert_eq_str(rbx.nth_row(buft, 1), "id2\tb",
+        "nth_row last with trailing newline stripped");
+
+    // Row iteration: walk every row via row_count + nth_row and
+    // pull its first field.
+    let mut joined = "";
+    let n = rbx.row_count(buf);
+    let mut i = 0;
+    while i < n {
+        joined = joined + rbx.nth_field(rbx.nth_row(buf, i), 0);
+        i = i + 1;
+    }
+    std::test::assert_eq_str(joined, "id1id2id3",
+        "iterate rows by index, first fields in order");
+
+    // ---- remove_row ----
+    let full = "id1\ta\nid2\tb\nid3\tc\n";
+    std::test::assert_eq_str(rbx.remove_row(full, "id2"),
+        "id1\ta\nid3\tc\n", "remove middle row");
+    std::test::assert_eq_str(rbx.remove_row(full, "id1"),
+        "id2\tb\nid3\tc\n", "remove first row");
+    std::test::assert_eq_str(rbx.remove_row(full, "id3"),
+        "id1\ta\nid2\tb\n", "remove last row");
+    std::test::assert_eq_str(rbx.remove_row(full, "nope"), full,
+        "no match leaves buffer unchanged");
+    std::test::assert_eq_str(rbx.remove_row("", "id1"), "",
+        "remove on empty buffer");
+    // Single-row buffer without trailing newline empties out.
+    std::test::assert_eq_str(rbx.remove_row("id1\ta", "id1"), "",
+        "remove only row (no trailing newline)");
+    // Match is on the FIRST field only, not on substrings.
+    std::test::assert_eq_str(rbx.remove_row("x\tid2\nid2\ty\n", "id2"),
+        "x\tid2\n", "only first-field matches are removed");
+    // Count drops by one after removal.
+    std::test::assert_eq_int(rbx.row_count(rbx.remove_row(full, "id2")), 2,
+        "row_count reflects removal");
+}

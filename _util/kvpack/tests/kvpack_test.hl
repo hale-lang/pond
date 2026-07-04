@@ -1,0 +1,78 @@
+// pond/_util/kvpack/tests — set/get/has over the tab-separated
+// k=v wire shape: empty, single, multi, overwrite, absent keys,
+// and present-with-empty-value.
+
+import ".." as kv;
+
+fn main() {
+    let k = kv::KvPack { };
+
+    // ---- empty pack ----
+    std::test::assert_eq_str(k.get("", "user_id"), "",
+        "get on empty pack is \"\"");
+    std::test::assert(!k.has("", "user_id"), "has on empty pack is false");
+
+    // set on empty pack produces a bare pair (no leading tab).
+    std::test::assert_eq_str(k.set("", "a", "1"), "a=1",
+        "set on empty pack");
+
+    // ---- single + multi ----
+    let d1 = k.set("", "user_id", "42");
+    let d2 = k.set(d1, "role", "admin");
+    std::test::assert_eq_str(d2, "user_id=42\trole=admin",
+        "append keeps insertion order with tab separator");
+    std::test::assert_eq_str(k.get(d2, "user_id"), "42", "get first key");
+    std::test::assert_eq_str(k.get(d2, "role"), "admin", "get last key");
+    std::test::assert_eq_str(k.get(d2, "missing"), "", "get absent key");
+    std::test::assert(k.has(d2, "user_id"), "has first key");
+    std::test::assert(k.has(d2, "role"), "has last key");
+    std::test::assert(!k.has(d2, "missing"), "has absent key is false");
+
+    // Middle key in a 3-pair pack.
+    let d3 = k.set(d2, "team", "blue");
+    std::test::assert_eq_str(k.get(d3, "role"), "admin",
+        "get middle key of three");
+
+    // ---- overwrite semantics ----
+    // Overwrite replaces in place (position preserved, no dup).
+    let d4 = k.set(d3, "role", "user");
+    std::test::assert_eq_str(d4, "user_id=42\trole=user\tteam=blue",
+        "overwrite replaces pair in place");
+    std::test::assert_eq_str(k.get(d4, "role"), "user",
+        "get returns overwritten value");
+
+    // Overwriting the first and last keys.
+    std::test::assert_eq_str(k.set(d2, "user_id", "7"),
+        "user_id=7\trole=admin", "overwrite first pair");
+    std::test::assert_eq_str(k.set(d2, "role", "guest"),
+        "user_id=42\trole=guest", "overwrite last pair");
+
+    // ---- key-prefix discipline ----
+    // A key that is a prefix of another key must not match.
+    let dp = k.set(k.set("", "id", "1"), "identity", "2");
+    std::test::assert_eq_str(k.get(dp, "id"), "1",
+        "short key not shadowed by longer key");
+    std::test::assert_eq_str(k.get(dp, "identity"), "2",
+        "long key found after short prefix key");
+    std::test::assert(!k.has(dp, "ident"), "prefix of a key is absent");
+
+    // Value may contain '=' — split is on the first '='.
+    std::test::assert_eq_str(k.get("expr=a=b", "expr"), "a=b",
+        "value keeps embedded '='");
+
+    // ---- present-with-empty-value ----
+    let de = k.set(d2, "note", "");
+    std::test::assert_eq_str(k.get(de, "note"), "",
+        "empty value reads back as \"\"");
+    std::test::assert(k.has(de, "note"),
+        "has distinguishes empty value from absent");
+    std::test::assert(!k.has(de, "missing"),
+        "absent key still false alongside empty-value key");
+
+    // Empty-value pair in the middle of the pack.
+    let dem = k.set(de, "zz", "9");
+    std::test::assert(k.has(dem, "note"),
+        "empty-value key found mid-pack");
+    std::test::assert_eq_str(k.get(dem, "zz"), "9",
+        "pair after empty-value pair still reachable");
+}

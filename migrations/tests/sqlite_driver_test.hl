@@ -1,0 +1,103 @@
+// pond/migrations tests — the SqliteDriver adapter (the
+// db::DbDriver face of pond/sqlite that Migrator runs on).
+// Everything here is the ok/err-packed NON-fallible interface
+// surface, so no `or` dispositions are needed:
+//
+//   - backend() / open() connectivity check
+//   - exec / query_one / query_all happy paths
+//   - $N-placeholder exec_params / query_params over db::Args
+//     (including a NULL arg)
+//   - error mapping into db::DbError kinds ("no_row",
+//     "exec_failed", "constraint")
+//   - begin / commit / rollback + tx_status tracking
+//
+// Run:
+//   C_INCLUDE_PATH=$HOME/.local/include LIBRARY_PATH=$HOME/.local/lib \
+//     hale test migrations/
+
+import ".." as migs;
+import "../../sqlite" as sqlite;
+import "../../db" as db;
+
+fn main() {
+    let path = "/tmp/pond_test_migrations_driver.db";
+    std::io::fs::unlink(path) or discard;
+
+    let conn = sqlite::Db { path: path };
+    let d = migs::SqliteDriver { conn: conn };
+
+    std::test::assert_eq_str(d.backend(), "sqlite", "backend tag");
+    std::test::assert(d.open().ok, "open() connectivity check passes");
+
+    // ---- exec + query happy paths ----
+    let c = d.exec("CREATE TABLE t (k TEXT PRIMARY KEY, v TEXT)");
+    std::test::assert(c.ok, "CREATE TABLE ok");
+    let i1 = d.exec("INSERT INTO t (k, v) VALUES ('a', '1')");
+    std::test::assert(i1.ok, "INSERT ok");
+    std::test::assert_eq_int(i1.rows_affected, 1, "INSERT affects 1 row");
+    std::test::assert(i1.last_insert_rowid >= 1, "INSERT reports rowid");
+
+    let r = d.query_one("SELECT k, v FROM t WHERE k = 'a'");
+    std::test::assert(r.ok, "query_one ok");
+    std::test::assert_eq_str(r.data, "a\t1", "query_one tab-separated data");
+
+    // ---- parameterized surface ($N placeholders + Args) ----
+    let ins = db::Args { };
+    ins.add("b");
+    ins.add("2");
+    let p1 = d.exec_params("INSERT INTO t (k, v) VALUES ($1, $2)", ins);
+    std::test::assert(p1.ok, "exec_params ok");
+    std::test::assert_eq_int(p1.rows_affected, 1, "exec_params affects 1 row");
+
+    // NULL arg binds as SQL NULL (unbound parameter).
+    let insn = db::Args { };
+    insn.add("c");
+    insn.add_null();
+    let p2 = d.exec_params("INSERT INTO t (k, v) VALUES ($1, $2)", insn);
+    std::test::assert(p2.ok, "exec_params with NULL ok");
+    let nullrow = d.query_one("SELECT count(*) FROM t WHERE k = 'c' AND v IS NULL");
+    std::test::assert_eq_str(nullrow.data, "1", "add_null lands as SQL NULL");
+
+    let sel = db::Args { };
+    sel.add("b");
+    let q = d.query_params("SELECT k, v FROM t WHERE k = $1", sel);
+    std::test::assert(q.ok, "query_params ok");
+    std::test::assert_eq_int(q.n, 1, "query_params row count");
+    std::test::assert_eq_str(q.csv, "b\t2", "query_params row data");
+
+    let all = d.query_all("SELECT k FROM t ORDER BY k");
+    std::test::assert(all.ok, "query_all ok");
+    std::test::assert_eq_int(all.n, 3, "query_all counts rows");
+    std::test::assert_eq_str(all.csv, "a\nb\nc", "query_all newline rows");
+
+    // ---- error mapping into db::DbError kinds ----
+    let none = d.query_one("SELECT v FROM t WHERE k = 'missing'");
+    std::test::assert(!none.ok, "zero-row query_one not ok");
+    std::test::assert_eq_str(none.err.kind, "no_row", "maps to no_row");
+
+    let bad = d.exec("THIS IS NOT SQL");
+    std::test::assert(!bad.ok, "bad SQL not ok");
+    std::test::assert_eq_str(bad.err.kind, "exec_failed", "maps to exec_failed");
+
+    let dup = d.exec("INSERT INTO t (k, v) VALUES ('a', 'dupe')");
+    std::test::assert(!dup.ok, "duplicate pk not ok");
+    std::test::assert_eq_str(dup.err.kind, "constraint", "maps to constraint");
+    std::test::assert_eq_int(dup.err.engine_code, 19, "carries SQLITE_CONSTRAINT");
+
+    // ---- transactions + tx_status tracking ----
+    std::test::assert_eq_str(d.tx_status(), "idle", "starts idle");
+    std::test::assert(d.begin().ok, "BEGIN ok");
+    std::test::assert_eq_str(d.tx_status(), "in_tx", "in_tx after begin");
+    let _ = d.exec("INSERT INTO t (k, v) VALUES ('tx', 'yes')");
+    std::test::assert(d.commit().ok, "COMMIT ok");
+    std::test::assert_eq_str(d.tx_status(), "idle", "idle after commit");
+    let committed = d.query_one("SELECT v FROM t WHERE k = 'tx'");
+    std::test::assert_eq_str(committed.data, "yes", "committed row visible");
+
+    std::test::assert(d.begin().ok, "second BEGIN ok");
+    let _ = d.exec("INSERT INTO t (k, v) VALUES ('rb', 'no')");
+    std::test::assert(d.rollback().ok, "ROLLBACK ok");
+    std::test::assert_eq_str(d.tx_status(), "idle", "idle after rollback");
+    let gone = d.query_one("SELECT count(*) FROM t WHERE k = 'rb'");
+    std::test::assert_eq_str(gone.data, "0", "rolled-back row gone");
+}

@@ -1,0 +1,68 @@
+// pond/http/client/tests — parse_url: scheme/host/port/path splits,
+// scheme-default ports, and structured bad_url failures.
+
+import ".." as http;
+
+// or-handler for parse failures: encode err.kind into the scheme
+// slot so main can assert on it. A successful parse never produces
+// a scheme starting with "ERR:".
+fn url_err(e: http::HttpError) -> http::Url {
+    return http::Url { scheme: "ERR:" + e.kind, host: "", port: 0, path: "" };
+}
+
+fn main() {
+    // Bare host: default port 80 + path "/".
+    let u1 = http::parse_url("http://example.com") or url_err(err);
+    std::test::assert_eq_str(u1.scheme, "http", "u1 scheme");
+    std::test::assert_eq_str(u1.host, "example.com", "u1 host");
+    std::test::assert_eq_int(u1.port, 80, "u1 default http port");
+    std::test::assert_eq_str(u1.path, "/", "u1 default path");
+
+    // https default port.
+    let u2 = http::parse_url("https://example.com") or url_err(err);
+    std::test::assert_eq_str(u2.scheme, "https", "u2 scheme");
+    std::test::assert_eq_int(u2.port, 443, "u2 default https port");
+
+    // Explicit port + multi-segment path.
+    let u3 = http::parse_url("https://api.example.com:8443/v1/items") or url_err(err);
+    std::test::assert_eq_str(u3.host, "api.example.com", "u3 host");
+    std::test::assert_eq_int(u3.port, 8443, "u3 explicit port");
+    std::test::assert_eq_str(u3.path, "/v1/items", "u3 path");
+
+    // Query string rides along in path.
+    let u4 = http::parse_url("http://example.com:8080/a/b?q=1&r=2") or url_err(err);
+    std::test::assert_eq_int(u4.port, 8080, "u4 port");
+    std::test::assert_eq_str(u4.path, "/a/b?q=1&r=2", "u4 path keeps query");
+
+    // Port without path.
+    let u5 = http::parse_url("http://localhost:3000") or url_err(err);
+    std::test::assert_eq_str(u5.host, "localhost", "u5 host");
+    std::test::assert_eq_int(u5.port, 3000, "u5 port");
+    std::test::assert_eq_str(u5.path, "/", "u5 default path");
+
+    // Scheme-relative shorthand //host/path -> http.
+    let u6 = http::parse_url("//example.com/x") or url_err(err);
+    std::test::assert_eq_str(u6.scheme, "http", "u6 shorthand scheme");
+    std::test::assert_eq_int(u6.port, 80, "u6 shorthand port");
+    std::test::assert_eq_str(u6.path, "/x", "u6 shorthand path");
+
+    // ---- failures: every reject is kind == "bad_url" ----
+
+    let f1 = http::parse_url("") or url_err(err);
+    std::test::assert_eq_str(f1.scheme, "ERR:bad_url", "empty url rejected");
+
+    let f2 = http::parse_url("example.com/x") or url_err(err);
+    std::test::assert_eq_str(f2.scheme, "ERR:bad_url", "missing scheme rejected");
+
+    let f3 = http::parse_url("http://") or url_err(err);
+    std::test::assert_eq_str(f3.scheme, "ERR:bad_url", "missing host rejected");
+
+    let f4 = http::parse_url("http://example.com:notaport/x") or url_err(err);
+    std::test::assert_eq_str(f4.scheme, "ERR:bad_url", "non-numeric port rejected");
+
+    let f5 = http::parse_url("http://:8080/x") or url_err(err);
+    std::test::assert_eq_str(f5.scheme, "ERR:bad_url", "empty host with port rejected");
+
+    let f6 = http::parse_url("http://example.com:0/x") or url_err(err);
+    std::test::assert_eq_str(f6.scheme, "ERR:bad_url", "port 0 rejected");
+}

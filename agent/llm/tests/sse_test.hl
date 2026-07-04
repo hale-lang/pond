@@ -1,0 +1,107 @@
+// sse_test — SSE frame buffer (feed_chunk / next_data_line) incl.
+// split-across-chunks frames and both end-of-stream sentinels, plus
+// the vendor delta / stop-reason extractors.
+
+import ".." as llm;
+
+fn main() {
+    // ----- one complete frame in one chunk ------------------------------
+    let mut buf = llm::SseBuffer { };
+    buf = llm::feed_chunk(buf, std::bytes::from_string("data: {\"a\":1}\n\n"));
+    let r1 = llm::next_data_line(buf);
+    std::test::assert(r1.has_line, "complete frame yields a data line");
+    std::test::assert_eq_str(r1.line, "{\"a\":1}",
+        "data payload extracted (leading space trimmed)");
+    std::test::assert(!r1.remaining.done, "plain data frame is not end-of-stream");
+    let r1b = llm::next_data_line(r1.remaining);
+    std::test::assert(!r1b.has_line, "buffer drained after one frame");
+
+    // no-space variant: "data:X" is also a valid SSE line.
+    let mut nb = llm::SseBuffer { };
+    nb = llm::feed_chunk(nb, std::bytes::from_string("data:X\n\n"));
+    let rn = llm::next_data_line(nb);
+    std::test::assert(rn.has_line, "no-space data line yields a line");
+    std::test::assert_eq_str(rn.line, "X", "no-space data payload kept verbatim");
+
+    // ----- frame split across two chunks --------------------------------
+    let mut sb = llm::SseBuffer { };
+    sb = llm::feed_chunk(sb, std::bytes::from_string("data: {\"x\":"));
+    let rs1 = llm::next_data_line(sb);
+    std::test::assert(!rs1.has_line, "incomplete frame yields no line yet");
+    sb = llm::feed_chunk(sb, std::bytes::from_string("2}\n\n"));
+    let rs2 = llm::next_data_line(sb);
+    std::test::assert(rs2.has_line, "frame completes after second chunk");
+    std::test::assert_eq_str(rs2.line, "{\"x\":2}",
+        "split payload reassembled across chunks");
+
+    // ----- two frames in one chunk pop in order --------------------------
+    let mut tb = llm::SseBuffer { };
+    tb = llm::feed_chunk(tb, std::bytes::from_string("data: A\n\ndata: B\n\n"));
+    let t1 = llm::next_data_line(tb);
+    std::test::assert(t1.has_line, "first of two frames pops");
+    std::test::assert_eq_str(t1.line, "A", "first frame payload");
+    let t2 = llm::next_data_line(t1.remaining);
+    std::test::assert(t2.has_line, "second frame pops from remaining");
+    std::test::assert_eq_str(t2.line, "B", "second frame payload");
+
+    // event: line rides alongside data: in the same frame.
+    let mut eb = llm::SseBuffer { };
+    eb = llm::feed_chunk(eb,
+        std::bytes::from_string("event: content_block_delta\ndata: {\"k\":1}\n\n"));
+    let re = llm::next_data_line(eb);
+    std::test::assert(re.has_line, "event+data frame yields the data line");
+    std::test::assert_eq_str(re.line, "{\"k\":1}", "data payload beside event line");
+    std::test::assert(!re.remaining.done,
+        "non-terminal event kind does not end the stream");
+
+    // ----- OpenAI [DONE] sentinel ----------------------------------------
+    let mut db = llm::SseBuffer { };
+    db = llm::feed_chunk(db, std::bytes::from_string("data: [DONE]\n\n"));
+    let rd = llm::next_data_line(db);
+    std::test::assert(!rd.has_line, "[DONE] sentinel is not a delta");
+    std::test::assert(rd.remaining.done, "[DONE] marks end-of-stream");
+    // done is sticky: further chunks are ignored, no more lines.
+    let after = llm::feed_chunk(rd.remaining,
+        std::bytes::from_string("data: late\n\n"));
+    let rl = llm::next_data_line(after);
+    std::test::assert(!rl.has_line, "no lines after [DONE]");
+    std::test::assert(rl.remaining.done, "done stays sticky");
+
+    // ----- Anthropic message_stop sentinel --------------------------------
+    let mut mb = llm::SseBuffer { };
+    mb = llm::feed_chunk(mb,
+        std::bytes::from_string("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"));
+    let rm = llm::next_data_line(mb);
+    std::test::assert(rm.remaining.done, "message_stop marks end-of-stream");
+
+    // ----- vendor delta extractors -----------------------------------------
+    let a_delta = "{\"type\":\"content_block_delta\",\"index\":0,"
+        + "\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}";
+    std::test::assert_eq_str(llm::extract_anthropic_delta(a_delta), "Hello",
+        "anthropic content_block_delta text extracted");
+    std::test::assert_eq_str(llm::extract_anthropic_delta("{\"type\":\"ping\"}"), "",
+        "anthropic non-delta events filtered out");
+
+    let o_delta = "{\"id\":\"x\",\"object\":\"chat.completion.chunk\","
+        + "\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hi\"},"
+        + "\"finish_reason\":null}]}";
+    std::test::assert_eq_str(llm::extract_openai_delta(o_delta), "Hi",
+        "openai choices[0].delta.content extracted");
+    let o_role = "{\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"}}]}";
+    std::test::assert_eq_str(llm::extract_openai_delta(o_role), "",
+        "openai role-announcement chunk yields empty delta");
+
+    // ----- stop-reason extractors -------------------------------------------
+    let a_stop = "{\"type\":\"message_delta\","
+        + "\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},"
+        + "\"usage\":{\"output_tokens\":15}}";
+    std::test::assert_eq_str(llm::extract_anthropic_stop_reason(a_stop), "end_turn",
+        "anthropic message_delta stop_reason extracted");
+    std::test::assert_eq_str(llm::extract_anthropic_stop_reason(a_delta), "",
+        "anthropic non-message_delta yields no stop reason");
+
+    let o_stop = "{\"choices\":[{\"index\":0,\"delta\":{},"
+        + "\"finish_reason\":\"stop\"}]}";
+    std::test::assert_eq_str(llm::extract_openai_stop_reason(o_stop), "stop",
+        "openai finish_reason extracted from final chunk");
+}

@@ -1,0 +1,49 @@
+// quantile_test — type-7 (R default) linear-interpolated quantile
+// on a known vector, plus the fallible surface (empty / q out of
+// range fail with StatsError).
+//
+// Sorted [1, 2, 3, 4], h = q*(N-1) = q*3:
+//   q=0.0  -> h=0.0  -> 1.0
+//   q=0.25 -> h=0.75 -> 1 + 0.75*(2-1) = 1.75
+//   q=0.5  -> h=1.5  -> 2 + 0.5*(3-2)  = 2.5
+//   q=1.0  -> h=3.0  -> 4.0
+
+import ".." as stats;
+import "../../matrix" as mat;
+
+fn near_eq(actual: Float, expected: Float, msg: String) {
+    let mut diff = actual - expected;
+    if diff < 0.0 {
+        diff = 0.0 - diff;
+    }
+    std::test::assert(diff < 0.000001, msg);
+}
+
+fn main() {
+    // Deliberately unsorted input — quantile must sort a scratch copy.
+    let xs = mat::from_rows(1, 4, "3.0, 1.0, 4.0, 2.0");
+
+    near_eq(stats::quantile(xs, 0.0) or -999.0, 1.0, "q=0.0 is min");
+    near_eq(stats::quantile(xs, 0.25) or -999.0, 1.75, "q=0.25 type-7 interpolation");
+    near_eq(stats::quantile(xs, 0.5) or -999.0, 2.5, "q=0.5 median of even N");
+    near_eq(stats::quantile(xs, 1.0) or -999.0, 4.0, "q=1.0 is max");
+
+    // Odd-N exact order statistic: [2,4,4,4,6] median = 4.
+    let odd = mat::from_rows(1, 5, "2.0, 4.0, 4.0, 4.0, 6.0");
+    near_eq(stats::quantile(odd, 0.5) or -999.0, 4.0, "odd-N median hits order statistic");
+
+    // quantile does NOT mutate its input (copies to a scratch).
+    near_eq(xs.get(0) or -999.0, 3.0, "input[0] unchanged after quantile");
+    near_eq(xs.get(1) or -999.0, 1.0, "input[1] unchanged after quantile");
+
+    // Fallible surface: empty input fails.
+    let empty = mat::zeros(0, 0);
+    let e1 = stats::quantile(empty, 0.5) or -999.0;
+    near_eq(e1, -999.0, "quantile on empty routes to fallible channel");
+
+    // q outside [0, 1] fails both directions.
+    let e2 = stats::quantile(xs, 1.5) or -999.0;
+    near_eq(e2, -999.0, "q > 1 routes to fallible channel");
+    let e3 = stats::quantile(xs, -0.1) or -999.0;
+    near_eq(e3, -999.0, "q < 0 routes to fallible channel");
+}

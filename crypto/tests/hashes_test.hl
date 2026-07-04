@@ -1,0 +1,80 @@
+// pond/crypto/tests — SHA-256/512 + HMAC known-answer vectors
+// (FIPS 180-2 appendix B / RFC 4231) and constant_time_eq.
+
+import ".." as crypto;
+
+fn main() {
+    // ---- SHA-256 ----
+    let abc = std::bytes::from_string("abc");
+    std::test::assert_eq_str(crypto::hex_encode(crypto::sha256(abc)),
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "sha256(abc) FIPS 180-2 B.1");
+    let empty = std::bytes::from_string("");
+    std::test::assert_eq_str(crypto::hex_encode(crypto::sha256(empty)),
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "sha256 of empty input");
+
+    // ---- SHA-512 ----
+    std::test::assert_eq_str(crypto::hex_encode(crypto::sha512(abc)),
+        "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+        "sha512(abc) FIPS 180-2 C.1");
+    std::test::assert_eq_str(crypto::hex_encode(crypto::sha512(empty)),
+        "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+        "sha512 of empty input");
+
+    // ---- HMAC — RFC 4231 test case 2 (key "Jefe") ----
+    let key = std::bytes::from_string("Jefe");
+    let msg = std::bytes::from_string("what do ya want for nothing?");
+    std::test::assert_eq_str(
+        crypto::hex_encode(crypto::hmac_sha256(key, msg)),
+        "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843",
+        "hmac_sha256 RFC 4231 TC2");
+    std::test::assert_eq_str(
+        crypto::hex_encode(crypto::hmac_sha512(key, msg)),
+        "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737",
+        "hmac_sha512 RFC 4231 TC2");
+
+    // HMAC is keyed: a different key must move the tag.
+    let key2 = std::bytes::from_string("Jeff");
+    std::test::assert(
+        !crypto::constant_time_eq(crypto::hmac_sha256(key, msg),
+            crypto::hmac_sha256(key2, msg)),
+        "hmac_sha256 differs under a different key");
+
+    // ---- constant_time_eq ----
+    let a = std::bytes::from_string("hello");
+    let b = std::bytes::from_string("hello");
+    let z = std::bytes::from_string("world");
+    std::test::assert(crypto::constant_time_eq(a, b),
+        "equal bytes compare true");
+    std::test::assert(!crypto::constant_time_eq(a, z),
+        "same-length different bytes compare false");
+    // Length mismatch short-circuits false.
+    let short = std::bytes::from_string("hell");
+    std::test::assert(!crypto::constant_time_eq(a, short),
+        "length mismatch compares false");
+    std::test::assert(!crypto::constant_time_eq(short, a),
+        "length mismatch is symmetric");
+    // Empty vs empty is equal.
+    let e1 = std::bytes::from_string("");
+    let e2 = std::bytes::from_string("");
+    std::test::assert(crypto::constant_time_eq(e1, e2),
+        "empty == empty");
+    // Single differing byte anywhere flips the result (last byte).
+    let x1 = std::bytes::from_string("aaaa");
+    let x2 = std::bytes::from_string("aaab");
+    std::test::assert(!crypto::constant_time_eq(x1, x2),
+        "difference in final byte detected");
+
+    // ---- random_bytes ----
+    let r = crypto::random_bytes(16);
+    std::test::assert_eq_int(len(r), 16, "random_bytes(16) length");
+    std::test::assert_eq_int(len(crypto::random_bytes(0)), 0,
+        "random_bytes(0) is empty");
+    // 32 fresh bytes colliding is astronomically unlikely — use as
+    // a sanity check that output isn't constant.
+    let r1 = crypto::random_bytes(32);
+    let r2 = crypto::random_bytes(32);
+    std::test::assert(!crypto::constant_time_eq(r1, r2),
+        "two random_bytes(32) draws differ");
+}

@@ -1,0 +1,104 @@
+// pond/jobs tests — Queue state machine over the REAL pond/sqlite
+// driver (temp-file db):
+//
+//   - enqueue returns a row id >= 1
+//   - dequeue claims that job (id / kind / payload / attempts match)
+//   - ack flips it to done; the queue is then empty (kind "empty")
+//   - fail(retry=true) re-readies it with attempt+1
+//   - fail(retry=false) dead-letters it (state 'failed', not
+//     dequeuable)
+//   - ack of a non-in-flight id -> kind "not_found"
+//
+// Per the no-transitive-deps rule (and [ffi] auto-pickup scanning
+// DIRECT imports only) this test imports pond/sqlite itself.
+//
+// Run:
+//   C_INCLUDE_PATH=$HOME/.local/include LIBRARY_PATH=$HOME/.local/lib \
+//     hale test jobs/
+
+import ".." as jobs;
+import "../../sqlite" as sqlite;
+
+// Rec — records the last JobError kind seen by a handler (the
+// silent counterpart of email-worker's `note`).
+locus Rec {
+    params { kind: String = ""; }
+    fn on_int(e: jobs::JobError) -> Int {
+        self.kind = e.kind;
+        return -1;
+    }
+    fn on_job(e: jobs::JobError) -> jobs::Job {
+        self.kind = e.kind;
+        return jobs::Job { id: -1 };
+    }
+    fn on_unit(e: jobs::JobError) {
+        self.kind = e.kind;
+    }
+    fn take() -> String {
+        let k = self.kind;
+        self.kind = "";
+        return k;
+    }
+}
+
+fn main() {
+    let path = "/tmp/pond_test_jobs_queue.db";
+    std::io::fs::unlink(path) or discard;
+
+    let conn = sqlite::Db { path: path };
+    // Queue.birth() runs the idempotent schema bringup.
+    let q = jobs::Queue { db: conn };
+    let rec = Rec { };
+
+    // ---- enqueue -> dequeue round trip ----
+    let id1 = q.enqueue("send_email", "to=a@example.com", 3) or rec.on_int(err);
+    std::test::assert_eq_str(rec.take(), "", "enqueue succeeds");
+    std::test::assert(id1 >= 1, "enqueue returns id >= 1");
+
+    let j1 = q.dequeue() or rec.on_job(err);
+    std::test::assert_eq_str(rec.take(), "", "dequeue succeeds");
+    std::test::assert_eq_int(j1.id, id1, "dequeued id matches enqueue");
+    std::test::assert_eq_str(j1.kind, "send_email", "kind round-trips");
+    std::test::assert_eq_str(j1.payload, "to=a@example.com", "payload round-trips");
+    std::test::assert_eq_int(j1.attempt, 0, "fresh job is attempt 0");
+    std::test::assert_eq_int(j1.max_attempts, 3, "max_attempts round-trips");
+
+    // ---- ack flips in_flight -> done; queue drains ----
+    q.ack(j1.id) or rec.on_unit(err);
+    std::test::assert_eq_str(rec.take(), "", "ack succeeds");
+    let j2 = q.dequeue() or rec.on_job(err);
+    std::test::assert_eq_str(rec.take(), "empty", "acked queue dequeues empty");
+    std::test::assert_eq_int(j2.id, -1, "empty dequeue substitutes sentinel");
+    let done = conn.query_one(
+        "SELECT state FROM pond_jobs WHERE id = " + to_string(id1)
+    ) or sqlite::Row { data: "ERR" };
+    std::test::assert_eq_str(done.data, "done", "acked row is state done");
+
+    // ---- fail(retry=true): back to ready with attempt+1 ----
+    let id2 = q.enqueue("send_fax", "to=nobody", 2) or rec.on_int(err);
+    std::test::assert(id2 > id1, "ids ascend");
+    let j3 = q.dequeue() or rec.on_job(err);
+    std::test::assert_eq_int(j3.id, id2, "claimed the new job");
+    q.fail(j3.id, true) or rec.on_unit(err);
+    std::test::assert_eq_str(rec.take(), "", "fail(retry) succeeds");
+    let j4 = q.dequeue() or rec.on_job(err);
+    std::test::assert_eq_int(j4.id, id2, "retried job is dequeuable again");
+    std::test::assert_eq_int(j4.attempt, 1, "retry incremented attempt");
+
+    // ---- fail(retry=false): dead-letter ----
+    q.fail(j4.id, false) or rec.on_unit(err);
+    std::test::assert_eq_str(rec.take(), "", "fail(dead-letter) succeeds");
+    let j5 = q.dequeue() or rec.on_job(err);
+    std::test::assert_eq_str(rec.take(), "empty", "dead-lettered job not dequeuable");
+    std::test::assert_eq_int(j5.id, -1, "dead-letter dequeue substitutes sentinel");
+    let dead = conn.query_one(
+        "SELECT state, attempt FROM pond_jobs WHERE id = " + to_string(id2)
+    ) or sqlite::Row { data: "ERR" };
+    std::test::assert_eq_str(dead.data, "failed\t1", "dead-letter row keeps attempt count");
+
+    // ---- ack/fail on a non-in-flight id -> not_found ----
+    q.ack(99999) or rec.on_unit(err);
+    std::test::assert_eq_str(rec.take(), "not_found", "ack of unknown id fails not_found");
+    q.fail(id1, true) or rec.on_unit(err);
+    std::test::assert_eq_str(rec.take(), "not_found", "fail of a done row fails not_found");
+}
