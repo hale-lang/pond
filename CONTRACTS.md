@@ -477,6 +477,8 @@ locus Client {                          // pooled-connection client
 ```hale
 fn hmac_sha256(key: Bytes, message: Bytes) -> Bytes;
 fn sha256(input: Bytes) -> Bytes;
+fn hmac_sha512(key: Bytes, message: Bytes) -> Bytes;  // 2026-07-04 —
+fn sha512(input: Bytes) -> Bytes;                     //  additive, over std::crypto
 fn random_bytes(n: Int) -> Bytes;       // CSPRNG via getrandom(2)
 fn constant_time_eq(a: Bytes, b: Bytes) -> Bool;
 fn hex_encode(b: Bytes) -> String;

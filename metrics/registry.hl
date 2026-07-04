@@ -61,11 +61,14 @@ locus Registry {
     // Histogram.observe + Registry.render) is unchanged.
 
     // `render() -> String` — emit Prometheus text exposition
-    // format. Iterates store in hash-table order (deterministic
-    // per `spec/forms.md § @form(hashmap)` `key_at`). One
-    // `# TYPE` line per series, then one sample line; for
-    // histograms, the `_bucket` / `_sum` / `_count` triple
-    // with the per-bucket `le="..."` label.
+    // format. Iterates store in hash-table order via the
+    // `for e in map.entries` form-iteration surface (hale ≥
+    // 400ac68; slot-cursor walk, O(cap) for the full pass —
+    // the old `key_at(i)` + `get(k)` pair rescanned from slot
+    // 0 per element, O(cap×len)). One `# TYPE` line per
+    // series, then one sample line; for histograms, the
+    // `_bucket` / `_sum` / `_count` triple with the per-bucket
+    // `le="..."` label.
     // Exposition build via BytesBuilder. The previous `out = out
     // + render_*(...)` loop forced the method-scratch arena to
     // hold N intermediate Strings (one per metric line) before
@@ -83,11 +86,7 @@ locus Registry {
     // O(M²) to O(M) bytes.
     fn render() -> String {
         let b = std::bytes::BytesBuilder { initial_cap: 8192 };
-        let n = self.store.len();
-        let mut i = 0;
-        while i < n {
-            let k = self.store.key_at(i) or "";
-            let e = self.store.get(k) or MetricEntry { };
+        for e in self.store.entries {
             if e.kind == 0 {
                 b.append(std::bytes::from_string(render_type_line(self.namespace, e.name, "counter")));
                 b.append(std::bytes::from_string(render_sample(self.namespace, e.name, e.labels, e.value)));
@@ -99,7 +98,6 @@ locus Registry {
                 let h = self.histograms.get(e.hist_idx) or HistogramData { };
                 b.append(std::bytes::from_string(render_histogram(self.namespace, h)));
             }
-            i = i + 1;
         }
         return std::str::from_bytes(b.finish());
     }

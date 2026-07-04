@@ -39,7 +39,7 @@ apps, other `_util` libs, and tier libs — since upstream WS3.4
 
 | Path | What it is | Suggested alias |
 |------|------------|------|
-| `_util/intfloat/` | Int ↔ Float ASCII-roundtrip bridge | `intf` |
+| `_util/intfloat/` | Int ↔ Float bridge — **deprecated** (use `std::math::{int_to_float,float_to_int,round,trunc}`) | `intf` |
 | `_util/decimal_float/` | Decimal ↔ Float bridge (matrix emission + wire-format) | `decf` |
 | `_util/duration_int/` | `Duration → Int` ns + monotonic-seconds helpers | `durint` |
 | `_util/kvpack/` | Tab-separated `k1=v1\tk2=v2` walker (get/set/has) | `kv` |
@@ -50,7 +50,7 @@ apps, other `_util` libs, and tier libs — since upstream WS3.4
 | Path | What it is | Suggested alias |
 |------|------------|------|
 | `http/client/` | HTTP/1.1 client (pool, retry, fallible(IoError)) | `http` |
-| `crypto/` | HMAC-SHA256, SHA-256, CSPRNG, hex | `crypto` |
+| `crypto/` | HMAC-SHA256/512, SHA-256/512, CSPRNG, hex | `crypto` |
 | `subprocess/` | fork/exec wrapper with pipes + timeout | `sub` |
 | `math/matrix/` | Dense matrix + matmul + linalg primitives | `mat` |
 | `math/stats/` | Mean, var, quantile, online moments | `stats` |

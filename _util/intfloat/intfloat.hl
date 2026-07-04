@@ -1,14 +1,16 @@
-// pond/_util/intfloat — Int <-> Float ASCII roundtrip bridge.
+// pond/_util/intfloat — Int <-> Float bridge. **DEPRECATED
+// 2026-07-04** — upstream now ships the whole surface natively:
+// `std::math::int_to_float` / `float_to_int` (2026-06-11) and
+// `std::math::round` / `trunc` (2026-06-14). New code should
+// call std::math directly; this lotus remains as thin delegates
+// for already-vendored consumers (zero in-tree consumers left).
 //
-// Consolidates the `int_to_float(n: Int) -> Float` helper that
-// every numeric pond lib has had to write locally because v1
-// spec/design-rationale.md F.23 (Int -> Float widening) is
-// under-implemented in many positions: `let f: Float = i;`
-// rejects in many positions, `0.0 + n` (binary-op promotion)
-// rejects, and `Int(g)` only goes Float -> Int.
-//
-// See pond/KNOWN_GOTCHAS.md G30 for the gap, and
-// FRICTION.log for the original surfacing.
+// Historical: consolidated the `int_to_float` helper every
+// numeric pond lib wrote locally while F.23 Int→Float widening
+// was under-implemented (`let f: Float = i;` and `0.0 + n`
+// still reject at let-ascription/binop positions — retested
+// 2026-07-04 — but the std::math conversions are the supported
+// bridge now).
 //
 // All callable surface lives on the `IntFloat` namespace lotus
 // (per pond/KNOWN_GOTCHAS.md G11 — cross-seed non-fallible free
@@ -25,16 +27,15 @@
 locus IntFloat {
     params { }
 
-    // to_float(n) -- Int -> Float via ASCII roundtrip. Returns
-    // 0.0 if the ASCII representation ever fails to parse (it
-    // shouldn't for any in-range Int).
+    // to_float(n) -- delegate to the native conversion (was an
+    // ASCII roundtrip through parse_float(to_string(n)) before
+    // std::math::int_to_float shipped).
     fn to_float(n: Int) -> Float {
-        return std::str::parse_float(to_string(n)) or 0.0;
+        return std::math::int_to_float(n);
     }
 
-    // from_float(f) -- Float -> Int (truncating toward zero). Uses
-    // the `Int(...)` cast which v1 lowers correctly for Float->Int.
+    // from_float(f) -- Float -> Int, truncating toward zero.
     fn from_float(f: Float) -> Int {
-        return Int(f);
+        return std::math::float_to_int(f);
     }
 }
