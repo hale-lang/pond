@@ -54,15 +54,14 @@ fn __raise_connect(e: IoError, host: String, port: Int) -> Int fallible(HttpErro
     };
 }
 
-// Connect and return a raw fd, or fail with HttpError. The
-// right-associative or-chain is the v1 idiom for translating
-// between fallible payload types: the inner or-arm evaluates
-// `__raise_connect(err, ...)` (which is itself fallible) and
-// the outer `or raise` propagates the resulting HttpError into
-// __dial's own error channel.
+// Connect and return a raw fd, or fail with HttpError.
+// `or __raise_connect(err, ...)` is the payload-translation
+// idiom: the handler is itself fallible(HttpError) and always
+// fails; its failure propagates through __dial's own error
+// channel implicitly (fallible or-handlers, hale ≥ 400ac68).
 fn __dial(host: String, port: Int) -> Int fallible(HttpError) {
     let fd = std::io::tcp::connect(host, port)
-        or (__raise_connect(err, host, port) or raise);
+        or __raise_connect(err, host, port);
     std::io::tcp::set_nodelay(fd, true) or discard;   // kill Nagle (best-effort)
     return fd;
 }
@@ -73,7 +72,7 @@ fn __dial(host: String, port: Int) -> Int fallible(HttpError) {
 // SSL_set_tlsext_host_name + SSL_set1_host).
 fn __dial_tls(host: String, port: Int) -> Int fallible(HttpError) {
     let handle = std::io::tls::connect(host, port)
-        or (__raise_connect(err, host, port) or raise);
+        or __raise_connect(err, host, port);
     std::io::tls::set_nodelay(handle, true) or discard;   // kill Nagle (best-effort)
     return handle;
 }

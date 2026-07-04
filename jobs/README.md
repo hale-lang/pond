@@ -94,17 +94,18 @@ jobs::Pool { queue: q, workers: 2, handler: EmailHandler { }, exit_on_empty: tru
 - **Payload caveat** — `kind` must not contain tab/newline;
   `payload` may contain tabs (it's parsed as the row remainder)
   but not newlines.
-- **Reentrancy** — queue ops bridge sqlite errors through private
-  stash fields, so a single Queue locus must not be driven from
-  truly parallel (pinned) workers; cooperative placement (the
-  default) is fine. See FRICTION.log item 16.
+- **Reentrancy** — the old stash-bridge caveat is gone (hale
+  400ac68 allows fallible `or` handlers; FRICTION.log item 16,
+  closed 2026-07-04): queue ops no longer write shared error
+  state. The only remaining shared mutable is `schema_error`,
+  written once at birth.
 
 ## Files
 
 - `types.hl` — `Job`, `JobResult`, `JobError` (pattern 5).
 - `interfaces.hl` — `interface JobHandler` (structural, F.20).
 - `queue.hl` — the `Queue` service locus: schema bringup + the
-  four queue ops (+ private stash-bridge helpers).
+  four queue ops (+ fallible DbError→JobError bridge helpers).
 - `pool.hl` — `Pool` (cooperative parent) + `Worker` (child
   running the dequeue → invoke → ack/fail loop).
 - `examples/email-worker/` — end-to-end demo (below).

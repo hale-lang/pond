@@ -27,11 +27,18 @@
 // first; promoting it to its own seed (or into pond/sqlite) is
 // flagged in FRICTION.log.
 //
-// Error bridging uses the same stash pattern as pond/jobs:
-// `or handler(err)` handlers can't themselves be fallible, so the
-// stash member fns record the first DbError on self and return a
-// sentinel; each public method then packs `self.__err()` into the
-// result's `err` field. First error wins.
+// Error bridging keeps the stash pattern — NOT because handlers
+// can't be fallible (they can, since hale 400ac68; pond/jobs
+// retired its stash that way), but because this adapter's public
+// methods are themselves NON-fallible by interface contract
+// (db::DbDriver packs errors into ok/err result fields), so a
+// fallible bridge would have no enclosing error path to propagate
+// into. The stash member fns record the first DbError on self and
+// return a sentinel; each public method then packs `self.__err()`
+// into the result's `err` field. First error wins. Consequence
+// (same as jobs' retired caveat): adapter calls are non-reentrant
+// across pinned threads — give parallel pinned workers their own
+// SqliteDriver.
 //
 // Lifecycle: the underlying connection belongs to the injected
 // `sqlite::Db` (opened by its birth, closed by its dissolve).

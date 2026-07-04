@@ -110,7 +110,7 @@ locus Process {
         // or-fail literal ("unknown identifier `err`"), so route
         // through the wrap_* helper fns in spawn.hl instead.
         let _ = std::process::write_stdin(self.child, s)
-            or wrap_pipe_int(err) or raise;
+            or wrap_pipe_int(err);
     }
 
     // signal — request the child terminate. The upstream
@@ -126,7 +126,7 @@ locus Process {
                 errno:  0,
             };
         }
-        std::process::kill(self.child) or (wrap_kill(err) or raise);
+        std::process::kill(self.child) or wrap_kill(err);
     }
 
     // wait — block until the child exits, publish ProcessExit, and
@@ -140,7 +140,7 @@ locus Process {
             };
         }
         let code = std::process::wait(self.child)
-            or wrap_wait(err) or raise;
+            or wrap_wait(err);
         let st = ExitStatus {
             code:     code,
             signaled: code < 0,
