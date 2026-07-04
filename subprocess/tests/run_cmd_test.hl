@@ -1,0 +1,67 @@
+// pond/subprocess tests — real child processes, offline:
+//
+//   - run_cmd("/bin/echo", "hello") -> exit 0, stdout "hello\n",
+//     empty stderr, not signaled
+//   - the full SpawnOpts path (empty stdin -> std::process::run
+//     delegation) with multi-word args
+//   - argv_blob translation (pure helper)
+//   - nonexistent binary -> SpawnError kind "spawn_failed"
+//
+// Deliberately NOT covered: the stdin-fed spawn path. There is no
+// stdin-close primitive yet, so a read-until-EOF child (/bin/cat)
+// blocks forever on wait() — see FRICTION.log § pond/subprocess.
+//
+// Run:  hale test subprocess/
+
+import ".." as sub;
+
+// err_out — substitute handler encoding the SpawnError kind into
+// stderr so main can assert on it (exit code sentinel -1).
+fn err_out(e: sub::SpawnError) -> sub::Output {
+    return sub::Output {
+        status: sub::ExitStatus { code: -1, signaled: false, signal: 0 },
+        stdout: std::bytes::from_string(""),
+        stderr: std::bytes::from_string("ERR:" + e.kind),
+    };
+}
+
+fn main() {
+    // ---- run_cmd happy path ----
+    let out = sub::run_cmd("/bin/echo", "hello") or err_out(err);
+    std::test::assert_eq_int(out.status.code, 0, "echo exits 0");
+    std::test::assert(!out.status.signaled, "echo not signaled");
+    std::test::assert_eq_str(std::str::from_bytes(out.stdout), "hello\n",
+        "echo stdout captured");
+    std::test::assert_eq_int(len(out.stderr), 0, "echo stderr empty");
+
+    // ---- full SpawnOpts path (empty stdin -> run delegation) ----
+    let opts = sub::SpawnOpts {
+        cmd:        "/bin/echo",
+        args:       "one two three",
+        cwd:        "",
+        env:        "",
+        stdin:      std::bytes::from_string(""),
+        timeout_ms: 0,
+    };
+    let out2 = sub::spawn(opts) or err_out(err);
+    std::test::assert_eq_int(out2.status.code, 0, "spawn exits 0");
+    std::test::assert_eq_str(std::str::from_bytes(out2.stdout), "one two three\n",
+        "multi-word args pass through argv");
+
+    // Nonzero exit codes come back on the value channel's SUCCESS
+    // side (a child that runs and exits nonzero is not a SpawnError).
+    let out4 = sub::run_cmd("/bin/false", "") or err_out(err);
+    std::test::assert_eq_int(out4.status.code, 1, "false exits 1 (success channel)");
+
+    // ---- argv_blob pure helper ----
+    std::test::assert_eq_str(sub::argv_blob("/bin/echo", ""), "/bin/echo",
+        "argv_blob bare cmd");
+    std::test::assert_eq_str(sub::argv_blob("/bin/echo", "a b"), "/bin/echo\na\nb",
+        "argv_blob splits args on spaces");
+
+    // ---- error path: nonexistent binary ----
+    let bad = sub::run_cmd("/nonexistent/pond_test_binary", "") or err_out(err);
+    std::test::assert_eq_int(bad.status.code, -1, "spawn failure substitutes -1");
+    std::test::assert_eq_str(std::str::from_bytes(bad.stderr), "ERR:spawn_failed",
+        "nonexistent binary fails spawn_failed");
+}

@@ -1,0 +1,49 @@
+// online_moments_test — Welford OnlineMoments matches the batch
+// mean/variance free fns on the same data; empty-state reads are 0.0.
+
+import ".." as stats;
+import "../../matrix" as mat;
+
+fn near_eq(actual: Float, expected: Float, msg: String) {
+    let mut diff = actual - expected;
+    if diff < 0.0 {
+        diff = 0.0 - diff;
+    }
+    std::test::assert(diff < 0.000001, msg);
+}
+
+fn main() {
+    // Empty-state reads: documented 0.0 policy.
+    let fresh = stats::OnlineMoments { };
+    near_eq(fresh.current_mean(), 0.0, "empty OnlineMoments mean is 0.0");
+    near_eq(fresh.current_var(), 0.0, "empty OnlineMoments var is 0.0");
+
+    // Single observation: mean = x, var = 0.
+    let one = stats::OnlineMoments { };
+    one.observe(5.0);
+    near_eq(one.current_mean(), 5.0, "single-obs mean");
+    near_eq(one.current_var(), 0.0, "single-obs var is 0");
+
+    // Stream [2,4,4,4,6]; running stats must match the batch fns.
+    let xs = mat::from_rows(1, 5, "2.0, 4.0, 4.0, 4.0, 6.0");
+    let om = stats::OnlineMoments { };
+    om.observe(2.0);
+    om.observe(4.0);
+    om.observe(4.0);
+    om.observe(4.0);
+    om.observe(6.0);
+    near_eq(om.current_mean(), stats::mean(xs), "online mean matches batch mean");
+    near_eq(om.current_var(), stats::variance(xs), "online var matches batch population var");
+    near_eq(om.current_mean(), 4.0, "online mean absolute value");
+    near_eq(om.current_var(), 1.6, "online var absolute value");
+
+    // Order independence of the fold (same multiset, different order).
+    let om2 = stats::OnlineMoments { };
+    om2.observe(6.0);
+    om2.observe(4.0);
+    om2.observe(2.0);
+    om2.observe(4.0);
+    om2.observe(4.0);
+    near_eq(om2.current_mean(), 4.0, "online mean order-independent");
+    near_eq(om2.current_var(), 1.6, "online var order-independent");
+}

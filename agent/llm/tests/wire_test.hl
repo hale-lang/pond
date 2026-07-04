@@ -1,0 +1,126 @@
+// wire_test — request-body builders (anthropic/openai shapes) and
+// response/error-envelope parsers over hand-written vendor JSON.
+
+import ".." as llm;
+
+fn has(hay: String, needle: String) -> Bool {
+    return std::str::index_of(hay, needle) >= 0;
+}
+
+fn main() {
+    // ----- anthropic body: model / max_tokens / system / messages -----
+    let req = llm::LlmRequest {
+        model:       "claude-test-1",
+        system:      "be terse",
+        max_tokens:  64,
+        temperature: 0.7
+    };
+    push(req.messages, llm::LlmMsg { role: "user", content: "hello there" }) or discard;
+    push(req.messages, llm::LlmMsg { role: "assistant", content: "hi back" }) or discard;
+
+    let a = llm::__build_anthropic_body(req, false);
+    std::test::assert(has(a, "\"model\": \"claude-test-1\""),
+        "anthropic body carries model");
+    std::test::assert(has(a, "\"max_tokens\": 64"),
+        "anthropic body carries explicit max_tokens");
+    std::test::assert(has(a, "\"system\": \"be terse\""),
+        "anthropic body carries top-level system field");
+    std::test::assert(has(a, "\"stream\": false"),
+        "anthropic non-streaming body has stream:false");
+    std::test::assert(has(a, "\"messages\": ["),
+        "anthropic body opens a messages array");
+    std::test::assert(has(a, "{\"role\": \"user\", \"content\": \"hello there\"}"),
+        "anthropic body carries the user message");
+    std::test::assert(has(a, "{\"role\": \"assistant\", \"content\": \"hi back\"}"),
+        "anthropic body carries the assistant message");
+    let iu = std::str::index_of(a, "\"role\": \"user\"");
+    let ia = std::str::index_of(a, "\"role\": \"assistant\"");
+    std::test::assert(iu >= 0 && ia > iu,
+        "anthropic messages keep push order (user before assistant)");
+
+    // stream=true flips the flag.
+    let a_stream = llm::__build_anthropic_body(req, true);
+    std::test::assert(has(a_stream, "\"stream\": true"),
+        "anthropic streaming body has stream:true");
+
+    // max_tokens <= 0 forces the 1024 default (Anthropic requires the
+    // field on the wire); empty system omits the field entirely.
+    let bare = llm::LlmRequest { model: "m2" };
+    push(bare.messages, llm::LlmMsg { role: "user", content: "x" }) or discard;
+    let ab = llm::__build_anthropic_body(bare, false);
+    std::test::assert(has(ab, "\"max_tokens\": 1024"),
+        "anthropic defaults max_tokens to 1024 when <= 0");
+    std::test::assert(!has(ab, "\"system\""),
+        "anthropic omits system field when empty");
+
+    // ----- openai body: system becomes a leading message ---------------
+    let o = llm::__build_openai_body(req, false);
+    std::test::assert(has(o, "\"model\": \"claude-test-1\""),
+        "openai body carries model");
+    std::test::assert(has(o, "\"max_tokens\": 64"),
+        "openai body carries positive max_tokens");
+    std::test::assert(!has(o, "\"system\":"),
+        "openai body has no top-level system field");
+    std::test::assert(has(o, "{\"role\": \"system\", \"content\": \"be terse\"}"),
+        "openai system prompt becomes a system-role message");
+    std::test::assert(has(o, "{\"role\": \"user\", \"content\": \"hello there\"}"),
+        "openai body carries the user message");
+    let isys = std::str::index_of(o, "\"role\": \"system\"");
+    let iou  = std::str::index_of(o, "\"role\": \"user\"");
+    std::test::assert(isys >= 0 && iou > isys,
+        "openai system message precedes the user message");
+    std::test::assert(has(o, "\"stream\": false"),
+        "openai non-streaming body has stream:false");
+
+    // max_tokens <= 0 is omitted on the openai wire.
+    let ob = llm::__build_openai_body(bare, true);
+    std::test::assert(!has(ob, "\"max_tokens\""),
+        "openai omits max_tokens when <= 0");
+    std::test::assert(has(ob, "\"stream\": true"),
+        "openai streaming body has stream:true");
+
+    // ----- anthropic response parse ------------------------------------
+    // Regression (fixed 2026-07-04): the realistic vendor shape
+    // {"type":"text","text":"..."} used to lose the text — the flat
+    // finder first-matched the needle `"text"` inside the VALUE of
+    // "type" and returned "" without retrying. wire.hl now locates
+    // the KEY (quote-needle + colon, __key_pos) before extracting,
+    // so this test asserts the REAL wire shape.
+    let a_resp = "{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\","
+        + "\"content\":[{\"type\":\"text\",\"text\":\"Hel\"},"
+        + "{\"type\":\"text\",\"text\":\"lo\"}],"
+        + "\"stop_reason\":\"end_turn\","
+        + "\"usage\":{\"input_tokens\":12,\"output_tokens\":5}}";
+    let ar = llm::__parse_anthropic_response(a_resp);
+    std::test::assert_eq_str(ar.text, "Hello",
+        "anthropic content blocks concatenate");
+    std::test::assert_eq_str(ar.stop_reason, "end_turn",
+        "anthropic stop_reason parsed");
+    std::test::assert_eq_int(ar.input_tokens, 12,
+        "anthropic input_tokens from nested usage");
+    std::test::assert_eq_int(ar.output_tokens, 5,
+        "anthropic output_tokens from nested usage");
+
+    // ----- openai response parse ---------------------------------------
+    let o_resp = "{\"id\":\"c1\",\"object\":\"chat.completion\","
+        + "\"choices\":[{\"index\":0,"
+        + "\"message\":{\"role\":\"assistant\",\"content\":\"Hi there\"},"
+        + "\"finish_reason\":\"stop\"}],"
+        + "\"usage\":{\"prompt_tokens\":9,\"completion_tokens\":3,\"total_tokens\":12}}";
+    let orr = llm::__parse_openai_response(o_resp);
+    std::test::assert_eq_str(orr.text, "Hi there",
+        "openai choices[0].message.content extracted");
+    std::test::assert_eq_str(orr.stop_reason, "stop",
+        "openai finish_reason parsed");
+    std::test::assert_eq_int(orr.input_tokens, 9,
+        "openai prompt_tokens from usage");
+    std::test::assert_eq_int(orr.output_tokens, 3,
+        "openai completion_tokens from usage");
+
+    // ----- vendor error envelope ----------------------------------------
+    let env = "{\"error\": {\"message\": \"bad key\", \"type\": \"auth\"}}";
+    std::test::assert_eq_str(llm::__extract_error_detail(env), "bad key",
+        "error envelope message extracted");
+    std::test::assert_eq_str(llm::__extract_error_detail("{\"ok\":true}"), "",
+        "no error object yields empty detail");
+}

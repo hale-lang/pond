@@ -1,0 +1,57 @@
+// intensity_test — the Erlang-style restart-intensity gate
+// (Supervisor.intensity_check), driven directly.
+//
+// intensity_check is the pure-bookkeeping half of on_failure's
+// dispatch: it decides restart-vs-bubble without touching any
+// recovery primitive, so it is drivable synchronously without a
+// failing child.
+
+import ".." as sup;
+
+fn main() {
+    // ----- default gate: 3 restarts per 60s window -----
+    let strat = sup::SupStrategy { kind: "one_for_one" };
+    let s = sup::Supervisor { strategy: strat };
+
+    std::test::assert_eq_int(s.window_start_ns, 0,
+        "no window open before the first failure");
+    std::test::assert(s.intensity_check(), "1st failure permitted");
+    std::test::assert(s.window_start_ns > 0,
+        "first failure opens the window");
+    std::test::assert_eq_int(s.restart_count, 1,
+        "first failure counts as 1");
+    std::test::assert(s.intensity_check(), "2nd failure permitted");
+    std::test::assert(s.intensity_check(), "3rd failure permitted");
+    std::test::assert_eq_int(s.restart_count, 3,
+        "three failures counted in the window");
+    std::test::assert(!s.intensity_check(),
+        "4th failure exceeds max_restarts=3");
+    std::test::assert_eq_int(s.restart_count, 4,
+        "blocked failures still count");
+    std::test::assert(!s.intensity_check(),
+        "5th failure stays blocked within the same window");
+
+    // ----- max_restarts=0: the fresh-window branch always -----
+    // permits the FIRST failure; the second is blocked.
+    let strat0 = sup::SupStrategy { kind: "escalate" };
+    let s0 = sup::Supervisor { strategy: strat0, max_restarts: 0 };
+    std::test::assert(s0.intensity_check(),
+        "a fresh window always permits its first failure");
+    std::test::assert(!s0.intensity_check(),
+        "second failure blocked when max_restarts=0");
+
+    // ----- negative window: every failure opens a fresh window -----
+    // (now - window_start) > -1 always holds, so the count resets
+    // to 1 on every call and the gate never trips.
+    let stratn = sup::SupStrategy { kind: "one_for_one" };
+    let sn = sup::Supervisor {
+        strategy:       stratn,
+        max_restarts:   1,
+        window_seconds: -1
+    };
+    std::test::assert(sn.intensity_check(), "expired window: 1st permitted");
+    std::test::assert(sn.intensity_check(), "expired window: 2nd permitted");
+    std::test::assert(sn.intensity_check(), "expired window: 3rd permitted");
+    std::test::assert_eq_int(sn.restart_count, 1,
+        "each expired-window failure restarts the count at 1");
+}

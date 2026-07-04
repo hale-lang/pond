@@ -1,0 +1,113 @@
+// pond/sqlite tests — happy-path CRUD over a real temp-file
+// database: exec (DDL + INSERT with rows_affected /
+// last_insert_rowid), query_one (tab-separated Row.data),
+// query_all (newline-separated Rows.csv, empty-result success),
+// and the full prepare / bind_text / bind_int / step / finalize
+// round trip.
+//
+// Test contract (spec/testing.md): pass = exit 0 AND no stdout.
+// fn main is non-fallible, so every fallible call carries an
+// `or <substitute>(err)` free-fn handler whose sentinel makes the
+// following assert fail visibly.
+//
+// Run:
+//   C_INCLUDE_PATH=$HOME/.local/include LIBRARY_PATH=$HOME/.local/lib \
+//     hale test sqlite/
+
+import ".." as sqlite;
+
+// Substitute handlers — encode the error kind into the sentinel
+// so a failed assert's diagnostic shows what went wrong.
+fn ex_sub(e: sqlite::DbError) -> sqlite::ExecResult {
+    return sqlite::ExecResult { rows_affected: -1, last_insert_rowid: -1 };
+}
+fn row_sub(e: sqlite::DbError) -> sqlite::Row {
+    return sqlite::Row { data: "ERR:" + e.kind };
+}
+fn rows_sub(e: sqlite::DbError) -> sqlite::Rows {
+    return sqlite::Rows { csv: "ERR:" + e.kind };
+}
+fn stmt_sub(e: sqlite::DbError) -> Int {
+    return -1;
+}
+fn unit_sub(e: sqlite::DbError) {
+    std::test::assert(false, "unexpected DbError: " + e.kind + ": " + e.detail);
+}
+
+fn main() {
+    let path = "/tmp/pond_test_sqlite_crud.db";
+    // Re-runnable: drop any leftover from a previous run.
+    std::io::fs::unlink(path) or discard;
+
+    let conn = sqlite::Db { path: path };
+
+    // ---- exec: DDL + INSERT ----
+    let r1 = conn.exec("CREATE TABLE kv (k TEXT PRIMARY KEY, v TEXT)")
+        or ex_sub(err);
+    std::test::assert_eq_int(r1.rows_affected, 0, "CREATE TABLE affects 0 rows");
+
+    let r2 = conn.exec("INSERT INTO kv (k, v) VALUES ('greeting', 'hello')")
+        or ex_sub(err);
+    std::test::assert_eq_int(r2.rows_affected, 1, "INSERT affects 1 row");
+    std::test::assert(r2.last_insert_rowid >= 1, "INSERT reports a rowid");
+
+    let r3 = conn.exec("INSERT INTO kv (k, v) VALUES ('farewell', 'goodbye')")
+        or ex_sub(err);
+    std::test::assert_eq_int(r3.rows_affected, 1, "second INSERT affects 1 row");
+
+    // ---- query_one: tab-separated columns ----
+    let row = conn.query_one("SELECT k, v FROM kv WHERE k = 'greeting'")
+        or row_sub(err);
+    std::test::assert_eq_str(row.data, "greeting\thello",
+        "query_one returns tab-separated columns");
+
+    // ---- query_all: newline-separated rows ----
+    let rows = conn.query_all("SELECT k, v FROM kv ORDER BY k")
+        or rows_sub(err);
+    std::test::assert_eq_str(rows.csv, "farewell\tgoodbye\ngreeting\thello",
+        "query_all returns newline-separated rows");
+
+    // Empty result set is a SUCCESS with csv == "" (distinct from
+    // query_one's no_row fail).
+    let none = conn.query_all("SELECT k FROM kv WHERE k = 'missing'")
+        or rows_sub(err);
+    std::test::assert_eq_str(none.csv, "", "empty query_all succeeds with empty csv");
+
+    // ---- prepare / bind / step / finalize round trip ----
+    let ins = conn.prepare("INSERT INTO kv (k, v) VALUES (?1, ?2)")
+        or stmt_sub(err);
+    std::test::assert(ins > 0, "prepare returns a live stmt handle");
+    conn.bind_text(ins, 1, "answer") or unit_sub(err);
+    conn.bind_text(ins, 2, "42") or unit_sub(err);
+    // step on an INSERT lands on SQLITE_DONE, which the driver
+    // reports as kind="no_row" — that IS the success path here.
+    let done = conn.step(ins) or row_sub(err);
+    std::test::assert_eq_str(done.data, "ERR:no_row",
+        "step on INSERT reports SQLITE_DONE as no_row");
+    conn.finalize(ins) or unit_sub(err);
+
+    // Parameterized SELECT with an Int bind. (No rows_affected
+    // assert here: sqlite's changes() is sticky across DDL, so it
+    // still reports the previous INSERT's count.)
+    let _ = conn.exec("CREATE TABLE nums (n INTEGER, label TEXT)")
+        or ex_sub(err);
+    let _ = conn.exec("INSERT INTO nums (n, label) VALUES (7, 'seven')")
+        or ex_sub(err);
+    let sel = conn.prepare("SELECT label, n FROM nums WHERE n = ?1")
+        or stmt_sub(err);
+    std::test::assert(sel > 0, "prepare SELECT returns a live stmt handle");
+    conn.bind_int(sel, 1, 7) or unit_sub(err);
+    let hit = conn.step(sel) or row_sub(err);
+    std::test::assert_eq_str(hit.data, "seven\t7",
+        "prepared step returns the bound row");
+    // Next step: no further rows -> no_row.
+    let past = conn.step(sel) or row_sub(err);
+    std::test::assert_eq_str(past.data, "ERR:no_row",
+        "step past the last row reports no_row");
+    conn.finalize(sel) or unit_sub(err);
+
+    // And the prepared INSERT really landed.
+    let check = conn.query_one("SELECT v FROM kv WHERE k = 'answer'")
+        or row_sub(err);
+    std::test::assert_eq_str(check.data, "42", "prepared INSERT visible via query_one");
+}

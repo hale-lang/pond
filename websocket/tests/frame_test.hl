@@ -1,0 +1,154 @@
+// pond/websocket/tests — RFC 6455 frame codec round-trips:
+// emit_frame (client, masked) / emit_server_frame (unmasked) through
+// peek_header + unmask_into, small and 2-byte-extended-length
+// payloads, incomplete-frame signalling, and the opcode maps.
+// Pure byte-shuffling; no sockets.
+
+import ".." as ws;
+
+// or-handler for peek_header failures: framing errors surface as a
+// header with total == -1 (real headers never go negative; the
+// incomplete sentinel is total == 0).
+fn hdr_err(e: ws::WsError) -> ws::FrameHeader {
+    return ws::FrameHeader { total: -1 };
+}
+
+fn main() {
+    // ---- client frame (masked) round-trip ----------------------
+
+    let payload = std::bytes::from_string("hello");
+    let frame = ws::emit_frame(true, 2, payload, 12345678);
+    // 2 header bytes + 4 mask-key bytes + 5 payload bytes.
+    std::test::assert_eq_int(len(frame), 11, "masked frame length 2+4+5");
+
+    let hdr = ws::peek_header(frame, 0) or hdr_err(err);
+    std::test::assert(hdr.fin, "fin bit set");
+    std::test::assert_eq_int(hdr.opcode, 2, "binary opcode");
+    std::test::assert(hdr.masked, "client frame is masked");
+    std::test::assert_eq_int(hdr.total, 11, "total consumed = frame length");
+    std::test::assert_eq_int(hdr.payload_off, 6, "payload after 2 hdr + 4 key bytes");
+    std::test::assert_eq_int(hdr.payload_len, 5, "payload length 5");
+
+    // The wire payload is actually masked: first payload byte must
+    // differ from plaintext 'h' (104) since mk0 = 12345678 % 256 != 0.
+    let wire0 = std::bytes::at(frame, 6) or -1;
+    std::test::assert(wire0 != 104, "payload byte is XOR-masked on the wire");
+
+    // Unmask restores the exact payload (exercises the xor_mask path).
+    let dest = std::bytes::BytesBuilder { initial_cap: 16 };
+    ws::unmask_into(dest, frame, hdr.payload_off, hdr.payload_len, hdr.masked,
+        hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
+    let out = dest.finish();
+    std::test::assert_eq_int(len(out), 5, "unmasked payload length");
+    std::test::assert_eq_str(std::str::from_bytes(out), "hello", "masked payload round-trips");
+
+    // ---- server frame (unmasked) round-trip --------------------
+
+    let sframe = ws::emit_server_frame(true, 1, payload);
+    std::test::assert_eq_int(len(sframe), 7, "server frame length 2+5 (no mask key)");
+
+    let shdr = ws::peek_header(sframe, 0) or hdr_err(err);
+    std::test::assert(shdr.fin, "server fin bit set");
+    std::test::assert_eq_int(shdr.opcode, 1, "text opcode");
+    std::test::assert(!shdr.masked, "server frame is unmasked");
+    std::test::assert_eq_int(shdr.payload_off, 2, "server payload right after 2-byte header");
+    std::test::assert_eq_int(shdr.payload_len, 5, "server payload length 5");
+    std::test::assert_eq_int(shdr.total, 7, "server total 7");
+
+    // Unmasked wire bytes are the plaintext verbatim.
+    std::test::assert_eq_int(std::bytes::at(sframe, 2) or -1, 104, "server payload unmasked ('h')");
+
+    let sdest = std::bytes::BytesBuilder { initial_cap: 16 };
+    ws::unmask_into(sdest, sframe, shdr.payload_off, shdr.payload_len, shdr.masked,
+        shdr.mk0, shdr.mk1, shdr.mk2, shdr.mk3);
+    std::test::assert_eq_str(std::str::from_bytes(sdest.finish()), "hello",
+        "server payload round-trips");
+
+    // ---- 200-byte payload: 2-byte extended length path ---------
+
+    let mut big = "";
+    let mut i = 0;
+    while i < 200 {
+        big = big + "a";
+        i = i + 1;
+    }
+    let big_payload = std::bytes::from_string(big);
+    let big_frame = ws::emit_frame(true, 2, big_payload, 987654321);
+    // 2 hdr + 2 extended-length + 4 mask + 200 payload.
+    std::test::assert_eq_int(len(big_frame), 208, "extended-length masked frame size");
+    // Byte 1 = MASK bit + 126 length code; bytes 2..3 = 0,200 big-endian.
+    std::test::assert_eq_int(std::bytes::at(big_frame, 1) or -1, 254, "len code 128+126");
+    std::test::assert_eq_int(std::bytes::at(big_frame, 2) or -1, 0, "ext len high byte");
+    std::test::assert_eq_int(std::bytes::at(big_frame, 3) or -1, 200, "ext len low byte");
+
+    let bhdr = ws::peek_header(big_frame, 0) or hdr_err(err);
+    std::test::assert_eq_int(bhdr.payload_len, 200, "extended payload length parsed");
+    std::test::assert_eq_int(bhdr.payload_off, 8, "payload after 2+2 hdr + 4 key");
+    std::test::assert_eq_int(bhdr.total, 208, "extended total");
+    std::test::assert(bhdr.masked, "extended frame masked");
+
+    let bdest = std::bytes::BytesBuilder { initial_cap: 256 };
+    ws::unmask_into(bdest, big_frame, bhdr.payload_off, bhdr.payload_len, bhdr.masked,
+        bhdr.mk0, bhdr.mk1, bhdr.mk2, bhdr.mk3);
+    let bout = bdest.finish();
+    std::test::assert_eq_int(len(bout), 200, "200-byte payload length round-trips");
+    std::test::assert(std::str::from_bytes(bout) == big, "200-byte payload content round-trips");
+
+    // Server-side extended length too (unmasked).
+    let sbig = ws::emit_server_frame(true, 2, big_payload);
+    std::test::assert_eq_int(len(sbig), 204, "server extended frame 2+2+200");
+    std::test::assert_eq_int(std::bytes::at(sbig, 1) or -1, 126, "server len code 126 (no mask bit)");
+    let sbhdr = ws::peek_header(sbig, 0) or hdr_err(err);
+    std::test::assert_eq_int(sbhdr.payload_len, 200, "server extended payload length");
+    std::test::assert_eq_int(sbhdr.payload_off, 4, "server extended payload offset");
+
+    // ---- empty payload (ping) ----------------------------------
+
+    let ping = ws::emit_frame(true, 9, b"", 42);
+    std::test::assert_eq_int(len(ping), 6, "empty masked frame 2+4");
+    let phdr = ws::peek_header(ping, 0) or hdr_err(err);
+    std::test::assert_eq_int(phdr.opcode, 9, "ping opcode");
+    std::test::assert_eq_int(phdr.payload_len, 0, "ping payload empty");
+    std::test::assert_eq_int(phdr.total, 6, "ping total 6");
+
+    // ---- incomplete frame: total == 0, not a fault --------------
+
+    let truncated = std::bytes::slice(frame, 0, 4);
+    let thdr = ws::peek_header(truncated, 0) or hdr_err(err);
+    std::test::assert_eq_int(thdr.total, 0, "truncated frame signals incomplete via total 0");
+
+    let empty_hdr = ws::peek_header(b"", 0) or hdr_err(err);
+    std::test::assert_eq_int(empty_hdr.total, 0, "empty buffer signals incomplete");
+
+    // ---- two frames in one buffer: peek at nonzero offset -------
+
+    let buf = std::bytes::BytesBuilder { initial_cap: 64 };
+    buf.append(ws::emit_server_frame(true, 1, std::bytes::from_string("abc")));
+    buf.append(ws::emit_server_frame(true, 1, std::bytes::from_string("defg")));
+    let two = buf.finish();
+    let h1 = ws::peek_header(two, 0) or hdr_err(err);
+    std::test::assert_eq_int(h1.total, 5, "first frame total 2+3");
+    let h2 = ws::peek_header(two, h1.total) or hdr_err(err);
+    std::test::assert_eq_int(h2.payload_len, 4, "second frame payload length at offset");
+    let d2 = std::bytes::BytesBuilder { initial_cap: 16 };
+    ws::unmask_into(d2, two, h2.payload_off, h2.payload_len, h2.masked,
+        h2.mk0, h2.mk1, h2.mk2, h2.mk3);
+    std::test::assert_eq_str(std::str::from_bytes(d2.finish()), "defg",
+        "second frame payload extracted at offset");
+
+    // ---- helpers: mask-key packing + opcode maps ----------------
+
+    std::test::assert_eq_int(ws::pack_mask_key(1, 2, 3, 4), 67305985,
+        "mask key packs little-endian");
+    std::test::assert_eq_int(ws::pack_mask_key(0, 0, 0, 0), 0, "zero key packs to 0");
+
+    std::test::assert_eq_str(ws::opcode_to_kind(1), "text", "opcode 1 text");
+    std::test::assert_eq_str(ws::opcode_to_kind(2), "binary", "opcode 2 binary");
+    std::test::assert_eq_str(ws::opcode_to_kind(8), "close", "opcode 8 close");
+    std::test::assert_eq_str(ws::opcode_to_kind(9), "ping", "opcode 9 ping");
+    std::test::assert_eq_str(ws::opcode_to_kind(10), "pong", "opcode 10 pong");
+    std::test::assert_eq_str(ws::opcode_to_kind(3), "unknown", "opcode 3 unknown");
+    std::test::assert_eq_int(ws::kind_to_opcode("text"), 1, "text opcode 1");
+    std::test::assert_eq_int(ws::kind_to_opcode("close"), 8, "close opcode 8");
+    std::test::assert_eq_int(ws::kind_to_opcode("bogus"), 0, "bogus kind opcode 0");
+}

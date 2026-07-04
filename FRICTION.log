@@ -705,6 +705,32 @@ the implication is that all output flows through the bus
    subscribers tell them apart on the bus directly.
 
 
+## bug found by unit tests: flat-finder first-match shadows the "text" key — FIXED in-lib 2026-07-04
+
+`__parse_anthropic_response` returned empty `text` for every
+REALISTIC non-streaming response: a content block is
+`{"type":"text","text":"..."}`, and
+`std::json::find_string_field(element, "text")` first matches
+the needle `"text"` inside the VALUE of `"type"`, sees no colon,
+and returns "" — it never retries later occurrences. The SSE
+streaming path dodged it only because there the type value is
+`text_delta` (which the quoted needle doesn't match), so the
+demo never caught it. Found by `tests/wire_test.hl`.
+
+In-lib fix: new `__key_pos(json, name)` — absolute index of the
+QUOTED needle followed (after optional ws) by a colon, retrying
+past value matches — now gates both the content-block text
+lookup (stdlib finder runs on the slice from the key) and
+`__extract_field_raw` (which previously returned "" on the same
+collision instead of retrying). Regression-guarded by
+wire_test.hl asserting the real vendor shape.
+
+Upstream ask (extends the `__extract_field_raw`
+duplicate-suspected entry above): std::json's flat finders
+should retry-scan until a colon follows the key match — any
+JSON document where a searched key's name appears as an earlier
+string VALUE hits this class.
+
 ======================================================================
  pond/agent/sandbox
 ======================================================================
@@ -2615,6 +2641,22 @@ uses. Upstream-worthy observation: `hale check` validating import
 resolvability would have caught this two weeks earlier.
 
 
+## testability note: Migrator prints on its success path — 2026-07-04
+
+`migrate.hl apply()` printlns `[migrate] applied vN` on every
+fresh apply (and FAILED on failure). Under spec/testing.md's
+pass = exit-0-plus-SILENT-stdout contract (enforced by `hale
+test`), the fresh-apply and bad-SQL paths are therefore not
+unit-testable without a lib change. `tests/migrator_test.hl`
+covers the silent paths instead (no-op/skip via directly-seeded
+`schema_migrations` rows; the `failed` latch via constructor);
+blog-schema remains the gate for the printing paths. If a
+future pass wants those unit-tested, route apply()'s narration
+through an injectable sink (same shape as jobs' Worker
+birth-print, which has the identical limitation — noted in
+supervisor's tests too). Not actioned: the narration is a
+deliberate operator surface.
+
 ======================================================================
  pond/ml/neural
 ======================================================================
@@ -2723,6 +2765,26 @@ loci): `main → main-locus run() → trainer.fit(model)` where
 `run()` allocates ("post-fit " + r) and calls `make` once more —
 segfaults every run before printing. Same shape driven from
 `fn main()` is clean. Workarounds unchanged.
+
+**2026-07-04 (same day, unit-test pass): a SECOND, narrower
+manifestation found — silent zero-reads, no segfault.** A
+Matrix allocated AFTER the receiver Model's `@form(vec)` buffer
+has grown (i.e. after any `add_dense`) reads back as ALL ZEROS
+inside that Model's method frame (`train_step`): `x.get(i)`
+fails and `or 0.0` masks it, so training silently updates only
+biases (first loss exactly the zero-input forward, 0.158267).
+The same Matrix reads correctly in free-fn frames (`forward`);
+a free-fn hop does NOT fix it; reproduces under both `hale
+test` and `hale build`. Allocation ORDER is the trigger:
+matrices created before the model, or after model creation but
+before its first vec push, are fine (the xor example's order —
+which is why the demo never hit it). Non-`@form(vec)` receivers
+(embeddings Store) unaffected. Full notes in the header of
+`ml/neural/tests/train_step_test.hl`, which orders its
+allocations to the safe shape. This narrows the upstream hunt:
+the corruption tracks the receiver's form-vec GROWTH
+(realloc?) invalidating cross-locus views of later
+method-frame allocations.
 
 ## Resolved (2026-06-08 source pass)
 
@@ -3621,6 +3683,32 @@ upstream WS4 verdict (no stdlib primitive; `@ffi` is the surface):
       `sqlite::Db` through the interface.
 
 
+## upstream CLI gap: `hale test` cannot link `@ffi` libs — OPEN 2026-07-04
+
+`hale test`'s per-file compile (`compile_test_binary`,
+hale-cli main.rs:1137) calls `build_executable_with_imports`
+directly and never runs the Stage-2 `collect_ffi_from_imports`
+pickup that `hale build` does (main.rs ~1817) — so every test
+importing this lib (sqlite's own tests, jobs', migrations')
+fails at link with `undefined reference to lotus_sqlite_*`,
+regardless of the C_INCLUDE_PATH/LIBRARY_PATH shims. The tests
+themselves are fine.
+
+Interim gate (documented in each affected test header and in
+CLAUDE.md § Build & verify): build each test as a binary and
+run it —
+
+    C_INCLUDE_PATH=$HOME/.local/include LIBRARY_PATH=$HOME/.local/lib \
+      hale build <lib>/tests/<x>_test.hl && ./<lib>/tests/<x>_test
+
+Pass = exit 0 + silent, same contract the runner enforces. All
+five ffi-linking tests pass this gate (2× runs, re-runnable).
+`.gitignore` gained the `**/tests/**` extensionless rule so the
+interim binaries can't be committed. Upstream ask: run the same
+ffi pickup in the test compile path; then this entry closes and
+`hale test .` goes fully green (currently 43 passed / 5
+ffi-link failures, all this class).
+
 ======================================================================
  pond/subprocess
 ======================================================================
@@ -4423,6 +4511,29 @@ fresh trace_id, and `Tracer.start_span(name, parent)` that
 inherits parent.trace_id. Logged here for the v1.x cleanup.
 
 
+## bug found by unit tests: add_attr's tab-delimited attrs mangled by row storage — OPEN 2026-07-04
+
+`types.hl` documents `Span.attrs` as `key=value\t` entries with
+a trailing tab — but spans are stored as tab-separated RowBuf
+rows, so every field re-parse truncates `attrs` at its first
+embedded tab: the published span loses the trailing tab, and a
+SECOND `add_attr` silently loses the separator entirely
+(`"db.statement=SELECT 1rows=3"`). Structural conflict: a
+tab-bearing field inside a tab-delimited row. Found by
+`tests/tracer_test.hl` (which pins the stable single-attr shape
+and documents the mangling in a NOTE).
+
+Fix requires a wire-shape decision, not a drive-by: either (a)
+re-delimit attrs with a non-tab separator (US 0x1F or ";") —
+touches the documented Span shape and any out-of-tree
+subscriber reading attrs; or (b) move span storage off
+tab-rows onto `bounded[Span; N]` now that bounded exists (the
+tracing buffers are already bounded-by-discipline per the
+completed_buf entry above — this would also close that one).
+(b) is the better cut; deferred to its own pass since it
+reshapes both buffers. Until then: one attr per span is the
+reliable shape; multi-attr is lossy.
+
 ======================================================================
  pond/tui
 ======================================================================
@@ -4918,3 +5029,19 @@ anchor-clone class — retirement shipped for @form(hashmap)
 cells only; plain-field retire is staged upstream in
 notes/anchor-retirement.md). Our in-place shape minimizes the
 churn to error-path detail strings and kind transitions.
+
+## bug found by unit tests: parse_request dropped the terminal header line — FIXED 2026-07-04
+
+The first `hale test` pass caught a real parser bug:
+`handshake.hl parse_request`'s header walk hit the final line
+before the terminating \r\n\r\n (which has no \r\n of its own
+inside the scanned window), took the `line_end < 0` branch, and
+advanced the cursor WITHOUT applying the line. `build_request`
+emits `Sec-WebSocket-Version: 13` last, so a build → parse
+round-trip silently lost the version. `header_value` handled
+the same terminal-line case correctly — the gap was
+parse_request-specific. Fixed by applying the remainder line in
+the no-CRLF branch; guarded by the regression assert in
+`tests/handshake_test.hl` ("terminal header line parses").
+First concrete proof of the tests-as-second-codegen-gate
+convention paying for itself on day one.

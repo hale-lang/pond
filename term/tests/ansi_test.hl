@@ -1,0 +1,43 @@
+// pond/term/tests — raw ANSI escape builders (pure string
+// outputs, no tty required).
+
+import ".." as term;
+
+fn main() {
+    std::test::assert_eq_str(term::reset(), "\x1b[0m", "reset");
+
+    // Cursor.
+    std::test::assert_eq_str(term::cursor_to(5, 10), "\x1b[5;10H",
+        "cursor_to row;col order");
+    std::test::assert_eq_str(term::cursor_to(1, 1), "\x1b[1;1H",
+        "cursor_to origin");
+    std::test::assert_eq_str(term::cursor_home(), "\x1b[H", "cursor_home");
+    std::test::assert_eq_str(term::cursor_hide(), "\x1b[?25l", "cursor_hide");
+    std::test::assert_eq_str(term::cursor_show(), "\x1b[?25h", "cursor_show");
+
+    // Screen.
+    std::test::assert_eq_str(term::clear_screen(), "\x1b[2J", "clear_screen");
+    std::test::assert_eq_str(term::clear_line(), "\x1b[2K", "clear_line");
+    std::test::assert_eq_str(term::alt_screen_on(), "\x1b[?1049h",
+        "alt_screen_on");
+    std::test::assert_eq_str(term::alt_screen_off(), "\x1b[?1049l",
+        "alt_screen_off");
+    std::test::assert_eq_str(term::sync_on(), "\x1b[?2026h", "sync_on");
+    std::test::assert_eq_str(term::sync_off(), "\x1b[?2026l", "sync_off");
+
+    // Input modes: on/off pairs unwind in reverse order.
+    std::test::assert_eq_str(term::mouse_on(), "\x1b[?1002h\x1b[?1006h",
+        "mouse_on");
+    std::test::assert_eq_str(term::mouse_off(), "\x1b[?1006l\x1b[?1002l",
+        "mouse_off reverses mouse_on order");
+    std::test::assert_eq_str(term::paste_on(), "\x1b[?2004h", "paste_on");
+    std::test::assert_eq_str(term::paste_off(), "\x1b[?2004l", "paste_off");
+
+    // OSC.
+    std::test::assert_eq_str(term::window_title("hi"), "\x1b]0;hi\x07",
+        "window_title wraps in OSC 0 + BEL");
+    std::test::assert_eq_str(
+        term::hyperlink("https://example.com", "link"),
+        "\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\",
+        "hyperlink OSC 8 open/close");
+}

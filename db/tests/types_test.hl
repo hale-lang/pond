@@ -1,0 +1,80 @@
+// pond/db tests — value shapes only (this seed is the backend-
+// neutral interface + result records; drivers live in sibling
+// seeds and are tested there):
+//
+//   - Status / Row / Rows / ExecResult / DbError field defaults
+//     ("kind empty = no error", ok defaults false)
+//   - Args ordered bind list: add / add_null / count / val_at /
+//     null_at, including out-of-range reads (zero-value ArgVal)
+//
+// Run:  hale test db/
+
+import ".." as db;
+
+fn main() {
+    // ---- result-record defaults ----
+    let e = db::DbError { };
+    std::test::assert_eq_str(e.kind, "", "DbError.kind default (empty = no error)");
+    std::test::assert_eq_int(e.engine_code, 0, "DbError.engine_code default");
+    std::test::assert_eq_str(e.detail, "", "DbError.detail default");
+
+    let st = db::Status { };
+    std::test::assert(!st.ok, "Status.ok defaults false");
+    std::test::assert_eq_str(st.err.kind, "", "Status.err defaults to no-error");
+
+    let ex = db::ExecResult { };
+    std::test::assert(!ex.ok, "ExecResult.ok defaults false");
+    std::test::assert_eq_int(ex.rows_affected, 0, "ExecResult.rows_affected default");
+    std::test::assert_eq_int(ex.last_insert_rowid, 0, "ExecResult.last_insert_rowid default");
+
+    let row = db::Row { };
+    std::test::assert(!row.ok, "Row.ok defaults false");
+    std::test::assert_eq_str(row.data, "", "Row.data default");
+
+    let rows = db::Rows { };
+    std::test::assert(!rows.ok, "Rows.ok defaults false");
+    std::test::assert_eq_str(rows.csv, "", "Rows.csv default");
+    std::test::assert_eq_int(rows.n, 0, "Rows.n default");
+
+    // Populated shapes carry their fields through.
+    let full = db::Row {
+        ok:   true,
+        data: "a\tb",
+        err:  db::DbError { kind: "", engine_code: 0, detail: "" },
+    };
+    std::test::assert(full.ok, "constructed Row.ok");
+    std::test::assert_eq_str(full.data, "a\tb", "constructed Row.data");
+
+    let failed = db::Status {
+        ok:  false,
+        err: db::DbError { kind: "open_failed", engine_code: 14, detail: "nope" },
+    };
+    std::test::assert_eq_str(failed.err.kind, "open_failed", "error kind travels");
+    std::test::assert_eq_int(failed.err.engine_code, 14, "engine_code travels");
+
+    // ---- Args: ordered bind list ----
+    let a = db::Args { };
+    std::test::assert_eq_int(a.count(), 0, "fresh Args count 0");
+
+    a.add("first");
+    a.add("2");
+    a.add_null();
+    a.add("");
+    std::test::assert_eq_int(a.count(), 4, "count tracks adds");
+
+    std::test::assert_eq_str(a.val_at(0), "first", "val_at 0");
+    std::test::assert_eq_str(a.val_at(1), "2", "val_at 1");
+    std::test::assert(!a.null_at(0), "add() is not null");
+    std::test::assert(!a.null_at(1), "add() is not null (1)");
+
+    std::test::assert(a.null_at(2), "add_null() is null");
+    std::test::assert_eq_str(a.val_at(2), "", "null arg has empty val");
+
+    // Empty string is a real value, distinct from NULL.
+    std::test::assert(!a.null_at(3), "empty string is not NULL");
+    std::test::assert_eq_str(a.val_at(3), "", "empty-string val");
+
+    // Out-of-range reads substitute the zero-value ArgVal.
+    std::test::assert_eq_str(a.val_at(99), "", "out-of-range val_at is empty");
+    std::test::assert(!a.null_at(99), "out-of-range null_at is false");
+}

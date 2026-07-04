@@ -1,0 +1,129 @@
+// helpers_test — Prometheus rendering free fns + labels
+// constructors on known inputs, plus an exact render_histogram
+// pass over a hand-built HistogramData (guards the 2026-07-04
+// bounded[T; N] storage migration: render output must be
+// byte-identical to the pre-bounded CSV shape).
+
+import ".." as metrics;
+
+// Build a HistogramData with bounds [1, 5], cumulative counts
+// [2, 4, 5], sum 18, count 5. bounded fields auto-init EMPTY
+// and reject literal init, so fill via the push intrinsic
+// (same shape the histogram() factory uses).
+fn build_hist(name: String, labels: String) -> metrics::HistogramData {
+    let h = metrics::HistogramData {
+        name:   name,
+        labels: labels,
+        sum:    18.0,
+        count:  5
+    };
+    push(h.bounds, 1.0) or discard;
+    push(h.bounds, 5.0) or discard;
+    push(h.counts, 2) or discard;
+    push(h.counts, 4) or discard;
+    push(h.counts, 5) or discard;
+    return h;
+}
+
+// Build a HistogramData whose cumulative counts are broken
+// (one out-of-order pair) for the invariant-counter check.
+fn build_broken_hist() -> metrics::HistogramData {
+    let h = metrics::HistogramData {
+        name:   "broken",
+        labels: "",
+        sum:    0.0,
+        count:  0
+    };
+    push(h.bounds, 1.0) or discard;
+    push(h.bounds, 5.0) or discard;
+    push(h.counts, 1) or discard;
+    push(h.counts, 3) or discard;
+    push(h.counts, 2) or discard;   // 2 < 3 — one violation
+    return h;
+}
+
+fn main() {
+    // ----- prom_full_name -----
+    std::test::assert_eq_str(metrics::prom_full_name("", "reqs"),
+        "reqs", "empty namespace yields bare name");
+    std::test::assert_eq_str(metrics::prom_full_name("app", "reqs"),
+        "app_reqs", "namespace joins with underscore");
+
+    // ----- prom_escape_label_value -----
+    std::test::assert_eq_str(metrics::prom_escape_label_value("plain"),
+        "plain", "plain value unescaped");
+    std::test::assert_eq_str(metrics::prom_escape_label_value("a\\b"),
+        "a\\\\b", "backslash doubled");
+    std::test::assert_eq_str(metrics::prom_escape_label_value("say \"hi\""),
+        "say \\\"hi\\\"", "double-quote escaped");
+    std::test::assert_eq_str(metrics::prom_escape_label_value("two\nlines"),
+        "two\\nlines", "newline escaped to literal backslash-n");
+
+    // ----- labels constructors -----
+    let l0 = metrics::labels_empty();
+    std::test::assert_eq_str(l0.kv, "", "labels_empty kv is empty");
+    let l1 = metrics::labels_one("method", "GET");
+    std::test::assert_eq_str(l1.kv, "method=GET", "labels_one kv");
+    let l2 = metrics::labels_two("a", "1", "b", "2");
+    std::test::assert_eq_str(l2.kv, "a=1\tb=2", "labels_two tab-joined");
+    let l3 = metrics::labels_append(l0, "k", "v");
+    std::test::assert_eq_str(l3.kv, "k=v", "append onto empty has no tab");
+    let l4 = metrics::labels_append(l1, "code", "200");
+    std::test::assert_eq_str(l4.kv, "method=GET\tcode=200",
+        "append onto non-empty tab-joins");
+
+    // ----- render_labels -----
+    std::test::assert_eq_str(metrics::render_labels(""),
+        "", "empty kv renders no braces");
+    std::test::assert_eq_str(metrics::render_labels("method=GET"),
+        "{method=\"GET\"}", "single pair");
+    std::test::assert_eq_str(metrics::render_labels("a=1\tb=2"),
+        "{a=\"1\",b=\"2\"}", "two pairs comma-joined");
+    std::test::assert_eq_str(metrics::render_labels("q=say \"hi\""),
+        "{q=\"say \\\"hi\\\"\"}", "label value escaped inside braces");
+
+    // ----- render_labels_with_le -----
+    std::test::assert_eq_str(metrics::render_labels_with_le("", "0.5"),
+        "{le=\"0.5\"}", "empty kv still emits le");
+    std::test::assert_eq_str(metrics::render_labels_with_le("a=1", "+Inf"),
+        "{a=\"1\",le=\"+Inf\"}", "le appended after existing labels");
+
+    // ----- render_type_line / render_sample -----
+    std::test::assert_eq_str(metrics::render_type_line("app", "reqs", "counter"),
+        "# TYPE app_reqs counter\n", "TYPE line shape");
+    std::test::assert_eq_str(metrics::render_sample("", "reqs", "m=GET", 5.0),
+        "reqs{m=\"GET\"} 5\n", "whole-float sample renders bare int");
+    std::test::assert_eq_str(metrics::render_sample("", "temp", "", 1.5),
+        "temp 1.5\n", "no-label sample has no braces");
+
+    // ----- len_floats / nth_tab_token -----
+    std::test::assert_eq_int(metrics::len_floats(""), 0, "empty csv is 0 tokens");
+    std::test::assert_eq_int(metrics::len_floats("a"), 1, "one token");
+    std::test::assert_eq_int(metrics::len_floats("a\tb\tc"), 3, "three tokens");
+    std::test::assert_eq_str(metrics::nth_tab_token("a\tb\tc", 0), "a", "token 0");
+    std::test::assert_eq_str(metrics::nth_tab_token("a\tb\tc", 1), "b", "token 1");
+    std::test::assert_eq_str(metrics::nth_tab_token("a\tb\tc", 2), "c", "token 2");
+    std::test::assert_eq_str(metrics::nth_tab_token("a\tb\tc", 3), "", "OOB token is empty");
+
+    // ----- count_out_of_order (bounded counts walk) -----
+    let good = build_hist("lat", "");
+    std::test::assert_eq_int(metrics::count_out_of_order(good), 0,
+        "monotonic cumulative counts have 0 violations");
+    let bad = build_broken_hist();
+    std::test::assert_eq_int(metrics::count_out_of_order(bad), 1,
+        "one descending pair counted");
+
+    // ----- render_histogram — exact full string -----
+    // bounds [1, 5] + counts [2, 4, 5] + sum 18 + count 5, no
+    // labels, no namespace.
+    let plain = build_hist("lat", "");
+    std::test::assert_eq_str(metrics::render_histogram("", plain),
+        "lat_bucket{le=\"1\"} 2\nlat_bucket{le=\"5\"} 4\nlat_bucket{le=\"+Inf\"} 5\nlat_sum 18\nlat_count 5\n",
+        "render_histogram exact output (no labels)");
+
+    // Same data with a base label + namespace.
+    let labeled = build_hist("lat", "path=/x");
+    std::test::assert_eq_str(metrics::render_histogram("app", labeled),
+        "app_lat_bucket{path=\"/x\",le=\"1\"} 2\napp_lat_bucket{path=\"/x\",le=\"5\"} 4\napp_lat_bucket{path=\"/x\",le=\"+Inf\"} 5\napp_lat_sum{path=\"/x\"} 18\napp_lat_count{path=\"/x\"} 5\n",
+        "render_histogram exact output (labels + namespace)");
+}

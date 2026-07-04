@@ -1,0 +1,76 @@
+// pond/crypto/tests — hex_encode / hex_decode: round-trips,
+// case-insensitive decode, and the two failure kinds
+// (odd_length, invalid_char) surfaced via the fallible channel.
+
+import ".." as crypto;
+
+// `or kind_bytes(err)` substitute: on decode failure the test
+// observes the error KIND (as bytes) instead of decoded output.
+// "odd_length" hex = 6f64645f6c656e677468;
+// "invalid_char" hex = 696e76616c69645f63686172.
+fn kind_bytes(e: crypto::HexError) -> Bytes {
+    return std::bytes::from_string(e.kind);
+}
+
+fn main() {
+    // ---- encode ----
+    std::test::assert_eq_str(
+        crypto::hex_encode(std::bytes::from_string("abc")), "616263",
+        "hex_encode ascii");
+    std::test::assert_eq_str(
+        crypto::hex_encode(std::bytes::from_string("")), "",
+        "hex_encode empty");
+    // Low byte zero-pads to two chars; output is lowercase.
+    std::test::assert_eq_str(
+        crypto::hex_encode(std::bytes::from_int(0x0a)), "0a",
+        "single low byte pads to two chars");
+    std::test::assert_eq_str(
+        crypto::hex_encode(std::bytes::from_int(0xff)), "ff",
+        "0xff encodes lowercase");
+    std::test::assert_eq_str(
+        crypto::hex_encode(std::bytes::from_int(0x00)), "00",
+        "0x00 encodes as 00");
+
+    // ---- decode round-trips ----
+    let bs = crypto::hex_decode("deadbeef00ff") or raise;
+    std::test::assert_eq_str(crypto::hex_encode(bs), "deadbeef00ff",
+        "decode/encode round-trip");
+    std::test::assert_eq_int(len(bs), 6, "decoded byte length");
+
+    // Decode accepts uppercase and mixed case; encode normalizes
+    // to lowercase.
+    let up = crypto::hex_decode("DEADbeEF") or raise;
+    std::test::assert_eq_str(crypto::hex_encode(up), "deadbeef",
+        "case-insensitive decode");
+
+    // Empty string decodes to empty bytes.
+    let e = crypto::hex_decode("") or raise;
+    std::test::assert_eq_int(len(e), 0, "decode empty string");
+
+    // Encode -> decode round-trip over a full-range byte.
+    let orig = std::bytes::from_string("A~\t");
+    let back = crypto::hex_decode(crypto::hex_encode(orig)) or raise;
+    std::test::assert(crypto::constant_time_eq(orig, back),
+        "encode/decode round-trip preserves bytes");
+
+    // ---- failures ----
+    // Odd length fails with kind "odd_length".
+    let f1 = crypto::hex_decode("abc") or kind_bytes(err);
+    std::test::assert_eq_str(crypto::hex_encode(f1),
+        "6f64645f6c656e677468", "odd-length input fails odd_length");
+
+    // Invalid character fails with kind "invalid_char".
+    let f2 = crypto::hex_decode("zz") or kind_bytes(err);
+    std::test::assert_eq_str(crypto::hex_encode(f2),
+        "696e76616c69645f63686172", "non-hex char fails invalid_char");
+
+    // Invalid char later in the string also caught.
+    let f3 = crypto::hex_decode("00g0") or kind_bytes(err);
+    std::test::assert_eq_str(crypto::hex_encode(f3),
+        "696e76616c69645f63686172", "invalid char mid-string caught");
+
+    // Odd-length check runs before char validation.
+    let f4 = crypto::hex_decode("z") or kind_bytes(err);
+    std::test::assert_eq_str(crypto::hex_encode(f4),
+        "6f64645f6c656e677468", "odd length reported before invalid char");
+}

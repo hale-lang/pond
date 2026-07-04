@@ -1,0 +1,153 @@
+// widgets_test — pure widget logic and cell-grid rendering:
+// line_count/line_at/str_width helpers, List navigation + draw,
+// ProgressBar clamping + draw, TextInput editing, Spinner wrap.
+// Events are constructed as plain records (no tty, no Program).
+
+import ".." as tui;
+
+fn key_ev(k: String) -> tui::Event {
+    return tui::Event { kind: "key", key: k };
+}
+
+fn cell_at(s: tui::Screen, x: Int, y: Int) -> tui::Cell {
+    return s.cells.get(y * s.w + x) or tui::Cell { };
+}
+
+fn main() {
+    // ----- line helpers ------------------------------------------------
+    std::test::assert_eq_int(tui::line_count(""), 0, "empty string has 0 lines");
+    std::test::assert_eq_int(tui::line_count("solo"), 1, "no newline = 1 line");
+    std::test::assert_eq_int(tui::line_count("a\nb\nc"), 3, "two newlines = 3 lines");
+    std::test::assert_eq_str(tui::line_at("a\nb\nc", 0), "a", "line_at first");
+    std::test::assert_eq_str(tui::line_at("a\nb\nc", 1), "b", "line_at middle");
+    std::test::assert_eq_str(tui::line_at("a\nb\nc", 2), "c", "line_at last");
+    std::test::assert_eq_str(tui::line_at("a\nb\nc", 5), "", "line_at OOB is empty");
+
+    // ----- str_width ------------------------------------------------------
+    std::test::assert_eq_int(tui::str_width(""), 0, "empty width 0");
+    std::test::assert_eq_int(tui::str_width("abc"), 3, "ascii width");
+    std::test::assert_eq_int(tui::str_width("中文"), 4, "CJK chars are wide");
+    std::test::assert_eq_int(tui::str_width("a中b"), 4, "mixed ascii + CJK");
+
+    // ----- List navigation ---------------------------------------------------
+    let lst = tui::List { items: "alpha\nbeta\ngamma" };
+    std::test::assert_eq_int(lst.count(), 3, "list counts newline items");
+    std::test::assert_eq_str(lst.selected_item(), "alpha", "initial selection");
+
+    lst.handle(key_ev("down"));
+    std::test::assert_eq_int(lst.selected, 1, "down moves selection");
+    lst.handle(key_ev("up"));
+    lst.handle(key_ev("up"));
+    std::test::assert_eq_int(lst.selected, 0, "up clamps at 0");
+    lst.handle(key_ev("end"));
+    std::test::assert_eq_int(lst.selected, 2, "end jumps to last");
+    std::test::assert_eq_str(lst.selected_item(), "gamma", "selected_item follows");
+    lst.handle(key_ev("pgdn"));
+    std::test::assert_eq_int(lst.selected, 2, "pgdn clamps at last");
+    lst.handle(key_ev("home"));
+    std::test::assert_eq_int(lst.selected, 0, "home jumps to first");
+    lst.handle(tui::Event { kind: "mouse", btn: "wheel_down" });
+    std::test::assert_eq_int(lst.selected, 1, "wheel_down moves selection");
+    lst.handle(tui::Event { kind: "mouse", btn: "wheel_up" });
+    std::test::assert_eq_int(lst.selected, 0, "wheel_up moves selection back");
+
+    let empty = tui::List { };
+    empty.handle(key_ev("down"));   // must not crash / go negative
+    std::test::assert_eq_int(empty.count(), 0, "empty list stays empty");
+    std::test::assert_eq_str(empty.selected_item(), "", "empty list has no item");
+
+    // ----- List draw -> cells ----------------------------------------------------
+    let s = tui::Screen { };
+    s.resize(20, 6);
+    lst.handle(key_ev("down"));   // select "beta"
+    lst.draw(s, 0, 0, 10, 3);
+    // row 0 (unselected): "  alpha"
+    let r0c2 = cell_at(s, 2, 0);
+    std::test::assert_eq_int(r0c2.ch, 97, "unselected row indents two cells");
+    std::test::assert_eq_int(r0c2.attrs, 0, "unselected row has no attrs");
+    // row 1 (selected): "> beta" reverse-video, padded to the widget edge
+    let r1c0 = cell_at(s, 0, 1);
+    std::test::assert_eq_int(r1c0.ch, 62, "selected row draws the > marker");
+    std::test::assert_eq_int(r1c0.attrs, 16, "selected row is reverse video");
+    let r1c2 = cell_at(s, 2, 1);
+    std::test::assert_eq_int(r1c2.ch, 98, "selected row shows the item text");
+    let r1c9 = cell_at(s, 9, 1);
+    std::test::assert_eq_int(r1c9.attrs, 16, "highlight pads to the widget width");
+    // row 2: "  gamma"
+    let r2c2 = cell_at(s, 2, 2);
+    std::test::assert_eq_int(r2c2.ch, 103, "row below selection renders");
+
+    // ----- ProgressBar --------------------------------------------------------------
+    let pb = tui::ProgressBar { };
+    pb.set(150);
+    std::test::assert_eq_int(pb.pct, 100, "set clamps high to 100");
+    std::test::assert(pb.done(), "100% is done");
+    pb.set(-5);
+    std::test::assert_eq_int(pb.pct, 0, "set clamps low to 0");
+    std::test::assert(!pb.done(), "0% is not done");
+    pb.add(30);
+    std::test::assert_eq_int(pb.pct, 30, "add accumulates");
+    pb.add(90);
+    std::test::assert_eq_int(pb.pct, 100, "add clamps at 100");
+
+    // draw: [█████░░░░░]  50%  at w=17 -> inner 10, filled 5
+    pb.set(50);
+    pb.draw(s, 0, 4, 17, 2);
+    std::test::assert_eq_int(cell_at(s, 0, 4).ch, 91, "bar opens with [");
+    std::test::assert_eq_int(cell_at(s, 1, 4).ch, 9608, "first inner cell filled");
+    std::test::assert_eq_int(cell_at(s, 5, 4).ch, 9608, "5th inner cell filled");
+    std::test::assert_eq_int(cell_at(s, 6, 4).ch, 9617, "6th inner cell unfilled");
+    std::test::assert_eq_int(cell_at(s, 11, 4).ch, 93, "bar closes with ]");
+    std::test::assert_eq_int(cell_at(s, 14, 4).ch, 53, "percent tens digit");
+    std::test::assert_eq_int(cell_at(s, 16, 4).ch, 37, "percent sign at the end");
+
+    // ----- TextInput ------------------------------------------------------------------
+    let ti = tui::TextInput { };
+    ti.handle(tui::Event { kind: "key", key: "char", ch: 104, text: "h" });
+    ti.handle(tui::Event { kind: "key", key: "char", ch: 105, text: "i" });
+    std::test::assert_eq_str(ti.value, "hi", "chars append to value");
+    ti.handle(key_ev("backspace"));
+    std::test::assert_eq_str(ti.value, "h", "backspace drops last char");
+    ti.handle(tui::Event { kind: "paste", text: "ello" });
+    std::test::assert_eq_str(ti.value, "hello", "paste appends payload");
+    ti.handle(tui::Event { kind: "key", key: "char", text: "x", ctrl: true });
+    std::test::assert_eq_str(ti.value, "hello", "ctrl-chars are ignored");
+    ti.set_focus(false);
+    ti.handle(tui::Event { kind: "key", key: "char", text: "z" });
+    std::test::assert_eq_str(ti.value, "hello", "unfocused input ignores keys");
+    ti.set_focus(true);
+    ti.set_value("a中");
+    ti.handle(key_ev("backspace"));
+    std::test::assert_eq_str(ti.value, "a",
+        "backspace drops a whole multi-byte scalar");
+    ti.handle(key_ev("backspace"));
+    ti.handle(key_ev("backspace"));
+    std::test::assert_eq_str(ti.value, "", "backspace on empty stays empty");
+
+    // draw: placeholder renders dim when empty; cursor lands after value.
+    let ti2 = tui::TextInput { placeholder: "type here" };
+    ti2.draw(s, 0, 5, 10);
+    let ph = cell_at(s, 0, 5);
+    std::test::assert_eq_int(ph.ch, 116, "placeholder renders when value empty");
+    std::test::assert_eq_int(ph.attrs, 2, "placeholder is dim");
+    std::test::assert_eq_int(s.cursor_x, 0, "cursor at start when value empty");
+    std::test::assert_eq_int(s.cursor_y, 5, "cursor on the input row");
+    ti2.set_value("ab");
+    ti2.draw(s, 0, 5, 10);
+    std::test::assert_eq_int(s.cursor_x, 2, "cursor follows value width");
+    std::test::assert_eq_int(cell_at(s, 0, 5).ch, 97, "value renders over placeholder");
+
+    // ----- Spinner ----------------------------------------------------------------------
+    let sp = tui::Spinner { };
+    let mut i = 0;
+    while i < 10 {
+        sp.tick();
+        i = i + 1;
+    }
+    std::test::assert_eq_int(sp.frame, 0, "spinner wraps after 10 ticks");
+    sp.tick();
+    std::test::assert_eq_int(sp.frame, 1, "spinner advances after wrap");
+    sp.draw(s, 0, 3, 6);
+    std::test::assert_eq_int(cell_at(s, 0, 3).ch, 10265,
+        "frame 1 renders the second braille glyph");
+}

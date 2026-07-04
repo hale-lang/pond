@@ -1,0 +1,66 @@
+// matmul_test — matmul on a known 2x2, add, scale, transpose, dot.
+
+import ".." as mat;
+
+fn near_eq(actual: Float, expected: Float, msg: String) {
+    let mut diff = actual - expected;
+    if diff < 0.0 {
+        diff = 0.0 - diff;
+    }
+    std::test::assert(diff < 0.000001, msg);
+}
+
+fn main() {
+    // Known 2x2 product:
+    //   A = [[1,2],[3,4]]  B = [[5,6],[7,8]]
+    //   A*B = [[1*5+2*7, 1*6+2*8], [3*5+4*7, 3*6+4*8]]
+    //       = [[19, 22], [43, 50]]
+    let a = mat::from_rows(2, 2, "1.0, 2.0, 3.0, 4.0");
+    let b = mat::from_rows(2, 2, "5.0, 6.0, 7.0, 8.0");
+    let ab = mat::matmul(a, b);
+    std::test::assert(!mat::is_error(ab), "matmul result not error sentinel");
+    std::test::assert_eq_int(ab.rows, 2, "matmul rows");
+    std::test::assert_eq_int(ab.cols, 2, "matmul cols");
+    near_eq(ab.at(0, 0), 19.0, "A*B [0,0]");
+    near_eq(ab.at(0, 1), 22.0, "A*B [0,1]");
+    near_eq(ab.at(1, 0), 43.0, "A*B [1,0]");
+    near_eq(ab.at(1, 1), 50.0, "A*B [1,1]");
+
+    // Identity invariant: I*A = A.
+    let i2 = mat::eye(2);
+    let ia = mat::matmul(i2, a);
+    near_eq(ia.at(0, 0), 1.0, "I*A [0,0]");
+    near_eq(ia.at(1, 1), 4.0, "I*A [1,1]");
+    near_eq(ia.at(1, 0), 3.0, "I*A [1,0]");
+
+    // Non-square shape: 2x3 times 3x1 -> 2x1.
+    let c = mat::from_rows(2, 3, "1.0, 0.0, 2.0, 0.0, 1.0, 3.0");
+    let v = mat::from_rows(3, 1, "1.0, 2.0, 3.0");
+    let cv = mat::matmul(c, v);
+    std::test::assert_eq_int(cv.rows, 2, "2x3 @ 3x1 rows");
+    std::test::assert_eq_int(cv.cols, 1, "2x3 @ 3x1 cols");
+    near_eq(cv.at(0, 0), 7.0, "cv [0] = 1+0+6");
+    near_eq(cv.at(1, 0), 11.0, "cv [1] = 0+2+9");
+
+    // add: element-wise.
+    let s = mat::add(a, b);
+    near_eq(s.at(0, 0), 6.0, "add [0,0]");
+    near_eq(s.at(1, 1), 12.0, "add [1,1]");
+
+    // scale.
+    let k = mat::scale(a, -0.5);
+    near_eq(k.at(0, 0), -0.5, "scale [0,0]");
+    near_eq(k.at(1, 1), -2.0, "scale [1,1]");
+
+    // transpose: 2x3 -> 3x2, [r,c] swaps.
+    let t = mat::transpose(c);
+    std::test::assert_eq_int(t.rows, 3, "transpose rows");
+    std::test::assert_eq_int(t.cols, 2, "transpose cols");
+    near_eq(t.at(0, 0), c.at(0, 0), "transpose [0,0]");
+    near_eq(t.at(2, 0), c.at(0, 2), "transpose [2,0] = c[0,2]");
+    near_eq(t.at(1, 1), c.at(1, 1), "transpose [1,1] = c[1,1]");
+
+    // dot over flattened storage: a.b = 1*5+2*6+3*7+4*8 = 70.
+    let d = mat::dot(a, b);
+    near_eq(d, 70.0, "dot(a,b) = 70");
+}

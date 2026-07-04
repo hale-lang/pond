@@ -1,0 +1,45 @@
+// pond/_util/intfloat/tests — to_float / from_float round-trips,
+// negatives, and truncation direction.
+
+import ".." as intf;
+
+fn abs_f(f: Float) -> Float {
+    if f < 0.0 { return 0.0 - f; }
+    return f;
+}
+
+fn main() {
+    let ifx = intf::IntFloat { };
+
+    // to_float — positive, zero, negative.
+    std::test::assert(abs_f(ifx.to_float(42) - 42.0) < 0.0001,
+        "to_float(42) ~= 42.0");
+    std::test::assert(abs_f(ifx.to_float(0) - 0.0) < 0.0001,
+        "to_float(0) ~= 0.0");
+    std::test::assert(abs_f(ifx.to_float(-7) - (0.0 - 7.0)) < 0.0001,
+        "to_float(-7) ~= -7.0");
+
+    // from_float — truncation toward zero, both signs.
+    std::test::assert_eq_int(ifx.from_float(3.7), 3,
+        "from_float(3.7) truncates to 3");
+    std::test::assert_eq_int(ifx.from_float(3.2), 3,
+        "from_float(3.2) truncates to 3");
+    std::test::assert_eq_int(ifx.from_float(0.0 - 3.7), -3,
+        "from_float(-3.7) truncates toward zero to -3");
+    std::test::assert_eq_int(ifx.from_float(0.0 - 3.2), -3,
+        "from_float(-3.2) truncates toward zero to -3");
+    std::test::assert_eq_int(ifx.from_float(0.0), 0,
+        "from_float(0.0) == 0");
+
+    // Exact-value round-trips: Int -> Float -> Int is identity.
+    std::test::assert_eq_int(ifx.from_float(ifx.to_float(123456)), 123456,
+        "round-trip 123456");
+    std::test::assert_eq_int(ifx.from_float(ifx.to_float(-98765)), -98765,
+        "round-trip -98765");
+    std::test::assert_eq_int(ifx.from_float(ifx.to_float(0)), 0,
+        "round-trip 0");
+
+    // Float -> Int -> Float lands on the truncated whole value.
+    std::test::assert(abs_f(ifx.to_float(ifx.from_float(9.99)) - 9.0) < 0.0001,
+        "to_float(from_float(9.99)) ~= 9.0");
+}
