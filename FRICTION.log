@@ -331,6 +331,10 @@ ignore` (sugar for "swallow value too") would tidy these
 loops. Same applies to `set` chains where the new value isn't
 needed.
 
+**2026-07-04 retest (hale HEAD 400ac68): still open.** Same
+rejection; the diagnostic now names the alternatives explicitly
+("Use `or <default>` or `or raise` for value-bearing fallibles").
+
 ### Cross-seed locus ref in struct/locus-param field positions
 
 **2026-06-12 retest (hale HEAD b716696): still open, new
@@ -952,6 +956,16 @@ Interface coercion in codegen's `or`-substitute arm that the
 typechecker already runs (or lower the coercion at typecheck so
 codegen never sees the raw LocusRef).
 
+**2026-07-04 retest (hale HEAD 400ac68): HALF-CLOSED.** The
+coercion now works for plain fallible calls —
+`let g: Iface = fallible_fn() or Concrete { };` builds and runs
+(fresh probe) — but the `@form(vec)`-of-interface shape this
+entry is about (`entries.get(i) or ConcreteLocus { }`) still
+dies at codegen with the same mismatch (consistent with
+upstream's note that `@form`-synthesized methods are outside the
+new handler/substitute classifier). Hoisted-noop workaround
+stays in `registry.hl`.
+
 ---
 
 ## 2026-05-18 — or-fallback-no-locus-to-interface-coerce — [CLOSED]
@@ -1297,6 +1311,16 @@ Remaining upstream ask: bind `err` inside the or-fail payload
 literal (as `or handler(err)` already does); then each helper
 collapses into its call site.
 
+**2026-07-04 retest (hale HEAD 400ac68): err-binding still
+missing** (fresh probe, same `unknown identifier err` at
+codegen) — the two-stage helpers stay. But upstream now accepts
+handlers that are THEMSELVES `fallible(E2)` with implicit
+propagation, so the call shape simplifies from
+`or (__raise_connect(err, host, port) or raise)` to
+`or __raise_connect(err, host, port)` — the helper's failure
+propagates through the enclosing fn's error path automatically.
+Adopted in this pass (2026-07-04 cleanup leg).
+
 ### Cross-seed `const` lookups don't resolve at codegen — [CLOSED 2026-06-12]
 
 Probe at HEAD: `const GREETING: String = "...";` in a lib seed
@@ -1574,6 +1598,10 @@ calls `self.handler.invoke(j)` one hop from the injection site.
 Surface cost: none (Worker is internal). Proposed upstream fix:
 allow interface-typed values to flow into params of the same (or
 a structurally-narrower) interface type.
+
+**2026-07-04 retest (hale HEAD 400ac68): still rejected**, same
+"only loci satisfy interfaces" diagnostic. Back-ref workaround
+stays.
 
 ## 16. NEW (2026-06-12): `or handler(err)` handlers can't be fallible — stash-bridge pattern + reentrancy caveat
 
@@ -1952,7 +1980,11 @@ pattern is N>=3 places. (2026-06-12: `std::test` shipped with
 `assert` / `assert_eq_int` / `assert_eq_str` — still no
 near-float variant, so the entry stays open.) Not lifted here —
 staying inside the
-"only edit pond/math/stats/" rule.
+"only edit pond/math/stats/" rule. (2026-07-04: `hale test` CLI
+runner shipped and this repo now carries `tests/*_test.hl` per
+lib — the near-float gap is more visible now; Float-comparing
+tests each redeclare the helper. Upstream ask unchanged:
+`std::test::assert_near_float(actual, expected, eps, msg)`.)
 
 ## design-question: empty-input policy on infallible free fns
 
@@ -2549,6 +2581,17 @@ back into a plain `trainer.fit(model, xs, ys, 5000)` call at the
 top of the demo, drop workaround 1 if profiling says the fresh
 per-sample extract is preferable, and delete this entry.
 
+**2026-07-04 retest (hale HEAD 400ac68): STILL SEGFAULTS, 5/5
+runs** — despite this HEAD's large memory-model work (WS1#4
+lifecycle reassignment, anchor retirement, accept'd-child struct
+recycling). New, smaller repro (no matrix lib; ~45 lines, plain
+loci): `main → main-locus run() → trainer.fit(model)` where
+`fit` loops `let x = make(1.0, 2.0); model.train_step(x);`
+(`make` a free fn returning a 2-Float-param locus) ×20000, then
+`run()` allocates ("post-fit " + r) and calls `make` once more —
+segfaults every run before printing. Same shape driven from
+`fn main()` is clean. Workarounds unchanged.
+
 ## Resolved (2026-06-08 source pass)
 
 - **`Model.forward` / `Model.train_step` / `Model.apply_delta` /
@@ -2759,6 +2802,10 @@ case (`downstream-consumer/metrics.hl` line 72 — try building
 that seed in isolation). Logged as
 "int-to-float-ascription-rejected" alongside the `int_to_float`
 ASCII-roundtrip workaround.
+
+(Re-tested 2026-07-04 at hale HEAD 400ac68: `let f: Float = n;`
+still rejects "expected Float, got Int". `std::math::int_to_float`
+remains the supported bridge.)
 
 ### Topic-decl + payload-type name collision
 
@@ -3148,6 +3195,10 @@ class as KNOWN_GOTCHAS G2). The restored methods elide the unit
 return clause, matching the contract's arg-shape; behavior is
 identical.
 
+**2026-07-04 retest (hale HEAD 400ac68): still open** — fresh
+probe, identical tuple-arity error on a minimal non-fallible
+`fn bump() -> ()` method.
+
 
 ======================================================================
  pond/sessions
@@ -3524,6 +3575,8 @@ to parse at HEAD (`parse error: expected function name, got
 Run`; the call site fails too — `expected expression, got
 Run`). The lib exports `run_cmd`. One-token consumer impact;
 flagged by the deviation banner in `README.md`.
+(Re-tested 2026-07-04 at hale HEAD 400ac68: `run` is still a
+reserved token in fn-name and expression position — unchanged.)
 
 ### 3.4 `SpawnOpts.stdin: Bytes` has no default — [CLOSED 2026-06-12]
 
@@ -3561,6 +3614,13 @@ both free fns and locus methods (probe-verified).
 payload-literal scope the same way it's bound for
 `or handler(err)` dispositions; then every `wrap_*` helper in
 `spawn.hl` collapses into its call site.
+
+**2026-07-04 retest (hale HEAD 400ac68): err-binding still
+missing** (fresh probe). New at this HEAD: `or` handlers may be
+`fallible(E2)` with implicit propagation, so the two-stage
+spelling `or (wrap(err) or raise)` simplifies to `or wrap(err)`
+— the helpers themselves stay until err binds in or-fail
+payloads. Adopted in this pass (2026-07-04 cleanup leg).
 
 ---
 
@@ -3759,10 +3819,11 @@ codegen error: unsupported in codegen v0: tuple type must have at
 least 2 elements; got 0
 ```
 
-(Re-confirmed 2026-06-12: still fires at HEAD.) Identical to the
-G2 workaround: omit the `-> ()` clause. The lib's methods
-(`add_child`, `spawn_worker`, `fail`, `route_by_strategy`) all
-drop the explicit unit return. CONTRACTS.md
+(Re-confirmed 2026-06-12; re-confirmed again 2026-07-04 at hale
+HEAD 400ac68 — identical error on a fresh minimal probe.)
+Identical to the G2 workaround: omit the `-> ()` clause. The
+lib's methods (`add_child`, `spawn_worker`, `fail`,
+`route_by_strategy`) all drop the explicit unit return. CONTRACTS.md
 spells some signatures with `-> ()` (e.g. `fn add_child(spec, child:
 LocusRef) -> ();`); the lib's signatures match the contract's
 arg-shape but elide the unit return.
