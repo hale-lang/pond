@@ -73,11 +73,11 @@ locus Sandbox {
     // on it, capture stdout/stderr.
     fn run_code(code: String) -> SandboxResult fallible(SandboxError) {
         let path = std::io::fs::mktemp("/tmp/hale_sb_", ".script")
-            or (self.raise_io(err) or raise);
+            or self.raise_io(err);
         std::io::fs::write_file(path, code)
-            or (self.raise_io_after_cleanup(err, path) or raise);
+            or self.raise_io_after_cleanup(err, path);
         let r = self.run_file(path)
-            or (self.raise_after_cleanup(err, path) or raise);
+            or self.raise_after_cleanup(err, path);
         // Best-effort cleanup of the temp file once run_file returned cleanly.
         std::io::fs::unlink(path) or discard;
         return r;
@@ -87,7 +87,7 @@ locus Sandbox {
     // `path`, capture stdout/stderr.
     fn run_file(path: String) -> SandboxResult fallible(SandboxError) {
         let out = sub::run_cmd(self.runtime, path)
-            or (self.raise_spawn(err) or raise);
+            or self.raise_spawn(err);
         return SandboxResult {
             exit_code: out.status.code,
             stdout:    std::str::from_bytes(out.stdout),
@@ -99,7 +99,8 @@ locus Sandbox {
     // as SandboxError with kind="io". The String return type is
     // never produced (the body always diverges via `fail`); it
     // matches the success type of mktemp so the typechecker
-    // accepts `or (self.raise_io(err) or raise)`.
+    // accepts `or self.raise_io(err)` (the handler's own failure
+    // propagates implicitly since hale 400ac68).
     fn raise_io(e: IoError) -> String fallible(SandboxError) {
         fail SandboxError {
             kind:   "io",

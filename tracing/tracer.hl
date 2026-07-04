@@ -251,7 +251,7 @@ locus Tracer {
                 endpoint,
                 std::bytes::from_string(body),
                 "application/json"
-            ) or (__raise_transport(err, endpoint) or raise);
+            ) or __raise_transport(err, endpoint);
             if resp.status < 200 || resp.status >= 300 {
                 fail TraceError {
                     kind:   "non_2xx",
@@ -314,7 +314,8 @@ locus Tracer {
 // into this lib's TraceError and raise. Always fails; the
 // http::Response success type only satisfies the typechecker so
 // the helper slots into export_otlp's or-chain
-// (`or (__raise_transport(err, endpoint) or raise)`), the same
+// (`or __raise_transport(err, endpoint)` — the handler's own
+// failure propagates implicitly since hale 400ac68), the same
 // payload-translation idiom pond/http/client's __raise_connect
 // uses.
 fn __raise_transport(e: http::HttpError, endpoint: String) -> http::Response fallible(TraceError) {

@@ -1495,7 +1495,7 @@ from the queue), and the worker issues `ack(j.id)` /
 **Proposed CONTRACTS.md amendment** (unchanged): add `id: Int`
 to `Job` — the simplest of the options previously listed.
 
-## 7. duplicate-suspected: DbError→JobError bridge helpers — open, refreshed 2026-06-12
+## 7. duplicate-suspected: DbError→JobError bridge helpers — NARROWED 2026-07-04 (was: open, refreshed 2026-06-12)
 
 The old `__bridge_db_*` free fns became the `__stash_*` member-fn
 family on `Queue` (an `or` handler can't itself be fallible — see
@@ -1505,6 +1505,16 @@ The duplication is now CONFIRMED, not just suspected:
 family. Still advisory — a shared helper needs either generics
 over the payload type or a dedicated seed, neither available/
 warranted yet.
+
+**2026-07-04 update:** the two families are no longer twins.
+jobs' stash is GONE (item 16 closed — direct fallible bridges);
+migrations' stash STAYS, for a structural reason the fix doesn't
+touch: `SqliteDriver`'s methods are non-fallible by
+`db::DbDriver` contract (ok/err-packed results), so there is no
+enclosing error path for a fallible handler to propagate into.
+What remains duplicated across libs is only the thin "fail with
+kind/detail from a DbError" translation shape — below the
+threshold for a shared seed. Entry stays advisory.
 
 ## 8. duplicate-suspected: Pool's on_failure restart-loop — open, refreshed 2026-06-12
 
@@ -1603,7 +1613,24 @@ a structurally-narrower) interface type.
 "only loci satisfy interfaces" diagnostic. Back-ref workaround
 stays.
 
-## 16. NEW (2026-06-12): `or handler(err)` handlers can't be fallible — stash-bridge pattern + reentrancy caveat
+## 16. `or handler(err)` handlers can't be fallible — stash-bridge pattern + reentrancy caveat — **CLOSED 2026-07-04**
+
+**Closed:** hale 400ac68 accepts handlers that are themselves
+`fallible(E2)`, with implicit propagation through the enclosing
+fn's error path (upstream changelog names this lib's stash idiom
+as the motivating case). `queue.hl` now bridges DbError→JobError
+with direct fallible member fns (`__db_int` / `__db_exec` /
+`__db_row` / `__db_row_or_empty` / the `*_fin` variants that
+finalize the stmt before failing); the `err_kind`/`err_detail`
+stash params, `__clear`, `__check`, and the whole `__stash_*`
+family are deleted. The non-reentrancy caveat below dies with
+the stash (queue ops no longer write shared error state);
+`schema_error` alone survives, because `birth()` is a lifecycle
+body and still can't be fallible. Verified: `hale check jobs/`
+clean; email-worker demo runs 10 delivered + 1 dead-lettered
+after retry, exit 0. Original entry preserved below.
+
+## [historical] 16-original. NEW (2026-06-12): `or handler(err)` handlers can't be fallible — stash-bridge pattern + reentrancy caveat
 
 Probed at HEAD: a disposition handler declaring `fallible(E2)` is
 rejected ("fallback type `Int fallible(JobError)` does not match

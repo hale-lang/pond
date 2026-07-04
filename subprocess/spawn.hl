@@ -74,7 +74,7 @@ fn spawn(opts: SpawnOpts) -> Output fallible(SpawnError) {
     let argv = argv_blob(opts.cmd, opts.args);
 
     if len(opts.stdin) == 0 {
-        let po = std::process::run(argv) or wrap_run(err) or raise;
+        let po = std::process::run(argv) or wrap_run(err);
         return Output {
             status: ExitStatus {
                 code:     po.code,
@@ -87,16 +87,16 @@ fn spawn(opts: SpawnOpts) -> Output fallible(SpawnError) {
     }
 
     // Stdin-bearing path: spawn, write, drain, wait.
-    let c = std::process::spawn(argv) or wrap_spawn(err) or raise;
+    let c = std::process::spawn(argv) or wrap_spawn(err);
     let stdin_str = std::str::from_bytes(opts.stdin);
-    let _ = std::process::write_stdin(c, stdin_str) or wrap_pipe_int(err) or raise;
+    let _ = std::process::write_stdin(c, stdin_str) or wrap_pipe_int(err);
     // Closing stdin explicitly would require a primitive that
     // doesn't exist yet; most tools (cat, sort, python -) drain
     // their pipe buffer and exit on EOF after the read returns
     // short. Gap documented in FRICTION.log.
-    let code = std::process::wait(c) or wrap_wait(err) or raise;
-    let out_s = std::process::read_stdout(c) or wrap_pipe_str(err) or raise;
-    let err_s = std::process::read_stderr(c) or wrap_pipe_str(err) or raise;
+    let code = std::process::wait(c) or wrap_wait(err);
+    let out_s = std::process::read_stdout(c) or wrap_pipe_str(err);
+    let err_s = std::process::read_stderr(c) or wrap_pipe_str(err);
     return Output {
         status: ExitStatus {
             code:     code,
