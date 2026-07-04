@@ -23,13 +23,16 @@
 // `JobError { kind: "db", ... }` — the same first-call pattern
 // pond/sqlite uses for open failures.
 //
-// Error bridging: `or handler(err)` handlers can't themselves be
-// fallible (probed at HEAD 43300e5: "fallback type `Int
-// fallible(E)` does not match success type `Int`"), so converting
-// a sqlite DbError into our JobError uses stash member fns —
-// the handler records (kind, detail) on self and returns a
-// sentinel success value; the op body then checks the stash via
-// `self.__check() or raise`. First error wins.
+// Error bridging: `or handler(err)` handlers may themselves be
+// fallible since hale 400ac68 (implicit propagation through the
+// enclosing fn's error path), so converting a sqlite DbError into
+// our JobError is a direct fallible bridge fn per success shape —
+// `or self.__db_int(err)` etc. The old stash-member-fn pattern
+// (private err_kind/err_detail params + `self.__check() or raise`
+// after every op) is retired, and with it its non-reentrancy
+// hazard (FRICTION.log § pond/jobs item 16, closed 2026-07-04).
+// The statement-bearing paths finalize their stmt before failing
+// so a failed bind/step can't leak the handle.
 //
 // Schema:
 //   CREATE TABLE IF NOT EXISTS <table> (
@@ -70,12 +73,10 @@ locus Queue {
         // --- private state (not part of the contract) ---
 
         // Stamped by birth() when the schema bringup fails;
-        // every op then fails kind="db" until fixed.
+        // every op then fails kind="db" until fixed. (birth is a
+        // lifecycle body — it can't be fallible, so this one
+        // stash survives the item-16 cleanup.)
         schema_error: String = "";
-
-        // DbError→JobError bridge stash (see header comment).
-        err_kind:   String = "";
-        err_detail: String = "";
     }
 
     // birth() — run the (idempotent) schema bringup over the
@@ -108,25 +109,20 @@ locus Queue {
         max_attempts: Int
     ) -> Int fallible(JobError) {
         self.__guard() or raise;
-        self.__clear();
         let sql = "INSERT INTO " + self.table
             + " (kind, payload, attempt, max_attempts, state)"
             + " VALUES (?1, ?2, 0, ?3, 'ready')";
-        let stmt = self.db.prepare(sql) or self.__stash_int(err);
-        if self.err_kind == "" {
-            self.db.bind_text(stmt, 1, kind) or self.__stash_unit(err);
-            self.db.bind_text(stmt, 2, payload) or self.__stash_unit(err);
-            self.db.bind_int(stmt, 3, max_attempts) or self.__stash_unit(err);
-            // step on an INSERT lands on SQLITE_DONE, which the
-            // sqlite driver reports as kind="no_row" — that's the
-            // SUCCESS path here, so the stash handler ignores it.
-            let _ = self.db.step(stmt) or self.__stash_step_done(err);
-            self.db.finalize(stmt) or self.__stash_unit(err);
-        }
-        self.__check() or raise;
+        let stmt = self.db.prepare(sql) or self.__db_int(err);
+        self.db.bind_text(stmt, 1, kind) or self.__db_unit_fin(err, stmt);
+        self.db.bind_text(stmt, 2, payload) or self.__db_unit_fin(err, stmt);
+        self.db.bind_int(stmt, 3, max_attempts) or self.__db_unit_fin(err, stmt);
+        // step on an INSERT lands on SQLITE_DONE, which the
+        // sqlite driver reports as kind="no_row" — that's the
+        // SUCCESS path here, so the bridge treats it as success.
+        let _ = self.db.step(stmt) or self.__db_step_fin(err, stmt);
+        self.db.finalize(stmt) or self.__db_unit(err);
         let row = self.db.query_one("SELECT last_insert_rowid()")
-            or self.__stash_row(err);
-        self.__check() or raise;
+            or self.__db_row(err);
         return std::str::parse_int(row.data) or 0;
     }
 
@@ -140,23 +136,14 @@ locus Queue {
         self.__guard() or raise;
         let mut tries = 0;
         while tries < 100 {
-            self.__clear();
             let sel = "SELECT id, attempt, max_attempts, kind, payload FROM "
                 + self.table + " WHERE state = 'ready' ORDER BY id LIMIT 1";
-            let row = self.db.query_one(sel) or self.__stash_row(err);
-            if self.err_kind == "no_row" {
-                fail JobError {
-                    kind:   "empty",
-                    detail: "no ready jobs in " + self.table,
-                };
-            }
-            self.__check() or raise;
+            let row = self.db.query_one(sel) or self.__db_row_or_empty(err);
             let j = __parse_job_row(row.data);
             let upd = "UPDATE " + self.table
                 + " SET state = 'in_flight', claimed_at = strftime('%s','now')"
                 + " WHERE id = " + to_string(j.id) + " AND state = 'ready'";
-            let r = self.db.exec(upd) or self.__stash_exec(err);
-            self.__check() or raise;
+            let r = self.db.exec(upd) or self.__db_exec(err);
             if r.rows_affected > 0 {
                 return j;
             }
@@ -173,11 +160,9 @@ locus Queue {
     // be acked; anything else fails kind="not_found".
     fn ack(job_id: Int) -> () fallible(JobError) {
         self.__guard() or raise;
-        self.__clear();
         let upd = "UPDATE " + self.table + " SET state = 'done'"
             + " WHERE id = " + to_string(job_id) + " AND state = 'in_flight'";
-        let r = self.db.exec(upd) or self.__stash_exec(err);
-        self.__check() or raise;
+        let r = self.db.exec(upd) or self.__db_exec(err);
         if r.rows_affected <= 0 {
             fail JobError {
                 kind:   "not_found",
@@ -199,7 +184,6 @@ locus Queue {
     // fn coexist (probed at HEAD; FRICTION.log item 13 closed).
     fn fail(job_id: Int, retry: Bool) -> () fallible(JobError) {
         self.__guard() or raise;
-        self.__clear();
         let mut upd = "UPDATE " + self.table + " SET state = 'failed'"
             + " WHERE id = " + to_string(job_id) + " AND state = 'in_flight'";
         if retry {
@@ -207,8 +191,7 @@ locus Queue {
                 + " SET state = 'ready', attempt = attempt + 1"
                 + " WHERE id = " + to_string(job_id) + " AND state = 'in_flight'";
         }
-        let r = self.db.exec(upd) or self.__stash_exec(err);
-        self.__check() or raise;
+        let r = self.db.exec(upd) or self.__db_exec(err);
         if r.rows_affected <= 0 {
             fail JobError {
                 kind:   "not_found",
@@ -228,29 +211,9 @@ locus Queue {
         }
     }
 
-    fn __check() -> () fallible(JobError) {
-        if self.err_kind != "" {
-            fail JobError {
-                kind:   "db",
-                detail: self.err_kind + ": " + self.err_detail,
-            };
-        }
-    }
-
-    fn __clear() {
-        self.err_kind = "";
-        self.err_detail = "";
-    }
-
-    // First error wins — a failed bind shouldn't be masked by the
-    // step/finalize noise that follows it.
-    fn __stash(kind: String, detail: String) {
-        if self.err_kind == "" {
-            self.err_kind = kind;
-            self.err_detail = detail;
-        }
-    }
-
+    // __schema_err — birth()'s bridge. Lifecycle bodies can't be
+    // fallible, so this one keeps the stash shape (first error
+    // wins) and returns a sentinel.
     fn __schema_err(e: sqlite::DbError) -> sqlite::ExecResult {
         if self.schema_error == "" {
             self.schema_error = e.kind + ": " + e.detail;
@@ -258,31 +221,52 @@ locus Queue {
         return sqlite::ExecResult { };
     }
 
-    fn __stash_int(e: sqlite::DbError) -> Int {
-        self.__stash(e.kind, e.detail);
-        return 0;
+    // ---- DbError→JobError bridges. Fallible or-handlers: their
+    //      failure propagates through the calling op's error path
+    //      implicitly (hale ≥ 400ac68). One bridge per success
+    //      shape; the *_fin variants finalize the statement before
+    //      failing so an aborted enqueue can't leak the handle.
+
+    fn __db_int(e: sqlite::DbError) -> Int fallible(JobError) {
+        fail JobError { kind: "db", detail: e.kind + ": " + e.detail };
     }
 
-    fn __stash_unit(e: sqlite::DbError) {
-        self.__stash(e.kind, e.detail);
+    fn __db_unit(e: sqlite::DbError) -> () fallible(JobError) {
+        fail JobError { kind: "db", detail: e.kind + ": " + e.detail };
     }
 
-    fn __stash_exec(e: sqlite::DbError) -> sqlite::ExecResult {
-        self.__stash(e.kind, e.detail);
-        return sqlite::ExecResult { rows_affected: -1 };
+    fn __db_unit_fin(e: sqlite::DbError, stmt: Int) -> () fallible(JobError) {
+        self.db.finalize(stmt) or discard;
+        fail JobError { kind: "db", detail: e.kind + ": " + e.detail };
     }
 
-    fn __stash_row(e: sqlite::DbError) -> sqlite::Row {
-        self.__stash(e.kind, e.detail);
-        return sqlite::Row { };
-    }
-
-    // step-on-INSERT handler: SQLITE_DONE ("no_row") is success.
-    fn __stash_step_done(e: sqlite::DbError) -> sqlite::Row {
+    // step-on-INSERT bridge: SQLITE_DONE ("no_row") is success.
+    fn __db_step_fin(e: sqlite::DbError, stmt: Int) -> sqlite::Row fallible(JobError) {
         if e.kind != "no_row" {
-            self.__stash(e.kind, e.detail);
+            self.db.finalize(stmt) or discard;
+            fail JobError { kind: "db", detail: e.kind + ": " + e.detail };
         }
         return sqlite::Row { };
+    }
+
+    fn __db_exec(e: sqlite::DbError) -> sqlite::ExecResult fallible(JobError) {
+        fail JobError { kind: "db", detail: e.kind + ": " + e.detail };
+    }
+
+    fn __db_row(e: sqlite::DbError) -> sqlite::Row fallible(JobError) {
+        fail JobError { kind: "db", detail: e.kind + ": " + e.detail };
+    }
+
+    // dequeue's SELECT bridge: zero ready rows is the contract's
+    // kind="empty", anything else is kind="db".
+    fn __db_row_or_empty(e: sqlite::DbError) -> sqlite::Row fallible(JobError) {
+        if e.kind == "no_row" {
+            fail JobError {
+                kind:   "empty",
+                detail: "no ready jobs in " + self.table,
+            };
+        }
+        fail JobError { kind: "db", detail: e.kind + ": " + e.detail };
     }
 }
 
