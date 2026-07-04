@@ -14,6 +14,52 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-07-04 status note — upstream refresh pass (hale v0.9.0→v0.9.2+, HEAD `400ac68`)
+
+Upstream shipped 103 commits since the 2026-06-12 baseline (`b716696`):
+v0.9.0 (lock-free bus, dispatch devirtualization, native O3 codegen),
+v0.9.1 (pinned-Decimal bus alignment), v0.9.2 (interest-based ownership /
+accept bubbling), plus `bounded[T; N]`, `@form(lru_cache)`, typecheck M3
+(stdlib signatures + generics through the CLI), default-on
+unbounded-alloc warnings, `std::bytes::{find_byte, xor_mask}`,
+`std::crypto::{sha512, hmac_sha512}`, `std::math::{round, trunc}`,
+`@form` iteration, and **`hale test`** (per-spec/testing.md runner over
+`*_test.hl`). This pass re-baselined every lib against that HEAD.
+
+Baseline verification (2026-07-04, before any source change): all 30
+seeds `hale check` clean (zero errors — upstream's typecheck-M3 gates
+held), all 36 examples build. Every previously-probed gotcha was
+re-probed at `400ac68`; results:
+
+- **Closed upstream, adopted this pass:** fallible `or handler(err)`
+  with implicit propagation (retires jobs' `__stash_*` bridge + its
+  non-reentrancy caveat, and every `or (wrap(err) or raise)` spelling);
+  `or <substitute>` LocusRef→Interface coercion for plain fallible
+  calls (NOT for `@form`-synthesized `get` — that half stays open, so
+  `agent/tools`' hoisted-noop workaround stays).
+- **Still open (re-probed, workarounds unchanged):** `err` unbound in
+  `or fail E { ... }` payloads; `-> ()` on non-fallible methods;
+  `hale check` file-local topic resolution (co-location rule stays);
+  `run` reserved as fn name; `or discard` on value-bearing fallibles;
+  Int→Float widening at let-ascription; interface-typed values not
+  re-injectable into interface params; and the **method-frame
+  fresh-locus heap corruption** (ml/neural blocker — still segfaults
+  5/5; a smaller no-matrix repro is now in FRICTION.log).
+- **Unbounded-alloc warnings are default-on** for bare-lib checks;
+  warnings across the repo were triaged (fixed or recorded per lib in
+  FRICTION.log — see § pond/websocket for the one true per-message
+  leak class).
+- **Testing convention added:** every lib ships `tests/*_test.hl`
+  (std::test asserts; `import ".." as lib`), run by `hale test <lib>/`
+  or repo-wide `hale test .`. Tests are a codegen gate alongside
+  examples.
+
+Contract deltas made in this pass are annotated inline in the
+surface blocks below with `(2026-07-04 — ...)` comments, and each has
+a FRICTION.log entry in its lib's section.
+
+---
+
 ## 2026-06-12 status note — post-audit cleanup pass (whole repo)
 
 Upstream's post-audit hardening (hale #129 "WS0–WS5", 2026-06-11, plus
