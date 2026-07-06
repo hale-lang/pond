@@ -2468,6 +2468,16 @@ behind a router.
 Gaps, suspicions, and deviations from CONTRACTS.md surfaced while
 building this lib.
 
+**2026-07-06 status — v2 pass (registration-then-run).** Third
+major pass: the surface respelled to the golang-migrate shape
+(entry 13), the SqliteDriver adapter promoted out to
+`sqlite::Driver` (entry 11 placement closed), per-migration
+explicit transactions (entry 7 closed), unit tests moved onto a
+pure-Hale FakeDriver (no @ffi link gate), and a NEW deterministic
+manifestation of the upstream heap-corruption family found while
+writing those tests (entry 14). Open items: 10, 14 (upstream),
+15 (design note).
+
 **2026-06-12 status.** Second major pass. The first rewrite
 (2026-05-29, commit `7e00f37`) replaced the dir-scanning
 `Runner` + free-fn surface with the data-driven `Migrator` over
@@ -2536,7 +2546,21 @@ parsing). Nothing to lift.
 
 ---
 
-## 7. design-question: per-migration transaction wrapping — open, refreshed 2026-06-12
+## 7. design-question: per-migration transaction wrapping — **CLOSED 2026-07-06 (v2 wraps every step)**
+
+Resolved by the v2 respell (entry 13): every apply/revert step
+runs as ONE explicit driver transaction (`begin()` → step SQL →
+tracking write → `commit()`, `rollback()` on failure) via the
+DbDriver's first-class txn methods. The two v1 fears both turned
+out hollow here: (a) DDL-in-txn non-portability is a MySQL
+problem — both pond backends (postgres, sqlite) have
+transactional DDL; (b) the postgres "aborted-transaction trap"
+only applied to BEGIN/COMMIT embedded in ONE multi-statement
+Query string — separate first-class begin()/commit() calls don't
+hit it (a failed step's rollback() returns the connection to
+idle). The sqlite half-applied hazard documented below is
+therefore gone: a mid-script failure rolls the whole step back,
+tracking INSERT included. Historical stance follows.
 
 Stance unchanged, now backend-differentiated:
 
@@ -2644,21 +2668,136 @@ uses. Upstream-worthy observation: `hale check` validating import
 resolvability would have caught this two weeks earlier.
 
 
-## testability note: Migrator prints on its success path — 2026-07-04
+## testability note: Migrator prints on its success path — **CLOSED 2026-07-06 (verbose flag)**
 
-`migrate.hl apply()` printlns `[migrate] applied vN` on every
-fresh apply (and FAILED on failure). Under spec/testing.md's
-pass = exit-0-plus-SILENT-stdout contract (enforced by `hale
-test`), the fresh-apply and bad-SQL paths are therefore not
-unit-testable without a lib change. `tests/migrator_test.hl`
-covers the silent paths instead (no-op/skip via directly-seeded
-`schema_migrations` rows; the `failed` latch via constructor);
-blog-schema remains the gate for the printing paths. If a
-future pass wants those unit-tested, route apply()'s narration
-through an injectable sink (same shape as jobs' Worker
-birth-print, which has the identical limitation — noted in
-supervisor's tests too). Not actioned: the narration is a
-deliberate operator surface.
+Superseded by the v2 respell: `Migrator.params.verbose: Bool =
+true` gates ALL narration (applied/reverted/forced lines).
+Operators keep the default-on prints; tests construct
+`verbose: false` and every path — including fresh applies and
+failures — is silent and unit-testable under spec/testing.md's
+exit-0-plus-silent-stdout contract. The suggested injectable-sink
+shape wasn't needed; a Bool was enough. (jobs' Worker birth-print
+still has the original limitation — this closure is
+migrations-only.)
+
+---
+
+## 13. NEW (2026-07-06): v2 surface respell — registration-then-run, fallible, reversible
+
+**What changed (CONTRACTS.md § pond/migrations respelled to
+match; this entry is the deviation record for the break).** The
+v1 surface — caller-driven `apply(version, name, up_sql) -> Bool`
+with the sticky `failed`/`last_err` latch — is REMOVED, replaced
+by the golang-migrate / ezdb shape:
+
+- `Migrations` (@form(vec), cells = `Migration { version, name,
+  up_sql, down_sql }`): the app registers its ordered set via
+  `add()` / `add_rev()` and injects it (`set:` param).
+- Run verbs on `Migrator`: `up()`, `down(n)`, `steps(±n)`,
+  `goto(v)`, `force(v)`; introspection `current_version()`,
+  `pending()`, `dirty()`; `ensure()` stays (now also the v1→v2
+  tracking-table upgrader — adds the `dirty` column via probe +
+  ALTER).
+- Every run op is `fallible(MigrationError)` (kind vocabulary in
+  types.hl) — the Bool-latch shape predated v0.8.1's member-fn
+  fallible narrowing and is retired.
+- Down migrations exist but stay OPT-IN per registration
+  (`add()` = irreversible; reverting over one fails
+  "irreversible" before running anything). The v1 forward-only
+  STANCE survives as advice in the README; the mechanism is what
+  makes `goto`/`steps(-n)` and dev-loop iteration work.
+- Per-step explicit transactions (closes entry 7), postgres
+  advisory lock around run ops (`pg_advisory_lock`, fixed key,
+  released on success AND failure paths), dirty/force repair
+  protocol for rollback-also-failed states.
+- Tracking-table writes: version/name are interpolated with a
+  `__quote()` ''-doubling helper, NOT exec_params — see entry 15.
+
+**Migration for callers:** replace each `m.apply(v, name, sql)`
+sequence with set registration + one `m.up()`; replace
+`ensure()->Bool` checks with `or` dispositions; the `applied`/
+`failed`/`last_err` params are gone (use up()'s return and the
+error payload). blog-schema shows the full verb walk.
+
+**Unit tests** moved onto a scripted pure-Hale FakeDriver
+(tests/migrator_test.hl) — `hale test migrations/` needs no @ffi
+shims now — and cover every error kind, txn counters, lock
+acquire/release on both paths, the v1→v2 ensure upgrade, and
+name-quoting. Real-sqlite integration stays with blog-schema.
+
+**unbounded-alloc triage (2026-07-06):** `hale check migrations/`
+reports 4 warnings, all `fail MigrationError { ... }` literals
+inside `while` loops (`__validate` ×2, `__down_to` ×2).
+False-positive-shaped: `fail` EXITS the loop — at most one such
+payload is ever constructed per call. Not restructured.
+
+---
+
+## 14. NEW (2026-07-06) — UPSTREAM BUG: form-vec-growing free-fn factory segfaults after a caught Migrator failure — [OPEN, workaround in tests/example]
+
+**Symptom (hale HEAD `400ac68`, deterministic 3/3 runs).** After
+ANY `Migrator` run-op failure is caught by an `or` handler in
+`fn main()`, the next call to a free fn that builds-and-grows a
+`@form(vec)` locus (e.g. a `fn std_set() -> Migrations` test
+factory doing `Migrations { }` + `add()` ×3 + return) segfaults
+— classic delayed-corruption profile of the OPEN method-frame
+heap-corruption family (§ pond/ml/neural), but a NEW
+manifestation: the poisoning happens on the ERROR PATH of a
+locus method, in `fn main()`'s frame, with no method-frame locus
+creation anywhere.
+
+**Probe matrix (all /tmp-style probes, 3+ runs each, same day):**
+
+| shape                                                        | result |
+|--------------------------------------------------------------|--------|
+| factory (grows form-vec) called BEFORE any failure           | clean |
+| Migrator failure caught → factory called after               | SEGFAULT 3/3 |
+| ...failure kind varied (bad_set empty / bad_set dup / migration_failed mid-step) | SEGFAULT 3/3 each |
+| Migrator failure caught → set built INLINE in main (literal + add() calls) | clean |
+| toy fallible locus (no params) fail → factory                | clean |
+| toy + partial fail-literal (defaulted fields) → factory      | clean |
+| toy + fail through 2 nested `or raise` hops → factory        | clean |
+| toy holding @form(vec) param, fail → factory                 | clean |
+| toy holding db::DbDriver interface param, fail → factory     | clean |
+| toy holding BOTH params, fail → factory                      | clean |
+
+So no toy reduction reproduces it yet — the trigger needs
+something more of Migrator's failing chain (suspects: the
+form-vec's SYNTHESIZED `get` + `or <substitute>` reads inside
+`__validate`/`entry()` executed in the frames the failure then
+unwinds). In-tree repro recipe: take tests/migrator_test.hl,
+extract any one failure scenario plus a `std_set()`-style factory
+called after it — crashes every run; the shipped test builds
+every set inline instead and passes 3/3.
+
+**Workaround (shipped, and binding on consumers):** after any
+caught Migrator failure, do NOT build migration sets (or any
+@form(vec) locus) via a free-fn factory — construct inline in a
+`fn main()` / lifecycle frame (literal + `add()` calls). Noted in
+the test header, the Migrations doc comment, and the README.
+
+**When this unblocks:** collapse the inline set duplication in
+tests/migrator_test.hl back to one `std_set()` helper, drop the
+SHAPE RULE header note, and delete this entry alongside the
+ml/neural blocker.
+
+---
+
+## 15. NEW (2026-07-06): design note — tracking writes avoid exec_params by design (for now)
+
+The v2 tracking INSERT/DELETE interpolate `version` (Int) and
+`name` (via `__quote()`, '' doubling) into the SQL text instead
+of using the interface's `exec_params`. Deliberate: building a
+`db::Args` (@form(vec)) INSIDE a Migrator method frame and
+passing it into another locus's method is precisely the shape of
+the open method-frame fresh-locus heap corruption
+(§ pond/ml/neural — and entry 14 shows this lib's failure paths
+already brush that family). Migration names are
+developer-authored constants, not user input, so `__quote()` is
+a correctness fix (the v1 code broke on apostrophes), not an
+injection defense. When the upstream corruption family closes,
+switching to `exec_params($1,$2)` is a two-line change; the v1
+injection-shaped concatenation is already gone either way.
 
 ======================================================================
  pond/ml/neural

@@ -70,7 +70,7 @@ apps, other `_util` libs, and tier libs — since upstream WS3.4
 | `router/` | HTTP router with path params + middleware | `router` |
 | `sessions/` | HMAC-signed cookie sessions | `sess` |
 | `jobs/` | Background job queue + worker pool (sqlite-backed) | `jobs` |
-| `migrations/` | Forward-only migration runner (`Migrator` on `db::DbDriver`; the sqlite adapter is `sqlite::Driver` in `sqlite/`) | `migs` |
+| `migrations/` | Schema migration runner (`Migrator` on `db::DbDriver`: registered set + up/down/steps/goto/force, per-step txns; the sqlite adapter is `sqlite::Driver` in `sqlite/`) | `migs` |
 
 ### Tier 2 — Observability + supervision
 

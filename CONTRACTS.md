@@ -16,6 +16,15 @@ choose their own aliases per F.25.
 
 ## 2026-07-06 status note — migrations v2 + sqlite adapter promotion
 
+- **`pond/migrations` respelled to v2 (registration-then-run).**
+  The v1 `apply(version, name, up_sql) -> Bool` + sticky-latch
+  surface is REMOVED; the new surface (§ below) is the
+  golang-migrate shape: a registered `Migrations` set + fallible
+  run verbs `up` / `down` / `steps` / `goto` / `force`, per-step
+  explicit transactions (closes the sqlite half-applied hazard,
+  FRICTION § pond/migrations item 7), postgres advisory locking,
+  dirty/force repair, and opt-in down migrations. Deviation record
+  + caller migration recipe: FRICTION § pond/migrations entry 13.
 - **`SqliteDriver` promoted out of `pond/migrations` into
   `pond/sqlite` as `sqlite::Driver`** — the "natural home" option
   from FRICTION.log § pond/migrations item 11 (placement question
@@ -27,6 +36,12 @@ choose their own aliases per F.25.
   apps were already required to vendor pond/sqlite + pond/db, so
   the vendoring story is unchanged. § pond/sqlite below gains the
   `Driver` block; § pond/migrations' injectable comment updated.
+- **New upstream bug found (deterministic repro):** a
+  form-vec-growing free-fn factory segfaults when called after a
+  caught Migrator failure — a new manifestation of the open
+  method-frame heap-corruption family. Probe matrix + binding
+  workaround (build sets inline in main/lifecycle frames):
+  FRICTION § pond/migrations entry 14.
 
 ---
 
@@ -862,26 +877,58 @@ locus Pool {                               // worker pool
 
 ### `pond/migrations/` — alias `migs`
 
-**Updated 2026-06-08 — rewritten onto `db::DbDriver`** (commit
-`7e00f37`): backend-neutral (runs against `pq` or `sqlite`),
-forward-only + idempotent. Errors ride the db `ok`/`err` value shape
-(the injected driver's interface methods are non-fallible per F.20),
-not a `fallible(MigrationError)` method surface.
+**Updated 2026-07-06 — v2 respell: registration-then-run**
+(FRICTION.log § pond/migrations entry 13; the v1 `apply()`/Bool-latch
+surface is removed). golang-migrate shaped: the app registers a
+`Migrations` set and injects it; run verbs are fallible member fns
+(v0.8.1 narrowing). Backend-neutral (runs against `pq` or
+`sqlite::Driver`), idempotent (`up()` re-run is a no-op),
+per-migration explicit transactions, postgres advisory lock around
+run ops, dirty/force repair protocol. Down migrations are opt-in
+per registration (`add` = irreversible, `add_rev` = reversible);
+forward-only remains the recommended OPERATING stance for live
+authority DBs (see README).
 
 ```hale
 import "vendor/pond/db" as db;
 
+type Migration {                          // types.hl
+    version:  Int    = 0;                 // strictly ascending, >= 1
+    name:     String = "";
+    up_sql:   String = "";
+    down_sql: String = "";                // "" = irreversible
+}
+type MigrationError {                     // fallible payload; kinds:
+    kind:        String = "";             // bad_set | ensure_failed | dirty |
+    version:     Int    = 0;              // lock_failed | not_found |
+    name:        String = "";             // irreversible | migration_failed |
+    detail:      String = "";             // rollback_failed | force_failed
+    engine_code: Int    = 0;
+}
+
+@form(vec)
+locus Migrations {                        // build in a main/lifecycle frame
+    fn add(version: Int, name: String, up_sql: String);
+    fn add_rev(version: Int, name: String, up_sql: String, down_sql: String);
+    fn count() -> Int;
+    fn entry(i: Int) -> Migration;        // zero Migration out of range
+}
+
 locus Migrator {
     params {
-        driver:   db::DbDriver;          // injected: pq::PgConn / pq::PgPool / sqlite::Driver (adapter over sqlite::Db — see sqlite F.7; promoted out of this lib 2026-07-06)
-        applied:  Int    = 0;            // count applied this run
-        failed:   Bool   = false;        // sticky: once one fails, skip the rest
-        last_err: String = "";
+        driver:  db::DbDriver;   // injected: pq::PgConn / pq::PgPool / sqlite::Driver (see sqlite F.7)
+        set:     Migrations;     // injected registration set
+        verbose: Bool = true;    // narration; false = silent (tests)
     }
-    fn ensure() -> Bool;                 // create the tracking table if absent
-    fn current_version() -> Int;
-    fn apply(version: Int, name: String, up_sql: String) -> Bool;  // idempotent
-    fn ok() -> Bool;
+    fn ensure() -> () fallible(MigrationError);   // tracking table bringup + v1→v2 upgrade
+    fn current_version() -> Int;                  // 0 if none
+    fn dirty() -> Bool;
+    fn pending() -> Int;
+    fn up() -> Int fallible(MigrationError);      // all pending; returns count
+    fn down(n: Int) -> Int fallible(MigrationError);
+    fn steps(n: Int) -> Int fallible(MigrationError);  // signed: +apply / -revert
+    fn goto(v: Int) -> Int fallible(MigrationError);   // to exactly v (0 or registered)
+    fn force(v: Int) -> () fallible(MigrationError);   // repair hatch: reset record, clear dirty
 }
 ```
 
