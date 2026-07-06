@@ -46,7 +46,7 @@ These shape non-obvious code in this repo. The first is a permanent language rul
 
 - **`_util/*`** — Tier 0 internals; single-file namespace-lotus utilities operating on primitives only. Five today: `intfloat`, `decimal_float`, `duration_int`, `kvpack`, `rowbuf`. Importable from anywhere since WS3.4 (the old G34 restriction is gone).
 - **`http/`, `crypto/`, `subprocess/`, `math/`, `term/`** — Tier 0 infrastructure. `term/` is pure Hale over the `std::term` primitives (hale #108-#110).
-- **`sqlite/`, `router/`, `sessions/`, `jobs/`, `migrations/`** — Tier 1 Rails-shape web stack. **All real since 2026-06-12**: `sqlite/` is a pure-`@ffi` driver over the system `libsqlite3` (needs `libsqlite3-dev` at build time); `jobs/` and `migrations/` run on it (`migrations/` via its `SqliteDriver` adapter satisfying `db::DbDriver`).
+- **`sqlite/`, `router/`, `sessions/`, `jobs/`, `migrations/`** — Tier 1 Rails-shape web stack. **All real since 2026-06-12**: `sqlite/` is a pure-`@ffi` driver over the system `libsqlite3` (needs `libsqlite3-dev` at build time); `jobs/` and `migrations/` run on it (`migrations/` via the `sqlite::Driver` adapter satisfying `db::DbDriver` — promoted from migrations into `sqlite/` 2026-07-06, so `migrations/` itself is pure Hale over `pond/db`).
 - **`logfmt/`, `metrics/`, `supervisor/`, `tracing/`** — Tier 2 observability + supervision. The OTLP exports (logfmt `OtlpSink`, tracing `export_otlp`) really POST via `pond/http/client` — consumers of those features must vendor `pond/http` too.
 - **`db/`, `pq/`** — backend-neutral `DbDriver` interface + Postgres pgwire driver (the Go `database/sql` split).
 - **`agent/{llm,tools,conversation,sandbox,embeddings}/`, `ml/neural/`** — Tier 5 AI / agent orchestration.

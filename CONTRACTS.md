@@ -14,6 +14,22 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-07-06 status note — migrations v2 + sqlite adapter promotion
+
+- **`SqliteDriver` promoted out of `pond/migrations` into
+  `pond/sqlite` as `sqlite::Driver`** — the "natural home" option
+  from FRICTION.log § pond/migrations item 11 (placement question
+  now closed). Same adapter, same semantics; only the seed and the
+  locus name changed. `pond/migrations` now imports ONLY `pond/db`
+  (pure Hale — its unit tests run under plain `hale test`, no @ffi
+  link gate). Injection respells as
+  `Migrator { driver: sqlite::Driver { conn: conn }, ... }`; end
+  apps were already required to vendor pond/sqlite + pond/db, so
+  the vendoring story is unchanged. § pond/sqlite below gains the
+  `Driver` block; § pond/migrations' injectable comment updated.
+
+---
+
 ## 2026-07-04 status note — upstream refresh pass (hale v0.9.0→v0.9.2+, HEAD `400ac68`)
 
 Upstream shipped 103 commits since the 2026-06-12 baseline (`b716696`):
@@ -751,6 +767,14 @@ locus Db {
     fn step(stmt: Int) -> Row fallible(DbError);
     fn finalize(stmt: Int) -> () fallible(DbError);
 }
+
+locus Driver {                 // (2026-07-06 — promoted from pond/migrations)
+    params { conn: Db; }       // caller-owned connection
+    // db::DbDriver adapter: satisfies backend/open/close/exec/
+    // query_one/query_all/exec_params/query_params/begin/commit/
+    // rollback/tx_status by catching every DbError on the value
+    // channel and repacking it into the db::* ok/err shapes.
+}
 ```
 
 > **As-built (2026-06-12, F.1 closed).** `Db` is a real pure-`@ffi`
@@ -758,9 +782,9 @@ locus Db {
 > link=["sqlite3"]`); all eight SQL ops are member fns
 > `fallible(DbError)` exactly as locked above. `sqlite::Db` does
 > NOT satisfy `db::DbDriver` (signature shapes differ — FRICTION.log
-> § pond/sqlite F.7); `pond/migrations` ships the `SqliteDriver`
-> adapter for `DbDriver` consumers. Build boxes need
-> `libsqlite3-dev`.
+> § pond/sqlite F.7); `sqlite::Driver` (above, 2026-07-06 — formerly
+> `migs::SqliteDriver`) is the in-seed adapter for `DbDriver`
+> consumers. Build boxes need `libsqlite3-dev`.
 
 ### `pond/router/` — alias `router`
 
@@ -849,7 +873,7 @@ import "vendor/pond/db" as db;
 
 locus Migrator {
     params {
-        driver:   db::DbDriver;          // injected: pq::PgConn / pq::PgPool / migs::SqliteDriver (adapter over sqlite::Db — see sqlite F.7)
+        driver:   db::DbDriver;          // injected: pq::PgConn / pq::PgPool / sqlite::Driver (adapter over sqlite::Db — see sqlite F.7; promoted out of this lib 2026-07-06)
         applied:  Int    = 0;            // count applied this run
         failed:   Bool   = false;        // sticky: once one fails, skip the rest
         last_err: String = "";

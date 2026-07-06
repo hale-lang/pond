@@ -5,8 +5,16 @@ Suggested import alias: **`migs`**
 ```hale
 import "vendor/pond/migrations" as migs;
 import "vendor/pond/db"         as db;       // the driver interface Migrator runs on
-import "vendor/pond/sqlite"     as sqlite;   // if using the SqliteDriver adapter
+import "vendor/pond/sqlite"     as sqlite;   // if using the sqlite::Driver adapter
 ```
+
+## Status (2026-07-06): WORKING — backend-neutral; adapter promoted to pond/sqlite
+
+The `SqliteDriver` adapter this lib used to bundle now lives in
+its natural home as `sqlite::Driver` (see CONTRACTS.md
+§ pond/sqlite and FRICTION.log § pond/migrations item 11). This
+seed imports only `pond/db` — pure Hale, so `hale test
+migrations/` needs no @ffi link shims.
 
 ## Status (2026-06-12): WORKING — backend-neutral, real sqlite path
 
@@ -41,13 +49,11 @@ item 7).
 ## Surface (as built)
 
 `Migrator` matches CONTRACTS.md § pond/migrations verbatim.
-`SqliteDriver` is additive — this lib's resolution of the
-sqlite/db interface mismatch (FRICTION.log item 11 / sqlite F.7).
 
 ```hale
 locus Migrator {
     params {
-        driver:   db::DbDriver;   // injected: pq::PgConn / pq::PgPool / migs::SqliteDriver
+        driver:   db::DbDriver;   // injected: pq::PgConn / pq::PgPool / sqlite::Driver
         applied:  Int    = 0;     // count applied this run
         failed:   Bool   = false; // sticky: once one fails, skip the rest
         last_err: String = "";
@@ -57,12 +63,6 @@ locus Migrator {
     fn apply(version: Int, name: String, up_sql: String) -> Bool;  // idempotent
     fn ok() -> Bool;
 }
-
-locus SqliteDriver {                     // db::DbDriver adapter over pond/sqlite
-    params { conn: sqlite::Db; }
-    // satisfies db::DbDriver: backend/open/close/exec/query_one/query_all/
-    // exec_params/query_params/begin/commit/rollback/tx_status
-}
 ```
 
 Errors ride the db `ok`/`err` value shape (interface methods
@@ -71,23 +71,20 @@ surface: a failed migration prints a `[migrate] FAILED ...` line,
 latches `failed`, and `apply()` returns `false` for the rest of
 the sequence.
 
-### Why `SqliteDriver` exists
+### The sqlite adapter
 
 `sqlite::Db`'s locked contract surface is fallible-method shaped
-(`exec(sql) -> ExecResult fallible(DbError)`), which cannot
-structurally satisfy the non-fallible, `ok`/`err`-packed
-`db::DbDriver` — so the CONTRACTS.md note that `sqlite::Db` is
-directly injectable is unimplementable as written (sqlite
-FRICTION § F.7). The adapter wraps a caller-owned `sqlite::Db`,
-catches every `DbError` on the value channel, and repacks it into
-the `db::*` result shapes — usable by ANY DbDriver consumer, not
-just Migrator.
+and cannot structurally satisfy the non-fallible, `ok`/`err`-packed
+`db::DbDriver` (sqlite FRICTION § F.7). The `sqlite::Driver`
+adapter — born in this lib, promoted to pond/sqlite 2026-07-06 —
+wraps a caller-owned `sqlite::Db` and repacks every `DbError` into
+the `db::*` result shapes.
 
 ## Usage
 
 ```hale
 let conn = sqlite::Db { path: "/var/lib/app/app.db" };  // caller owns lifecycle
-let m = migs::Migrator { driver: migs::SqliteDriver { conn: conn } };
+let m = migs::Migrator { driver: sqlite::Driver { conn: conn } };
 
 let _ = m.ensure();
 let _ = m.apply(1, "create_posts",  "CREATE TABLE posts (...)");
@@ -103,7 +100,6 @@ nothing else changes.
 | File               | Role                                                  |
 |--------------------|-------------------------------------------------------|
 | `migrate.hl`       | `locus Migrator` over `db::DbDriver`                  |
-| `sqlite_driver.hl` | `locus SqliteDriver` — db::DbDriver adapter (F.7)     |
 | `examples/blog-schema/` | Two-migration end-to-end demo against real sqlite |
 
 ## Build & verify

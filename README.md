@@ -66,11 +66,11 @@ apps, other `_util` libs, and tier libs — since upstream WS3.4
 |------|------------|------|
 | `db/` | Backend-neutral `DbDriver` interface (Go database/sql shape) | `db` |
 | `pq/` | Postgres driver (pgwire v3 over TCP) + connection pool; satisfies `DbDriver` | `pq` |
-| `sqlite/` | SQLite driver — pure `@ffi` over system `libsqlite3` (Db locus, fallible(DbError); needs `libsqlite3-dev` to build) | `sqlite` |
+| `sqlite/` | SQLite driver — pure `@ffi` over system `libsqlite3` (Db locus, fallible(DbError); needs `libsqlite3-dev` to build) + `Driver` adapter satisfying `db::DbDriver` | `sqlite` |
 | `router/` | HTTP router with path params + middleware | `router` |
 | `sessions/` | HMAC-signed cookie sessions | `sess` |
 | `jobs/` | Background job queue + worker pool (sqlite-backed) | `jobs` |
-| `migrations/` | Forward-only migration runner (`Migrator` on `db::DbDriver`; ships `SqliteDriver` adapter for `sqlite::Db`) | `migs` |
+| `migrations/` | Forward-only migration runner (`Migrator` on `db::DbDriver`; the sqlite adapter is `sqlite::Driver` in `sqlite/`) | `migs` |
 
 ### Tier 2 — Observability + supervision
 

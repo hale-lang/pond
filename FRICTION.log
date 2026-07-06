@@ -2620,12 +2620,15 @@ part of the F.1 unblock pass") should drop that clause — the F.1
 pass landed and deliberately kept the fallible-method contract
 shape instead.
 
-**Placement (open).** The adapter lives here only because
-migrations needed it first; it is useful to ANY DbDriver consumer
-wanting a sqlite backend. Candidate promotions: into pond/sqlite
-(natural home, mirrors how pq::PgConn carries its own
-translation) or a sibling seed. Needs a root-level decision since
-pond/sqlite's surface is locked.
+**Placement — CLOSED 2026-07-06 (promoted to pond/sqlite).** The
+adapter moved to its natural home as `sqlite::Driver`
+(`sqlite/driver.hl`, verbatim logic; locus renamed to drop the
+seed-name stutter), mirroring how pq::PgConn carries its own
+translation. CONTRACTS.md § pond/sqlite gained the `Driver` block
++ status note. Consequences here: this lib imports ONLY `../db`
+now (pure Hale — `hale test migrations/` needs no @ffi link
+shims), and `tests/sqlite_driver_test.hl` moved to
+`sqlite/tests/driver_test.hl`.
 
 ---
 
@@ -3656,6 +3659,15 @@ comment to drop `sqlite::Db` from the injectable list until (a)
 exists. Root-doc change either way — out of scope for this lib's
 source pass; flagged upward.
 
+**RESOLVED 2026-07-06 — option (a), and the adapter now lives in
+THIS seed.** Built 2026-06-12 as `migs::SqliteDriver` inside
+pond/migrations (the consumer that needed it first); promoted here
+as `sqlite::Driver` (`driver.hl`) with its test
+(`tests/driver_test.hl`). The adapter is additive to this seed's
+locked surface — `Db` itself is untouched and still does NOT
+satisfy `db::DbDriver`. See § pond/migrations item 11 for the
+consumer-side history.
+
 ---
 
 ## Resolution checklist — **complete 2026-06-12** (except F.4/F.7 advisories)
@@ -3678,9 +3690,10 @@ upstream WS4 verdict (no stdlib primitive; `@ffi` is the surface):
       external sqlite3 client reads the produced file back).
 - [ ] F.4 row-helper export decision — deferred until a second
       statement-level consumer materializes.
-- [ ] F.7 `db::DbDriver` adapter (or contract amendment) — flagged
-      upward; needed before `migrations`/`jobs` can inject
-      `sqlite::Db` through the interface.
+- [x] F.7 `db::DbDriver` adapter (or contract amendment) — resolved
+      2026-06-12 as `migs::SqliteDriver` in pond/migrations;
+      promoted into this seed as `sqlite::Driver` 2026-07-06 (see
+      the F.7 entry's resolution note).
 
 
 ## upstream CLI gap: `hale test` cannot link `@ffi` libs — OPEN 2026-07-04

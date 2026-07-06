@@ -1,31 +1,30 @@
-// pond/migrations — SqliteDriver: a db::DbDriver adapter over
-// pond/sqlite's Db.
+// pond/sqlite — Driver: the db::DbDriver face of this seed.
 //
-// Why this exists (sqlite FRICTION § F.7): CONTRACTS.md says
-// `Migrator.params.driver: db::DbDriver` is injectable with
-// `sqlite::Db` — but the locked § pond/sqlite surface is the
-// fallible-method shape (`exec(sql) -> ExecResult
+// Why this exists (FRICTION § F.7): this seed's locked public
+// surface is the fallible-method shape (`exec(sql) -> ExecResult
 // fallible(DbError)` with sqlite-local result types), which is
 // signature-incompatible with the interface's non-fallible
 // `ok`/`err`-packed `db::*` shapes. One locus can't carry both
-// `exec` signatures, so `sqlite::Db` can never satisfy
-// `db::DbDriver` directly.
+// `exec` signatures, so `Db` can never satisfy `db::DbDriver`
+// directly.
 //
-// This adapter is the F.7 counterpart on the consumer side: it
-// wraps a caller-owned `sqlite::Db`, catches every DbError on the
-// value channel, and repacks it into the `db::*` result shapes —
-// the same protocol-translation job pq::PgConn does internally.
-// It structurally satisfies the FULL db::DbDriver method set, so
-// it composes with ANY DbDriver consumer, not just Migrator:
+// Driver is the adapter: it wraps a caller-owned `Db`, catches
+// every DbError on the value channel, and repacks it into the
+// `db::*` result shapes — the same protocol-translation job
+// pq::PgConn does internally. It structurally satisfies the FULL
+// db::DbDriver method set, so it composes with ANY DbDriver
+// consumer (pond/migrations' Migrator was the first):
 //
 //   let conn = sqlite::Db { path: "/tmp/app.db" };
-//   let drv  = migs::SqliteDriver { conn: conn };
-//   let m    = migs::Migrator { driver: drv };
+//   let drv  = sqlite::Driver { conn: conn };
+//   let m    = migs::Migrator { driver: drv, set: s };
 //
-// It lives in pond/migrations (rather than pond/sqlite or
-// pond/db) only because this lib is the consumer that needed it
-// first; promoting it to its own seed (or into pond/sqlite) is
-// flagged in FRICTION.log.
+// History: born as migs::SqliteDriver inside pond/migrations
+// (2026-06-12, the consumer that needed it first); promoted here
+// 2026-07-06 — the natural home, resolving the placement question
+// left open in FRICTION.log § pond/migrations item 11. The seed's
+// end-app vendoring story is unchanged (an app already had to
+// vendor pond/sqlite AND pond/db to use the adapter).
 //
 // Error bridging keeps the stash pattern — NOT because handlers
 // can't be fallible (they can, since hale 400ac68; pond/jobs
@@ -38,13 +37,12 @@
 // into the result's `err` field. First error wins. Consequence
 // (same as jobs' retired caveat): adapter calls are non-reentrant
 // across pinned threads — give parallel pinned workers their own
-// SqliteDriver.
+// Driver.
 //
 // Lifecycle: the underlying connection belongs to the injected
-// `sqlite::Db` (opened by its birth, closed by its dissolve).
-// `open()` is therefore a connectivity CHECK (SELECT 1 — surfaces
-// a birth-time open failure as a Status), and `close()` is a
-// no-op.
+// `Db` (opened by its birth, closed by its dissolve). `open()` is
+// therefore a connectivity CHECK (SELECT 1 — surfaces a
+// birth-time open failure as a Status), and `close()` is a no-op.
 //
 // Transactions: BEGIN/COMMIT/ROLLBACK ride sqlite's SQL surface;
 // `tx_status()` reports the adapter-tracked state ("idle" |
@@ -54,12 +52,11 @@
 // most statement errors).
 
 import "../db" as db;
-import "../sqlite" as sqlite;
 
-locus SqliteDriver {
+locus Driver {
     params {
-        // The wrapped pond/sqlite connection (caller-owned).
-        conn: sqlite::Db;
+        // The wrapped same-seed connection (caller-owned).
+        conn: Db;
 
         // --- private state ---
         txs:        String = "idle";  // "idle" | "in_tx" | "aborted"
@@ -225,7 +222,7 @@ locus SqliteDriver {
     }
 
     // First error wins.
-    fn __stash(e: sqlite::DbError) {
+    fn __stash(e: DbError) {
         if self.err_kind == "" {
             self.err_kind = e.kind;
             self.err_detail = e.detail;
@@ -241,40 +238,40 @@ locus SqliteDriver {
         };
     }
 
-    fn __stash_exec(e: sqlite::DbError) -> sqlite::ExecResult {
+    fn __stash_exec(e: DbError) -> ExecResult {
         self.__stash(e);
-        return sqlite::ExecResult { };
+        return ExecResult { };
     }
-    fn __stash_row(e: sqlite::DbError) -> sqlite::Row {
+    fn __stash_row(e: DbError) -> Row {
         self.__stash(e);
-        return sqlite::Row { };
+        return Row { };
     }
-    fn __stash_rows(e: sqlite::DbError) -> sqlite::Rows {
+    fn __stash_rows(e: DbError) -> Rows {
         self.__stash(e);
-        return sqlite::Rows { };
+        return Rows { };
     }
-    fn __stash_int(e: sqlite::DbError) -> Int {
+    fn __stash_int(e: DbError) -> Int {
         self.__stash(e);
         return 0;
     }
-    fn __stash_unit(e: sqlite::DbError) {
+    fn __stash_unit(e: DbError) {
         self.__stash(e);
     }
     // step on a non-query: SQLITE_DONE ("no_row") is success.
-    fn __stash_step_done(e: sqlite::DbError) -> sqlite::Row {
+    fn __stash_step_done(e: DbError) -> Row {
         if e.kind != "no_row" {
             self.__stash(e);
         }
-        return sqlite::Row { };
+        return Row { };
     }
     // step in a result loop: SQLITE_DONE means "end of rows".
-    fn __stash_row_done(e: sqlite::DbError) -> sqlite::Row {
+    fn __stash_row_done(e: DbError) -> Row {
         if e.kind == "no_row" {
             self.row_done = true;
         } else {
             self.__stash(e);
         }
-        return sqlite::Row { };
+        return Row { };
     }
 
     fn __bind_all(stmt: Int, args: db::Args) {

@@ -10,13 +10,13 @@
 // In-tree the example reaches the libs via relative paths. Per
 // pond's no-transitive-deps rule (and hale.toml [ffi] auto-pickup,
 // which only scans DIRECT imports), the app vendors pond/sqlite
-// itself even though only migs::SqliteDriver touches it.
+// itself even though only the sqlite::Driver injection touches it.
 //
 // The demo:
 //   1. opens /tmp/pond-migrations-blog-demo.db and drops the demo
 //      tables so every run starts fresh (self-cleaning);
-//   2. wraps the connection in migs::SqliteDriver (the
-//      db::DbDriver adapter — see ../../sqlite_driver.hl) and
+//   2. wraps the connection in sqlite::Driver (the
+//      db::DbDriver adapter — see ../../../sqlite/driver.hl) and
 //      runs a Migrator over it: ensure() + apply v1 + apply v2
 //      → 2 applied;
 //   3. runs a SECOND Migrator over the same driver — both
@@ -43,7 +43,7 @@ locus BlogSchemaDemo {
 
     // One full migration round: fresh Migrator, ensure, apply both
     // versions in order. Returns the number applied this round.
-    fn migrate_round(d: migs::SqliteDriver, label: String) -> Int {
+    fn migrate_round(d: sqlite::Driver, label: String) -> Int {
         let m = migs::Migrator { driver: d };
         let _ = m.ensure();
         let _ = m.apply(1, "create_posts", __sql_create_posts());
@@ -65,7 +65,7 @@ locus BlogSchemaDemo {
             + "DROP TABLE IF EXISTS schema_migrations"
         ) or sqlite::ExecResult { };
 
-        let d = migs::SqliteDriver { conn: conn };
+        let d = sqlite::Driver { conn: conn };
         println("[blog-schema] driver backend: ", d.backend(),
                 " (open ok=", to_string(d.open().ok), ")");
 

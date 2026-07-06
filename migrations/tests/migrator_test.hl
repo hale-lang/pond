@@ -1,4 +1,4 @@
-// pond/migrations tests — Migrator over SqliteDriver on a real
+// pond/migrations tests — Migrator over sqlite::Driver on a real
 // temp-file db.
 //
 // SCOPE NOTE: Migrator prints to stdout on BOTH the fresh-apply
@@ -31,7 +31,7 @@ fn main() {
     std::io::fs::unlink(path) or discard;
 
     let conn = sqlite::Db { path: path };
-    let d = migs::SqliteDriver { conn: conn };
+    let d = sqlite::Driver { conn: conn };
     let m = migs::Migrator { driver: d };
 
     // ---- ensure: tracking table bringup ----
