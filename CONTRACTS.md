@@ -714,8 +714,8 @@ Postgres driver speaking the pgwire v3 protocol over TCP (added
 import "vendor/pond/db" as db;
 
 locus PgConn {                                     // single connection
-    params { host = "127.0.0.1"; port = 55432; user = "fathom";
-             database = "fathom"; sock = -1; connected = false;
+    params { host = "127.0.0.1"; port = 5432; user = "postgres";
+             database = "postgres"; sock = -1; connected = false;
              txn_state = "idle"; recv_chunk = 8192; /* + rx_buf BytesBuilder */ }
     // satisfies db::DbDriver: backend/open/close/exec/query_one/query_all/
     // exec_params/query_params/begin/commit/rollback/tx_status

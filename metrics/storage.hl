@@ -8,7 +8,7 @@
 // `or` at the call site.
 //
 // `sync = serialized` on MetricMap (hale `1aed8fc` F.32-1α,
-// 2026-05-25): metrics consumers like fathom's mdgw run the
+// 2026-05-25): metrics consumers like a downstream gateway run the
 // gateway recv loop on one cooperative pool and the
 // `std::http::Server` /metrics scrape on another. The hashmap
 // is read across pools, so F.32-0 requires an opt-in sync
