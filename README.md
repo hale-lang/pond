@@ -10,7 +10,7 @@ app code.
 ```toml
 # in your app's hale.toml
 [deps]
-pond = { git = "https://github.com/hale-lang/pond", tag = "v0.1.0" }
+pond = { git = "https://github.com/hale-lang/pond", tag = "v0.8.0" }
 ```
 
 ```bash
@@ -26,6 +26,10 @@ import "vendor/pond/agent/llm" as llm;
 
 You vendor the whole pond repo, then import only the libs you
 use. Each lib lives at its own path under `vendor/pond/`.
+
+> pond HEAD tracks a recent hale release (v0.9.2+). See
+> [`CONTRACTS.md`](./CONTRACTS.md) for the exact upstream commit
+> each refresh pass builds against.
 
 ## Catalog
 
@@ -107,6 +111,15 @@ game/sim (`game/ecs`, `game/tick`, `game/spatial`); data formats
 (`data/csv`, `data/timeseries`, `data/pipeline`); DevX (`dev/lsp`,
 `dev/docgen`, `dev/asserts`, `dev/bench`). Picked up when a workload
 demands.
+
+### Editor tooling — `heron/`
+
+Not a vendored `.hl` library but part of the repo: **heron** is the
+tree-sitter grammar for Hale — syntax highlighting and structural
+queries, consumed by editor extensions (Helix ships today; VSCode /
+Neovim / Zed / Emacs via the generated `parser.c`) and the future
+LSP. Packaged for npm / cargo / pip. See
+[`heron/README.md`](./heron/README.md).
 
 ## Design rules
 
