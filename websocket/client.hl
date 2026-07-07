@@ -167,7 +167,7 @@ locus WsClient {
         // These reflect the MOST RECENT recv. A single read_msg() may
         // span several recvs (partial frames); the value after read_msg()
         // returns is the stamp of the recv that completed the message.
-        // The tcp path leaves these untouched (fathom is all-TLS; if a
+        // The tcp path leaves these untouched (the reference deployment is all-TLS; if a
         // tcp consumer needs them, mirror with tcp::recv_stamped_into).
         rx_kernel_ns: Int = 0;
         rx_user_ns:   Int = 0;

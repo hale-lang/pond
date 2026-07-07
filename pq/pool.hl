@@ -16,7 +16,7 @@
 //
 // **Concurrency model.** acquire() (find-free + mark-busy) has no
 // yield point between the scan and the set, so on a cooperative
-// pool (fathom's only kind) two interleaved coros never grab the
+// pool (the common kind) two interleaved coros never grab the
 // same fd — exclusion holds for the duration of one pooled op.
 // Acquire→use→release is internal to each method; a caller never
 // holds a checked-out fd across calls. That's also why
@@ -35,9 +35,9 @@ locus __FdVec {
 locus PgPool {
     params {
         host:     String = "127.0.0.1";
-        port:     Int    = 55432;
-        user:     String = "fathom";
-        database: String = "fathom";
+        port:     Int    = 5432;
+        user:     String = "postgres";
+        database: String = "postgres";
         size:     Int    = 4;
 
         opened: Bool = false;

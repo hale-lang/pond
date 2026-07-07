@@ -1,7 +1,7 @@
 ; Tree-sitter highlight queries for Hale.
 ;
 ; Consumed by:
-;   - iris/source_pane.hl (block spotlighting + syntax coloring)
+;   - an editor source pane (block spotlighting + syntax coloring)
 ;   - Editor extensions (VSCode, Helix, Neovim, Zed, Emacs)
 ;
 ; Highlight group names follow tree-sitter community

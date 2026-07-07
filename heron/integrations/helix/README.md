@@ -107,7 +107,7 @@ What gets indexed:
 
 `<space>S` (capital S) picks across the whole workspace, not
 just the current file — useful for "where's that Petal type
-declared?" across iris's lib/lotus_viz/ tree.
+declared?" across a project tree.
 
 ## Not yet wired
 

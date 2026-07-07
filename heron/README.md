@@ -10,12 +10,12 @@ highlighting + IDE-shaped tools that don't need a full LSP.
 
 ## Consumers
 
-- **`iris/lib/lotus_viz`** — uses heron to extract the locus
+- **A locus-tree visualizer** — uses heron to extract the locus
   tree from `.hl` source for the lotus flower visualization.
-  The Hale-side `@ffi` wrapper exposes
-  `LocusTreeProvider` (lotus_viz's interface) backed by a
+  The Hale-side `@ffi` wrapper exposes a
+  `LocusTreeProvider` interface backed by a
   walk over heron's AST.
-- **`iris/source_pane`** — uses heron for syntax highlighting
+- **An editor source pane** — uses heron for syntax highlighting
   (per `queries/highlights.scm`) and for block spotlighting
   (find the AST node enclosing a cursor position; tint its
   background).
@@ -23,8 +23,7 @@ highlighting + IDE-shaped tools that don't need a full LSP.
   Emacs) — consume the generated `parser.c` + the same
   `queries/highlights.scm`. Users get Hale syntax
   highlighting in whatever editor they're using as their
-  external editor while iris is summoned (per
-  [iris/VISION.md §5](../../hale-lang/iris/VISION.md)).
+  external editor.
   See [`integrations/`](./integrations/) for per-editor
   setup — Helix shipped today; others welcome as PRs.
 - **Future LSP** — when an Hale LSP server lands, heron is
@@ -38,7 +37,7 @@ one tool: it's the shared substrate.
 ## Status
 
 v0 grammar mature: covers all of `spec/grammar.ebnf` as
-exercised by iris + hale stdlib (19/19 stdlib files
+exercised by a real editor corpus + hale stdlib (19/19 stdlib files
 parse cleanly, 29/29 corpus tests pass — re-verified 2026-06-12
 with tree-sitter 0.26.9; `tree-sitter generate` leaves the
 checked-in `src/parser.c` unchanged). Hale @ffi wrapper
@@ -50,7 +49,7 @@ scanner.c for the trickiest contextual keywords (`mode`,
 `captures`, `inline`, `fail`, `or`, `raise`, `with`,
 `fallible`) is deferred until specific parse failures
 motivate it — current grammar treats them as keywords with
-context-based parsing, which works for all iris + stdlib
+context-based parsing, which works for all real-world + stdlib
 code today.
 
 See [`STATUS.md`](./STATUS.md) for the verification details
