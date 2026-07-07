@@ -9,7 +9,7 @@ Status as of the initial grammar.js + @ffi wrapper commit
   generated; ships ~133KB grammar.json + ~177KB
   node-types.json + ~974KB parser.c in `src/`.
 - **Corpus tests:** 13/13 in `test/corpus/*.txt` pass.
-- **Real-world iris parsing:** 30/30 iris `.hl` files
+- **Real-world parsing:** 30/30 editor-corpus `.hl` files
   (top-level + `lib/lotus_viz/`) parse cleanly with no
   `ERROR` or `MISSING` nodes.
 - **Highlights:** `queries/highlights.scm` loads without
@@ -141,7 +141,7 @@ allocated — neither the eager-dissolve nor the deferred-flush
 path fires on the returned locus. So each `parse()` call
 leaks the previous Tree's TSTree + its owned source copy.
 
-**Impact at iris scale:** ~one Tree per file change. Typical
+**Impact at editor scale:** ~one Tree per file change. Typical
 .hl files are 5-50KB → ~10-100KB leak per parse. A
 heavily-used SourcePane could leak ~MB/hr.
 
@@ -164,12 +164,12 @@ lands, the current heron API works as-is without changes.
 ## Coverage roadmap — what's still ahead
 
 The grammar handles the full Hale language as exercised by
-iris + stdlib today. Future polish work:
+a real editor corpus + stdlib today. Future polish work:
 
 1. **Scanner.c for contextual keywords** — when treating
    `mode` / `captures` / `inline` / `or` / etc. as plain
    keywords breaks a real parse. None has surfaced yet on
-   the iris + stdlib corpus; add reactively.
+   the editor + stdlib corpus; add reactively.
 2. **Half-open ranges** (`..end` / `start..`) — not in
    stdlib today; add when first usage appears.
 3. **Better field-shape coverage in `highlights.scm`** —
@@ -191,7 +191,7 @@ npx tree-sitter test                 # corpus tests
 npx tree-sitter parse path/to/file.hl   # individual file
 ```
 
-All `iris/*.hl` and `iris/lib/lotus_viz/*.hl` should parse
+All real-world editor `.hl` files should parse
 without `ERROR` or `MISSING`. About 7/19 stdlib files do
 today; the rest fail on range or other patterns documented
 above.

@@ -19,7 +19,7 @@
 //   - build_terminate framing ('X', 4)
 //
 // The connect/handshake/query paths need a live server and stay
-// app-gated (fathom smoke-pq per FRICTION.log).
+// app-gated (a downstream smoke test per FRICTION.log).
 //
 // Run:  hale test pq/
 

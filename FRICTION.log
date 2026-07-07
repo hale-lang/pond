@@ -3152,8 +3152,8 @@ read before the server's AuthenticationOk..ReadyForQuery burst lands)
 into `len 0`, which the reader can't distinguish from a real EOF. So a
 retryable read on the connect path was misreported as a peer close.
 
-Repro (fathom, postgres 18): `apps/ledger` cold-booting against
-`fathom-postgres:55432` hit this on a meaningful fraction of boots; the
+Repro (a downstream app, postgres 18): its ledger cold-booting against
+`its postgres instance` hit this on a meaningful fraction of boots; the
 *same* process/DSN connected far enough on other attempts to run every
 `CREATE TABLE`. A degraded boot then latched the consumer into
 in-memory-only mode (its own bug), so the transient became a permanent

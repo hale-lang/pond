@@ -5,7 +5,7 @@
 // pond/sqlite free-fn surface, and carried codegen-quirk
 // workarounds ("can't hold a Db locus param", free-fn-only) that
 // are now obsolete — a locus holds a `db::DbDriver` slot and calls
-// methods directly (verified in fathom/apps/smoke-db, smoke-pq).
+// methods directly (verified in a downstream app's smoke tests).
 //
 // **Model.** Migrations are supplied by the caller as
 // (version, name, up_sql), applied in ascending version order.

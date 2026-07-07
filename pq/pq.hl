@@ -32,9 +32,9 @@ type __PgResult {
 locus PgConn {
     params {
         host:     String = "127.0.0.1";
-        port:     Int    = 55432;
-        user:     String = "fathom";
-        database: String = "fathom";
+        port:     Int    = 5432;
+        user:     String = "postgres";
+        database: String = "postgres";
 
         sock:      Int  = -1;
         connected: Bool = false;
