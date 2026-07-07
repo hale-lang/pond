@@ -1,79 +1,459 @@
-// pond/migrations tests — Migrator over SqliteDriver on a real
-// temp-file db.
+// pond/migrations tests — Migrator v2 over a scripted in-memory
+// FakeDriver (structurally satisfies db::DbDriver), so this file
+// is PURE HALE: plain `hale test migrations/` runs it, no @ffi
+// link shims. The real-sqlite integration path is covered by
+// examples/blog-schema/ (and pond/sqlite's own driver_test).
 //
-// SCOPE NOTE: Migrator prints to stdout on BOTH the fresh-apply
-// success path ("[migrate] applied vN ...") and the failure paths
-// ("[migrate] FAILED ..." / "ensure FAILED"), and a passing test
-// must be silent (spec/testing.md: pass = exit 0 + empty stdout).
-// Those paths therefore cannot be exercised in-process here — the
-// blog-schema example remains their gate. This test covers every
-// SILENT contract surface:
+// The fake lets us exercise everything the old real-sqlite test
+// could not under the silent-stdout contract — Migrators here are
+// constructed verbose:false, so failure paths are in-process
+// testable:
 //
-//   - ensure() creates the tracking table (true, and the table
-//     really exists)
-//   - current_version() reads 0 on fresh, max(version) once rows
-//     exist
-//   - apply() of an already-recorded version is a no-op skip:
-//     returns true, applied stays 0, ok() stays true, and the
-//     migration SQL does NOT run
-//   - the sticky failure latch: a failed Migrator skips every
-//     later apply() (returns false, nothing applied)
+//   - up(): applies pending ascending, returns count, re-run no-op
+//   - steps(±n) / goto(v) / down(n) in both directions
+//   - per-step transactions: begin/commit/rollback counters
+//   - bad_set / not_found / irreversible / dirty error kinds
+//   - mid-set failure: clean rollback, earlier versions stay
+//   - rollback-also-failed → dirty marker → refuse-until-force(v)
+//   - postgres advisory lock taken AND released (also on failure)
+//   - v1→v2 tracking-table upgrade (dirty column probe + ALTER)
+//   - name quoting ('' doubling) in the tracking INSERT
 //
-// Run:
-//   C_INCLUDE_PATH=$HOME/.local/include LIBRARY_PATH=$HOME/.local/lib \
-//     hale test migrations/
+// SHAPE RULE: every Migrations set below is built INLINE in
+// main's frame — never via a set-building free-fn factory. A
+// form-vec-growing factory called after a caught Migrator failure
+// segfaults at HEAD 400ac68 (deterministic; new manifestation of
+// the open method-frame heap-corruption family — see FRICTION.log
+// § pond/migrations "factory-after-caught-failure").
 
 import ".." as migs;
-import "../../sqlite" as sqlite;
+import "../../db" as db;
+
+// FakeDriver — scripted db::DbDriver. State is a tab-separated
+// bag of applied versions + counters; `fail_substr` makes any
+// exec() whose SQL contains it fail (scripted step failure);
+// `fail_rollback` makes rollback() fail (the dirty path).
+locus FakeDriver {
+    params {
+        backend_tag:   String = "sqlite";
+        fail_substr:   String = "";
+        fail_rollback: Bool   = false;
+        has_dirty_col: Bool   = true;   // false = v1-era tracking table
+
+        // --- observable state ---
+        applied:         String = "";   // tab-separated versions
+        dirty_rows:      Int    = 0;
+        begins:          Int    = 0;
+        commits:         Int    = 0;
+        rollbacks:       Int    = 0;
+        locks:           Int    = 0;
+        unlocks:         Int    = 0;
+        last_insert_sql: String = "";
+    }
+
+    fn backend() -> String { return self.backend_tag; }
+    fn open() -> db::Status { return db::Status { ok: true }; }
+    fn close() { let _ = self.begins; }
+
+    fn exec(sql: String) -> db::ExecResult {
+        if self.fail_substr != "" && __has_sub(sql, self.fail_substr) {
+            return db::ExecResult { ok: false, err: db::DbError {
+                kind: "exec_failed", engine_code: 1, detail: "scripted failure" } };
+        }
+        if __has_sub(sql, "CREATE TABLE IF NOT EXISTS schema_migrations") {
+            return db::ExecResult { ok: true };
+        }
+        if __has_sub(sql, "ADD COLUMN dirty") {
+            self.has_dirty_col = true;
+            return db::ExecResult { ok: true };
+        }
+        if __has_sub(sql, "INSERT INTO schema_migrations (version, name, dirty)") {
+            self.dirty_rows = self.dirty_rows + 1;
+            return db::ExecResult { ok: true, rows_affected: 1 };
+        }
+        if __has_sub(sql, "INSERT INTO schema_migrations (version, name)") {
+            self.last_insert_sql = sql;
+            let v = __num_after(sql, "VALUES (");
+            self.applied = self.applied + "\t" + to_string(v);
+            return db::ExecResult { ok: true, rows_affected: 1 };
+        }
+        if __has_sub(sql, "DELETE FROM schema_migrations WHERE version = ") {
+            let v = __num_after(sql, "version = ");
+            self.applied = __bag_remove_eq(self.applied, v);
+            return db::ExecResult { ok: true, rows_affected: 1 };
+        }
+        if __has_sub(sql, "DELETE FROM schema_migrations WHERE version > ") {
+            let v = __num_after(sql, "version > ");
+            self.applied = __bag_remove_gt(self.applied, v);
+            return db::ExecResult { ok: true };
+        }
+        if __has_sub(sql, "SET dirty = 0") {
+            self.dirty_rows = 0;
+            return db::ExecResult { ok: true };
+        }
+        if __has_sub(sql, "SET dirty = 1") {
+            self.dirty_rows = self.dirty_rows + 1;
+            return db::ExecResult { ok: true };
+        }
+        // anything else = a migration's own up_sql / down_sql
+        return db::ExecResult { ok: true };
+    }
+
+    fn query_one(sql: String) -> db::Row {
+        if __has_sub(sql, "pg_advisory_lock") {
+            self.locks = self.locks + 1;
+            return db::Row { ok: true };
+        }
+        if __has_sub(sql, "pg_advisory_unlock") {
+            self.unlocks = self.unlocks + 1;
+            return db::Row { ok: true };
+        }
+        if __has_sub(sql, "count(dirty)") {
+            if !self.has_dirty_col {
+                return db::Row { ok: false, err: db::DbError {
+                    kind: "query_failed", detail: "no such column: dirty" } };
+            }
+            return db::Row { ok: true, data: to_string(self.dirty_rows) };
+        }
+        if __has_sub(sql, "WHERE dirty = 1") {
+            return db::Row { ok: true, data: to_string(self.dirty_rows) };
+        }
+        if __has_sub(sql, "max(version)") {
+            return db::Row { ok: true, data: to_string(__bag_max(self.applied)) };
+        }
+        return db::Row { ok: true };
+    }
+
+    fn query_all(sql: String) -> db::Rows {
+        let _ = sql;
+        return db::Rows { ok: true };
+    }
+
+    fn exec_params(sql: String, args: db::Args) -> db::ExecResult {
+        let _ = sql;
+        return db::ExecResult { ok: true };
+    }
+
+    fn query_params(sql: String, args: db::Args) -> db::Rows {
+        let _ = sql;
+        return db::Rows { ok: true };
+    }
+
+    fn begin() -> db::Status {
+        self.begins = self.begins + 1;
+        return db::Status { ok: true };
+    }
+
+    fn commit() -> db::Status {
+        self.commits = self.commits + 1;
+        return db::Status { ok: true };
+    }
+
+    fn rollback() -> db::Status {
+        self.rollbacks = self.rollbacks + 1;
+        if self.fail_rollback {
+            return db::Status { ok: false, err: db::DbError {
+                kind: "exec_failed", detail: "scripted rollback failure" } };
+        }
+        return db::Status { ok: true };
+    }
+
+    fn tx_status() -> String { return "idle"; }
+}
+
+// ---- or-handlers (free fns; assert-and-substitute) ----
+
+// __die_int — a run op failed where success was expected.
+fn __die_int(e: migs::MigrationError) -> Int {
+    std::test::assert(false, "unexpected MigrationError kind=" + e.kind
+        + " v" + to_string(e.version) + " detail=" + e.detail);
+    return 0 - 1;
+}
+
+fn __die_unit(e: migs::MigrationError) {
+    std::test::assert(false, "unexpected MigrationError kind=" + e.kind
+        + " v" + to_string(e.version) + " detail=" + e.detail);
+}
+
+// __expect_int — a run op failed as expected: assert the kind.
+fn __expect_int(e: migs::MigrationError, kind: String, label: String) -> Int {
+    std::test::assert_eq_str(e.kind, kind, label);
+    return 0 - 1;
+}
 
 fn main() {
-    let path = "/tmp/pond_test_migrations_migrator.db";
-    std::io::fs::unlink(path) or discard;
+    // ---- up(): fresh apply, counts, idempotent re-run ----
+    let f1 = FakeDriver { };
+    let s1 = migs::Migrations { };
+    s1.add(1, "create_posts", "CREATE TABLE posts (id int)");
+    s1.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
+        "DROP TABLE comments");
+    s1.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
+        "DROP TABLE tags");
+    let m1 = migs::Migrator { driver: f1, set: s1, verbose: false };
+    std::test::assert_eq_int(m1.pending(), 3, "fresh set: 3 pending");
+    let n1 = m1.up() or __die_int(err);
+    std::test::assert_eq_int(n1, 3, "up applies all 3");
+    std::test::assert_eq_int(m1.current_version(), 3, "version 3 after up");
+    std::test::assert_eq_int(m1.pending(), 0, "nothing pending after up");
+    std::test::assert_eq_int(f1.begins, 3, "one begin per step");
+    std::test::assert_eq_int(f1.commits, 3, "one commit per step");
+    std::test::assert_eq_int(f1.rollbacks, 0, "no rollbacks on success");
+    let n1b = m1.up() or __die_int(err);
+    std::test::assert_eq_int(n1b, 0, "re-run up is a no-op");
+    std::test::assert_eq_int(f1.commits, 3, "no-op run opens no transactions");
+    std::test::assert(!m1.dirty(), "clean run leaves no dirty rows");
 
-    let conn = sqlite::Db { path: path };
-    let d = migs::SqliteDriver { conn: conn };
-    let m = migs::Migrator { driver: d };
+    // ---- steps(±n) both directions ----
+    let f2 = FakeDriver { };
+    let s2 = migs::Migrations { };
+    s2.add(1, "create_posts", "CREATE TABLE posts (id int)");
+    s2.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
+        "DROP TABLE comments");
+    s2.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
+        "DROP TABLE tags");
+    let m2 = migs::Migrator { driver: f2, set: s2, verbose: false };
+    let k1 = m2.steps(2) or __die_int(err);
+    std::test::assert_eq_int(k1, 2, "steps(2) applies two");
+    std::test::assert_eq_int(m2.current_version(), 2, "at v2 after steps(2)");
+    let k2 = m2.steps(5) or __die_int(err);
+    std::test::assert_eq_int(k2, 1, "steps past the end applies the remainder");
+    let k3 = m2.steps(0 - 2) or __die_int(err);
+    std::test::assert_eq_int(k3, 2, "steps(-2) reverts two");
+    std::test::assert_eq_int(m2.current_version(), 1, "back at v1");
+    std::test::assert_eq_int(f2.begins, 5, "3 applies + 2 reverts = 5 txns");
 
-    // ---- ensure: tracking table bringup ----
-    std::test::assert(m.ensure(), "ensure() returns true");
-    let t = d.query_one(
-        "SELECT name FROM sqlite_master WHERE type='table'"
-        + " AND name='schema_migrations'");
-    std::test::assert(t.ok, "tracking table exists after ensure");
-    std::test::assert_eq_str(t.data, "schema_migrations", "tracking table name");
-    std::test::assert_eq_int(m.current_version(), 0, "fresh db is at version 0");
+    // ---- goto(v) up, down, no-op, and not_found ----
+    let f3 = FakeDriver { };
+    let s3 = migs::Migrations { };
+    s3.add(1, "create_posts", "CREATE TABLE posts (id int)");
+    s3.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
+        "DROP TABLE comments");
+    s3.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
+        "DROP TABLE tags");
+    let m3 = migs::Migrator { driver: f3, set: s3, verbose: false };
+    let g1 = m3.goto(2) or __die_int(err);
+    std::test::assert_eq_int(g1, 2, "goto(2) from 0 applies two");
+    let g2 = m3.goto(3) or __die_int(err);
+    std::test::assert_eq_int(g2, 1, "goto(3) applies one more");
+    let g3 = m3.goto(1) or __die_int(err);
+    std::test::assert_eq_int(g3, 2, "goto(1) reverts two");
+    std::test::assert_eq_int(m3.current_version(), 1, "at v1 after goto(1)");
+    let g4 = m3.goto(1) or __die_int(err);
+    std::test::assert_eq_int(g4, 0, "goto(current) is a no-op");
+    let g5 = m3.goto(99) or __expect_int(err, "not_found", "goto unknown version");
+    std::test::assert_eq_int(g5, 0 - 1, "goto(99) failed");
 
-    // Seed two recorded versions directly (the sqlite applied_at
-    // default from ensure() fills the timestamp). Going through
-    // m.apply() here would print on success — see SCOPE NOTE.
-    let s1 = d.exec("INSERT INTO schema_migrations (version, name)"
-        + " VALUES (1, 'create_posts')");
-    std::test::assert(s1.ok, "seed v1 recorded");
-    let s2 = d.exec("INSERT INTO schema_migrations (version, name)"
-        + " VALUES (2, 'add_comments')");
-    std::test::assert(s2.ok, "seed v2 recorded");
-    std::test::assert_eq_int(m.current_version(), 2, "current_version reads max");
+    // ---- bad_set: empty, duplicate, unnamed ----
+    let f4 = FakeDriver { };
+    let s4 = migs::Migrations { };
+    let m4 = migs::Migrator { driver: f4, set: s4, verbose: false };
+    let b1 = m4.up() or __expect_int(err, "bad_set", "empty set refused");
+    std::test::assert_eq_int(b1, 0 - 1, "empty set up() failed");
 
-    // ---- re-run is a no-op: recorded versions skip silently ----
-    std::test::assert(m.apply(1, "create_posts", "CREATE TABLE posts (id int)"),
-        "re-apply of v1 skips with true");
-    std::test::assert(m.apply(2, "add_comments", "CREATE TABLE comments (id int)"),
-        "re-apply of v2 skips with true");
-    std::test::assert_eq_int(m.applied, 0, "no-op run applied 0");
-    std::test::assert(m.ok(), "no-op run stays ok");
-    // ...and the skipped migrations' SQL really did not execute.
-    let ghost = d.query_one(
-        "SELECT count(*) FROM sqlite_master WHERE type='table'"
-        + " AND name IN ('posts','comments')");
-    std::test::assert_eq_str(ghost.data, "0", "skipped migrations run no SQL");
+    let f5 = FakeDriver { };
+    let s5 = migs::Migrations { };
+    s5.add(1, "a", "SELECT 1");
+    s5.add(1, "b", "SELECT 1");
+    let m5 = migs::Migrator { driver: f5, set: s5, verbose: false };
+    let b2 = m5.up() or __expect_int(err, "bad_set", "duplicate versions refused");
+    std::test::assert_eq_int(b2, 0 - 1, "dup set up() failed");
+    std::test::assert_eq_int(f5.begins, 0, "bad_set runs no SQL transactions");
 
-    // ---- sticky failure latch ----
-    let mf = migs::Migrator { driver: d, failed: true };
-    std::test::assert(!mf.apply(3, "later", "CREATE TABLE later (id int)"),
-        "failed migrator refuses further applies");
-    std::test::assert(!mf.ok(), "failed migrator reports not-ok");
-    std::test::assert_eq_int(mf.applied, 0, "failed migrator applies nothing");
-    let ghost2 = d.query_one(
-        "SELECT count(*) FROM sqlite_master WHERE name='later'");
-    std::test::assert_eq_str(ghost2.data, "0", "latched apply ran no SQL");
+    let f6 = FakeDriver { };
+    let s6 = migs::Migrations { };
+    s6.add(1, "", "SELECT 1");
+    let m6 = migs::Migrator { driver: f6, set: s6, verbose: false };
+    let b3 = m6.up() or __expect_int(err, "bad_set", "empty name refused");
+    std::test::assert_eq_int(b3, 0 - 1, "unnamed set up() failed");
+
+    // ---- irreversible: down over a migration with no down_sql ----
+    let f7 = FakeDriver { };
+    let s7 = migs::Migrations { };
+    s7.add(1, "create_posts", "CREATE TABLE posts (id int)");
+    s7.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
+        "DROP TABLE comments");
+    s7.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
+        "DROP TABLE tags");
+    let m7 = migs::Migrator { driver: f7, set: s7, verbose: false };
+    let _ = m7.up() or __die_int(err);
+    let d1 = m7.down(3) or __expect_int(err, "irreversible", "v1 has no down_sql");
+    std::test::assert_eq_int(d1, 0 - 1, "down(3) failed at v1");
+    std::test::assert_eq_int(m7.current_version(), 1,
+        "v3 and v2 reverted before the irreversible stop");
+
+    // ---- not_found: applied version missing from the set ----
+    let f8 = FakeDriver { applied: "\t9" };
+    let s8 = migs::Migrations { };
+    s8.add(1, "create_posts", "CREATE TABLE posts (id int)");
+    s8.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
+        "DROP TABLE comments");
+    s8.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
+        "DROP TABLE tags");
+    let m8 = migs::Migrator { driver: f8, set: s8, verbose: false };
+    let d2 = m8.down(1) or __expect_int(err, "not_found", "applied v9 not in set");
+    std::test::assert_eq_int(d2, 0 - 1, "down over unknown applied version failed");
+
+    // ---- mid-set step failure: clean rollback, prefix stays ----
+    let f9 = FakeDriver { fail_substr: "BOOM" };
+    let s9 = migs::Migrations { };
+    s9.add(1, "ok_one", "CREATE TABLE ok_one (id int)");
+    s9.add(2, "boom", "CREATE TABLE boom (id int) -- BOOM");
+    s9.add(3, "never", "CREATE TABLE never (id int)");
+    let m9 = migs::Migrator { driver: f9, set: s9, verbose: false };
+    let u9 = m9.up() or __expect_int(err, "migration_failed", "v2 step fails");
+    std::test::assert_eq_int(u9, 0 - 1, "up() failed at v2");
+    std::test::assert_eq_int(m9.current_version(), 1, "v1 stayed applied");
+    std::test::assert_eq_int(f9.rollbacks, 1, "failed step rolled back");
+    std::test::assert_eq_int(f9.commits, 1, "only v1 committed");
+    std::test::assert(!m9.dirty(), "clean rollback leaves no dirty rows");
+    std::test::assert_eq_int(m9.pending(), 2, "v2 and v3 still pending");
+
+    // ---- rollback-also-failed → dirty marker → force(v) repair ----
+    let f10 = FakeDriver { fail_substr: "BOOM", fail_rollback: true };
+    let s10 = migs::Migrations { };
+    s10.add(1, "boom", "CREATE TABLE boom (id int) -- BOOM");
+    let m10 = migs::Migrator { driver: f10, set: s10, verbose: false };
+    let u10 = m10.up() or __expect_int(err, "rollback_failed", "rollback failure surfaces");
+    std::test::assert_eq_int(u10, 0 - 1, "up() failed dirty");
+    std::test::assert_eq_int(f10.dirty_rows, 1, "dirty marker written");
+    std::test::assert(m10.dirty(), "migrator reports dirty");
+    let u10b = m10.up() or __expect_int(err, "dirty", "dirty state refuses runs");
+    std::test::assert_eq_int(u10b, 0 - 1, "second up() refused");
+    m10.force(0) or __die_unit(err);
+    std::test::assert(!m10.dirty(), "force clears dirty");
+    std::test::assert_eq_int(m10.current_version(), 0, "force(0) resets version");
+
+    // ---- postgres: advisory lock held and released, both paths ----
+    let f11 = FakeDriver { backend_tag: "postgres" };
+    let s11 = migs::Migrations { };
+    s11.add(1, "create_posts", "CREATE TABLE posts (id int)");
+    s11.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
+        "DROP TABLE comments");
+    s11.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
+        "DROP TABLE tags");
+    let m11 = migs::Migrator { driver: f11, set: s11, verbose: false };
+    let _ = m11.up() or __die_int(err);
+    std::test::assert_eq_int(f11.locks, 1, "pg run takes the advisory lock");
+    std::test::assert_eq_int(f11.unlocks, 1, "pg run releases the advisory lock");
+    let f12 = FakeDriver { backend_tag: "postgres", fail_substr: "BOOM" };
+    let s12 = migs::Migrations { };
+    s12.add(1, "boom", "SELECT 1 -- BOOM");
+    let m12 = migs::Migrator { driver: f12, set: s12, verbose: false };
+    let _ = m12.up() or __expect_int(err, "migration_failed", "pg failing step");
+    std::test::assert_eq_int(f12.locks, 1, "lock taken on failing run");
+    std::test::assert_eq_int(f12.unlocks, 1, "lock RELEASED on failing run");
+
+    // ---- v1→v2 tracking upgrade: dirty column added by ensure ----
+    let f13 = FakeDriver { has_dirty_col: false };
+    let s13 = migs::Migrations { };
+    s13.add(1, "create_posts", "CREATE TABLE posts (id int)");
+    s13.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
+        "DROP TABLE comments");
+    s13.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
+        "DROP TABLE tags");
+    let m13 = migs::Migrator { driver: f13, set: s13, verbose: false };
+    let _ = m13.up() or __die_int(err);
+    std::test::assert(f13.has_dirty_col, "ensure upgraded v1 table (ALTER ran)");
+
+    // ---- tracking INSERT quotes names ('' doubling) ----
+    let f14 = FakeDriver { };
+    let s14 = migs::Migrations { };
+    s14.add(1, "don't panic", "CREATE TABLE guide (id int)");
+    let m14 = migs::Migrator { driver: f14, set: s14, verbose: false };
+    let _ = m14.up() or __die_int(err);
+    std::test::assert(__has_sub(f14.last_insert_sql, "'don''t panic'"),
+        "apostrophe in name doubled in tracking INSERT");
+}
+
+// ---- string helpers for the fake ----
+
+fn __has_sub(s: String, sub: String) -> Bool {
+    return std::str::index_of(s, sub) >= 0;
+}
+
+// __num_after — parse the integer immediately after `marker`.
+fn __num_after(s: String, marker: String) -> Int {
+    let p = std::str::index_of(s, marker);
+    if p < 0 { return 0; }
+    let rest = s[(p + len(marker))..len(s)];
+    let mut j = 0;
+    let total = len(rest);
+    let mut scanning = true;
+    while scanning {
+        if j >= total {
+            scanning = false;
+        } else {
+            let c = rest[j..(j + 1)];
+            if std::str::index_of("0123456789", c) >= 0 {
+                j = j + 1;
+            } else {
+                scanning = false;
+            }
+        }
+    }
+    if j == 0 { return 0; }
+    return std::str::parse_int(rest[0..j]) or 0;
+}
+
+// __bag_max — max of a tab-separated int bag ("" → 0).
+fn __bag_max(bag: String) -> Int {
+    let mut best = 0;
+    let mut rest = bag;
+    let mut scanning = true;
+    while scanning {
+        if len(rest) == 0 {
+            scanning = false;
+        } else {
+            let p = std::str::index_of(rest, "\t");
+            let mut field = rest;
+            if p >= 0 {
+                field = rest[0..p];
+                rest = rest[(p + 1)..len(rest)];
+            } else {
+                rest = "";
+            }
+            let v = std::str::parse_int(field) or 0;
+            if v > best { best = v; }
+        }
+    }
+    return best;
+}
+
+// __bag_remove_eq / __bag_remove_gt — rebuild the bag without the
+// matching entries.
+fn __bag_remove_eq(bag: String, v: Int) -> String {
+    return __bag_filter(bag, v, true);
+}
+
+fn __bag_remove_gt(bag: String, v: Int) -> String {
+    return __bag_filter(bag, v, false);
+}
+
+// eq_mode=true drops == v; eq_mode=false drops > v.
+fn __bag_filter(bag: String, v: Int, eq_mode: Bool) -> String {
+    let mut out = "";
+    let mut rest = bag;
+    let mut scanning = true;
+    while scanning {
+        if len(rest) == 0 {
+            scanning = false;
+        } else {
+            let p = std::str::index_of(rest, "\t");
+            let mut field = rest;
+            if p >= 0 {
+                field = rest[0..p];
+                rest = rest[(p + 1)..len(rest)];
+            } else {
+                rest = "";
+            }
+            if field != "" {
+                let x = std::str::parse_int(field) or 0;
+                let mut drop = x > v;
+                if eq_mode { drop = x == v; }
+                if !drop { out = out + "\t" + field; }
+            }
+        }
+    }
+    return out;
 }

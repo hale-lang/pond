@@ -1,7 +1,8 @@
-// pond/migrations tests — the SqliteDriver adapter (the
-// db::DbDriver face of pond/sqlite that Migrator runs on).
-// Everything here is the ok/err-packed NON-fallible interface
-// surface, so no `or` dispositions are needed:
+// pond/sqlite tests — the Driver adapter (this seed's
+// db::DbDriver face; lived in pond/migrations as SqliteDriver
+// until the 2026-07-06 promotion). Everything here is the
+// ok/err-packed NON-fallible interface surface, so no `or`
+// dispositions are needed:
 //
 //   - backend() / open() connectivity check
 //   - exec / query_one / query_all happy paths
@@ -11,20 +12,19 @@
 //     "exec_failed", "constraint")
 //   - begin / commit / rollback + tx_status tracking
 //
-// Run:
+// Run (interim @ffi-link gate — see FRICTION.log § pond/sqlite):
 //   C_INCLUDE_PATH=$HOME/.local/include LIBRARY_PATH=$HOME/.local/lib \
-//     hale test migrations/
+//     hale build sqlite/tests/driver_test.hl && ./sqlite/tests/driver_test
 
-import ".." as migs;
-import "../../sqlite" as sqlite;
+import ".." as sqlite;
 import "../../db" as db;
 
 fn main() {
-    let path = "/tmp/pond_test_migrations_driver.db";
+    let path = "/tmp/pond_test_sqlite_driver.db";
     std::io::fs::unlink(path) or discard;
 
     let conn = sqlite::Db { path: path };
-    let d = migs::SqliteDriver { conn: conn };
+    let d = sqlite::Driver { conn: conn };
 
     std::test::assert_eq_str(d.backend(), "sqlite", "backend tag");
     std::test::assert(d.open().ok, "open() connectivity check passes");
