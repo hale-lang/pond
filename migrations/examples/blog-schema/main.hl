@@ -1,4 +1,4 @@
-// blog-schema — pond/migrations end-to-end demo against a REAL
+// blog-schema — pond/migrations v2 end-to-end demo against a REAL
 // SQLite database.
 //
 // Vendored normally the imports look like:
@@ -10,24 +10,26 @@
 // In-tree the example reaches the libs via relative paths. Per
 // pond's no-transitive-deps rule (and hale.toml [ffi] auto-pickup,
 // which only scans DIRECT imports), the app vendors pond/sqlite
-// itself even though only migs::SqliteDriver touches it.
+// itself even though only the sqlite::Driver injection touches it.
 //
-// The demo:
-//   1. opens /tmp/pond-migrations-blog-demo.db and drops the demo
-//      tables so every run starts fresh (self-cleaning);
-//   2. wraps the connection in migs::SqliteDriver (the
-//      db::DbDriver adapter — see ../../sqlite_driver.hl) and
-//      runs a Migrator over it: ensure() + apply v1 + apply v2
-//      → 2 applied;
-//   3. runs a SECOND Migrator over the same driver — both
-//      versions are already recorded, so applied = 0 (re-run is a
-//      no-op);
-//   4. prints the schema_migrations rows and verifies via
-//      sqlite_master that `posts` and `comments` exist.
+// The demo walks the whole v2 verb set against
+// /tmp/pond-migrations-blog-demo.db (self-cleaning: drops its
+// tables at start):
 //
-// Migrations are data-driven (version, name, up_sql) per the
-// 2026-06-08 contract — the SQL lives inline below, not in .sql
-// files scanned from disk.
+//   1. up()      — applies v1..v3, prints one line each;
+//   2. up()      — again: 0 applied (idempotent no-op);
+//   3. goto(1)   — reverts v3 then v2 (their down_sql runs);
+//   4. steps(2)  — re-applies v2 and v3;
+//   5. force(2)  — manual repair hatch: tracking says v2, schema
+//                  untouched (tags table still exists);
+//   6. up()      — re-applies v3 (its CREATE is IF NOT EXISTS, so
+//                  replaying over the forced-away row is clean);
+//   7. prints the schema_migrations rows + sqlite_master check.
+//
+// Migration sets are built IN THIS run() FRAME — never via a
+// set-building free-fn factory called after a caught failure
+// (open upstream heap-corruption manifestation; FRICTION.log
+// § pond/migrations "factory-after-caught-failure").
 //
 // Build & run (the [ffi] section links libsqlite3):
 //     hale build migrations/examples/blog-schema/
@@ -39,19 +41,22 @@ import "../../../sqlite" as sqlite;
 locus BlogSchemaDemo {
     params {
         db_path: String = "/tmp/pond-migrations-blog-demo.db";
+        failed:  Int    = 0;   // bumped by the __die handlers
     }
 
-    // One full migration round: fresh Migrator, ensure, apply both
-    // versions in order. Returns the number applied this round.
-    fn migrate_round(d: migs::SqliteDriver, label: String) -> Int {
-        let m = migs::Migrator { driver: d };
-        let _ = m.ensure();
-        let _ = m.apply(1, "create_posts", __sql_create_posts());
-        let _ = m.apply(2, "add_comments", __sql_add_comments());
-        println("[blog-schema] ", label, ": applied=", to_string(m.applied),
-                " ok=", to_string(m.ok()),
-                " current_version=", to_string(m.current_version()));
-        return m.applied;
+    // Fallible-call handlers: run() is a lifecycle body (can't be
+    // fallible), so failures land here, print, and substitute.
+    fn __die_int(e: migs::MigrationError) -> Int {
+        println("[blog-schema] FAILED kind=", e.kind, " v", e.version,
+            " ", e.name, ": ", e.detail);
+        self.failed = self.failed + 1;
+        return 0 - 1;
+    }
+
+    fn __die_unit(e: migs::MigrationError) {
+        println("[blog-schema] FAILED kind=", e.kind, " v", e.version,
+            " ", e.name, ": ", e.detail);
+        self.failed = self.failed + 1;
     }
 
     run() {
@@ -60,44 +65,81 @@ locus BlogSchemaDemo {
 
         // Self-cleaning: drop everything this demo creates.
         let _ = conn.exec(
-            "DROP TABLE IF EXISTS comments; "
+            "DROP TABLE IF EXISTS tags; "
+            + "DROP TABLE IF EXISTS comments; "
             + "DROP TABLE IF EXISTS posts; "
             + "DROP TABLE IF EXISTS schema_migrations"
         ) or sqlite::ExecResult { };
 
-        let d = migs::SqliteDriver { conn: conn };
+        let d = sqlite::Driver { conn: conn };
         println("[blog-schema] driver backend: ", d.backend(),
                 " (open ok=", to_string(d.open().ok), ")");
 
-        // Round 1: both migrations pending → applied = 2.
-        let n1 = self.migrate_round(d, "first run");
+        // The migration set: v1 irreversible, v2/v3 reversible.
+        // IF NOT EXISTS on the creates keeps replay-after-force(2)
+        // (step 6) idempotent.
+        let s = migs::Migrations { };
+        s.add(1, "create_posts", __sql_create_posts());
+        s.add_rev(2, "add_comments", __sql_add_comments(),
+            "DROP TABLE comments");
+        s.add_rev(3, "add_tags", __sql_add_tags(),
+            "DROP TABLE tags");
 
-        // Round 2: same set again → applied = 0 (idempotent).
-        let n2 = self.migrate_round(d, "re-run   ");
+        let m = migs::Migrator { driver: d, set: s };
 
-        // Show the tracking rows (version \t name \t applied_at).
+        // 1+2: up, then the idempotent re-run.
+        let n1 = m.up() or self.__die_int(err);
+        println("[blog-schema] up          : applied=", n1,
+            " current_version=", m.current_version());
+        let n2 = m.up() or self.__die_int(err);
+        println("[blog-schema] up (re-run) : applied=", n2,
+            " current_version=", m.current_version());
+
+        // 3: goto(1) — reverts v3, then v2.
+        let n3 = m.goto(1) or self.__die_int(err);
+        println("[blog-schema] goto(1)     : reverted=", n3,
+            " current_version=", m.current_version());
+
+        // 4: steps(2) — re-applies v2, v3.
+        let n4 = m.steps(2) or self.__die_int(err);
+        println("[blog-schema] steps(2)    : applied=", n4,
+            " current_version=", m.current_version());
+
+        // 5+6: force(2) rewinds the RECORD (not the schema), so the
+        // next up() replays v3 over the still-present tags table.
+        m.force(2) or self.__die_unit(err);
+        println("[blog-schema] force(2)    : current_version=",
+            m.current_version(), " dirty=", to_string(m.dirty()));
+        let n5 = m.up() or self.__die_int(err);
+        println("[blog-schema] up (post-force): applied=", n5,
+            " current_version=", m.current_version());
+
+        // 7: show the tracking rows + prove the tables exist.
         let tracked = d.query_all(
-            "SELECT version, name, applied_at FROM schema_migrations ORDER BY version");
+            "SELECT version, name, applied_at FROM schema_migrations"
+            + " ORDER BY version");
         println("[blog-schema] schema_migrations rows (n=",
                 to_string(tracked.n), "):");
         println(tracked.csv);
 
-        // Verify the migrated tables exist for real.
         let tables = conn.query_all(
             "SELECT name FROM sqlite_master WHERE type='table'"
-            + " AND name IN ('posts','comments') ORDER BY name"
+            + " AND name IN ('posts','comments','tags') ORDER BY name"
         ) or sqlite::Rows { csv: "ERR" };
         println("[blog-schema] tables present: ", tables.csv);
 
-        if n1 == 2 && n2 == 0 && tables.csv == "comments\nposts" {
-            println("[blog-schema] OK — 2 applied, re-run no-op, both tables exist");
+        if self.failed == 0 && n1 == 3 && n2 == 0 && n3 == 2 && n4 == 2
+            && n5 == 1 && m.current_version() == 3
+            && tables.csv == "comments\nposts\ntags" {
+            println("[blog-schema] OK — up x3, no-op re-run, goto/steps"
+                + " round-trip, force+replay, all tables exist");
         } else {
             println("[blog-schema] FAIL — unexpected state");
         }
     }
 }
 
-// The migration set (forward-only, ascending versions).
+// The migration SQL (v2/v3 use IF NOT EXISTS — see run()).
 
 fn __sql_create_posts() -> String {
     return "CREATE TABLE posts ("
@@ -107,11 +149,18 @@ fn __sql_create_posts() -> String {
 }
 
 fn __sql_add_comments() -> String {
-    return "CREATE TABLE comments ("
+    return "CREATE TABLE IF NOT EXISTS comments ("
         + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         + "post_id INTEGER NOT NULL REFERENCES posts(id), "
         + "author TEXT NOT NULL, "
         + "body TEXT NOT NULL)";
+}
+
+fn __sql_add_tags() -> String {
+    return "CREATE TABLE IF NOT EXISTS tags ("
+        + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        + "post_id INTEGER NOT NULL REFERENCES posts(id), "
+        + "label TEXT NOT NULL)";
 }
 
 fn main() {

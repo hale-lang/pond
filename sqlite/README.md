@@ -4,7 +4,9 @@ Connection + query surface around SQLite: a Service-locus `Db`
 (birth opens the connection, dissolve closes it) and a
 `fallible(DbError)` member-fn surface covering exec / query_one /
 query_all / prepare-bind-step-finalize — the CONTRACTS.md
-§ pond/sqlite shape, implemented for real.
+§ pond/sqlite shape, implemented for real. Since 2026-07-06 the
+seed also ships `Driver`, the `db::DbDriver` adapter (promoted
+from pond/migrations, where it was born as `migs::SqliteDriver`).
 
 ## Status (2026-06-12): UNBLOCKED — real driver, no stdlib wait
 
@@ -71,6 +73,14 @@ locus Db {
     fn step(stmt: Int) -> Row fallible(DbError);          // SQLITE_DONE → kind="no_row"
     fn finalize(stmt: Int) -> () fallible(DbError);
 }
+
+locus Driver {                    // db::DbDriver adapter (additive, 2026-07-06)
+    params { conn: Db; }          // caller-owned connection
+    // satisfies db::DbDriver: backend/open/close/exec/query_one/
+    // query_all/exec_params/query_params/begin/commit/rollback/
+    // tx_status — every DbError caught on the value channel and
+    // repacked into the db::* ok/err result shapes.
+}
 ```
 
 Call sites:
@@ -106,10 +116,17 @@ conn.finalize(stmt) or raise;
   handle rather than crashing. Finalize what you prepare.
 - **NULL columns read as `""`** — the v0 tab-separated `Row` shape
   has no NULL channel.
-- **Not satisfied: `db::DbDriver`.** The contract's fallible-method
-  surface is signature-incompatible with the non-fallible
-  `ok`/`err`-packed interface in `pond/db` — see FRICTION.log § F.7
-  before injecting `sqlite::Db` where a `db::DbDriver` is expected.
+- **`Db` itself does not satisfy `db::DbDriver`** — the contract's
+  fallible-method surface is signature-incompatible with the
+  non-fallible `ok`/`err`-packed interface in `pond/db`
+  (FRICTION.log § F.7). Where a `db::DbDriver` is expected, wrap
+  the connection: `let drv = sqlite::Driver { conn: conn };` —
+  Driver requires the consumer app to also vendor `pond/db` (its
+  result shapes are `db::*`), consistent with pond's
+  no-transitive-deps vendoring rule. Adapter caveat: its methods
+  stash the first error on `self`, so calls are non-reentrant
+  across pinned threads — give parallel pinned workers their own
+  Driver.
 
 ## Files
 
@@ -120,6 +137,14 @@ conn.finalize(stmt) or raise;
 - `hale.toml` — `[ffi]` link surface.
 - `db.hl` — the `Db` service locus (pattern 3) carrying the whole
   SQL member-fn surface, plus private helpers.
+- `driver.hl` — the `Driver` adapter locus satisfying
+  `db::DbDriver` (imports `../db`; promoted from pond/migrations
+  2026-07-06).
+- `tests/` — `crud_test.hl`, `errors_test.hl`, `driver_test.hl`
+  (the adapter's full interface surface). NOTE: `hale test` cannot
+  link `@ffi` libs yet (FRICTION.log) — build each test with
+  `hale build sqlite/tests/<x>_test.hl` + run (pass = exit 0,
+  silent).
 - `examples/kv-demo/` — real create/insert/select round-trip
   against `/tmp/pond-sqlite-kv-demo.db`, plus four deliberate
   error paths (bad SQL, constraint violation, zero-row query_one,
@@ -128,7 +153,7 @@ conn.finalize(stmt) or raise;
 ## Verification
 
 ```bash
-hale check sqlite/                       # ok: 3 file(s) typechecked
+hale check sqlite/                       # ok: 4 file(s) typechecked
 hale build sqlite/examples/kv-demo/      # picks up [ffi] automatically
 ./sqlite/examples/kv-demo/kv-demo
 ```
@@ -164,6 +189,5 @@ ships." The premise died (no primitive will ship); the cleanup ran
    with a live round-trip + deliberate error paths.
 
 Remaining follow-ups live in FRICTION.log: § F.4 (row-helper
-export, deferred) and § F.7 (`db::DbDriver` adapter so
-`sqlite::Db` can be injected through the interface — needed by
-`pond/migrations`' contract comment).
+export, deferred). § F.7 (`db::DbDriver` adapter) is resolved —
+the adapter is this seed's `Driver` since 2026-07-06.
