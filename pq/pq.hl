@@ -110,13 +110,17 @@ locus PgConn {
             }
             self.connected = false;
             self.rx_buf.clear();
-            // A definitive auth outcome — a rejected password
-            // ("auth_failed") or an unsupported auth method
-            // ("unsupported") — will not fix itself on a redial, so fail
-            // fast instead of burning the retry budget (and ~1s of
-            // backoff). The retry loop exists for the TRANSIENT
-            // cold-dial peer-close only.
-            if st.err.kind == "auth_failed" || st.err.kind == "unsupported" {
+            // A definitive outcome — a rejected password / protocol
+            // violation / signature mismatch ("auth_failed"), an
+            // unsupported auth method ("unsupported"), or a pre-auth
+            // ErrorResponse such as a bad database name / pg_hba reject
+            // / connection limit ("startup_rejected") — will not fix
+            // itself on a redial, so fail fast instead of burning the
+            // retry budget (and ~1s of backoff). is_fail_fast_kind()
+            // (wire.hl) is the single source of truth for this set. The
+            // retry loop exists for the TRANSIENT cold-dial peer-close
+            // ("io") only.
+            if is_fail_fast_kind(st.err.kind) {
                 return last;
             }
             std::time::sleep(150ms);
@@ -153,6 +157,18 @@ locus PgConn {
             self.connected = false;
             return db::Status { ok: false, err: db::DbError { kind: "open_failed",
                 engine_code: 0, detail: "startup: " + auth.err } };
+        }
+        if auth.mtype == 69 {                        // 'E' ErrorResponse, pre-auth
+            // A rejection before any auth challenge — bad database
+            // name, pg_hba reject, connection limit, etc (F4). Without
+            // this special case the generic "not 'R'" branch below
+            // reports an opaque "expected Authentication, got type 69"
+            // AND open()'s retry loop burns all 8 attempts on what is
+            // already a deterministic rejection. Extract the server's
+            // actual message and classify it fail-fast.
+            self.connected = false;
+            return db::Status { ok: false, err: db::DbError { kind: "startup_rejected",
+                engine_code: 0, detail: "startup: " + __error_message(auth.body, auth.total) } };
         }
         if auth.mtype != 82 {                       // not 'R'
             self.connected = false;
@@ -195,8 +211,18 @@ locus PgConn {
     // client proof, reads SASLFinal and verifies the server signature,
     // then reads AuthenticationOk. The crypto lives in scram.hl; this
     // method owns only the message sequencing. Fails CLOSED: any
-    // framing error, a rejected password (ErrorResponse 'E'), or a
-    // server-signature mismatch returns ok=false with a useful detail.
+    // framing error, a rejected password (ErrorResponse 'E'), a nonce
+    // that doesn't extend the client's (RFC 5802 §5.1, enforced inside
+    // compute_client_final), or a server-signature mismatch returns
+    // ok=false with a useful detail.
+    //
+    // err_kind split (F2): a read failure here (!m2/m3/m4.ok) is always
+    // a TRANSIENT peer-close, not a definitive auth outcome — classified
+    // sasl_retryable_kind() ("io") so open()'s retry loop keeps retrying
+    // it instead of the failure defeating the retry loop. Everything
+    // else here (ErrorResponse, a protocol violation, a bad nonce/
+    // signature) is definitive and stays "auth_failed", which open()
+    // fail-fasts on via is_fail_fast_kind() (wire.hl).
     fn __sasl_exchange() -> __SaslResult {
         let stream = std::io::tcp::Stream { conn_fd: self.sock };
 
@@ -213,7 +239,7 @@ locus PgConn {
         // server-first: AuthenticationSASLContinue (code 11).
         let m2 = self.__read_one_msg();
         if !m2.ok {
-            return __SaslResult { ok: false, err_kind: "auth_failed",
+            return __SaslResult { ok: false, err_kind: sasl_retryable_kind(),
                 err_detail: "auth: " + m2.err };
         }
         if m2.mtype == 69 {                          // 'E' ErrorResponse
@@ -238,7 +264,7 @@ locus PgConn {
         // a rejected password.
         let m3 = self.__read_one_msg();
         if !m3.ok {
-            return __SaslResult { ok: false, err_kind: "auth_failed",
+            return __SaslResult { ok: false, err_kind: sasl_retryable_kind(),
                 err_detail: "auth: " + m3.err };
         }
         if m3.mtype == 69 {                          // 'E' — wrong password etc.
@@ -257,7 +283,7 @@ locus PgConn {
         // AuthenticationOk (code 0).
         let m4 = self.__read_one_msg();
         if !m4.ok {
-            return __SaslResult { ok: false, err_kind: "auth_failed",
+            return __SaslResult { ok: false, err_kind: sasl_retryable_kind(),
                 err_detail: "auth: " + m4.err };
         }
         if m4.mtype != 82 || sasl_r_code(m4.body) != 0 {

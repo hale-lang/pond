@@ -150,6 +150,32 @@ fn sasl_r_text(body: Bytes, total: Int) -> String {
     return std::str::from_bytes(std::bytes::slice(body, 9, total));
 }
 
+// ===== SASL exchange failure classification (retry contract) =====
+//
+// A read failure (peer close) mid-__sasl_exchange (pq.hl) is a
+// TRANSIENT cold-dial condition per FRICTION.log — observed against a
+// perfectly healthy postgres server — not a definitive auth outcome,
+// so it MUST be retryable. A definitive outcome (server ErrorResponse,
+// a server-signature mismatch, a bad/foreign nonce, or a protocol
+// violation like "expected SASLContinue") must NOT be retried blindly
+// against a hostile/misconfigured server, so open()'s retry loop
+// (pq.hl) treats a small fixed set of `db::DbError.kind` values as
+// fail-fast.
+//
+// This pair of pure functions is the single source of truth for that
+// contract. It lives here rather than in pq.hl (whose
+// `import "vendor/pond/db"` only resolves inside a vendored consumer
+// tree, so pq.hl can't be typechecked/run standalone — see
+// FRICTION.log § pond/pq, "In-repo build vs check") so the
+// retry/fail-fast classification stays unit-testable offline: the
+// "classification level" test for a behaviour that's otherwise
+// awkward to exercise without a live socket dropping mid-handshake.
+fn sasl_retryable_kind() -> String { return "io"; }
+
+fn is_fail_fast_kind(kind: String) -> Bool {
+    return kind == "auth_failed" || kind == "unsupported" || kind == "startup_rejected";
+}
+
 fn __append_cstr(b: std::bytes::BytesBuilder, s: String) {
     b.append(std::bytes::from_string(s));
     b.append(std::bytes::from_int(0));

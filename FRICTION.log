@@ -3333,6 +3333,67 @@ Frictions / decisions encountered:
   codec are covered by `pq/tests/scram_test.hl` (RFC 7677 §3 vector,
   byte-for-byte) and the SASL additions in `pq/tests/wire_test.hl`.
 
+## [2026-07-14] SCRAM security hardening (daydream-hwj, rl-critic round)
+
+A critic pass on the initial SCRAM landing (score 0.70) found five gaps
+between the crypto-core-correct implementation and RFC 5802's MUSTs /
+open()'s retry-safety contract. All closed, TDD-style (failing test
+first, `pq/tests/scram_test.hl` + `pq/tests/wire_test.hl`):
+
+- **Nonce-extension check (RFC 5802 §5.1 MUST).** `scram.hl`'s
+  `compute_client_final` now verifies the server's `r=` both STARTS
+  WITH the client nonce (embedded in `client_first_bare`) and is
+  STRICTLY LONGER — rejecting a foreign nonce and an exact echo (no
+  server contribution) alike. Fails closed with `err_kind
+  "auth_failed"`.
+- **Retry-vs-fail-fast reclassification.** A read failure inside
+  `__sasl_exchange` (the `!m2/m3/m4.ok` branches) is a TRANSIENT
+  cold-dial peer-close (same root cause as the 2026-06-30 entry below),
+  not a definitive auth outcome — it was misclassified `"auth_failed"`,
+  which defeated `open()`'s retry loop. Now classified via the new
+  `wire::sasl_retryable_kind()` ("io"); `wire::is_fail_fast_kind(kind)`
+  is the single source of truth `open()` consults, kept in `wire.hl`
+  (not `pq.hl`, which needs the vendored `db` import to compile) so the
+  retry contract stays unit-testable offline.
+- **PBKDF2 iteration-count DoS cap.** `parse_server_first` now rejects
+  `i=` above 1,000,000 (postgres/RDS default is 4096) — an
+  uncapped server-supplied iteration count lets a hostile/misconfigured
+  server burn client CPU (`Hi()` is one HMAC-SHA256 per iteration; a
+  connection pool multiplies this by pool size).
+- **Pre-auth `ErrorResponse` fast path.** `__open_once` special-cases
+  `auth.mtype == 69` (an `'E'` arriving before any Authentication
+  challenge — e.g. a `pg_hba.conf` reject, verified live by inserting a
+  `reject` rule against a docker container) into a new
+  `"startup_rejected"` `err_kind` (added to `is_fail_fast_kind`'s set)
+  with the server's actual message as detail, instead of the previous
+  opaque "expected Authentication, got type 69" retried 8× on a
+  deterministic rejection. NOTE: a bad **database name** specifically
+  does NOT hit this path against postgres 18 — verified live (raw
+  socket capture) that postgres answers `AuthenticationSASL`/
+  `AuthenticationOk` first and only then rejects the database inside
+  what `__pump` reads (pre-existing `"open_failed"`/`query_failed`
+  path, unchanged here — out of this round's scope, filed as a
+  follow-up).
+- **Cheap parser hardening (F5).** `parse_server_first` /
+  `verify_server_final` anchor their leading field to the string start
+  (`scram_starts_with`) instead of an unanchored substring search —
+  this also rejects a server-first beginning `"m="` (RFC 5802 §6
+  mandatory-extension abort) for free. `scram_xor` now fails loud
+  (returns empty `Bytes`) on a length mismatch instead of silently
+  zero-padding/truncating — every real call site XORs equal-width
+  HMAC-SHA256/SHA-256 outputs, so a mismatch is always an internal-bug
+  signal. The non-constant-time `v=` compare is left as-is (matches
+  libpq; the compared value isn't a cross-principal secret) with a
+  comment explaining why.
+
+Re-verified live: SCRAM correct-password (OPEN OK + query), SCRAM
+wrong-password (clean `auth_failed` in ~0.02s, 1 attempt), trust
+regression, `PgPool` with SCRAM (3 conns), and the new
+`pg_hba.conf reject` fast-fail (`startup_rejected` in ~0.006s, 1
+attempt, confirmed via container log line count). `hale check pq/`
+clean (4 files); `pq/tests/scram_test.hl` + `pq/tests/wire_test.hl`
+pass with all new assertions.
+
 ## [CLOSED 2026-06-30] flaky cold dial: "peer closed mid-response" on a healthy server
 
 `PgConn.open()` dialed once and a single attempt was unreliable: the

@@ -74,6 +74,19 @@ fn compute_client_final(password: String, client_first_bare: String,
     if !sf.ok {
         return ScramClientFinal { ok: false, err: "malformed server-first-message" };
     }
+    // F1 / RFC 5802 §5.1 MUST: the server's nonce is required to extend
+    // the client nonce we sent in client-first — the server appends its
+    // own contribution. Verify sf.nonce both STARTS WITH the client
+    // nonce (embedded in client_first_bare's "r=" field) AND is
+    // strictly longer than it, rejecting a foreign nonce and an exact
+    // echo (no server contribution) alike. Fail closed: a nonce
+    // downgrade/reflection here is an authentication protocol
+    // violation, not a retryable condition.
+    let want_nonce = scram_field_after(client_first_bare, "r=");
+    if !scram_starts_with(sf.nonce, want_nonce) || len(sf.nonce) <= len(want_nonce) {
+        return ScramClientFinal { ok: false,
+            err: "nonce mismatch: server r= does not extend the client nonce" };
+    }
     let salt   = std::text::base64::decode(sf.salt_b64);
     let salted = salted_password(password, salt, sf.iters);
 
@@ -103,11 +116,28 @@ fn compute_client_final(password: String, client_first_bare: String,
 // anchored so a base64 salt containing padding never fools the split;
 // the nonce is base64url (comma-free) so ",s=" / ",i=" never appear
 // inside it. ok=false if any field is missing or i= is not positive.
+//
+// F5(a)/(b) hardening: the message itself must START with "r=" —
+// anchoring the leading field to the string start (instead of an
+// unanchored index_of("r=") search) closes a smuggling class where a
+// hostile prefix could precede a buried "r=", and it doubles as the
+// RFC 5802 §6 mandatory-extension guard: a server-first beginning
+// "m=..." (an extension we don't understand) MUST abort the exchange
+// — "m=" simply fails the "starts with r=" anchor like any other
+// non-"r=" prefix.
+//
+// F3 hardening: a hostile/misconfigured server can hand back an
+// enormous PBKDF2 iteration count to burn client CPU (Hi() is one
+// HMAC-SHA256 per iteration) — cap it well above any real deployment
+// (postgres/RDS default is 4096) and fail closed above the cap.
 fn parse_server_first(msg: String) -> ScramServerFirst {
+    if !scram_starts_with(msg, "r=") {
+        return ScramServerFirst { ok: false };
+    }
     let r     = scram_field_after(msg, "r=");
     let s     = scram_field_after(msg, ",s=");
     let iters = std::str::parse_int(scram_field_after(msg, ",i=")) or 0;
-    let good  = len(r) > 0 && len(s) > 0 && iters > 0;
+    let good  = len(r) > 0 && len(s) > 0 && iters > 0 && iters <= 1000000;
     return ScramServerFirst { nonce: r, salt_b64: s, iters: iters, ok: good };
 }
 
@@ -115,7 +145,20 @@ fn parse_server_first(msg: String) -> ScramServerFirst {
 // against the ServerSignature we expect. Fail closed: a missing or
 // mismatched v= returns false. The "," sentinel lets field_after stop
 // correctly when v= is the final (or only) field.
+//
+// F5(a): the message must START with "v=" (anchored, same rationale as
+// parse_server_first) rather than an unanchored search — this also
+// cleanly rejects an "e=..." SASL error message via the same guard
+// instead of relying on the field-not-found path to happen to catch it.
+//
+// F5(d): this is a plain string compare, not constant-time. That
+// matches libpq's own client-side v= check — the value being compared
+// is a MAC the client independently derived from a password-derived
+// secret it already holds; the only thing a timing side-channel could
+// leak here is the server's signature, which the wire already handed
+// us in plaintext. Left as-is intentionally, not an oversight.
 fn verify_server_final(server_final: String, expected_sig_b64: String) -> Bool {
+    if !scram_starts_with(server_final, "v=") { return false; }
     let got = scram_field_after(server_final + ",", "v=");
     if len(got) == 0 { return false; }
     return got == expected_sig_b64;
@@ -149,8 +192,21 @@ fn client_nonce() -> String {
 // BytesBuilder.xor_mask primitive only XORs against a repeating
 // 4-byte key (a WebSocket masking primitive), so a general 32-vs-32
 // fold needs this hand loop. Returns .snapshot() (see arena rule).
+//
+// F5(c) guard: every call site in this file XORs two same-width
+// HMAC-SHA256/SHA-256 outputs (32 bytes each), so a length mismatch
+// can only mean an internal bug. The naive body would silently
+// zero-pad the shorter side (`std::bytes::at(..) or 0`) and truncate
+// the result to len(a) — both corrupt the derived key material
+// without any signal. Fail loud instead: on a mismatch, return empty
+// Bytes so the very next step (a base64 encode / signature compare)
+// visibly breaks rather than silently authenticating with corrupted
+// material.
 fn scram_xor(a: Bytes, b: Bytes) -> Bytes {
     let n = len(a);
+    if n != len(b) {
+        return std::bytes::from_string("");
+    }
     let out = std::bytes::BytesBuilder { initial_cap: n };
     let mut i = 0;
     while i < n {
@@ -171,4 +227,13 @@ fn scram_field_after(msg: String, prefix: String) -> String {
     let c = std::str::index_of(rest, ",");
     if c < 0 { return rest; }
     return rest[0..c];
+}
+
+// scram_starts_with — true if `s` begins with `prefix` (byte-exact).
+// Anchors the r=/v= leading-field parses (F5a) instead of relying on
+// an unanchored substring search.
+fn scram_starts_with(s: String, prefix: String) -> Bool {
+    let n = len(prefix);
+    if len(s) < n { return false; }
+    return s[0..n] == prefix;
 }

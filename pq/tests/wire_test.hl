@@ -127,4 +127,50 @@ fn main() {
     std::test::assert_eq_int(wire::sasl_r_code(rbytes), 11, "sasl_r_code reads the R sub-code");
     std::test::assert_eq_str(wire::sasl_r_text(rbytes, rtotal), stext,
         "sasl_r_text extracts the server message payload after the sub-code");
+
+    // ---- F5 item 5: wire coverage for code-12 (SASLFinal) and code-0
+    // (AuthenticationOk) frames -- only code-11 was exercised above.
+    let vtext = "v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=";
+    let vtb = std::bytes::from_string(vtext);
+    let vmsg = std::bytes::BytesBuilder { initial_cap: 64 };
+    vmsg.append(std::bytes::from_int(82));        // 'R'
+    wire::be32_append(vmsg, 8 + len(vtb));        // len field: itself(4) + code(4) + text
+    wire::be32_append(vmsg, 12);                  // sub-code 12 = SASLFinal
+    vmsg.append(vtb);
+    let vbytes = vmsg.finish();
+    let vtotal = 9 + len(vtb);
+    std::test::assert_eq_int(wire::sasl_r_code(vbytes), 12, "sasl_r_code reads the SASLFinal sub-code (12)");
+    std::test::assert_eq_str(wire::sasl_r_text(vbytes, vtotal), vtext,
+        "sasl_r_text extracts the server-final-message payload (v=...) on a code-12 frame");
+
+    let okmsg = std::bytes::BytesBuilder { initial_cap: 16 };
+    okmsg.append(std::bytes::from_int(82));       // 'R'
+    wire::be32_append(okmsg, 8);                  // len field: itself(4) + code(4), no text
+    wire::be32_append(okmsg, 0);                  // sub-code 0 = AuthenticationOk
+    let okbytes = okmsg.finish();
+    std::test::assert_eq_int(wire::sasl_r_code(okbytes), 0, "sasl_r_code reads the AuthenticationOk sub-code (0)");
+    std::test::assert_eq_str(wire::sasl_r_text(okbytes, 9), "",
+        "sasl_r_text is empty on a code-0 AuthenticationOk frame (no payload after the sub-code)");
+
+    // ================= F2/F4: SASL retry / fail-fast classification =================
+    // Single source of truth for the contract between __sasl_exchange's
+    // read-failure branches and open()'s retry loop (both in pq.hl,
+    // which needs the vendored db import to compile and so can't be
+    // unit-tested directly in-tree) -- this is the offline
+    // "classification level" test: a transient peer-close mid-exchange
+    // must classify as retryable ("io"), never "auth_failed", and the
+    // fail-fast set open() short-circuits on must be exactly the
+    // definitive-outcome kinds.
+    std::test::assert_eq_str(wire::sasl_retryable_kind(), "io",
+        "a transient peer-close mid-SASL-exchange is classified io (retryable)");
+    std::test::assert(!wire::is_fail_fast_kind(wire::sasl_retryable_kind()),
+        "io is NOT in open()'s fail-fast set -- a transient close must retry");
+    std::test::assert(wire::is_fail_fast_kind("auth_failed"),
+        "auth_failed (rejected password / protocol violation / sig mismatch) is fail-fast");
+    std::test::assert(wire::is_fail_fast_kind("unsupported"),
+        "an unsupported auth method is fail-fast");
+    std::test::assert(wire::is_fail_fast_kind("startup_rejected"),
+        "a pre-auth ErrorResponse (bad db name / pg_hba / conn limit) is fail-fast, not retried 8x");
+    std::test::assert(!wire::is_fail_fast_kind("open_failed"),
+        "a generic connect failure keeps retrying (unchanged baseline behaviour)");
 }

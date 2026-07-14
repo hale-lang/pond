@@ -101,6 +101,21 @@ fn main() {
     let bad = scram::compute_client_final("pw", "n=,r=abc", "not a server-first");
     std::test::assert(!bad.ok, "compute_client_final fails closed on malformed server-first");
 
+    // ============= F3: PBKDF2 iteration count DoS cap =============
+    // A hostile/misconfigured server can hand back an enormous i= to
+    // burn client CPU (Hi() is one HMAC-SHA256 per iteration). Cap well
+    // above any real deployment (postgres/RDS default is 4096).
+    std::test::assert(!scram::parse_server_first("r=abc,s=c2FsdA==,i=100000001").ok,
+        "parse_server_first rejects a PBKDF2 iteration count above the 1,000,000 DoS cap");
+    std::test::assert(scram::parse_server_first("r=abc,s=c2FsdA==,i=1000000").ok,
+        "parse_server_first accepts the iteration count exactly at the 1,000,000 cap");
+
+    // ============= F5(b): mandatory-extension (m=) rejection =============
+    // RFC 5802 §6: a server-first beginning with an extension we don't
+    // understand ("m=...") MUST abort the exchange.
+    std::test::assert(!scram::parse_server_first("m=ext,r=abc,s=c2FsdA==,i=4096").ok,
+        "parse_server_first rejects a server-first beginning with a mandatory extension (m=)");
+
     // ============= base64 round-trips =============
     // scram leans on std::text::base64 for salt decode and proof/sig
     // encode; a broken round-trip would silently corrupt the proof.
@@ -116,6 +131,34 @@ fn main() {
         "verify_server_final rejects an empty v=");
     std::test::assert(!scram::verify_server_final("e=other-error", cf.server_sig_b64),
         "verify_server_final rejects a message with no v= field");
+
+    // ============= F1: nonce-extension check (RFC 5802 §5.1 MUST) =============
+    // The server's r= MUST begin with the client's nonce AND be strictly
+    // longer -- the server is required to append its own contribution.
+    // A foreign nonce, or an exact echo of the client nonce (no server
+    // contribution at all), must both be rejected. Fail closed.
+    let foreign_nonce_first =
+        "r=TOTALLYDIFFERENTNONCEVALUE,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096";
+    let foreign = scram::compute_client_final(password, client_first_bare, foreign_nonce_first);
+    std::test::assert(!foreign.ok,
+        "compute_client_final rejects a server r= that does not begin with the client nonce");
+
+    let echoed_nonce_first =
+        "r=rOprNGfwEbeRWgbNEkqO,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096";
+    let echoed = scram::compute_client_final(password, client_first_bare, echoed_nonce_first);
+    std::test::assert(!echoed.ok,
+        "compute_client_final rejects a server r= that exactly equals the client nonce (no server contribution) -- boundary case");
+
+    // ============= F5(c): scram_xor fails loud on a length mismatch =============
+    // Every real call site XORs two equal-width HMAC-SHA256/SHA-256
+    // outputs (32 bytes each); a mismatch is always an internal-bug
+    // signal. Guard against silently zero-padding the shorter side or
+    // truncating the result -- return empty Bytes so the corruption is
+    // visible downstream instead of authenticating with corrupted key
+    // material.
+    std::test::assert_eq_int(
+        len(scram::scram_xor(std::bytes::from_string("ab"), std::bytes::from_string("abcdef"))),
+        0, "scram_xor returns empty Bytes on a length mismatch instead of silently truncating");
 
     // ============= gs2 header / empty-username client-first =============
     std::test::assert_eq_str(scram::gs2_header(), "n,,", "gs2 header is 'n,,' (no channel binding)");
