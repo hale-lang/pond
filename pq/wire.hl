@@ -233,6 +233,73 @@ fn sslmode_verify(mode: String) -> Bool {
     return mode == "verify-full";
 }
 
+// classify_ssl_reply — pure decision table for the single unframed reply
+// byte to SSLRequest (build_ssl_request). __negotiate_tls (pq.hl) is the
+// sole consumer; extracted here (wire.hl has no db dependency, unlike
+// pq.hl, which needs the vendored `db` seed to compile — see
+// FRICTION.log § pond/pq "In-repo build vs check") so the FULL
+// byte x sslmode truth table is unit-testable offline, not just the
+// 'S'/'N' happy paths a live server ever actually sends.
+//
+// Returns one of:
+//   "upgrade"        — 'S' (83): the server offers TLS. Upgrade the fd
+//                       (verify per sslmode_verify). Valid for every
+//                       sslmode that reaches __negotiate_tls at all
+//                       (prefer/require/verify-full — disable never sends
+//                       SSLRequest in the first place).
+//   "plaintext"       — 'N' (78) under sslmode=prefer: the server has no
+//                       TLS; opportunistic fallback, continue unencrypted.
+//   "refuse"          — 'N' (78) under sslmode=require/verify-full: the
+//                       server has no TLS but the caller demanded it —
+//                       fail closed, never silently downgrade.
+//   "protocol_error"  — any other byte: SSLRequest's reply contract is
+//                       exactly one byte, 'S' or 'N' — anything else is a
+//                       protocol violation (a peer-close BEFORE any byte
+//                       arrives is handled separately in __negotiate_tls
+//                       as the transient "io" case, not here).
+fn classify_ssl_reply(reply_byte: Int, sslmode: String) -> String {
+    if reply_byte == 83 { return "upgrade"; }
+    if reply_byte == 78 {
+        if sslmode_requires_tls(sslmode) { return "refuse"; }
+        return "plaintext";
+    }
+    return "protocol_error";
+}
+
+// ===== PgPool TLS-transport homogeneity (F1) =====
+//
+// PgPool derives ONE `pool_tls` from connection 0 (pool.hl `open()`) and
+// threads that single flag into every subsequent pooled PgConn
+// reconstruction (pool.hl stores raw handles, not per-slot transport
+// tags). That assumes every pooled connection negotiates the SAME
+// transport. Under sslmode=disable/require/verify-full that assumption
+// is structurally guaranteed: disable never calls __negotiate_tls at all
+// (always tls=false), and require/verify-full fail closed on any 'N'
+// (a successful open() can only ever have settled tls=true). Only
+// sslmode=prefer can violate it — a load-balanced/proxied endpoint could
+// let connection 0 negotiate TLS while connection N lands on a peer that
+// answers 'N' (or vice versa). If unnoticed, that connection's handle
+// would later be driven through the WRONG transport family
+// (stream.hl's dispatch), corrupting the shared TLS handle table
+// silently. pool.hl's open() calls this after every c.open() for
+// connections after the first and fails the whole pool closed on a
+// mismatch (tears down the offending connection AND every
+// already-opened one) rather than risk that corruption.
+
+fn pool_tls_mismatch(conn_tls: Bool, pool_tls: Bool) -> Bool {
+    return conn_tls != pool_tls;
+}
+
+// pool_tls_mismatch_detail — human-readable detail for the db::DbError
+// pool.hl raises on a homogeneity violation. `idx` is the 0-based index
+// of the offending connection within this open() call.
+fn pool_tls_mismatch_detail(idx: Int, conn_tls: Bool, pool_tls: Bool) -> String {
+    return "pool connection " + to_string(idx) + " negotiated tls=" + to_string(conn_tls)
+        + " but the pool already settled tls=" + to_string(pool_tls)
+        + " from connection 0 -- refusing a heterogeneous pool (possible "
+        + "load-balanced/proxied endpoint behind sslmode=prefer)";
+}
+
 fn __append_cstr(b: std::bytes::BytesBuilder, s: String) {
     b.append(std::bytes::from_string(s));
     b.append(std::bytes::from_int(0));

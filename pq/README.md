@@ -35,6 +35,33 @@ server's CA to be installed in the container's system trust store
 is an operational prerequisite, not needed for `require`. An unknown
 `sslmode` is rejected at `open()`.
 
+> **Pin `sslmode` in production.** `prefer`'s plaintext fallback is
+> silent by design (it just logs — see below) so it's the right default
+> for a library that must not break existing plaintext-only callers, but
+> it also means a `prefer` connection against a load-balanced/proxied
+> endpoint that doesn't speak TLS on every hop will quietly downgrade.
+> Production consumers should pin `sslmode` explicitly rather than rely
+> on the default — `require` for RDS-class deployments. When a `prefer`
+> connection *does* fall back to plaintext, `PgConn`/`PgPool` print a
+> one-line `[pq] tls: sslmode=prefer negotiated PLAINTEXT ...` notice so
+> the downgrade is observable, not silent.
+
+> **Hostname vs IP literal.** Pass a DNS hostname (not an IP literal) as
+> `host` under `require`/`verify-full` — TLS SNI
+> (`SSL_set_tlsext_host_name`) is sent for both, and `verify-full`'s
+> hostname check (`SSL_set1_host`) has DNS-name semantics; an IP literal
+> skips SNI's benefit and can behave unexpectedly under hostname
+> verification.
+
+> **Pool homogeneity.** `PgPool` assumes every pooled connection
+> negotiates the same transport (it derives one `pool_tls` from
+> connection 0 and threads it into every pooled op). `disable` /
+> `require` / `verify-full` guarantee that structurally; only `prefer`
+> against a non-uniform backend (e.g. a load-balanced/proxied endpoint)
+> could violate it — `open()` detects a mismatch on any connection after
+> the first and fails the whole pool closed rather than risk driving a
+> connection's handle through the wrong transport.
+
 > **Scheduler note.** hale's TLS recv does a blocking `SSL_read` with no
 > async_io park, so a TLS `PgConn`/`PgPool` must **not** be placed on an
 > async_io pool (it would starve sibling coroutines) until hale grows

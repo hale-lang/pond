@@ -3370,6 +3370,83 @@ Deviations / decisions:
   the plan): PG17 direct-TLS/ALPN — needs a new hale ALPN primitive,
   PG17+ only; no other pond protocol needs ALPN yet.
 
+## [2026-07-14] TLS hardening (daydream-dvl, rl-critic round)
+
+A critic pass on the initial TLS landing (score 0.82, "ship after minor
+hardening") found four gaps + one accepted tradeoff. Addressed
+TDD-style (failing test first, `pq/tests/wire_test.hl`):
+
+- **F1 — pool TLS homogeneity was assumed, not enforced.** `PgPool.open()`
+  derived `pool_tls` from connection 0 and trusted every later connection
+  to match, with no check. Under `sslmode=prefer` against a
+  load-balanced/proxied endpoint, connection 0 could negotiate TLS while
+  connection N landed on a peer answering `'N'` — its plaintext fd would
+  later be driven through `std::io::tls` by `stream.hl`'s dispatch,
+  corrupting the shared TLS handle table silently. Extracted the pure
+  predicate `wire::pool_tls_mismatch(conn_tls, pool_tls) -> Bool`
+  (+ `pool_tls_mismatch_detail` for the error text), unit-tested including
+  the invariant that `disable`/`require`/`verify-full` can never trip it
+  (each structurally settles one deterministic `tls` value on a
+  successful `open()` — only `prefer` can vary). `PgPool.open()` now
+  checks every connection after the first; on mismatch it closes the
+  offending connection AND every already-opened one (`__teardown`) and
+  fails the whole pool closed (kind `tls`) rather than risk the
+  corruption.
+- **F2 — `prefer`'s silent plaintext fallback was invisible.**
+  (a) `__negotiate_tls`'s plaintext-fallback branch now prints a
+  one-line `[pq] tls: sslmode=... negotiated PLAINTEXT ...` notice
+  (pond's existing `[libname] ...` println idiom — see `jobs/pool.hl`,
+  `migrations/migrate.hl`), so TLS-stripping is observable instead of
+  silent. (b) README.md + CONTRACTS.md now tell production consumers to
+  pin `sslmode` explicitly (`require` for RDS-class deployments) instead
+  of relying on the `prefer` default; the daydream-side pinning itself is
+  tracked separately (daydream-8a4).
+- **F3 — `PgPool.close()` double-close hazard.** Pre-TLS a second
+  `close()` double-closed a kernel fd (relatively benign, `EBADF`); with
+  TLS handles a second close is a handle-table use-after-free (the slot
+  may already be reused by an unrelated connection). `close()` is now
+  guarded by the existing `opened` flag (no-op if not opened) and, on the
+  one call that proceeds, resets `n`/`fds`/`busy` to empty after tearing
+  down — via a new shared `__teardown()` also used by F1's mid-`open()`
+  failure path (which must tear down before `opened` is ever set true,
+  so it can't go through `close()`'s guard). Clearing `fds`/`busy` (not
+  just `n`) matters beyond hygiene: `open()` always `push`es rather than
+  overwrites, so a stale tail from a prior open/close cycle would
+  otherwise let a later `open()` push new fds past the range `__acquire`
+  indexes into, silently handing out stale/closed handles.
+- **F4 — the SSLRequest reply dispatch was only covered by live gates.**
+  Extracted `wire::classify_ssl_reply(reply_byte, sslmode) -> String`
+  (`"upgrade"` / `"plaintext"` / `"refuse"` / `"protocol_error"`),
+  consumed by `__negotiate_tls`, and unit-tested the full byte × sslmode
+  truth table offline in `wire_test.hl`: `'S'`/83 under
+  prefer/require/verify-full, `'N'`/78 under each (prefer → plaintext,
+  require/verify-full → refuse), and the protocol-error path for byte 0,
+  byte 69 (`'E'` — easy to confuse with a framed ErrorResponse, but
+  SSLRequest's reply is unframed), and an arbitrary out-of-set byte.
+- **F5 (note only, no code change).** A peer-close in direct response to
+  the SSLRequest preamble burns the full 8-attempt retry (~1.2s) before
+  surfacing, because that case classifies `"io"` (transient, same as
+  every other cold-dial peer-close) rather than being SSLRequest-aware.
+  Accepted tradeoff — a real server never behaves this way outside of
+  active interference, and a dedicated fail-fast path would need to
+  special-case "peer-close specifically here" from "peer-close during
+  the ordinary cold-dial window", adding branching for a case that isn't
+  a realistic operational failure mode.
+
+Re-verified live (`examples/pgwire-roundtrip/`, containers rebuilt from
+the recipe above): TLS+SCRAM require (OPEN OK tls=true + query),
+wrong-pw-over-TLS (fast `auth_failed`), verify-full vs self-signed (fast
+`tls` handshake failure), `prefer` plaintext fallback **with the new
+F2(a) notice line confirmed present**, `disable` (no SSLRequest, no
+notice line — confirms F2(a) only fires when TLS was actually
+negotiated), plaintext `require` fail-closed, trust regression, PgPool
+over TLS (3 conns, 4 round-robin queries, pool_tls=true), **plus a new
+back-to-back `pool.close(); pool.close();` in the example proving F3's
+idempotency live** (second call is a silent no-op, no crash). `hale
+check pq/` clean (5 files, only the pre-existing unbounded-alloc
+warnings). `pq/tests/wire_test.hl` + `pq/tests/scram_test.hl` exit 0
+with the new F1/F4 truth-table assertions.
+
 ## [2026-07-14] SCRAM-SHA-256 auth + `password` param (daydream-hwj)
 
 `PgConn` / `PgPool` grew a `password: String = ""` param and pq now

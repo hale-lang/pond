@@ -250,18 +250,25 @@ locus PgConn {
     // __negotiate_tls — the pgwire SSLRequest dance, run on the freshly
     // dialed PLAINTEXT fd (self.sock, self.tls still false) before
     // StartupMessage. Sends the 8-byte SSLRequest preamble, reads the
-    // single-byte reply, and acts per sslmode:
+    // single-byte reply, classifies it via wire.hl's classify_ssl_reply
+    // (F4 — the byte x sslmode truth table lives there, unit-tested
+    // offline, so this method only has to act on the outcome), and acts:
     //
-    //   'S' (83) — server accepts TLS. upgrade the fd
-    //              (verify = sslmode=="verify-full"); on success self.sock
-    //              becomes the TLS handle + self.tls = true. On handshake
-    //              failure WE close the fd (the upgrade primitive leaves a
-    //              caller-owned fd open on failure — daydream-scb) and
-    //              return a fail-fast "tls" error.
-    //   'N' (78) — server has no TLS. prefer -> continue plaintext
-    //              (self.tls stays false); require/verify-full -> fail
-    //              CLOSED with a fail-fast "tls" error (never downgrade).
-    //   other    — protocol violation; fail-fast "tls".
+    //   "upgrade"   — server accepts TLS. upgrade the fd
+    //                 (verify = sslmode=="verify-full"); on success
+    //                 self.sock becomes the TLS handle + self.tls = true.
+    //                 On handshake failure WE close the fd (the upgrade
+    //                 primitive leaves a caller-owned fd open on failure —
+    //                 daydream-scb) and return a fail-fast "tls" error.
+    //   "plaintext" — server has no TLS, sslmode=prefer tolerates the
+    //                 fallback (self.tls stays false). F2(a): emit a
+    //                 one-line notice — a silent plaintext fallback makes
+    //                 TLS-stripping invisible, so log it the moment it
+    //                 happens.
+    //   "refuse"    — server has no TLS but sslmode=require/verify-full
+    //                 demands it — fail CLOSED with a fail-fast "tls"
+    //                 error (never downgrade).
+    //   "protocol_error" — unexpected reply byte; fail-fast "tls".
     //
     // Error classification: a peer-close BEFORE the reply is a transient
     // cold-dial condition (same class as the SCRAM read-failure path) and
@@ -288,7 +295,8 @@ locus PgConn {
                 engine_code: 0, detail: "ssl: peer closed before SSLRequest reply" } };
         }
         let b = byte_at(reply, 0);
-        if b == 83 {                                  // 'S' — TLS accepted
+        let outcome = classify_ssl_reply(b, self.sslmode);
+        if outcome == "upgrade" {
             let verify = sslmode_verify(self.sslmode);
             let handle = std::io::tls::upgrade(self.sock, self.host, verify)
                 or __on_upgrade_fail(err);
@@ -306,16 +314,21 @@ locus PgConn {
             self.tls = true;
             return db::Status { ok: true };
         }
-        if b == 78 {                                  // 'N' — TLS unavailable
-            if sslmode_requires_tls(self.sslmode) {
-                return db::Status { ok: false, err: db::DbError { kind: "tls",
-                    engine_code: 0, detail: "ssl: server does not support TLS but sslmode="
-                        + self.sslmode + " requires it (refusing to downgrade)" } };
-            }
-            // prefer: opportunistic — fall back to plaintext.
+        if outcome == "plaintext" {
+            // prefer: opportunistic — fall back to plaintext. F2(a): make
+            // the TLS-stripping observable instead of silent.
             self.tls = false;
+            println("[pq] tls: sslmode=", self.sslmode,
+                " negotiated PLAINTEXT (server does not support TLS) host=",
+                self.host, " port=", to_string(self.port));
             return db::Status { ok: true };
         }
+        if outcome == "refuse" {
+            return db::Status { ok: false, err: db::DbError { kind: "tls",
+                engine_code: 0, detail: "ssl: server does not support TLS but sslmode="
+                    + self.sslmode + " requires it (refusing to downgrade)" } };
+        }
+        // "protocol_error"
         return db::Status { ok: false, err: db::DbError { kind: "tls",
             engine_code: 0, detail: "ssl: unexpected SSLRequest reply byte "
                 + to_string(b) + " (want 'S'/83 or 'N'/78)" } };

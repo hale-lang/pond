@@ -234,4 +234,87 @@ fn main() {
         "a definitive TLS negotiation failure is fail-fast (no retry storm)");
     std::test::assert(!wire::is_fail_fast_kind("io"),
         "a peer-close before the SSLRequest reply is retryable (io), unchanged");
+
+    // ================= F4: SSLRequest reply classification (truth table) =================
+    // classify_ssl_reply(reply_byte, sslmode) is the pure decision table
+    // __negotiate_tls (pq.hl) consumes for every byte the server can send
+    // back. pq.hl needs the vendored db import to compile, so this is the
+    // only place the FULL byte x sslmode truth table is unit-testable
+    // offline (the live gates only ever exercise 'S'/'N' against a real
+    // server, never the malformed-reply branch).
+    //
+    // 'S' (83) — TLS offered: upgrade, regardless of sslmode (disable never
+    // reaches __negotiate_tls at all, so only prefer/require/verify-full
+    // are meaningful inputs here).
+    std::test::assert_eq_str(wire::classify_ssl_reply(83, "prefer"), "upgrade",
+        "'S' under prefer -> upgrade");
+    std::test::assert_eq_str(wire::classify_ssl_reply(83, "require"), "upgrade",
+        "'S' under require -> upgrade");
+    std::test::assert_eq_str(wire::classify_ssl_reply(83, "verify-full"), "upgrade",
+        "'S' under verify-full -> upgrade");
+
+    // 'N' (78) — TLS unavailable: prefer falls back to plaintext;
+    // require/verify-full refuse to downgrade (fail closed).
+    std::test::assert_eq_str(wire::classify_ssl_reply(78, "prefer"), "plaintext",
+        "'N' under prefer -> plaintext (opportunistic fallback)");
+    std::test::assert_eq_str(wire::classify_ssl_reply(78, "require"), "refuse",
+        "'N' under require -> refuse (never downgrade)");
+    std::test::assert_eq_str(wire::classify_ssl_reply(78, "verify-full"), "refuse",
+        "'N' under verify-full -> refuse (never downgrade)");
+
+    // Any other byte is a protocol violation -- fail closed regardless of
+    // sslmode. Cover 0 (nothing sent -- shouldn't happen given the len==0
+    // peer-close case is handled before classify_ssl_reply is called, but
+    // 0 as an actual byte value must still classify safely), 69 ('E' --
+    // easy to confuse with an ErrorResponse type byte, but SSLRequest's
+    // reply is unframed so a literal 'E' byte here is still just junk),
+    // and an arbitrary out-of-set value.
+    std::test::assert_eq_str(wire::classify_ssl_reply(0, "prefer"), "protocol_error",
+        "byte 0 under prefer -> protocol_error");
+    std::test::assert_eq_str(wire::classify_ssl_reply(0, "require"), "protocol_error",
+        "byte 0 under require -> protocol_error");
+    std::test::assert_eq_str(wire::classify_ssl_reply(69, "prefer"), "protocol_error",
+        "byte 69 ('E') under prefer -> protocol_error (not a framed ErrorResponse here)");
+    std::test::assert_eq_str(wire::classify_ssl_reply(69, "verify-full"), "protocol_error",
+        "byte 69 ('E') under verify-full -> protocol_error");
+    std::test::assert_eq_str(wire::classify_ssl_reply(200, "require"), "protocol_error",
+        "an arbitrary out-of-set byte -> protocol_error");
+
+    // ================= F1: pool TLS homogeneity classification =================
+    // PgPool derives a single pool_tls from connection 0 (pool.hl `open()`)
+    // and threads it into every pooled PgConn reconstruction. This pure
+    // predicate is the single source of truth pool.hl consults for every
+    // connection after the first: a mismatch means a load-balanced/proxied
+    // endpoint let this connection negotiate a DIFFERENT transport than
+    // the pool already committed to -- driving its handle through the
+    // wrong transport family later would silently corrupt the shared
+    // handle table, so the pool must fail closed instead.
+    std::test::assert(!wire::pool_tls_mismatch(true, true),
+        "conn tls=true matching pool_tls=true is homogeneous (no mismatch)");
+    std::test::assert(!wire::pool_tls_mismatch(false, false),
+        "conn tls=false matching pool_tls=false is homogeneous (no mismatch)");
+    std::test::assert(wire::pool_tls_mismatch(false, true),
+        "conn tls=false against pool_tls=true IS a mismatch (conn 0 got TLS, this one didn't)");
+    std::test::assert(wire::pool_tls_mismatch(true, false),
+        "conn tls=true against pool_tls=false IS a mismatch (conn 0 got plaintext, this one got TLS)");
+
+    // Under disable/require/verify-full every successful open() always
+    // settles the SAME tls value (disable: always false; require/
+    // verify-full: always true, since a plaintext 'N' fails closed rather
+    // than returning ok=true) -- so pool_tls_mismatch can only ever trip
+    // under sslmode=prefer against a non-uniform backend, never the other
+    // three modes. Pin that invariant directly against the sslmode policy
+    // predicates (wire.hl's own source of truth), not just as a comment.
+    std::test::assert(!wire::sslmode_requires_tls("disable"),
+        "disable never fails closed on 'N' -- but disable also never calls "
+        + "__negotiate_tls at all (sslmode_wants_tls is false), so every conn "
+        + "in a disable pool settles tls=false uniformly");
+    std::test::assert(wire::sslmode_requires_tls("require")
+        && wire::sslmode_requires_tls("verify-full"),
+        "require/verify-full both fail closed on 'N' -- a successful open() under "
+        + "either mode can therefore only ever have settled tls=true, uniformly");
+
+    let detail = wire::pool_tls_mismatch_detail(2, false, true);
+    std::test::assert(std::str::index_of(detail, "2") >= 0,
+        "pool_tls_mismatch_detail names the offending connection index");
 }

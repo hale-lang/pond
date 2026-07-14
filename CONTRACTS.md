@@ -771,6 +771,23 @@ recv blocks the OS thread (no async_io park), so a TLS PgConn/PgPool
 must NOT be placed on an async_io pool — fine on ordinary cooperative
 pools where pq already blocks.
 
+**Operational guidance (2026-07-14, rl-critic hardening round).**
+`prefer`'s fallback is intentionally silent-safe-by-default for the
+library (existing plaintext callers must not break), but production
+consumers should pin `sslmode` explicitly — `require` for RDS-class
+deployments — rather than rely on the default; daydream's own pinning
+is tracked separately (daydream-8a4). A `prefer` fallback now logs a
+one-line `[pq] tls: ... negotiated PLAINTEXT ...` notice so the
+downgrade is observable. Pass a hostname, not an IP literal, as `host`
+under `require`/`verify-full` (SNI / `SSL_set1_host` have DNS-name
+semantics). `PgPool.open()` now enforces transport homogeneity across
+its pooled connections — a mismatch after connection 0 (only reachable
+under `prefer` against a non-uniform backend) fails the whole pool
+closed (kind `tls`) instead of risking a connection's handle being
+driven through the wrong transport family. `PgPool.close()` is now
+idempotent (guarded by an internal `opened` flag) — a second call is a
+no-op instead of double-closing already-torn-down TLS handles.
+
 ```hale
 import "vendor/pond/db" as db;
 
