@@ -272,15 +272,17 @@ locus PgConn {
     // change on redial, and verify-full must fail cleanly, not after an
     // 8x retry storm.
     fn __negotiate_tls() -> db::Status {
-        // SSLRequest goes over PLAINTEXT (the fd is not upgraded yet).
-        let sent = std::io::tcp::__send_bytes(self.sock, build_ssl_request());
-        if sent < 0 {
-            return db::Status { ok: false, err: db::DbError { kind: "io",
-                engine_code: 0, detail: "ssl: failed sending SSLRequest" } };
-        }
+        // SSLRequest goes over PLAINTEXT (the fd is not upgraded yet), via
+        // a BORROWED std::io::tcp::Stream (owns_fd: false so its dissolve
+        // does not close self.sock — which we still need, to upgrade or to
+        // continue plaintext). Same transport pq uses everywhere; the tcp
+        // free-fn send/recv the keepalive precedent uses segfault natively
+        // on this toolchain (see stream.hl).
+        let s = std::io::tcp::Stream { conn_fd: self.sock, owns_fd: false };
+        s.send_bytes(build_ssl_request());
         // Reply is EXACTLY one byte, unframed — not a normal pgwire
         // message, so we read it directly rather than via __read_one_msg.
-        let reply = std::io::tcp::__recv_bytes(self.sock, 1);
+        let reply = s.recv_bytes(1);
         if len(reply) == 0 {
             return db::Status { ok: false, err: db::DbError { kind: "io",
                 engine_code: 0, detail: "ssl: peer closed before SSLRequest reply" } };
