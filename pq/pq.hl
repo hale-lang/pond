@@ -2,9 +2,10 @@
 //
 // `PgConn` structurally satisfies `pond/db::DbDriver` (F.20): a
 // pure-Hale postgres backend, no FFI. Built for the refstore
-// relational store. v0 scope: trust auth + simple-query protocol
-// (text results). See wire.hl for the codec; SCRAM + extended
-// query (binary params/results) are follow-ups.
+// relational store. Auth: trust + SCRAM-SHA-256 (the `password`
+// param; crypto core in scram.hl, framing in wire.hl). Query:
+// simple-query protocol (text results). See wire.hl for the codec;
+// extended query (binary params/results) is a follow-up.
 //
 // Lifecycle: birth() parses config only; open() dials + does the
 // startup handshake (reads to the first ReadyForQuery); close()
@@ -29,11 +30,36 @@ type __PgResult {
     cmd_tag:    String = "";   // CommandComplete tag, e.g. "INSERT 0 1"
 }
 
+// __PgMsg — one framed backend message, as returned by
+// `__read_one_msg`. `body` is a snapshot of the rx buffer starting at
+// this message; only its first `total` bytes belong to this message
+// (the snapshot is stable across the subsequent shift_front). On a
+// peer close mid-frame, `ok` is false and `err` names the phase.
+type __PgMsg {
+    mtype: Int    = 0;
+    body:  Bytes  = b"";
+    total: Int    = 0;
+    ok:    Bool   = false;
+    err:   String = "";
+}
+
+// __SaslResult — outcome of __sasl_exchange. On failure, err_kind /
+// err_detail flow straight into the open() db::DbError.
+type __SaslResult {
+    ok:         Bool   = false;
+    err_kind:   String = "auth_failed";
+    err_detail: String = "";
+}
+
 locus PgConn {
     params {
         host:     String = "127.0.0.1";
         port:     Int    = 5432;
         user:     String = "postgres";
+        // password — used ONLY by the open() handshake when the server
+        // requests SCRAM-SHA-256 (AuthenticationSASL). Empty = trust
+        // auth (the server sends AuthenticationOk with no challenge).
+        password: String = "";
         database: String = "postgres";
 
         sock:      Int  = -1;
@@ -84,6 +110,15 @@ locus PgConn {
             }
             self.connected = false;
             self.rx_buf.clear();
+            // A definitive auth outcome — a rejected password
+            // ("auth_failed") or an unsupported auth method
+            // ("unsupported") — will not fix itself on a redial, so fail
+            // fast instead of burning the retry budget (and ~1s of
+            // backoff). The retry loop exists for the TRANSIENT
+            // cold-dial peer-close only.
+            if st.err.kind == "auth_failed" || st.err.kind == "unsupported" {
+                return last;
+            }
             std::time::sleep(150ms);
         }
         return last;
@@ -107,7 +142,40 @@ locus PgConn {
         let stream = std::io::tcp::Stream { conn_fd: self.sock };
         stream.send_bytes(build_startup(self.user, self.database));
 
-        // Read until ReadyForQuery; the startup phase has no rows.
+        // The first backend message after StartupMessage is an
+        // Authentication ('R'). Trust auth = code 0 (AuthenticationOk).
+        // SCRAM = code 10 (AuthenticationSASL) -> run the SASL exchange
+        // (which consumes through AuthenticationOk). Either way we then
+        // fall through to __pump to drain the ParameterStatus /
+        // BackendKeyData / ReadyForQuery tail exactly as before.
+        let auth = self.__read_one_msg();
+        if !auth.ok {
+            self.connected = false;
+            return db::Status { ok: false, err: db::DbError { kind: "open_failed",
+                engine_code: 0, detail: "startup: " + auth.err } };
+        }
+        if auth.mtype != 82 {                       // not 'R'
+            self.connected = false;
+            return db::Status { ok: false, err: db::DbError { kind: "open_failed",
+                engine_code: 0, detail: "startup: expected Authentication, got type "
+                    + to_string(auth.mtype) } };
+        }
+        let code = sasl_r_code(auth.body);
+        if code == 10 {                             // AuthenticationSASL
+            let se = self.__sasl_exchange();
+            if !se.ok {
+                self.connected = false;
+                return db::Status { ok: false, err: db::DbError { kind: se.err_kind,
+                    engine_code: 0, detail: se.err_detail } };
+            }
+        } else if code != 0 {                       // MD5 (5) etc.
+            self.connected = false;
+            return db::Status { ok: false, err: db::DbError { kind: "unsupported",
+                engine_code: 0, detail: "auth method " + to_string(code)
+                    + " not supported (trust + SCRAM-SHA-256 only)" } };
+        }
+        // code == 0: AuthenticationOk already consumed (trust, or the
+        // tail of a completed SCRAM exchange). Drain to ReadyForQuery.
         let r = self.__pump();
         if !r.ok {
             self.connected = false;
@@ -119,6 +187,84 @@ locus PgConn {
         }
         self.connected = true;
         return db::Status { ok: true };
+    }
+
+    // __sasl_exchange — run the SCRAM-SHA-256 SASL handshake after the
+    // server's AuthenticationSASL. Sends SASLInitialResponse (client
+    // -first), reads SASLContinue (server-first), computes + sends the
+    // client proof, reads SASLFinal and verifies the server signature,
+    // then reads AuthenticationOk. The crypto lives in scram.hl; this
+    // method owns only the message sequencing. Fails CLOSED: any
+    // framing error, a rejected password (ErrorResponse 'E'), or a
+    // server-signature mismatch returns ok=false with a useful detail.
+    fn __sasl_exchange() -> __SaslResult {
+        let stream = std::io::tcp::Stream { conn_fd: self.sock };
+
+        // client-first: gs2 header "n,," + "n=,r=<nonce>". Empty SASL
+        // username — postgres authenticates the StartupMessage user.
+        let nonce = client_nonce();
+        if len(nonce) == 0 {
+            return __SaslResult { ok: false, err_kind: "auth_failed",
+                err_detail: "auth: CSPRNG failed generating SCRAM client nonce" };
+        }
+        let cfb = make_client_first_bare("", nonce);
+        stream.send_bytes(build_sasl_initial(gs2_header() + cfb));
+
+        // server-first: AuthenticationSASLContinue (code 11).
+        let m2 = self.__read_one_msg();
+        if !m2.ok {
+            return __SaslResult { ok: false, err_kind: "auth_failed",
+                err_detail: "auth: " + m2.err };
+        }
+        if m2.mtype == 69 {                          // 'E' ErrorResponse
+            return __SaslResult { ok: false, err_kind: "auth_failed",
+                err_detail: "auth: " + __error_message(m2.body, m2.total) };
+        }
+        if m2.mtype != 82 || sasl_r_code(m2.body) != 11 {
+            return __SaslResult { ok: false, err_kind: "auth_failed",
+                err_detail: "auth: expected SASLContinue" };
+        }
+        let server_first = sasl_r_text(m2.body, m2.total);
+
+        // compute the client-final message + expected server signature.
+        let cf = compute_client_final(self.password, cfb, server_first);
+        if !cf.ok {
+            return __SaslResult { ok: false, err_kind: "auth_failed",
+                err_detail: "auth: " + cf.err };
+        }
+        stream.send_bytes(build_sasl_response(cf.client_final));
+
+        // server-final: SASLFinal (code 12), OR ErrorResponse ('E') on
+        // a rejected password.
+        let m3 = self.__read_one_msg();
+        if !m3.ok {
+            return __SaslResult { ok: false, err_kind: "auth_failed",
+                err_detail: "auth: " + m3.err };
+        }
+        if m3.mtype == 69 {                          // 'E' — wrong password etc.
+            return __SaslResult { ok: false, err_kind: "auth_failed",
+                err_detail: "auth: " + __error_message(m3.body, m3.total) };
+        }
+        if m3.mtype != 82 || sasl_r_code(m3.body) != 12 {
+            return __SaslResult { ok: false, err_kind: "auth_failed",
+                err_detail: "auth: expected SASLFinal" };
+        }
+        if !verify_server_final(sasl_r_text(m3.body, m3.total), cf.server_sig_b64) {
+            return __SaslResult { ok: false, err_kind: "auth_failed",
+                err_detail: "auth: server signature verification failed" };
+        }
+
+        // AuthenticationOk (code 0).
+        let m4 = self.__read_one_msg();
+        if !m4.ok {
+            return __SaslResult { ok: false, err_kind: "auth_failed",
+                err_detail: "auth: " + m4.err };
+        }
+        if m4.mtype != 82 || sasl_r_code(m4.body) != 0 {
+            return __SaslResult { ok: false, err_kind: "auth_failed",
+                err_detail: "auth: expected AuthenticationOk after SASL" };
+        }
+        return __SaslResult { ok: true };
     }
 
     fn close() {
@@ -224,45 +370,57 @@ locus PgConn {
         return self.__pump();
     }
 
+    // __read_one_msg — read + frame exactly ONE backend message off
+    // the socket, advancing rx_buf. Fills the 5-byte header (type +
+    // Int32 len), then the full body, snapshots it, and shift_fronts
+    // the consumed bytes. Shared by __pump and __sasl_exchange so both
+    // stay byte-for-byte consistent on rx_buf bookkeeping. The
+    // returned `body` snapshot is stable after the shift.
+    fn __read_one_msg() -> __PgMsg {
+        let stream = std::io::tcp::Stream { conn_fd: self.sock };
+        // ensure a full message header (type + Int32 len).
+        while self.rx_buf.len() < 5 {
+            let chunk = stream.recv_bytes(self.recv_chunk);
+            if len(chunk) <= 0 {
+                return __PgMsg { ok: false, err: "peer closed mid-response" };
+            }
+            self.rx_buf.append(chunk);
+        }
+        let hdr = self.rx_buf.snapshot();
+        let mtype = byte_at(hdr, 0);
+        let mlen  = read_be32(hdr, 1);     // length includes itself, excludes type byte
+        let total = mlen + 1;              // + type byte
+
+        while self.rx_buf.len() < total {
+            let chunk = stream.recv_bytes(self.recv_chunk);
+            if len(chunk) <= 0 {
+                return __PgMsg { ok: false, err: "peer closed mid-message" };
+            }
+            self.rx_buf.append(chunk);
+        }
+        let body = self.rx_buf.snapshot();
+        self.rx_buf.shift_front(total);
+        return __PgMsg { mtype: mtype, body: body, total: total, ok: true };
+    }
+
     // __pump — read + parse backend messages until ReadyForQuery
     // ('Z'). Accumulates DataRows into csv. Captures ErrorResponse.
     fn __pump() -> __PgResult {
-        let stream = std::io::tcp::Stream { conn_fd: self.sock };
         let mut res = __PgResult { ok: true };
         let mut done = false;
 
         while !done {
-            // ensure a full message header (type + Int32 len).
-            while self.rx_buf.len() < 5 {
-                let chunk = stream.recv_bytes(self.recv_chunk);
-                if len(chunk) <= 0 {
-                    res.ok = false; res.err_kind = "io";
-                    res.err_detail = "peer closed mid-response";
-                    return res;
-                }
-                self.rx_buf.append(chunk);
+            let m = self.__read_one_msg();
+            if !m.ok {
+                res.ok = false; res.err_kind = "io";
+                res.err_detail = m.err;
+                return res;
             }
-            let hdr = self.rx_buf.snapshot();
-            let mtype = byte_at(hdr, 0);
-            let mlen  = read_be32(hdr, 1);     // length includes itself, excludes type byte
-            let total = mlen + 1;              // + type byte
-
-            while self.rx_buf.len() < total {
-                let chunk = stream.recv_bytes(self.recv_chunk);
-                if len(chunk) <= 0 {
-                    res.ok = false; res.err_kind = "io";
-                    res.err_detail = "peer closed mid-message";
-                    return res;
-                }
-                self.rx_buf.append(chunk);
-            }
-            let msg = self.rx_buf.snapshot();
-            __handle_msg(mtype, msg, total, res);
-            if mtype == 90 {                   // 'Z' ReadyForQuery
+            __handle_msg(m.mtype, m.body, m.total, res);
+            if m.mtype == 90 {                 // 'Z' ReadyForQuery
                 done = true;
-                self.txn_state = __zstatus(byte_at(msg, 5));
+                self.txn_state = __zstatus(byte_at(m.body, 5));
             }
-            self.rx_buf.shift_front(total);
         }
         return res;
     }
@@ -410,6 +568,26 @@ fn __handle_msg(mtype: Int, msg: Bytes, total: Int, res: __PgResult) {
     }
     // 'S' param status, 'K' backend key, 'Z' ready, 'T' rowdesc,
     // 'N' notice, 'I' empty-query: nothing to accumulate.
+}
+
+// __error_message — extract the human-readable 'M' (Message) field
+// from an ErrorResponse ('E') body. Mirrors the field-typed cstr walk
+// in __handle_msg's 'E' branch. Falls back to a generic string when no
+// 'M' field is present, so an auth failure always has a useful detail.
+fn __error_message(msg: Bytes, total: Int) -> String {
+    let mut off = 5;
+    let mut out = "";
+    while off < total {
+        let ftype = byte_at(msg, off);
+        if ftype == 0 { off = total; }
+        else {
+            let val = __cstr_at(msg, off + 1);
+            if ftype == 77 { out = val; }          // 'M' message
+            off = off + 1 + len(std::bytes::from_string(val)) + 1;
+        }
+    }
+    if len(out) == 0 { return "authentication failed"; }
+    return out;
 }
 
 // __cstr_at — read a NUL-terminated string starting at `off`.

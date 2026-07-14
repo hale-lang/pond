@@ -37,6 +37,9 @@ locus PgPool {
         host:     String = "127.0.0.1";
         port:     Int    = 5432;
         user:     String = "postgres";
+        // password — threaded into each PgConn.open() below; needed
+        // only at auth time (SCRAM-SHA-256). Empty = trust auth.
+        password: String = "";
         database: String = "postgres";
         size:     Int    = 4;
 
@@ -54,7 +57,8 @@ locus PgPool {
         let mut i = 0;
         while i < self.size {
             let c = PgConn { host: self.host, port: self.port,
-                             user: self.user, database: self.database };
+                             user: self.user, password: self.password,
+                             database: self.database };
             let st = c.open();
             if !st.ok {
                 self.opened = (self.n > 0);
