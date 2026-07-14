@@ -98,6 +98,21 @@ fn build_terminate() -> Bytes {
     return out.finish();
 }
 
+// build_ssl_request — the pgwire SSLRequest preamble. UNLIKE every other
+// frontend message this has NO type byte: it is exactly 8 raw bytes —
+// [Int32 8][Int32 80877103] — sent over the PLAINTEXT socket immediately
+// after connect(), before StartupMessage. 80877103 (0x04D2162F) is the
+// reserved "protocol version" that means "please negotiate SSL". The
+// server replies with a SINGLE byte, unframed: 'S' (83) = TLS accepted
+// (upgrade the fd), 'N' (78) = TLS not available. See pq.hl
+// __negotiate_tls for the reply handling.
+fn build_ssl_request() -> Bytes {
+    let out = std::bytes::BytesBuilder { initial_cap: 8 };
+    be32_append(out, 8);           // length, includes the length field itself
+    be32_append(out, 80877103);    // SSLRequest magic (1234 << 16 | 5679)
+    return out.finish();
+}
+
 // ===== SASL (SCRAM-SHA-256) outbound messages =====
 
 // build_sasl_initial — SASLInitialResponse:
@@ -173,7 +188,49 @@ fn sasl_r_text(body: Bytes, total: Int) -> String {
 fn sasl_retryable_kind() -> String { return "io"; }
 
 fn is_fail_fast_kind(kind: String) -> Bool {
-    return kind == "auth_failed" || kind == "unsupported" || kind == "startup_rejected";
+    return kind == "auth_failed" || kind == "unsupported"
+        || kind == "startup_rejected" || kind == "tls";
+}
+
+// ===== sslmode / TLS negotiation policy =====
+//
+// The caller-facing knob (on PgConn + PgPool) is `sslmode`, mirroring
+// libpq's four load-bearing values:
+//   disable      — never send SSLRequest; dial plaintext (pre-TLS pq).
+//   prefer       — send SSLRequest; TLS if the server offers it ('S'),
+//                  else fall back to plaintext ('N'). This is the
+//                  DEFAULT (libpq's own default): opportunistic TLS that
+//                  keeps every existing plaintext-only consumer working.
+//   require      — encrypt but do NOT authenticate the peer (no cert
+//                  chain/hostname check). Fail closed if the server
+//                  refuses TLS ('N'). The whole sorcery fleet's posture
+//                  against RDS (whose CA is not in system trust stores).
+//   verify-full  — require + authenticate: hostname + chain verified
+//                  against the system trust store. Needs the CA present.
+//
+// These pure predicates keep the policy offline-testable and are the
+// single source of truth consumed by pq.hl's __negotiate_tls.
+
+fn is_valid_sslmode(mode: String) -> Bool {
+    return mode == "disable" || mode == "prefer"
+        || mode == "require" || mode == "verify-full";
+}
+
+// sslmode_wants_tls — send the SSLRequest preamble (everything but disable).
+fn sslmode_wants_tls(mode: String) -> Bool {
+    return mode != "disable";
+}
+
+// sslmode_requires_tls — on a server 'N' (TLS refused), must we fail closed
+// rather than downgrade to plaintext? require + verify-full: yes.
+fn sslmode_requires_tls(mode: String) -> Bool {
+    return mode == "require" || mode == "verify-full";
+}
+
+// sslmode_verify — pass verify=true to std::io::tls::upgrade (authenticate
+// the peer). Only verify-full; require encrypts without verifying.
+fn sslmode_verify(mode: String) -> Bool {
+    return mode == "verify-full";
 }
 
 fn __append_cstr(b: std::bytes::BytesBuilder, s: String) {

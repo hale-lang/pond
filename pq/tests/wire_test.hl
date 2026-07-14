@@ -173,4 +173,65 @@ fn main() {
         "a pre-auth ErrorResponse (bad db name / pg_hba / conn limit) is fail-fast, not retried 8x");
     std::test::assert(!wire::is_fail_fast_kind("open_failed"),
         "a generic connect failure keeps retrying (unchanged baseline behaviour)");
+
+    // ================= SSLRequest preamble (TLS negotiation) =================
+    // The SSLRequest is NOT a normal pgwire message: it has no type byte.
+    // It is exactly 8 raw bytes — [Int32 8][Int32 80877103] big-endian —
+    // sent over the plaintext socket before StartupMessage. The server
+    // answers with a SINGLE byte ('S' = accept, 'N' = refuse), no framing.
+    //   80877103 = 0x04D2162F  => bytes 04 D2 16 2F
+    let ssl = wire::build_ssl_request();
+    std::test::assert_eq_int(len(ssl), 8, "SSLRequest is exactly 8 bytes (no type byte)");
+    std::test::assert_eq_int(wire::read_be32(ssl, 0), 8, "SSLRequest self-length field is 8");
+    std::test::assert_eq_int(wire::read_be32(ssl, 4), 80877103, "SSLRequest magic code 80877103");
+    // exact big-endian byte layout of the magic code.
+    std::test::assert_eq_int(wire::byte_at(ssl, 4), 4,   "magic byte 0 = 0x04");
+    std::test::assert_eq_int(wire::byte_at(ssl, 5), 210, "magic byte 1 = 0xD2");
+    std::test::assert_eq_int(wire::byte_at(ssl, 6), 22,  "magic byte 2 = 0x16");
+    std::test::assert_eq_int(wire::byte_at(ssl, 7), 47,  "magic byte 3 = 0x2F");
+
+    // ================= sslmode validation + TLS policy =================
+    // Caller-facing knob: only these four values are accepted; anything
+    // else must be rejected at open() (config error) rather than silently
+    // treated as a default.
+    std::test::assert(wire::is_valid_sslmode("disable"),     "disable is a valid sslmode");
+    std::test::assert(wire::is_valid_sslmode("prefer"),      "prefer is a valid sslmode");
+    std::test::assert(wire::is_valid_sslmode("require"),     "require is a valid sslmode");
+    std::test::assert(wire::is_valid_sslmode("verify-full"), "verify-full is a valid sslmode");
+    std::test::assert(!wire::is_valid_sslmode("verify-ca"),  "verify-ca is NOT supported (unknown -> reject)");
+    std::test::assert(!wire::is_valid_sslmode(""),           "empty sslmode is invalid");
+    std::test::assert(!wire::is_valid_sslmode("REQUIRE"),    "sslmode is case-sensitive (REQUIRE invalid)");
+
+    // sslmode_wants_tls: send the SSLRequest preamble for everything except
+    // disable (disable dials plaintext exactly as pre-TLS pq did).
+    std::test::assert(!wire::sslmode_wants_tls("disable"),    "disable -> no SSLRequest");
+    std::test::assert(wire::sslmode_wants_tls("prefer"),      "prefer -> send SSLRequest");
+    std::test::assert(wire::sslmode_wants_tls("require"),     "require -> send SSLRequest");
+    std::test::assert(wire::sslmode_wants_tls("verify-full"), "verify-full -> send SSLRequest");
+
+    // sslmode_requires_tls: on a server 'N' (TLS refused), require and
+    // verify-full MUST fail closed (never downgrade); prefer falls back to
+    // plaintext; disable never got here.
+    std::test::assert(!wire::sslmode_requires_tls("prefer"),     "prefer tolerates a plaintext fallback");
+    std::test::assert(wire::sslmode_requires_tls("require"),     "require fails closed on 'N'");
+    std::test::assert(wire::sslmode_requires_tls("verify-full"), "verify-full fails closed on 'N'");
+    std::test::assert(!wire::sslmode_requires_tls("disable"),    "disable does not require TLS");
+
+    // sslmode_verify: only verify-full authenticates the peer (hostname +
+    // chain against the system trust store); require encrypts without
+    // verifying (the whole fleet's posture against RDS).
+    std::test::assert(wire::sslmode_verify("verify-full"), "verify-full -> upgrade(verify=true)");
+    std::test::assert(!wire::sslmode_verify("require"),    "require -> upgrade(verify=false)");
+    std::test::assert(!wire::sslmode_verify("prefer"),     "prefer -> upgrade(verify=false)");
+
+    // A definitive TLS negotiation failure (server refuses TLS under
+    // require/verify-full, handshake failure, or an unexpected reply byte)
+    // is fail-fast: redialing won't change a server's TLS capability or a
+    // cert-verification outcome, and verify-full must fail cleanly/fast, not
+    // after an 8x retry storm. A peer-close BEFORE the reply stays "io"
+    // (retryable — same cold-dial transient class the retry loop targets).
+    std::test::assert(wire::is_fail_fast_kind("tls"),
+        "a definitive TLS negotiation failure is fail-fast (no retry storm)");
+    std::test::assert(!wire::is_fail_fast_kind("io"),
+        "a peer-close before the SSLRequest reply is retryable (io), unchanged");
 }
