@@ -1,0 +1,66 @@
+// pond/pq example — pgwire-roundtrip
+//
+// Opens a REAL pq::PgConn against a postgres server, authenticates
+// (trust OR SCRAM-SHA-256, chosen by whether a password is supplied),
+// runs a round-trip query, and prints the result. This is the LIVE
+// gate for pq's auth + simple-query path.
+//
+// It is deliberately NOT part of the offline test suite
+// (`hale run pq/tests/*_test.hl`): pond's test runner has no
+// skip/ignore mechanism, so a server-required case would break the
+// gate for everyone. Per the repo convention (FRICTION.log § pond/pq
+// "examples/ pending"), live cases live in examples/, not tests/.
+//
+// pq imports `vendor/pond/db`, so this example only builds inside a
+// vendored consumer tree (FRICTION.log § pond/pq "In-repo build vs
+// check"). Materialize the vendor tree first — see README.md — then:
+//
+//   hale build .
+//   ./pgwire-roundtrip                       # defaults: SCRAM :55433
+//   ./pgwire-roundtrip 127.0.0.1 55433 postgres testpass postgres
+//   ./pgwire-roundtrip 127.0.0.1 55433 postgres WRONGPW postgres  # clean fail
+//   ./pgwire-roundtrip 127.0.0.1 55434 postgres "" postgres       # trust
+//
+// argv: [host] [port] [user] [password] [database] [sql]
+
+import "vendor/pond/db" as db;
+import "vendor/pond/pq" as pq;
+
+fn main() {
+    let host     = std::env::arg_or(1, "127.0.0.1");
+    let port     = std::str::parse_int(std::env::arg_or(2, "55433")) or 55433;
+    let user     = std::env::arg_or(3, "postgres");
+    let password = std::env::arg_or(4, "testpass");
+    let database = std::env::arg_or(5, "postgres");
+    let sql      = std::env::arg_or(6,
+        "SELECT 'pgwire-roundtrip-ok' AS msg, current_user AS usr");
+
+    let mode = if len(password) > 0 { "SCRAM-SHA-256" } else { "trust" };
+    println("connect ", host, ":", to_string(port), " db=", database,
+            " user=", user, " auth=", mode);
+
+    let c = pq::PgConn { host: host, port: port, user: user,
+                         password: password, database: database };
+
+    let st = c.open();
+    if !st.ok {
+        // Clean, structured failure — no hang, no crash. A rejected
+        // password surfaces as kind "auth_failed" with the server's
+        // own message.
+        println("OPEN FAILED [", st.err.kind, "]: ", st.err.detail);
+        return;
+    }
+    println("OPEN OK  tx_status=", c.tx_status());
+
+    let rows = c.query_all(sql);
+    if !rows.ok {
+        println("QUERY FAILED [", rows.err.kind, "]: ", rows.err.detail);
+        c.close();
+        return;
+    }
+    println("QUERY OK  ", to_string(rows.n), " row(s)");
+    println(rows.csv);
+
+    c.close();
+    println("CLOSED — roundtrip complete");
+}

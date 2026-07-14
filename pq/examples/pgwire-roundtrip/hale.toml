@@ -1,0 +1,6 @@
+[package]
+name = "pgwire-roundtrip"
+version = "0.0.1"
+
+# This hale.toml anchors the vendored-consumer workspace root so pq's
+# `import "vendor/pond/db"` resolves against ./vendor (see README.md).
