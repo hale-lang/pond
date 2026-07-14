@@ -746,24 +746,54 @@ Auth: **trust** (empty `password`) and **SCRAM-SHA-256** (non-empty
 `open()` from the server's Authentication reply. MD5 is unsupported.
 `password` is consumed only during the handshake.
 
+**TLS** (2026-07-14, daydream-dvl): a `sslmode` param drives a
+STARTTLS-style pgwire SSLRequest at the top of `open()`, before
+StartupMessage. Four values (libpq's load-bearing set):
+
+| `sslmode`     | on server 'S' (TLS offered) | on server 'N' (no TLS) |
+|---------------|-----------------------------|------------------------|
+| `disable`     | (never sends SSLRequest)    | dials plaintext        |
+| `prefer` **(default)** | upgrade, no cert verify | fall back to plaintext |
+| `require`     | upgrade, **no** cert verify | **fail closed** (kind `tls`) |
+| `verify-full` | upgrade + hostname/chain verify vs system trust store | **fail closed** (kind `tls`) |
+
+Default is **`prefer`** (libpq's own default): opportunistic TLS with a
+plaintext fallback, so every existing plaintext-only call site keeps
+working while TLS-capable servers get encryption automatically.
+`require`/`verify-full` never downgrade. `verify-full` needs the
+server's CA in the system trust store; `require` does not (encrypt
+without authenticating — the sorcery-fleet posture vs RDS). An unknown
+`sslmode` is rejected at `open()` (kind `config`). A definitive TLS
+negotiation failure (refused under require/verify-full, handshake
+failure, junk reply) is fail-fast; a peer-close *before* the reply is a
+retryable `io` cold-dial transient. **Scheduler caveat:** hale's TLS
+recv blocks the OS thread (no async_io park), so a TLS PgConn/PgPool
+must NOT be placed on an async_io pool — fine on ordinary cooperative
+pools where pq already blocks.
+
 ```hale
 import "vendor/pond/db" as db;
 
 locus PgConn {                                     // single connection
     params { host = "127.0.0.1"; port = 5432; user = "postgres";
              password = "";                        // "" = trust; else SCRAM-SHA-256
-             database = "postgres"; sock = -1; connected = false;
+             database = "postgres";
+             sslmode = "prefer";                   // disable|prefer|require|verify-full
+             sock = -1; connected = false; tls = false;  // tls: derived, not a caller knob
              txn_state = "idle"; recv_chunk = 8192; /* + rx_buf BytesBuilder */ }
     // satisfies db::DbDriver: backend/open/close/exec/query_one/query_all/
     // exec_params/query_params/begin/commit/rollback/tx_status
 }
 
 locus PgPool {                                     // fixed-size connection pool
-    params { host; port; user; password = ""; database; size: Int = 4; }
+    params { host; port; user; password = ""; database;
+             sslmode = "prefer"; size: Int = 4; pool_tls = false; }
     // satisfies db::DbDriver; round-robin acquire over `size` PgConns.
-    // `password` is threaded into each pooled PgConn's open() handshake.
-    // begin/commit/rollback are no-ops (tx_status: "n/a (pool)") — use a
-    // single PgConn for transactions.
+    // `password` + `sslmode` are threaded into each pooled PgConn's
+    // open(); `pool_tls` is derived once (homogeneous pool) and selects
+    // the transport for every pooled op. begin/commit/rollback are
+    // no-ops (tx_status: "n/a (pool)") — use a single PgConn for
+    // transactions.
 }
 ```
 

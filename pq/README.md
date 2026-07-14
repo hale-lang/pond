@@ -16,6 +16,31 @@ binding). Pass a non-empty `password` to authenticate with SCRAM; an
 empty `password` uses trust. MD5 is not supported. See
 `examples/pgwire-roundtrip/` for a live round-trip against both.
 
+**TLS:** a `sslmode` param negotiates TLS via the pgwire SSLRequest
+before the auth handshake:
+
+| `sslmode`     | behaviour                                              |
+|---------------|--------------------------------------------------------|
+| `disable`     | never negotiate; dial plaintext                        |
+| `prefer` (default) | TLS if the server offers it, else plaintext       |
+| `require`     | encrypt, **no** cert verification; fail if TLS refused |
+| `verify-full` | encrypt **and** verify hostname + chain vs system CAs  |
+
+The default `prefer` is opportunistic (libpq's default): existing
+plaintext consumers keep working, TLS-capable servers get encryption
+automatically. `require` is the sorcery-fleet posture against AWS RDS
+(whose CA is not in system trust stores). `verify-full` requires the
+server's CA to be installed in the container's system trust store
+(`SSL_CTX_set_default_verify_paths` only — no pond-side CA pinning); it
+is an operational prerequisite, not needed for `require`. An unknown
+`sslmode` is rejected at `open()`.
+
+> **Scheduler note.** hale's TLS recv does a blocking `SSL_read` with no
+> async_io park, so a TLS `PgConn`/`PgPool` must **not** be placed on an
+> async_io pool (it would starve sibling coroutines) until hale grows
+> non-blocking TLS reads. This is fine on ordinary cooperative pools —
+> where pq's recv already blocks — which is pq's documented placement.
+
 ## Surface
 
 - `pq::PgConn` — a single connection. Dials in `open()`, does the
@@ -32,9 +57,9 @@ empty `password` uses trust. MD5 is not supported. See
   directly for transactional work.
 
 ```hale
-let pool = pq::PgPool { host: "127.0.0.1", port: 5432,
+let pool = pq::PgPool { host: "db.internal", port: 5432,
                         user: "app", password: "secret",  // "" = trust
-                        database: "app", size: 8 };
+                        database: "app", sslmode: "require", size: 8 };
 let st = pool.open();
 if !st.ok { /* st.err */ }
 

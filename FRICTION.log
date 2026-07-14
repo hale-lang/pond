@@ -3282,6 +3282,94 @@ model's layer count (single digits). No source change.
 No open contract deviations. Satisfies `db::DbDriver`; `hale check`
 clean in-repo.
 
+## [2026-07-14] TLS via SSLRequest + `sslmode` param (daydream-dvl)
+
+pq now speaks STARTTLS-style pgwire TLS so it can reach servers that
+require encryption (AWS RDS). `PgConn` + `PgPool` gained a caller-facing
+`sslmode` (`disable`|`prefer`|`require`|`verify-full`) plus a
+derived-internal `tls` flag. `open()` sends the 8-byte SSLRequest
+preamble (`wire.hl build_ssl_request`) before StartupMessage, reads the
+single unframed reply byte, and on `'S'` upgrades the fd via
+`std::io::tls::upgrade(fd, host, verify=(sslmode=="verify-full"))`.
+`'N'` continues plaintext under `prefer` but fails closed (kind `tls`)
+under `require`/`verify-full`. New `pq/stream.hl` ports keepalive.hl's
+`__send_raw`/`__recv_raw`/`__close_handle` dispatch (branch on `tls`);
+all five `std::io::tcp::Stream` I/O sites in `pq.hl` route through it, so
+the rx_buf accumulation loop is transport-agnostic. `PgPool` threads a
+single derived `pool_tls` through its six transient-`PgConn`
+reconstruction sites (a pooled fd is a TLS handle when the pool
+negotiated TLS).
+
+Deviations / decisions:
+
+- **DEFAULT `sslmode = "prefer"`, NOT the plan's `"require"`.** The plan
+  mandated both "default require" AND "defaults preserve every existing
+  call site" — mutually exclusive: default-require breaks every existing
+  plaintext-only consumer (incl. daydream's local docker dev, where the
+  server has no SSL and answers `'N'`). `prefer` is libpq's own default:
+  opportunistic TLS with plaintext fallback, so existing users keep
+  working and TLS-capable servers get encryption for free.
+  `require`/`verify-full` stay strict (no downgrade). Unknown `sslmode`
+  is rejected at `open()` (kind `config`).
+
+- **Fail-fast classification.** A definitive TLS negotiation failure
+  (refused under require/verify-full, handshake failure, junk reply
+  byte) is kind `tls`, added to `is_fail_fast_kind` — redialing won't
+  change a server's TLS capability or a cert outcome, and `verify-full`
+  must fail cleanly/fast, not after an 8x retry storm. A peer-close
+  *before* the reply stays `io` (retryable — same cold-dial transient
+  class as the 2026-06-30 entry below).
+
+- **fd ownership on upgrade failure.** `std::io::tls::upgrade` leaves the
+  caller-owned fd open on handshake failure (daydream-scb contract), so
+  `__negotiate_tls` closes it itself before returning.
+
+- **Toolchain gotcha #1 — Stream `owns_fd`.** `std::io::tcp::Stream`
+  defaults `owns_fd: true`, and its `dissolve()` closes `conn_fd`. A
+  transient `Stream { conn_fd: self.sock }` therefore closes the socket
+  when it drops at fn-return — which surfaced as "peer closed
+  mid-response" on the FIRST startup read the moment I split send/recv
+  into free-fn dispatch helpers. Every transient Stream in pq now
+  borrows: `owns_fd: false` (the documented borrowed-fd idiom). PgConn
+  still closes the fd exactly once via `__close_handle`.
+
+- **Toolchain gotcha #2 — free-fn send/recv segfault.** keepalive.hl's
+  TCP dispatch branch calls the free fns `std::io::tcp::__send_bytes` /
+  `__recv_bytes`. Called from user code on the pinned hale binary these
+  SEGFAULT natively (verified in isolation: a raw-fd `__send_bytes`
+  returns 0, the following `__recv_bytes` crashes). The `Stream` LOCUS
+  `send_bytes`/`recv_bytes` — pq's long-proven path — works, so
+  `stream.hl`'s TCP branch uses the locus. The TLS branch keeps the flat
+  `std::io::tls::*` calls (no tls Stream locus exists); those DO work
+  natively (verified end to end against a TLS postgres). `send_bytes`
+  return counts are unreliable across transports (both can report 0
+  while delivering), so pq never checks them — a failed send surfaces as
+  a length-0 recv, which the rx loop already handles.
+
+- **`verify-full` CA prerequisite.** Verification uses the system trust
+  store only (`SSL_CTX_set_default_verify_paths`); no pond-side CA
+  pinning. `verify-full` against RDS needs the RDS CA installed in the
+  container trust store — an operational prerequisite, documented in
+  README.md. `require` does not need it.
+
+- **Scheduler caveat (spike daydream-0v2).** hale's TLS recv does a
+  blocking `SSL_read` with no async_io park (unlike tcp recv). A TLS
+  `PgConn`/`PgPool` must NOT be placed on an async_io pool (it would
+  starve sibling coros) until hale grows non-blocking TLS reads — fine
+  on ordinary cooperative pools where pq already blocks.
+
+- **Live gates: `examples/pgwire-roundtrip/`** extended with `[sslmode]`
+  + `[mode]` (conn|pool) argv. Verified against dockerized `postgres:18`:
+  TLS+SCRAM require (OPEN OK tls=true + query), wrong-pw-over-TLS (fast
+  auth_failed), verify-full vs a self-signed cert (fast `tls` handshake
+  failure — verification wired), plaintext prefer (fallback), plaintext
+  require (fail closed), disable (no SSLRequest), trust regression, and
+  PgPool over TLS (3 conns, 4 round-robin queries, pool_tls=true).
+  Offline SSLRequest framing + sslmode validation + fail-fast
+  classification in `pq/tests/wire_test.hl`. Deferred (unchanged from
+  the plan): PG17 direct-TLS/ALPN — needs a new hale ALPN primitive,
+  PG17+ only; no other pond protocol needs ALPN yet.
+
 ## [2026-07-14] SCRAM-SHA-256 auth + `password` param (daydream-hwj)
 
 `PgConn` / `PgPool` grew a `password: String = ""` param and pq now
