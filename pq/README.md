@@ -11,11 +11,17 @@ A Postgres driver speaking the **pgwire v3** wire protocol directly
 over TCP (no libpq). Structurally satisfies `db::DbDriver`, so it
 drops into any consumer written against the interface.
 
+**Auth:** trust and **SCRAM-SHA-256** (RFC 5802 / 7677, no channel
+binding). Pass a non-empty `password` to authenticate with SCRAM; an
+empty `password` uses trust. MD5 is not supported. See
+`examples/pgwire-roundtrip/` for a live round-trip against both.
+
 ## Surface
 
-- `pq::PgConn` — a single connection. Dials in `open()`, speaks the
-  startup → query → terminate flow, tracks transaction state from the
-  backend `ReadyForQuery` indicator (`idle` / `in_tx` / `aborted`).
+- `pq::PgConn` — a single connection. Dials in `open()`, does the
+  auth handshake (trust or SCRAM), speaks the startup → query →
+  terminate flow, tracks transaction state from the backend
+  `ReadyForQuery` indicator (`idle` / `in_tx` / `aborted`).
   Satisfies the full `db::DbDriver` method set including
   `begin`/`commit`/`rollback` and the parameterized `exec_params` /
   `query_params` ($1/$2 bind via `db::Args`).
@@ -27,7 +33,8 @@ drops into any consumer written against the interface.
 
 ```hale
 let pool = pq::PgPool { host: "127.0.0.1", port: 5432,
-                        user: "app", database: "app", size: 8 };
+                        user: "app", password: "secret",  // "" = trust
+                        database: "app", size: 8 };
 let st = pool.open();
 if !st.ok { /* st.err */ }
 

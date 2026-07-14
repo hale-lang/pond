@@ -3282,6 +3282,57 @@ model's layer count (single digits). No source change.
 No open contract deviations. Satisfies `db::DbDriver`; `hale check`
 clean in-repo.
 
+## [2026-07-14] SCRAM-SHA-256 auth + `password` param (daydream-hwj)
+
+`PgConn` / `PgPool` grew a `password: String = ""` param and pq now
+speaks **SCRAM-SHA-256** (RFC 5802 / 7677) alongside trust auth so it
+can reach servers (e.g. AWS RDS) that require a password. Empty
+password = trust (unchanged); non-empty = SCRAM. MD5 stays
+unsupported. New `pq/scram.hl` holds the pure offline crypto core
+(Hi/PBKDF2, ClientProof, ServerSignature verify, server-first parser),
+`wire.hl` gained the SASLInitialResponse/SASLResponse builders + the
+`R` sub-code/text parsers, and `pq.hl`'s `__open_once` dispatches on
+the first Authentication message into a new `__sasl_exchange`.
+
+Frictions / decisions encountered:
+
+- **`__pump` framing extracted to `__read_one_msg`.** The auth
+  exchange needs to read backend messages one at a time; `__pump`'s
+  inlined header/body accumulation loop was lifted into a shared
+  `__read_one_msg() -> __PgMsg` (behavior-preserving — the trust path
+  reads identically; gated by the offline tests + the live trust
+  container). No channel binding: gs2 header `n,,` only, never
+  `-PLUS` (tls-server-end-point needs a cert digest Hale doesn't
+  expose; a mandatory-reject per RFC 5802 §6). SASLprep skipped —
+  ASCII passwords documented.
+
+- **hale arena bug — `BytesBuilder.finish()` into crypto/base64
+  segfaults.** A `finish()`'d blob fed to `std::crypto::*` /
+  `std::text::base64::encode` / `std::bytes::clone` segfaults
+  deterministically (arena-lifetime bug; `len`/`at`/`slice`/send are
+  fine — that's why the existing codec works). `scram.hl` uses
+  `.snapshot()` for every builder result that reaches crypto/base64.
+  Logged upstream as daydream-dhu.
+
+- **`open()` fails fast on definitive auth outcomes.** The cold-dial
+  retry loop (≤8 × 150ms) is for transient peer-closes only; a
+  rejected password (`auth_failed`) or unsupported method
+  (`unsupported`) now short-circuits the loop instead of burning the
+  budget. (Previously an unsupported-auth server was also retried 8×.)
+
+- **Live gate: `examples/pgwire-roundtrip/`.** Closes the long-standing
+  "examples/ pending" note below. Because pq imports `vendor/pond/db`
+  it only builds in a vendored consumer tree (see "In-repo build vs
+  check"), so the example ships `main.hl` + `hale.toml` and
+  materializes a git-ignored `vendor/pond/{db,pq}` symlink tree at run
+  time (README has the one-liner). Verified against dockerized
+  `postgres:18` (`POSTGRES_HOST_AUTH_METHOD=scram-sha-256
+  --auth-host=scram-sha-256`): correct password logs in + queries,
+  wrong password fails closed with the server's message in ~1 attempt,
+  and a trust container still connects (regression). Offline crypto +
+  codec are covered by `pq/tests/scram_test.hl` (RFC 7677 §3 vector,
+  byte-for-byte) and the SASL additions in `pq/tests/wire_test.hl`.
+
 ## [CLOSED 2026-06-30] flaky cold dial: "peer closed mid-response" on a healthy server
 
 `PgConn.open()` dialed once and a single attempt was unreliable: the
@@ -3344,9 +3395,10 @@ redialing — logged for hale (cf. `recv_into`'s `-2` contract, which
   bounded by the pool's `size` param and the PgConns are
   intentionally retained for the pool's lifetime. Recorded
   2026-06-12; no source change.
-- **examples/ pending.** A demo needs a reachable Postgres; add a
-  docker-compose-backed `examples/pgwire-roundtrip/` when the harness
-  for ephemeral-pg-in-CI lands.
+- **examples/ shipped (2026-07-14).** `examples/pgwire-roundtrip/`
+  opens a live `PgConn` (trust or SCRAM) and runs a query — see the
+  2026-07-14 SCRAM entry above. It needs a reachable Postgres (docker
+  `postgres:18`), so it stays a manual/live gate, not a CI-wired test.
 
 
 ======================================================================

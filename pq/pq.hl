@@ -555,14 +555,18 @@ fn __handle_msg(mtype: Int, msg: Bytes, total: Int, res: __PgResult) {
         }
         return;
     }
-    // 'R' (82) Authentication — only AuthenticationOk (code 0) ok
+    // 'R' (82) Authentication — the open() handshake consumes the
+    // auth exchange (trust / SCRAM) before __pump ever runs, so an 'R'
+    // reaching here is an unexpected mid-stream auth request. Only
+    // AuthenticationOk (code 0) is a benign no-op; anything else is an
+    // error (defensive — should not occur in the simple-query flow).
     if mtype == 82 {
         let code = read_be32(msg, 5);
         if code != 0 {
             res.ok = false;
             res.err_kind = "unsupported";
-            res.err_detail = "auth method " + to_string(code)
-                + " not supported (v0 = trust only)";
+            res.err_detail = "unexpected authentication request (code "
+                + to_string(code) + ") outside the open() handshake";
         }
         return;
     }

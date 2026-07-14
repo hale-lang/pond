@@ -741,11 +741,17 @@ Postgres driver speaking the pgwire v3 protocol over TCP (added
 2026-06; commits `d0f8123`, `f23c27b`, `6945294`). Satisfies
 `db::DbDriver`. Vendors `pond/db`.
 
+Auth: **trust** (empty `password`) and **SCRAM-SHA-256** (non-empty
+`password`; RFC 5802 / 7677, no channel binding). Negotiated at
+`open()` from the server's Authentication reply. MD5 is unsupported.
+`password` is consumed only during the handshake.
+
 ```hale
 import "vendor/pond/db" as db;
 
 locus PgConn {                                     // single connection
     params { host = "127.0.0.1"; port = 5432; user = "postgres";
+             password = "";                        // "" = trust; else SCRAM-SHA-256
              database = "postgres"; sock = -1; connected = false;
              txn_state = "idle"; recv_chunk = 8192; /* + rx_buf BytesBuilder */ }
     // satisfies db::DbDriver: backend/open/close/exec/query_one/query_all/
@@ -753,8 +759,9 @@ locus PgConn {                                     // single connection
 }
 
 locus PgPool {                                     // fixed-size connection pool
-    params { host; port; user; database; size: Int = 4; }
+    params { host; port; user; password = ""; database; size: Int = 4; }
     // satisfies db::DbDriver; round-robin acquire over `size` PgConns.
+    // `password` is threaded into each pooled PgConn's open() handshake.
     // begin/commit/rollback are no-ops (tx_status: "n/a (pool)") — use a
     // single PgConn for transactions.
 }
