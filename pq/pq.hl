@@ -62,8 +62,24 @@ locus PgConn {
         password: String = "";
         database: String = "postgres";
 
+        // sslmode — TLS negotiation policy (caller-facing). One of
+        // "disable" | "prefer" | "require" | "verify-full" (see wire.hl
+        // for semantics). DEFAULT "prefer": opportunistic TLS with a
+        // plaintext fallback, so every existing plaintext-only call site
+        // keeps working while TLS-capable servers get encryption for
+        // free. Validated at open(); an unknown value is rejected.
+        sslmode: String = "prefer";
+
         sock:      Int  = -1;
         connected: Bool = false;
+
+        // tls — DERIVED internal state, NOT a caller knob: set true at
+        // the end of a successful upgrade in __negotiate_tls, false
+        // otherwise. It selects the send/recv/close transport family
+        // (stream.hl dispatch). It must still be a constructible param so
+        // PgPool's transient PgConn reconstructions can thread it (a
+        // pooled fd is a TLS handle when the pool negotiated TLS).
+        tls: Bool = false;
 
         // Transaction state, tracked from the backend's
         // ReadyForQuery indicator: "idle" | "in_tx" | "aborted".
@@ -92,6 +108,15 @@ locus PgConn {
     // server: a real refusal fails `connect` fast every attempt and we
     // still surface the last error after the final try.
     fn open() -> db::Status {
+        // Reject an unknown sslmode up front — before dialing — so a
+        // typo fails fast with a clear message instead of being silently
+        // coerced to a default. (config errors never enter the retry
+        // loop below.)
+        if !is_valid_sslmode(self.sslmode) {
+            return db::Status { ok: false, err: db::DbError { kind: "config",
+                engine_code: 0, detail: "invalid sslmode '" + self.sslmode
+                    + "' (want disable|prefer|require|verify-full)" } };
+        }
         let mut attempt = 0;
         let mut last = db::Status {
             ok:  false,
@@ -102,12 +127,16 @@ locus PgConn {
             let st = self.__open_once();
             if st.ok { return st; }
             last = st;
-            // Tear down any half-open socket (a failed handshake left it
-            // dialed) before the next attempt so we never leak the fd.
+            // Tear down any half-open connection (a failed handshake left
+            // it dialed — possibly already upgraded to TLS) before the
+            // next attempt so we never leak the fd/handle. __close_handle
+            // dispatches on self.tls so a partially-upgraded socket is
+            // torn down via the right transport.
             if self.sock >= 0 {
-                std::io::tcp::__close_fd(self.sock);
+                __close_handle(self.sock, self.tls);
                 self.sock = -1;
             }
+            self.tls = false;
             self.connected = false;
             self.rx_buf.clear();
             // A definitive outcome — a rejected password / protocol
@@ -141,10 +170,23 @@ locus PgConn {
             };
         }
         self.sock = fd;
+        self.tls = false;
         self.rx_buf.clear();
 
-        let stream = std::io::tcp::Stream { conn_fd: self.sock };
-        stream.send_bytes(build_startup(self.user, self.database));
+        // TLS negotiation (STARTTLS-style): unless sslmode == "disable",
+        // send the SSLRequest preamble over the plaintext fd, read the
+        // single-byte reply, and upgrade the fd on 'S'. On success
+        // self.sock becomes the TLS handle and self.tls flips true, so
+        // every subsequent I/O routes through the TLS transport.
+        if sslmode_wants_tls(self.sslmode) {
+            let neg = self.__negotiate_tls();
+            if !neg.ok {
+                self.connected = false;
+                return neg;
+            }
+        }
+
+        __send_raw(self.sock, self.tls, build_startup(self.user, self.database));
 
         // The first backend message after StartupMessage is an
         // Authentication ('R'). Trust auth = code 0 (AuthenticationOk).
@@ -205,6 +247,78 @@ locus PgConn {
         return db::Status { ok: true };
     }
 
+    // __negotiate_tls — the pgwire SSLRequest dance, run on the freshly
+    // dialed PLAINTEXT fd (self.sock, self.tls still false) before
+    // StartupMessage. Sends the 8-byte SSLRequest preamble, reads the
+    // single-byte reply, and acts per sslmode:
+    //
+    //   'S' (83) — server accepts TLS. upgrade the fd
+    //              (verify = sslmode=="verify-full"); on success self.sock
+    //              becomes the TLS handle + self.tls = true. On handshake
+    //              failure WE close the fd (the upgrade primitive leaves a
+    //              caller-owned fd open on failure — daydream-scb) and
+    //              return a fail-fast "tls" error.
+    //   'N' (78) — server has no TLS. prefer -> continue plaintext
+    //              (self.tls stays false); require/verify-full -> fail
+    //              CLOSED with a fail-fast "tls" error (never downgrade).
+    //   other    — protocol violation; fail-fast "tls".
+    //
+    // Error classification: a peer-close BEFORE the reply is a transient
+    // cold-dial condition (same class as the SCRAM read-failure path) and
+    // stays "io" (retryable — open()'s retry loop redials). Every
+    // definitive TLS outcome (refused-under-require, handshake failure,
+    // junk byte) is "tls", which is fail-fast (wire.hl is_fail_fast_kind)
+    // — a server's TLS capability and a cert-verification result don't
+    // change on redial, and verify-full must fail cleanly, not after an
+    // 8x retry storm.
+    fn __negotiate_tls() -> db::Status {
+        // SSLRequest goes over PLAINTEXT (the fd is not upgraded yet).
+        let sent = std::io::tcp::__send_bytes(self.sock, build_ssl_request());
+        if sent < 0 {
+            return db::Status { ok: false, err: db::DbError { kind: "io",
+                engine_code: 0, detail: "ssl: failed sending SSLRequest" } };
+        }
+        // Reply is EXACTLY one byte, unframed — not a normal pgwire
+        // message, so we read it directly rather than via __read_one_msg.
+        let reply = std::io::tcp::__recv_bytes(self.sock, 1);
+        if len(reply) == 0 {
+            return db::Status { ok: false, err: db::DbError { kind: "io",
+                engine_code: 0, detail: "ssl: peer closed before SSLRequest reply" } };
+        }
+        let b = byte_at(reply, 0);
+        if b == 83 {                                  // 'S' — TLS accepted
+            let verify = sslmode_verify(self.sslmode);
+            let handle = std::io::tls::upgrade(self.sock, self.host, verify)
+                or __on_upgrade_fail(err);
+            if handle < 0 {
+                // Handshake failed. The primitive did NOT close our fd
+                // (caller owns it) — so tear it down ourselves here; it is
+                // still a plaintext fd (tls not yet flipped).
+                std::io::tcp::__close_fd(self.sock);
+                self.sock = -1;
+                return db::Status { ok: false, err: db::DbError { kind: "tls",
+                    engine_code: 0, detail: "ssl: TLS handshake failed to " + self.host
+                        + " (sslmode=" + self.sslmode + ")" } };
+            }
+            self.sock = handle;
+            self.tls = true;
+            return db::Status { ok: true };
+        }
+        if b == 78 {                                  // 'N' — TLS unavailable
+            if sslmode_requires_tls(self.sslmode) {
+                return db::Status { ok: false, err: db::DbError { kind: "tls",
+                    engine_code: 0, detail: "ssl: server does not support TLS but sslmode="
+                        + self.sslmode + " requires it (refusing to downgrade)" } };
+            }
+            // prefer: opportunistic — fall back to plaintext.
+            self.tls = false;
+            return db::Status { ok: true };
+        }
+        return db::Status { ok: false, err: db::DbError { kind: "tls",
+            engine_code: 0, detail: "ssl: unexpected SSLRequest reply byte "
+                + to_string(b) + " (want 'S'/83 or 'N'/78)" } };
+    }
+
     // __sasl_exchange — run the SCRAM-SHA-256 SASL handshake after the
     // server's AuthenticationSASL. Sends SASLInitialResponse (client
     // -first), reads SASLContinue (server-first), computes + sends the
@@ -224,8 +338,6 @@ locus PgConn {
     // signature) is definitive and stays "auth_failed", which open()
     // fail-fasts on via is_fail_fast_kind() (wire.hl).
     fn __sasl_exchange() -> __SaslResult {
-        let stream = std::io::tcp::Stream { conn_fd: self.sock };
-
         // client-first: gs2 header "n,," + "n=,r=<nonce>". Empty SASL
         // username — postgres authenticates the StartupMessage user.
         let nonce = client_nonce();
@@ -234,7 +346,7 @@ locus PgConn {
                 err_detail: "auth: CSPRNG failed generating SCRAM client nonce" };
         }
         let cfb = make_client_first_bare("", nonce);
-        stream.send_bytes(build_sasl_initial(gs2_header() + cfb));
+        __send_raw(self.sock, self.tls, build_sasl_initial(gs2_header() + cfb));
 
         // server-first: AuthenticationSASLContinue (code 11).
         let m2 = self.__read_one_msg();
@@ -258,7 +370,7 @@ locus PgConn {
             return __SaslResult { ok: false, err_kind: "auth_failed",
                 err_detail: "auth: " + cf.err };
         }
-        stream.send_bytes(build_sasl_response(cf.client_final));
+        __send_raw(self.sock, self.tls, build_sasl_response(cf.client_final));
 
         // server-final: SASLFinal (code 12), OR ErrorResponse ('E') on
         // a rejected password.
@@ -295,11 +407,11 @@ locus PgConn {
 
     fn close() {
         if self.connected && self.sock >= 0 {
-            let stream = std::io::tcp::Stream { conn_fd: self.sock };
-            stream.send_bytes(build_terminate());
-            std::io::tcp::__close_fd(self.sock);
+            __send_raw(self.sock, self.tls, build_terminate());
+            __close_handle(self.sock, self.tls);
         }
         self.connected = false;
+        self.tls = false;
         self.sock = -1;
     }
 
@@ -365,8 +477,7 @@ locus PgConn {
         if !self.connected {
             return __PgResult { ok: false, err_kind: "io", err_detail: "not connected" };
         }
-        let stream = std::io::tcp::Stream { conn_fd: self.sock };
-        stream.send_bytes(build_extended(sql, args));
+        __send_raw(self.sock, self.tls, build_extended(sql, args));
         return self.__pump();
     }
 
@@ -391,8 +502,7 @@ locus PgConn {
         if !self.connected {
             return __PgResult { ok: false, err_kind: "io", err_detail: "not connected" };
         }
-        let stream = std::io::tcp::Stream { conn_fd: self.sock };
-        stream.send_bytes(build_query(sql));
+        __send_raw(self.sock, self.tls, build_query(sql));
         return self.__pump();
     }
 
@@ -403,10 +513,9 @@ locus PgConn {
     // stay byte-for-byte consistent on rx_buf bookkeeping. The
     // returned `body` snapshot is stable after the shift.
     fn __read_one_msg() -> __PgMsg {
-        let stream = std::io::tcp::Stream { conn_fd: self.sock };
         // ensure a full message header (type + Int32 len).
         while self.rx_buf.len() < 5 {
-            let chunk = stream.recv_bytes(self.recv_chunk);
+            let chunk = __recv_raw(self.sock, self.tls, self.recv_chunk);
             if len(chunk) <= 0 {
                 return __PgMsg { ok: false, err: "peer closed mid-response" };
             }
@@ -418,7 +527,7 @@ locus PgConn {
         let total = mlen + 1;              // + type byte
 
         while self.rx_buf.len() < total {
-            let chunk = stream.recv_bytes(self.recv_chunk);
+            let chunk = __recv_raw(self.sock, self.tls, self.recv_chunk);
             if len(chunk) <= 0 {
                 return __PgMsg { ok: false, err: "peer closed mid-message" };
             }
@@ -455,6 +564,13 @@ locus PgConn {
 // ===== free-fn helpers (fallible / parsing) =====
 
 fn __on_connect_fail(e: IoError) -> Int {
+    return -1;
+}
+
+// __on_upgrade_fail — `or`-handler for std::io::tls::upgrade. Returns a
+// sentinel -1 so __negotiate_tls can detect the handshake failure and
+// tear down the (still caller-owned) fd itself.
+fn __on_upgrade_fail(e: IoError) -> Int {
     return -1;
 }
 
