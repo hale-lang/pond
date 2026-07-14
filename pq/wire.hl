@@ -7,15 +7,18 @@
 // ('Z') / Authentication ('R') / ParameterStatus ('S') /
 // BackendKeyData ('K') / NoticeResponse ('N').
 //
+// Auth: trust (server sends AuthenticationOk immediately) and
+// SCRAM-SHA-256 (AuthenticationSASL exchange; the crypto core lives
+// in scram.hl, the framing below, the sequencing in pq.hl's
+// __sasl_exchange). MD5 auth is still unsupported.
+//
 // v0 assumptions:
-//   - trust auth only (server sends AuthenticationOk immediately;
-//     no password / MD5 / SCRAM). Enforced by the docker
-//     POSTGRES_HOST_AUTH_METHOD=trust. SCRAM is a follow-up.
 //   - simple query protocol (text result format). Values come
 //     back as text; we join columns with \t, rows with \n.
-//   - no bitwise ops in Hale v1 → BE ints via arithmetic
-//     (x - (x/256)*256 for mod 256), same idiom as
-//     pond/websocket/frame.hl.
+//   - BE ints via arithmetic (x - (x/256)*256 for mod 256), same
+//     idiom as pond/websocket/frame.hl. (Hale v1 DOES have bitwise
+//     ops — see crypto/util.hl / scram.hl — but the arithmetic form
+//     is kept here for consistency with the rest of the codec.)
 
 // ===== big-endian int helpers =====
 
@@ -93,6 +96,58 @@ fn build_terminate() -> Bytes {
     out.append(std::bytes::from_int(88));     // 'X' = 88
     be32_append(out, 4);
     return out.finish();
+}
+
+// ===== SASL (SCRAM-SHA-256) outbound messages =====
+
+// build_sasl_initial — SASLInitialResponse:
+//   ['p'][Int32 len]["SCRAM-SHA-256"\0][Int32 client-first-len][client-first]
+// The mechanism name is a NUL-terminated cstr; the client-first bytes
+// are length-prefixed (Int32) and NOT NUL-terminated. `client_first`
+// is the full "n,,n=,r=<nonce>" (gs2 header + client-first-bare).
+fn build_sasl_initial(client_first: String) -> Bytes {
+    let cf = std::bytes::from_string(client_first);
+    let body = std::bytes::BytesBuilder { initial_cap: len(cf) + 32 };
+    __append_cstr(body, "SCRAM-SHA-256");
+    be32_append(body, len(cf));
+    body.append(cf);
+    let payload = body.snapshot();
+    let out = std::bytes::BytesBuilder { initial_cap: len(payload) + 5 };
+    out.append(std::bytes::from_int(112));    // 'p' = 112
+    be32_append(out, len(payload) + 4);
+    out.append(payload);
+    return out.finish();
+}
+
+// build_sasl_response — SASLResponse:
+//   ['p'][Int32 len][client-final]
+// The body is the raw client-final-message "c=biws,r=<nonce>,p=<proof>"
+// — no mechanism, no length prefix (unlike the initial response).
+fn build_sasl_response(client_final: String) -> Bytes {
+    let cf = std::bytes::from_string(client_final);
+    let out = std::bytes::BytesBuilder { initial_cap: len(cf) + 5 };
+    out.append(std::bytes::from_int(112));    // 'p' = 112
+    be32_append(out, len(cf) + 4);
+    out.append(cf);
+    return out.finish();
+}
+
+// ===== Authentication ('R') message parsers =====
+
+// sasl_r_code — the Int32 sub-code of an Authentication ('R') message,
+// located right after the type byte + length field (offset 5):
+//   0 = AuthenticationOk, 10 = AuthenticationSASL,
+//   11 = AuthenticationSASLContinue, 12 = AuthenticationSASLFinal.
+fn sasl_r_code(body: Bytes) -> Int {
+    return read_be32(body, 5);
+}
+
+// sasl_r_text — the text payload of a SASLContinue/SASLFinal message:
+// everything after the Int32 sub-code (offset 9) to the end of the
+// frame (`total`). Code 11 -> server-first-message; code 12 ->
+// server-final-message ("v=<ServerSignature>").
+fn sasl_r_text(body: Bytes, total: Int) -> String {
+    return std::str::from_bytes(std::bytes::slice(body, 9, total));
 }
 
 fn __append_cstr(b: std::bytes::BytesBuilder, s: String) {

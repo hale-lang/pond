@@ -85,4 +85,46 @@ fn main() {
     std::test::assert_eq_int(len(x), 5, "terminate is 5 bytes");
     std::test::assert_eq_int(wire::byte_at(x, 0), 88, "type byte 'X'");
     std::test::assert_eq_int(wire::read_be32(x, 1), 4, "terminate length 4");
+
+    // ================= SASL frames (SCRAM-SHA-256) =================
+
+    // ---- SASLInitialResponse ----
+    // ['p'][Int32 len]["SCRAM-SHA-256"\0][Int32 client-first-len][client-first]
+    let cfirst = "n,,n=,r=abc";                  // 11 bytes
+    let si = wire::build_sasl_initial(cfirst);
+    // 'p'(1) + len(4) + mech "SCRAM-SHA-256"(13) + NUL(1) + Int32(4) + cfirst(11) = 34
+    std::test::assert_eq_int(len(si), 34, "SASLInitial total length");
+    std::test::assert_eq_int(wire::byte_at(si, 0), 112, "type byte 'p'");
+    std::test::assert_eq_int(wire::read_be32(si, 1), 33, "SASLInitial length excludes type byte");
+    let mech = std::str::from_bytes(std::bytes::slice(si, 5, 18));
+    std::test::assert_eq_str(mech, "SCRAM-SHA-256", "mechanism name cstr");
+    std::test::assert_eq_int(wire::byte_at(si, 18), 0, "mechanism NUL terminator");
+    std::test::assert_eq_int(wire::read_be32(si, 19), 11, "client-first length prefix");
+    let cf_echo = std::str::from_bytes(std::bytes::slice(si, 23, 34));
+    std::test::assert_eq_str(cf_echo, cfirst, "client-first payload (NOT NUL-terminated)");
+
+    // ---- SASLResponse ----
+    // ['p'][Int32 len][client-final] — no mechanism, no length prefix.
+    let cfinal = "c=biws,r=abc,p=xyz";           // 18 bytes
+    let sr = wire::build_sasl_response(cfinal);
+    std::test::assert_eq_int(len(sr), 23, "SASLResponse total length");
+    std::test::assert_eq_int(wire::byte_at(sr, 0), 112, "type byte 'p'");
+    std::test::assert_eq_int(wire::read_be32(sr, 1), 22, "SASLResponse length excludes type byte");
+    let cfinal_echo = std::str::from_bytes(std::bytes::slice(sr, 5, 23));
+    std::test::assert_eq_str(cfinal_echo, cfinal, "client-final payload (raw, no prefix)");
+
+    // ---- Authentication 'R' sub-code + payload parsers ----
+    // Build a synthetic SASLContinue: ['R'][Int32 len][Int32 11][text].
+    let stext = "r=abcSRV,s=c2FsdA==,i=4096";
+    let stb = std::bytes::from_string(stext);
+    let rmsg = std::bytes::BytesBuilder { initial_cap: 64 };
+    rmsg.append(std::bytes::from_int(82));        // 'R'
+    wire::be32_append(rmsg, 8 + len(stb));        // len field: itself(4) + code(4) + text
+    wire::be32_append(rmsg, 11);                  // sub-code 11 = SASLContinue
+    rmsg.append(stb);
+    let rbytes = rmsg.finish();
+    let rtotal = 9 + len(stb);                    // type(1) + len(4) + code(4) + text
+    std::test::assert_eq_int(wire::sasl_r_code(rbytes), 11, "sasl_r_code reads the R sub-code");
+    std::test::assert_eq_str(wire::sasl_r_text(rbytes, rtotal), stext,
+        "sasl_r_text extracts the server message payload after the sub-code");
 }
