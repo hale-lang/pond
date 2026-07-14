@@ -41,6 +41,11 @@ locus PgPool {
         // only at auth time (SCRAM-SHA-256). Empty = trust auth.
         password: String = "";
         database: String = "postgres";
+        // sslmode — threaded into each pooled PgConn.open(). Same four
+        // values + default "prefer" as PgConn (see wire.hl). A pool is
+        // homogeneous (one host/port/sslmode), so every connection
+        // negotiates the SAME transport.
+        sslmode:  String = "prefer";
         size:     Int    = 4;
 
         opened: Bool = false;
@@ -48,6 +53,15 @@ locus PgPool {
         busy:   __FdVec = __FdVec { };   // 0 = free, 1 = in use
         n:      Int  = 0;                // opened connection count
         rr:     Int  = 0;                // round-robin cursor for fairness
+
+        // pool_tls — derived ONCE in open() from the first connection's
+        // settled `tls` flag. The pool stores raw fds in `fds`, but with
+        // TLS each stored value is a TLS HANDLE, not a kernel fd — so
+        // every transient PgConn reconstruction below threads this flag
+        // as `tls:` so its send/recv/close route through the right
+        // transport (stream.hl dispatch). Uniform across the pool because
+        // the connections are homogeneous.
+        pool_tls: Bool = false;
     }
 
     fn backend() -> String { return "postgres"; }
@@ -58,12 +72,16 @@ locus PgPool {
         while i < self.size {
             let c = PgConn { host: self.host, port: self.port,
                              user: self.user, password: self.password,
-                             database: self.database };
+                             database: self.database, sslmode: self.sslmode };
             let st = c.open();
             if !st.ok {
                 self.opened = (self.n > 0);
                 return db::Status { ok: self.n > 0, err: st.err };
             }
+            // Derive the pool's transport from the first connection that
+            // settles (homogeneous pool -> all identical). c.sock is now a
+            // TLS handle when c.tls is true; both get stored uniformly.
+            if self.n == 0 { self.pool_tls = c.tls; }
             self.fds.push(c.sock);
             self.busy.push(0);
             self.n = self.n + 1;
@@ -78,7 +96,7 @@ locus PgPool {
         while i < self.n {
             let fd = self.fds.get(i) or -1;
             if fd >= 0 {
-                let c = PgConn { sock: fd, connected: true };
+                let c = PgConn { sock: fd, connected: true, tls: self.pool_tls };
                 c.close();
             }
             i = i + 1;
@@ -114,7 +132,7 @@ locus PgPool {
         let idx = self.__acquire();
         if idx < 0 { return __pool_exhausted_exec(); }
         let fd = self.fds.get(idx) or -1;
-        let c = PgConn { sock: fd, connected: true };
+        let c = PgConn { sock: fd, connected: true, tls: self.pool_tls };
         let r = c.exec(sql);
         self.__release(idx);
         return r;
@@ -124,7 +142,7 @@ locus PgPool {
         let idx = self.__acquire();
         if idx < 0 { return __pool_exhausted_row(); }
         let fd = self.fds.get(idx) or -1;
-        let c = PgConn { sock: fd, connected: true };
+        let c = PgConn { sock: fd, connected: true, tls: self.pool_tls };
         let r = c.query_one(sql);
         self.__release(idx);
         return r;
@@ -134,7 +152,7 @@ locus PgPool {
         let idx = self.__acquire();
         if idx < 0 { return __pool_exhausted_rows(); }
         let fd = self.fds.get(idx) or -1;
-        let c = PgConn { sock: fd, connected: true };
+        let c = PgConn { sock: fd, connected: true, tls: self.pool_tls };
         let r = c.query_all(sql);
         self.__release(idx);
         return r;
@@ -144,7 +162,7 @@ locus PgPool {
         let idx = self.__acquire();
         if idx < 0 { return __pool_exhausted_exec(); }
         let fd = self.fds.get(idx) or -1;
-        let c = PgConn { sock: fd, connected: true };
+        let c = PgConn { sock: fd, connected: true, tls: self.pool_tls };
         let r = c.exec_params(sql, args);
         self.__release(idx);
         return r;
@@ -154,7 +172,7 @@ locus PgPool {
         let idx = self.__acquire();
         if idx < 0 { return __pool_exhausted_rows(); }
         let fd = self.fds.get(idx) or -1;
-        let c = PgConn { sock: fd, connected: true };
+        let c = PgConn { sock: fd, connected: true, tls: self.pool_tls };
         let r = c.query_params(sql, args);
         self.__release(idx);
         return r;
