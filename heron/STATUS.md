@@ -3,6 +3,37 @@
 Status as of the initial grammar.js + @ffi wrapper commit
 (2026-05-23).
 
+## 2026-07-15 — v0.10 language-surface sync
+
+Brought the grammar current with the June–July additions it had
+drifted behind (grammar.js was pinned to a ~May revision). Added:
+
+- **Topology (v0.10 Phase 1):** the `topology { node N { l3 name
+  { cores A..B; } } reserve cores ...; }` block, and the
+  `pinned(...)` affinity attributes `core = / cores = <range|set>
+  / node = / l3 =` plus `replicas = K`; also the `where async_io`
+  placement constraint on a `placement` entry.
+- **Perspectives hot-swap (v0.10 Phase 2/3):** the `serves P`
+  conformance clause (`locus X : serves R, tier 2`), the
+  `reperspective self.slot as Impl;` statement, the
+  `perspective(P)` handle type, and the perspective-contract
+  members that were missing (bodyless `fn` signatures + `bus`
+  block).
+- **WASM (#152/#153):** the `@export locus` decorator.
+- **Per-child `terminate;`** statement (2026-05-30).
+- **`resets_per_epoch(...)`** closure clause (F.34).
+- `highlights.scm` keyword sync for all of the above.
+
+Validated: 32/32 corpus tests (3 new); all 8 in-tree example
+fixtures using these constructs parse ERROR-free; **zero
+regressions** (the 8 fixtures still failing — tuples, enum
+payloads, some control-flow / fn-arena / mode-default shapes —
+fail byte-identically on the pre-change grammar; they are
+pre-existing v0 gaps, not v0.10 surface). Reserved-but-
+unimplemented keywords (`async`/`await`/`impl`/`macro`/`trait`)
+are intentionally not modeled — Hale rejects them as parse
+errors, so they have no grammar production to attach to.
+
 ## What works
 
 - **`tree-sitter generate`** succeeds cleanly. Parser table
