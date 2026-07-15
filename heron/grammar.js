@@ -240,7 +240,13 @@ module.exports = grammar({
     _locus_decorator: $ => choice(
       $.form_annotation,
       $.locality_annotation,
+      $.export_annotation,
     ),
+
+    // `@export locus` (WASM #152/#153): the persistent singleton
+    // "app" of a wasm program — instantiated once, never
+    // dissolved, its `fn` methods exported to the JS host.
+    export_annotation: $ => seq('@', 'export'),
 
     // @form(name, key=value, ...)
     form_annotation: $ => seq(
@@ -280,9 +286,22 @@ module.exports = grammar({
 
     locus_annotations: $ => seq(
       ':',
-      $.locus_annotation,
-      repeat(seq(',', $.locus_annotation)),
+      $._locus_header_item,
+      repeat(seq(',', $._locus_header_item)),
     ),
+
+    // Perspectives Phase 2a (2026-06): the post-`:` list may
+    // carry `serves P` conformance clauses intermixed with the
+    // annotations — `locus RouterV1 : serves Router, tier 2 { }`.
+    // `serves` is a contextual ident recognized only here. Hidden
+    // grouping rule so annotations stay direct children of
+    // `locus_annotations`; `serves` gets its own named node.
+    _locus_header_item: $ => choice(
+      $.locus_annotation,
+      $.serves_clause,
+    ),
+
+    serves_clause: $ => seq('serves', field('perspective', $.identifier)),
 
     locus_annotation: $ => choice(
       seq('tier', $.integer_literal),
@@ -332,6 +351,7 @@ module.exports = grammar({
       $.type_decl,
       $.bindings_block,
       $.placement_block,
+      $.topology_block,
       $.birth_check_decl,
     ),
 
@@ -348,11 +368,23 @@ module.exports = grammar({
       '}',
     ),
 
+    // F.35 (2026-05-28): an optional `where <constraint>, ...`
+    // suffix declaring operational constraints on the route
+    // (v0.1: `async_io`).
     placement_entry: $ => seq(
       field('field', $.identifier),
       ':',
       field('spec', $.placement_spec),
+      optional(seq(
+        'where',
+        $.placement_constraint,
+        repeat(seq(',', $.placement_constraint)),
+      )),
       ';',
+    ),
+
+    placement_constraint: $ => choice(
+      'async_io',
     ),
 
     // Placement specs reuse the same surface as the legacy
@@ -360,6 +392,12 @@ module.exports = grammar({
     // optional named pool on cooperative: `cooperative(pool
     // = io)` opts a field's locus onto a named cooperative
     // pool worker thread instead of the default main pool.
+    //
+    // Topology Phase 1a–1c (2026-07-04/05): `pinned(...)` takes a
+    // comma-separated attribute list — at most one affinity
+    // (`core =` / `cores =` / `node =` / `l3 =`) plus an optional
+    // `replicas = K`. Arity ("at most one affinity") is enforced
+    // by the host parser, not the grammar.
     placement_spec: $ => choice(
       seq(
         'cooperative',
@@ -375,12 +413,81 @@ module.exports = grammar({
         'pinned',
         optional(seq(
           '(',
-          'core',
-          '=',
-          field('core', $.integer_literal),
+          $.pin_attr,
+          repeat(seq(',', $.pin_attr)),
+          optional(','),
           ')',
         )),
       ),
+    ),
+
+    pin_attr: $ => choice(
+      $.pin_affinity,
+      seq('replicas', '=', field('replicas', $.integer_literal)),
+    ),
+
+    pin_affinity: $ => choice(
+      seq('core', '=', field('core', $.integer_literal)),
+      seq('cores', '=', field('cores', $.core_set)),
+      seq('node', '=', field('node', $.integer_literal)),
+      seq('l3', '=', field('l3', $.identifier)),
+    ),
+
+    // A range (`A..B` exclusive / `A..=B` inclusive) or an
+    // explicit set (`{a, b, c}`) of INT literals — the cpuset
+    // affinity mask. Placement is closed-world, so the set is
+    // static.
+    core_set: $ => choice(
+      seq(
+        $.integer_literal,
+        choice('..', '..='),
+        $.integer_literal,
+      ),
+      seq(
+        '{',
+        $.integer_literal,
+        repeat(seq(',', $.integer_literal)),
+        optional(','),
+        '}',
+      ),
+    ),
+
+    // Topology Phase 1b (2026-07-05): the `topology { }` block —
+    // a declare-only description of the host's core partition
+    // (NUMA nodes → L3 domains → core sets), referenced by
+    // `pinned(node = N)` / `pinned(l3 = name)`. Main-locus only;
+    // the host typechecker enforces id/name uniqueness and
+    // non-overlap.
+    topology_block: $ => seq(
+      'topology',
+      '{',
+      repeat(choice($.reserve_decl, $.node_decl)),
+      '}',
+    ),
+
+    reserve_decl: $ => seq(
+      'reserve',
+      'cores',
+      field('cores', $.core_set),
+      ';',
+    ),
+
+    node_decl: $ => seq(
+      'node',
+      field('id', $.integer_literal),
+      '{',
+      repeat($.l3_decl),
+      '}',
+    ),
+
+    l3_decl: $ => seq(
+      'l3',
+      field('name', $.identifier),
+      '{',
+      'cores',
+      field('cores', $.core_set),
+      ';',
+      '}',
     ),
 
     // F.27 v2 birth_check.
@@ -632,6 +739,9 @@ module.exports = grammar({
       seq('epoch', $._epoch_spec, ';'),
       seq('persists_through', '(', $._identifier_list, ')', ';'),
       seq('resets_on', '(', $._identifier_list, ')', ';'),
+      // F.34 (2026-05-28, v1.x-WINDOWED): windowed reset — the
+      // named captures reset once per epoch boundary.
+      seq('resets_per_epoch', '(', $._identifier_list, ')', ';'),
       seq('captures', ':', $._identifier_list, ';'),
     ),
 
@@ -661,7 +771,13 @@ module.exports = grammar({
       $.params_block,
       seq('stable_when', $.block),
       seq('serialize_as', $._type_expr, ';'),
+      // The perspective CONTRACT: bodyless method signatures (the
+      // stable ABI a holder programs against, like an interface),
+      // plus optional default-bodied methods and a bus surface
+      // (Phase 2c bus contract).
+      $.interface_method_sig,
       $.function_decl,
+      $.bus_block,
     ),
 
     // ===========================================================
@@ -725,6 +841,7 @@ module.exports = grammar({
       $.primitive_type,
       $.named_type,
       $.projection_type,
+      $.perspective_type,
       $.array_type,
       $.tuple_type,
       $.function_type,
@@ -752,6 +869,16 @@ module.exports = grammar({
       '<',
       $._type_expr,
       '>',
+    ),
+
+    // Perspectives Phase 2a: `perspective(P)` — a live-rebindable
+    // handle to the contract P, dispatched through a program-global
+    // slot. Used as a param field type on a holder locus.
+    perspective_type: $ => seq(
+      'perspective',
+      '(',
+      field('contract', $.identifier),
+      ')',
     ),
 
     array_type: $ => seq(
@@ -871,11 +998,30 @@ module.exports = grammar({
       $.break_stmt,
       $.continue_stmt,
       $.yield_stmt,
+      $.terminate_stmt,
+      $.reperspective_stmt,
       $.recovery_stmt,
       $.violate_stmt,
       $.fail_stmt,
       $.block,
       $.expr_stmt,
+    ),
+
+    // 2026-05-30 per-child terminate: ends this locus's own
+    // lifecycle from within a handler/run body.
+    terminate_stmt: $ => seq('terminate', ';'),
+
+    // Perspectives Phase 2b (2026-06): `reperspective self.slot
+    // as NewImpl;` — the live redeploy. Swaps the implementation
+    // behind a perspective slot at pointer-flip cost.
+    reperspective_stmt: $ => seq(
+      'reperspective',
+      'self',
+      '.',
+      field('slot', $.identifier),
+      'as',
+      field('impl', $.identifier),
+      ';',
     ),
 
     let_stmt: $ => seq(

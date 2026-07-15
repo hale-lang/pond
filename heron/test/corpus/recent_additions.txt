@@ -354,3 +354,104 @@ ring_layout ForeignRing {
     (ring_overflow
       (ring_word
         (identifier)))))
+
+==================
+Topology block + placement affinity attrs
+==================
+
+main locus App {
+    topology { reserve cores {0, 1}; node 0 { l3 fast { cores 4..8; } } }
+    params { w: W = W { }; }
+    placement {
+        w: pinned(node = 0, replicas = 4);
+        io: cooperative(pool = net) where async_io;
+    }
+}
+
+---
+
+(source_file
+  (locus_decl
+    (identifier)
+    (topology_block
+      (reserve_decl
+        (core_set
+          (integer_literal)
+          (integer_literal)))
+      (node_decl
+        (integer_literal)
+        (l3_decl
+          (identifier)
+          (core_set
+            (integer_literal)
+            (integer_literal)))))
+    (params_block
+      (param_decl
+        (identifier)
+        (named_type
+          (qualified_name
+            (identifier)))
+        (struct_literal
+          (qualified_name
+            (identifier)))))
+    (placement_block
+      (placement_entry
+        (identifier)
+        (placement_spec
+          (pin_attr
+            (pin_affinity
+              (integer_literal)))
+          (pin_attr
+            (integer_literal))))
+      (placement_entry
+        (identifier)
+        (placement_spec
+          (identifier))
+        (placement_constraint)))))
+
+==================
+Perspective serves clause + reperspective + terminate
+==================
+
+locus RouterV1 : serves Router, tier 2 {
+    run() { reperspective self.route as RouterV2; }
+    drain() { terminate; }
+}
+
+---
+
+(source_file
+  (locus_decl
+    (identifier)
+    (locus_annotations
+      (serves_clause
+        (identifier))
+      (locus_annotation
+        (integer_literal)))
+    (lifecycle_decl
+      (block
+        (reperspective_stmt
+          (identifier)
+          (identifier))))
+    (lifecycle_decl
+      (block
+        (terminate_stmt)))))
+
+==================
+@export locus + resets_per_epoch closure clause
+==================
+
+@export locus App {
+    closure win { resets_per_epoch(hits); }
+}
+
+---
+
+(source_file
+  (locus_decl
+    (export_annotation)
+    (identifier)
+    (closure_decl
+      (identifier)
+      (closure_clause
+        (identifier)))))
