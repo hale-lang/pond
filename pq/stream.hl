@@ -40,6 +40,15 @@
 // Stream sends can report 0 while still delivering), so nothing is
 // returned; a failed send surfaces as a length-0 recv downstream, the
 // same contract the rx loop already handles.
+//
+// No SHORT WRITE risk (B5): discarding the count is safe because neither
+// transport can partially send. std::io::tls::send_bytes
+// (lotus_tls_send_bytes) LOOPS on SSL_write, advancing until the whole
+// buffer is written, and returns success only when 0 bytes remain (or -1
+// on error) — it never reports a short write, so a large pgwire message
+// (e.g. big exec_params args) can't be misframed. The plaintext Stream
+// send delivers the whole buffer likewise. A wholly-failed send is what
+// surfaces downstream as the length-0 recv.
 fn __send_raw(handle: Int, is_tls: Bool, b: Bytes) {
     if is_tls {
         std::io::tls::send_bytes(handle, b);

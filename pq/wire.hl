@@ -165,6 +165,75 @@ fn sasl_r_text(body: Bytes, total: Int) -> String {
     return std::str::from_bytes(std::bytes::slice(body, 9, total));
 }
 
+// ===== AuthenticationSASL ('R' code 10) mechanism list =====
+//
+// The body of an AuthenticationSASL message is:
+//   ['R'][Int32 len][Int32 10][mech-1\0][mech-2\0]...[\0]
+// i.e. after the Int32 sub-code (offset 9) a sequence of NUL-terminated
+// mechanism-name cstrs, terminated by an empty string (a lone NUL). The
+// server advertises which SASL mechanisms it will accept; the client
+// MUST pick one it supports (RFC 4422). pq speaks only plain
+// SCRAM-SHA-256 (no channel binding, so never -PLUS — advertising 'y'
+// against a -PLUS server would be a mandatory reject per RFC 5802 §6),
+// so before starting the exchange pq.hl verifies the server actually
+// offered SCRAM-SHA-256 via sasl_offers_scram_sha256; if not it fails
+// with a clear "no mutually supported SASL mechanism" error naming what
+// the server DID offer (sasl_mechanisms) rather than an opaque
+// auth_failed deep in the handshake.
+
+// cstr_end — the index of the NUL terminating the cstr that starts at
+// `off`, or `limit` if none is found before it. Advances by BYTES (never
+// a String round-trip), so it is UTF-8-length-exact. The single shared
+// walker for stepping over NUL-terminated fields: the SASL mechanism
+// list below AND pq.hl's ErrorResponse field walk (__parse_error_fields)
+// both use it (pq.hl is a sibling in this seed, so it sees this free fn
+// without import).
+fn cstr_end(buf: Bytes, off: Int, limit: Int) -> Int {
+    let mut e = off;
+    while e < limit {
+        if byte_at(buf, e) == 0 { return e; }
+        e = e + 1;
+    }
+    return limit;
+}
+
+// sasl_mechanisms — the advertised mechanism names from an
+// AuthenticationSASL body, joined with ", " for a diagnostic error
+// detail. Empty string if none are present.
+fn sasl_mechanisms(body: Bytes, total: Int) -> String {
+    let mut off = 9;
+    let mut out = "";
+    let mut first = true;
+    while off < total {
+        let end = cstr_end(body, off, total);
+        if end <= off { off = total; }            // lone NUL: list terminator
+        else {
+            let name = std::str::from_bytes(std::bytes::slice(body, off, end));
+            if !first { out = out + ", "; }
+            out = out + name;
+            first = false;
+            off = end + 1;
+        }
+    }
+    return out;
+}
+
+// sasl_offers_scram_sha256 — whether the exact mechanism "SCRAM-SHA-256"
+// is among those advertised in an AuthenticationSASL body. A server
+// offering only "SCRAM-SHA-256-PLUS" (channel binding) returns false:
+// -PLUS is a distinct mechanism pq cannot speak.
+fn sasl_offers_scram_sha256(body: Bytes, total: Int) -> Bool {
+    let mut off = 9;
+    while off < total {
+        let end = cstr_end(body, off, total);
+        if end <= off { return false; }           // list terminator, not found
+        let name = std::str::from_bytes(std::bytes::slice(body, off, end));
+        if name == "SCRAM-SHA-256" { return true; }
+        off = end + 1;
+    }
+    return false;
+}
+
 // ===== SASL exchange failure classification (retry contract) =====
 //
 // A read failure (peer close) mid-__sasl_exchange (pq.hl) is a

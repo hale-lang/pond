@@ -4,10 +4,11 @@
 // deterministic function of (password, client-first-bare, server
 // message text). The pgwire framing that carries these strings lives
 // in wire.hl; the exchange sequencing lives in pq.hl's
-// __sasl_exchange. Keeping the crypto here dependency-free (only
-// std::crypto / std::text::base64 / std::os) means the whole core is
-// unit-testable in-tree against the RFC 7677 vector — same pattern as
-// wire.hl and its offline test.
+// __sasl_exchange. Keeping the crypto here std-only (std::crypto,
+// std::text::base64, std::os, std::bytes, std::str — no sibling-file
+// or FFI coupling) means the whole core is unit-testable in-tree
+// against the RFC 7677 vector — same pattern as wire.hl and its
+// offline test.
 //
 // Scope: SCRAM-SHA-256 WITHOUT channel binding (gs2 header "n,,",
 // c=biws). We never advertise "y"/-PLUS — that is a mandatory reject

@@ -35,6 +35,21 @@ server's CA to be installed in the container's system trust store
 is an operational prerequisite, not needed for `require`. An unknown
 `sslmode` is rejected at `open()`.
 
+> **`prefer` diverges from libpq on a broken handshake (deliberate).**
+> libpq's `prefer` falls back to plaintext on *any* TLS failure —
+> including a handshake that fails *after* the server answered `'S'`
+> (TLS offered). pq's `prefer` matches libpq on the `'N'` path (server
+> has no TLS → fall back to plaintext) but is **stricter on a post-`'S'`
+> handshake failure: it fails closed** (`kind: "tls"`) instead of
+> downgrading. Rationale: once the server has said `'S'`, a handshake
+> that then breaks is anomalous — the plaintext-capable path is already
+> behind us, so a fallback here would mask active MITM interference
+> (a stripped/tampered handshake) rather than paper over a
+> merely-plaintext server. libpq's fallback there is a *compatibility*
+> behavior, not a security feature; pq chooses fail-closed. If strict
+> libpq parity is required, the plaintext-retry fallback can be added as
+> a follow-up.
+
 > **Pin `sslmode` in production.** `prefer`'s plaintext fallback is
 > silent by design (it just logs — see below) so it's the right default
 > for a library that must not break existing plaintext-only callers, but

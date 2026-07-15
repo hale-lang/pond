@@ -7,8 +7,8 @@
 // signature-mismatch fail-closed behaviour.
 //
 // SCOPE NOTE: imports `../scram` as a SINGLE FILE (like wire_test.hl
-// imports `../wire`). scram.hl is dependency-free pure Hale
-// (std::crypto / std::text::base64 / std::os only), so the whole
+// imports `../wire`). scram.hl is std-only pure Hale (std::crypto,
+// std::text::base64, std::os, std::bytes, std::str), so the whole
 // crypto core is testable in-tree without the vendored db seed.
 //
 // Run:  hale run pq/tests/scram_test.hl   (exit 0 = pass)

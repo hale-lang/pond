@@ -106,13 +106,19 @@ fn __run_pool(host: String, port: Int, user: String, password: String,
                 " row(s): ", rows.csv);
         i = i + 1;
     }
-    // Capture n before close() — F3 hardening resets pool.n to 0 as part
-    // of close()'s idempotent teardown (pool.hl __teardown), so reading
-    // it after close() would always report 0.
+    // Capture n (and the transport) before close() — F3 hardening resets
+    // pool.n to 0 as part of close()'s idempotent teardown (pool.hl
+    // __teardown), so reading it after close() would always report 0.
     let opened_n = pool.n;
+    // B4: gate the transport label on pool.pool_tls. Under sslmode=disable
+    // (or a prefer->plaintext fallback) the pooled conns are plaintext, so
+    // an unconditional "TLS-pooled" would mislead in exactly the runs a
+    // reader uses to CHECK the transport.
+    let was_tls  = pool.pool_tls;
+    let transport = if was_tls { "TLS-pooled" } else { "plaintext-pooled" };
     pool.close();
     println("POOL CLOSED — 4 queries over ", to_string(opened_n),
-            " TLS-pooled conns complete");
+            " ", transport, " conns complete");
     // F3 regression check: a second close() must be a safe no-op, not a
     // handle-table double-close/use-after-free on the TLS handles.
     pool.close();

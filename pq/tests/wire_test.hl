@@ -152,6 +152,73 @@ fn main() {
     std::test::assert_eq_str(wire::sasl_r_text(okbytes, 9), "",
         "sasl_r_text is empty on a code-0 AuthenticationOk frame (no payload after the sub-code)");
 
+    // ========= AuthenticationSASL (code 10) mechanism-list parsing =========
+    // The AuthenticationSASL body is ['R'][Int32 len][Int32 10] followed by
+    // a sequence of NUL-terminated mechanism-name cstrs, terminated by an
+    // empty string (a lone NUL). pq speaks only plain SCRAM-SHA-256 (no
+    // channel binding, never -PLUS), so before starting the exchange it MUST
+    // confirm the server actually advertised SCRAM-SHA-256 — otherwise a
+    // server offering only SCRAM-SHA-256-PLUS (or a non-SCRAM mech) would
+    // fail opaquely deep in the handshake instead of with a clear "no
+    // mutually supported mechanism" error. This parses that list offline.
+
+    // Helper builds an AuthenticationSASL frame from a mechanisms blob
+    // (already including per-name NULs + the trailing terminator NUL).
+    // ['R'][Int32 len][Int32 10][mechs...]. Returns the frame; `total` is
+    // len(frame).
+    //
+    // (a) server offers BOTH SCRAM-SHA-256 and SCRAM-SHA-256-PLUS.
+    let mechs_both = std::bytes::BytesBuilder { initial_cap: 64 };
+    wire::__append_cstr(mechs_both, "SCRAM-SHA-256");
+    wire::__append_cstr(mechs_both, "SCRAM-SHA-256-PLUS");
+    mechs_both.append(std::bytes::from_int(0));   // list terminator (empty string)
+    let mb = mechs_both.snapshot();
+    let sasl_both = std::bytes::BytesBuilder { initial_cap: 64 };
+    sasl_both.append(std::bytes::from_int(82));    // 'R'
+    wire::be32_append(sasl_both, 8 + len(mb));     // len: itself(4) + code(4) + mechs
+    wire::be32_append(sasl_both, 10);              // sub-code 10 = AuthenticationSASL
+    sasl_both.append(mb);
+    let sb = sasl_both.finish();
+    let sb_total = 9 + len(mb);
+    std::test::assert_eq_int(wire::sasl_r_code(sb), 10, "code 10 = AuthenticationSASL");
+    std::test::assert(wire::sasl_offers_scram_sha256(sb, sb_total),
+        "sasl_offers_scram_sha256 is true when the server advertises SCRAM-SHA-256");
+    std::test::assert_eq_str(wire::sasl_mechanisms(sb, sb_total),
+        "SCRAM-SHA-256, SCRAM-SHA-256-PLUS",
+        "sasl_mechanisms lists every advertised mechanism, comma-joined");
+
+    // (b) server offers ONLY SCRAM-SHA-256-PLUS (channel binding) — pq does
+    // NOT support -PLUS, so this must read as "SCRAM-SHA-256 NOT offered".
+    let mechs_plus = std::bytes::BytesBuilder { initial_cap: 64 };
+    wire::__append_cstr(mechs_plus, "SCRAM-SHA-256-PLUS");
+    mechs_plus.append(std::bytes::from_int(0));    // list terminator
+    let mp = mechs_plus.snapshot();
+    let sasl_plus = std::bytes::BytesBuilder { initial_cap: 64 };
+    sasl_plus.append(std::bytes::from_int(82));     // 'R'
+    wire::be32_append(sasl_plus, 8 + len(mp));
+    wire::be32_append(sasl_plus, 10);
+    sasl_plus.append(mp);
+    let sp = sasl_plus.finish();
+    let sp_total = 9 + len(mp);
+    std::test::assert(!wire::sasl_offers_scram_sha256(sp, sp_total),
+        "sasl_offers_scram_sha256 is FALSE when only SCRAM-SHA-256-PLUS is offered "
+        + "(pq has no channel binding, so -PLUS is not the same mechanism)");
+    std::test::assert_eq_str(wire::sasl_mechanisms(sp, sp_total),
+        "SCRAM-SHA-256-PLUS",
+        "sasl_mechanisms surfaces the offered mechanism for the error detail");
+
+    // (c) cstr_end steps over a NUL-terminated field by BYTE length (the
+    // shared UTF-8-robust walker used by both the mechanism list and the
+    // ErrorResponse field walk). "ab\0cd": NUL is at index 2.
+    let cs = std::bytes::from_string("ab");
+    let csb = std::bytes::BytesBuilder { initial_cap: 8 };
+    csb.append(cs); csb.append(std::bytes::from_int(0)); csb.append(std::bytes::from_string("cd"));
+    let csbytes = csb.finish();
+    std::test::assert_eq_int(wire::cstr_end(csbytes, 0, len(csbytes)), 2,
+        "cstr_end finds the NUL index (byte-length advance, no String round-trip)");
+    std::test::assert_eq_int(wire::cstr_end(csbytes, 3, len(csbytes)), len(csbytes),
+        "cstr_end returns the limit when no NUL is found before it");
+
     // ================= F2/F4: SASL retry / fail-fast classification =================
     // Single source of truth for the contract between __sasl_exchange's
     // read-failure branches and open()'s retry loop (both in pq.hl,

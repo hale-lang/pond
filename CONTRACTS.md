@@ -771,6 +771,23 @@ recv blocks the OS thread (no async_io park), so a TLS PgConn/PgPool
 must NOT be placed on an async_io pool — fine on ordinary cooperative
 pools where pq already blocks.
 
+**`prefer` post-`'S'` handshake failure — deliberate libpq divergence
+(2026-07-15, daydream-dvl PR review B1).** The table's `'S'`/`'N'`
+columns describe the server's *reply byte*; they do not cover a
+handshake that fails *after* `'S'`. `prefer` is **libpq-compatible on
+the `'N'` path** (server has no TLS → fall back to plaintext) but
+**stricter than libpq on a post-`'S'` handshake failure: it fails
+closed** (`kind: "tls"`, fail-fast) under *every* sslmode including
+`prefer`, rather than downgrading to plaintext as libpq's `prefer`
+would. Rationale: once the server answered `'S'`, the plaintext-capable
+branch is already behind us, so a broken handshake is anomalous — a
+silent fallback there would mask active MITM interference (a
+stripped/tampered handshake) instead of merely accommodating a
+plaintext-only server. libpq's fallback on that path is a compatibility
+behavior, not a security feature; pq chooses fail-closed. A
+plaintext-retry fallback for strict libpq parity is a possible
+follow-up if a consumer needs it.
+
 **Operational guidance (2026-07-14, rl-critic hardening round).**
 `prefer`'s fallback is intentionally silent-safe-by-default for the
 library (existing plaintext callers must not break), but production

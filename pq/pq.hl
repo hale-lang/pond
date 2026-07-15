@@ -51,6 +51,15 @@ type __SaslResult {
     err_detail: String = "";
 }
 
+// __ErrFields — the fields pulled from an ErrorResponse ('E') body by
+// __parse_error_fields: the human-readable 'M' Message and the 'C'
+// SQLSTATE code. Both the __pump 'E' branch and __error_message consume
+// it (they previously duplicated the field walk).
+type __ErrFields {
+    message: String = "";
+    code:    String = "";
+}
+
 locus PgConn {
     params {
         host:     String = "127.0.0.1";
@@ -196,8 +205,15 @@ locus PgConn {
         // BackendKeyData / ReadyForQuery tail exactly as before.
         let auth = self.__read_one_msg();
         if !auth.ok {
+            // A4: a peer-close on this first post-Startup read is the same
+            // transient cold-dial condition as a peer-close mid-SASL
+            // (__sasl_exchange's m2/m3/m4 use sasl_retryable_kind() = "io")
+            // or in __pump (kind "io") — classify it "io" for consistency,
+            // not "open_failed". Both are outside is_fail_fast_kind so the
+            // retry behaviour is identical; this only aligns the taxonomy so
+            // a peer-close mid-read reports one kind everywhere.
             self.connected = false;
-            return db::Status { ok: false, err: db::DbError { kind: "open_failed",
+            return db::Status { ok: false, err: db::DbError { kind: "io",
                 engine_code: 0, detail: "startup: " + auth.err } };
         }
         if auth.mtype == 69 {                        // 'E' ErrorResponse, pre-auth
@@ -220,6 +236,22 @@ locus PgConn {
         }
         let code = sasl_r_code(auth.body);
         if code == 10 {                             // AuthenticationSASL
+            // A1: verify the server actually advertised plain SCRAM-SHA-256
+            // before starting the exchange. pq speaks only SCRAM-SHA-256 (no
+            // channel binding, never -PLUS). A server offering only
+            // SCRAM-SHA-256-PLUS, or a non-SCRAM mechanism, shares no
+            // mechanism with us — without this check the exchange would send
+            // a SASLInitialResponse hardcoding "SCRAM-SHA-256" and fail with
+            // an opaque auth_failed. Instead fail fast ("unsupported" is in
+            // is_fail_fast_kind, so no 8x retry storm) with a clear message
+            // naming what the server DID offer.
+            if !sasl_offers_scram_sha256(auth.body, auth.total) {
+                self.connected = false;
+                return db::Status { ok: false, err: db::DbError { kind: "unsupported",
+                    engine_code: 0, detail: "no mutually supported SASL mechanism (server offered: "
+                        + sasl_mechanisms(auth.body, auth.total)
+                        + "; pq supports SCRAM-SHA-256)" } };
+            }
             let se = self.__sasl_exchange();
             if !se.ok {
                 self.connected = false;
@@ -279,17 +311,20 @@ locus PgConn {
     // change on redial, and verify-full must fail cleanly, not after an
     // 8x retry storm.
     fn __negotiate_tls() -> db::Status {
-        // SSLRequest goes over PLAINTEXT (the fd is not upgraded yet), via
-        // a BORROWED std::io::tcp::Stream (owns_fd: false so its dissolve
-        // does not close self.sock — which we still need, to upgrade or to
-        // continue plaintext). Same transport pq uses everywhere; the tcp
-        // free-fn send/recv the keepalive precedent uses segfault natively
-        // on this toolchain (see stream.hl).
-        let s = std::io::tcp::Stream { conn_fd: self.sock, owns_fd: false };
-        s.send_bytes(build_ssl_request());
+        // SSLRequest goes over PLAINTEXT (the fd is not upgraded yet).
+        // B2: route it through the SAME stream.hl helpers every other pq
+        // I/O site uses, with is_tls=false. __send_raw/__recv_raw own the
+        // borrowed-Stream idiom (owns_fd:false so the transient wrapper's
+        // dissolve does not close self.sock — which we still need, to
+        // upgrade or to continue plaintext) AND the workaround for the
+        // segfaulting tcp send/recv free-fns, in ONE place. This was the
+        // last I/O site hand-rolling that idiom; keeping it in stream.hl
+        // means a future toolchain fix (e.g. hale un-segfaults the free
+        // fns) touches one file, not two.
+        __send_raw(self.sock, false, build_ssl_request());
         // Reply is EXACTLY one byte, unframed — not a normal pgwire
         // message, so we read it directly rather than via __read_one_msg.
-        let reply = s.recv_bytes(1);
+        let reply = __recv_raw(self.sock, false, 1);
         if len(reply) == 0 {
             return db::Status { ok: false, err: db::DbError { kind: "io",
                 engine_code: 0, detail: "ssl: peer closed before SSLRequest reply" } };
@@ -301,10 +336,25 @@ locus PgConn {
             let handle = std::io::tls::upgrade(self.sock, self.host, verify)
                 or __on_upgrade_fail(err);
             if handle < 0 {
-                // Handshake failed. The primitive did NOT close our fd
-                // (caller owns it) — so tear it down ourselves here; it is
-                // still a plaintext fd (tls not yet flipped).
-                std::io::tcp::__close_fd(self.sock);
+                // Handshake failed. std::io::tls::upgrade owns its own SSL
+                // cleanup on EVERY failure path and never closes our fd (it
+                // is caller-owned), so tearing down just the (still
+                // plaintext, tls not yet flipped) fd here is leak-free. B3 —
+                // verified against the runtime contract in lotus_tls.c
+                // (lotus_tls_upgrade, hale-tls-upgrade tree):
+                //   * bad-arg / ctx-get / SSL_new failures return before any
+                //     SSL is allocated — nothing to free;
+                //   * SSL_connect failure (the EXPECTED verify-full/cert
+                //     path) SSL_free()s the ssl (lotus_tls.c:361);
+                //   * the handle-table realloc ENOMEM path SSL_shutdown +
+                //     SSL_free()s it (lotus_tls.c:377-378);
+                //   * the BIO is transferred into the SSL (SSL_set_bio) so
+                //     SSL_free frees it too — no BIO leak either.
+                // No partial SSL object is ever returned to us. B2: close
+                // via stream.hl's __close_handle (is_tls=false) rather than
+                // a raw std::io::tcp::__close_fd, so teardown routes through
+                // the same helper as everywhere else.
+                __close_handle(self.sock, false);
                 self.sock = -1;
                 return db::Status { ok: false, err: db::DbError { kind: "tls",
                     engine_code: 0, detail: "ssl: TLS handshake failed to " + self.host
@@ -412,6 +462,14 @@ locus PgConn {
         if !m4.ok {
             return __SaslResult { ok: false, err_kind: sasl_retryable_kind(),
                 err_detail: "auth: " + m4.err };
+        }
+        if m4.mtype == 69 {                          // 'E' — surface it like m2/m3
+            // A3: a server ErrorResponse can arrive here too (e.g. a
+            // post-verification failure the server only reports after the
+            // client proof). Surface its actual message the way the m2/m3
+            // reads do, rather than the generic "expected AuthenticationOk".
+            return __SaslResult { ok: false, err_kind: "auth_failed",
+                err_detail: "auth: " + __error_message(m4.body, m4.total) };
         }
         if m4.mtype != 82 || sasl_r_code(m4.body) != 0 {
             return __SaslResult { ok: false, err_kind: "auth_failed",
@@ -696,20 +754,14 @@ fn __handle_msg(mtype: Int, msg: Bytes, total: Int, res: __PgResult) {
         res.cmd_tag = __cstr_at(msg, 5);
         return;
     }
-    // 'E' (69) ErrorResponse — field-typed cstrs until 0
+    // 'E' (69) ErrorResponse — field-typed cstrs until 0. A2: the walk is
+    // now the shared __parse_error_fields (also used by __error_message).
     if mtype == 69 {
         res.ok = false;
         res.err_kind = "query_failed";
-        let mut off = 5;
-        while off < total {
-            let ftype = byte_at(msg, off);
-            if ftype == 0 { off = total; } else {
-                let val = __cstr_at(msg, off + 1);
-                if ftype == 77 { res.err_detail = val; }      // 'M' message
-                if ftype == 67 { res.err_code = val; }        // 'C' SQLSTATE
-                off = off + 1 + len(std::bytes::from_string(val)) + 1;
-            }
-        }
+        let fields = __parse_error_fields(msg, total);
+        res.err_detail = fields.message;
+        res.err_code = fields.code;
         return;
     }
     // 'R' (82) Authentication — the open() handshake consumes the
@@ -731,24 +783,45 @@ fn __handle_msg(mtype: Int, msg: Bytes, total: Int, res: __PgResult) {
     // 'N' notice, 'I' empty-query: nothing to accumulate.
 }
 
-// __error_message — extract the human-readable 'M' (Message) field
-// from an ErrorResponse ('E') body. Mirrors the field-typed cstr walk
-// in __handle_msg's 'E' branch. Falls back to a generic string when no
-// 'M' field is present, so an auth failure always has a useful detail.
-fn __error_message(msg: Bytes, total: Int) -> String {
+// __parse_error_fields — walk an ErrorResponse ('E') body's field-typed
+// entries (each: [Byte field-type][NUL-terminated value], the sequence
+// terminated by a 0 field-type byte) and pull out the 'M' (human
+// Message) and 'C' (SQLSTATE) fields. A2: the single source of truth for
+// that walk, shared by __handle_msg's 'E' branch (wants message + code)
+// and __error_message (wants the message for auth/startup detail) — each
+// previously duplicated it.
+//
+// A6: the offset advance uses wire.hl's cstr_end (the exact byte index of
+// the value's NUL) instead of a len(std::bytes::from_string(val)) String
+// round-trip. The round-trip assumed String<->Bytes preserved byte
+// length; a multi-byte-UTF-8 field value (e.g. a localized server
+// message) could desync the walk. Stepping over the raw bytes to the NUL
+// is UTF-8-length-exact.
+fn __parse_error_fields(msg: Bytes, total: Int) -> __ErrFields {
+    let mut fields = __ErrFields { };
     let mut off = 5;
-    let mut out = "";
     while off < total {
         let ftype = byte_at(msg, off);
         if ftype == 0 { off = total; }
         else {
-            let val = __cstr_at(msg, off + 1);
-            if ftype == 77 { out = val; }          // 'M' message
-            off = off + 1 + len(std::bytes::from_string(val)) + 1;
+            let vend = cstr_end(msg, off + 1, total);
+            let val  = std::str::from_bytes(std::bytes::slice(msg, off + 1, vend));
+            if ftype == 77 { fields.message = val; }   // 'M' human message
+            if ftype == 67 { fields.code = val; }      // 'C' SQLSTATE
+            off = vend + 1;
         }
     }
-    if len(out) == 0 { return "authentication failed"; }
-    return out;
+    return fields;
+}
+
+// __error_message — the human-readable 'M' (Message) field of an
+// ErrorResponse ('E') body, via the shared __parse_error_fields walk.
+// Falls back to a generic string when no 'M' field is present, so an
+// auth/startup failure always has a useful detail.
+fn __error_message(msg: Bytes, total: Int) -> String {
+    let fields = __parse_error_fields(msg, total);
+    if len(fields.message) == 0 { return "authentication failed"; }
+    return fields.message;
 }
 
 // __cstr_at — read a NUL-terminated string starting at `off`.
