@@ -33,6 +33,7 @@
   "import"
   "as"
   "main"
+  "export"
 ] @keyword
 
 ; Locus annotation keywords
@@ -51,6 +52,12 @@
   "pinned"
   "cap"
   "core"
+  "cores"
+  "node"
+  "l3"
+  "replicas"
+  "reserve"
+  "serves"
 ] @keyword.modifier
 
 ; Locus member keywords
@@ -61,6 +68,7 @@
   "capacity"
   "bindings"
   "placement"
+  "topology"
 ] @keyword
 
 ; Lifecycle + mode keywords
@@ -108,6 +116,7 @@
   "epoch"
   "persists_through"
   "resets_on"
+  "resets_per_epoch"
   "captures"
   "inline"
   "tick"
@@ -135,6 +144,7 @@
   "on_overflow"
   "block"
   "drop"
+  "async_io"
   "intra_process"
   "intra_machine"
   "cross_machine"
@@ -159,6 +169,9 @@
   "nil"
   "self"
   "yield"
+  "terminate"
+  "reperspective"
+  "release"
   "sum"
   "prod"
 ] @keyword
