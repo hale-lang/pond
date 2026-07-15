@@ -1,0 +1,126 @@
+// pond/pq example — pgwire-roundtrip
+//
+// Opens a REAL pq::PgConn (or pq::PgPool) against a postgres server,
+// negotiates TLS per `sslmode`, authenticates (trust OR SCRAM-SHA-256,
+// chosen by whether a password is supplied), runs a round-trip query,
+// and prints the result. This is the LIVE gate for pq's TLS + auth +
+// simple-query path.
+//
+// It is deliberately NOT part of the offline test suite
+// (`hale run pq/tests/*_test.hl`): pond's test runner has no
+// skip/ignore mechanism, so a server-required case would break the
+// gate for everyone. Per the repo convention (FRICTION.log § pond/pq
+// "examples/ pending"), live cases live in examples/, not tests/.
+//
+// pq imports `vendor/pond/db`, so this example only builds inside a
+// vendored consumer tree (FRICTION.log § pond/pq "In-repo build vs
+// check"). Materialize the vendor tree first — see README.md — then:
+//
+//   hale build .
+//   ./pgwire-roundtrip                                  # SCRAM :55433, prefer
+//   ./pgwire-roundtrip 127.0.0.1 55433 postgres pw db "SELECT 1" require
+//   ./pgwire-roundtrip localhost 55435 postgres pw db "SELECT 1" verify-full
+//   ./pgwire-roundtrip 127.0.0.1 55433 postgres pw db "SELECT 1" require pool
+//
+// argv: [host] [port] [user] [password] [database] [sql] [sslmode] [mode]
+//   sslmode: disable | prefer(default) | require | verify-full
+//   mode:    conn(default) | pool   (pool exercises TLS over 3 conns)
+
+import "vendor/pond/db" as db;
+import "vendor/pond/pq" as pq;
+
+fn main() {
+    let host     = std::env::arg_or(1, "127.0.0.1");
+    let port     = std::str::parse_int(std::env::arg_or(2, "55433")) or 55433;
+    let user     = std::env::arg_or(3, "postgres");
+    let password = std::env::arg_or(4, "testpass");
+    let database = std::env::arg_or(5, "postgres");
+    let sql      = std::env::arg_or(6,
+        "SELECT 'pgwire-roundtrip-ok' AS msg, current_user AS usr");
+    let sslmode  = std::env::arg_or(7, "prefer");
+    let mode     = std::env::arg_or(8, "conn");
+
+    let auth = if len(password) > 0 { "SCRAM-SHA-256" } else { "trust" };
+    println("connect ", host, ":", to_string(port), " db=", database,
+            " user=", user, " auth=", auth, " sslmode=", sslmode,
+            " mode=", mode);
+
+    if mode == "pool" {
+        __run_pool(host, port, user, password, database, sql, sslmode);
+        return;
+    }
+
+    let c = pq::PgConn { host: host, port: port, user: user,
+                         password: password, database: database,
+                         sslmode: sslmode };
+
+    let st = c.open();
+    if !st.ok {
+        // Clean, structured failure — no hang, no crash. A rejected
+        // password surfaces as kind "auth_failed"; a refused/failed TLS
+        // negotiation as kind "tls"; a bad sslmode as "config".
+        println("OPEN FAILED [", st.err.kind, "]: ", st.err.detail);
+        return;
+    }
+    println("OPEN OK  tls=", to_string(c.tls), " tx_status=", c.tx_status());
+
+    let rows = c.query_all(sql);
+    if !rows.ok {
+        println("QUERY FAILED [", rows.err.kind, "]: ", rows.err.detail);
+        c.close();
+        return;
+    }
+    println("QUERY OK  ", to_string(rows.n), " row(s)");
+    println(rows.csv);
+
+    c.close();
+    println("CLOSED — roundtrip complete");
+}
+
+// __run_pool — the PgPool-over-TLS gate: open a 3-connection pool and
+// run the query FOUR times, so round-robin acquire visits every pooled
+// connection (each of which is a TLS handle when sslmode negotiated TLS)
+// at least once — exercising the pooled-transport threading end to end.
+fn __run_pool(host: String, port: Int, user: String, password: String,
+              database: String, sql: String, sslmode: String) {
+    let pool = pq::PgPool { host: host, port: port, user: user,
+                            password: password, database: database,
+                            sslmode: sslmode, size: 3 };
+    let st = pool.open();
+    if !st.ok {
+        println("POOL OPEN FAILED [", st.err.kind, "]: ", st.err.detail);
+        return;
+    }
+    println("POOL OPEN OK  n=", to_string(pool.n), " pool_tls=", to_string(pool.pool_tls));
+
+    let mut i = 0;
+    while i < 4 {
+        let rows = pool.query_all(sql);
+        if !rows.ok {
+            println("POOL QUERY ", to_string(i), " FAILED [", rows.err.kind,
+                    "]: ", rows.err.detail);
+            pool.close();
+            return;
+        }
+        println("POOL QUERY ", to_string(i), " OK  ", to_string(rows.n),
+                " row(s): ", rows.csv);
+        i = i + 1;
+    }
+    // Capture n (and the transport) before close() — F3 hardening resets
+    // pool.n to 0 as part of close()'s idempotent teardown (pool.hl
+    // __teardown), so reading it after close() would always report 0.
+    let opened_n = pool.n;
+    // B4: gate the transport label on pool.pool_tls. Under sslmode=disable
+    // (or a prefer->plaintext fallback) the pooled conns are plaintext, so
+    // an unconditional "TLS-pooled" would mislead in exactly the runs a
+    // reader uses to CHECK the transport.
+    let was_tls  = pool.pool_tls;
+    let transport = if was_tls { "TLS-pooled" } else { "plaintext-pooled" };
+    pool.close();
+    println("POOL CLOSED — 4 queries over ", to_string(opened_n),
+            " ", transport, " conns complete");
+    // F3 regression check: a second close() must be a safe no-op, not a
+    // handle-table double-close/use-after-free on the TLS handles.
+    pool.close();
+    println("POOL double-close() completed without error (F3 idempotency)");
+}

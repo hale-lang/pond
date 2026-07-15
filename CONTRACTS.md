@@ -741,22 +741,93 @@ Postgres driver speaking the pgwire v3 protocol over TCP (added
 2026-06; commits `d0f8123`, `f23c27b`, `6945294`). Satisfies
 `db::DbDriver`. Vendors `pond/db`.
 
+Auth: **trust** (empty `password`) and **SCRAM-SHA-256** (non-empty
+`password`; RFC 5802 / 7677, no channel binding). Negotiated at
+`open()` from the server's Authentication reply. MD5 is unsupported.
+`password` is consumed only during the handshake.
+
+**TLS** (2026-07-14, daydream-dvl): a `sslmode` param drives a
+STARTTLS-style pgwire SSLRequest at the top of `open()`, before
+StartupMessage. Four values (libpq's load-bearing set):
+
+| `sslmode`     | on server 'S' (TLS offered) | on server 'N' (no TLS) |
+|---------------|-----------------------------|------------------------|
+| `disable`     | (never sends SSLRequest)    | dials plaintext        |
+| `prefer` **(default)** | upgrade, no cert verify | fall back to plaintext |
+| `require`     | upgrade, **no** cert verify | **fail closed** (kind `tls`) |
+| `verify-full` | upgrade + hostname/chain verify vs system trust store | **fail closed** (kind `tls`) |
+
+Default is **`prefer`** (libpq's own default): opportunistic TLS with a
+plaintext fallback, so every existing plaintext-only call site keeps
+working while TLS-capable servers get encryption automatically.
+`require`/`verify-full` never downgrade. `verify-full` needs the
+server's CA in the system trust store; `require` does not (encrypt
+without authenticating — the sorcery-fleet posture vs RDS). An unknown
+`sslmode` is rejected at `open()` (kind `config`). A definitive TLS
+negotiation failure (refused under require/verify-full, handshake
+failure, junk reply) is fail-fast; a peer-close *before* the reply is a
+retryable `io` cold-dial transient. **Scheduler caveat:** hale's TLS
+recv blocks the OS thread (no async_io park), so a TLS PgConn/PgPool
+must NOT be placed on an async_io pool — fine on ordinary cooperative
+pools where pq already blocks.
+
+**`prefer` post-`'S'` handshake failure — deliberate libpq divergence
+(2026-07-15, daydream-dvl PR review B1).** The table's `'S'`/`'N'`
+columns describe the server's *reply byte*; they do not cover a
+handshake that fails *after* `'S'`. `prefer` is **libpq-compatible on
+the `'N'` path** (server has no TLS → fall back to plaintext) but
+**stricter than libpq on a post-`'S'` handshake failure: it fails
+closed** (`kind: "tls"`, fail-fast) under *every* sslmode including
+`prefer`, rather than downgrading to plaintext as libpq's `prefer`
+would. Rationale: once the server answered `'S'`, the plaintext-capable
+branch is already behind us, so a broken handshake is anomalous — a
+silent fallback there would mask active MITM interference (a
+stripped/tampered handshake) instead of merely accommodating a
+plaintext-only server. libpq's fallback on that path is a compatibility
+behavior, not a security feature; pq chooses fail-closed. A
+plaintext-retry fallback for strict libpq parity is a possible
+follow-up if a consumer needs it.
+
+**Operational guidance (2026-07-14, rl-critic hardening round).**
+`prefer`'s fallback is intentionally silent-safe-by-default for the
+library (existing plaintext callers must not break), but production
+consumers should pin `sslmode` explicitly — `require` for RDS-class
+deployments — rather than rely on the default; daydream's own pinning
+is tracked separately (daydream-8a4). A `prefer` fallback now logs a
+one-line `[pq] tls: ... negotiated PLAINTEXT ...` notice so the
+downgrade is observable. Pass a hostname, not an IP literal, as `host`
+under `require`/`verify-full` (SNI / `SSL_set1_host` have DNS-name
+semantics). `PgPool.open()` now enforces transport homogeneity across
+its pooled connections — a mismatch after connection 0 (only reachable
+under `prefer` against a non-uniform backend) fails the whole pool
+closed (kind `tls`) instead of risking a connection's handle being
+driven through the wrong transport family. `PgPool.close()` is now
+idempotent (guarded by an internal `opened` flag) — a second call is a
+no-op instead of double-closing already-torn-down TLS handles.
+
 ```hale
 import "vendor/pond/db" as db;
 
 locus PgConn {                                     // single connection
     params { host = "127.0.0.1"; port = 5432; user = "postgres";
-             database = "postgres"; sock = -1; connected = false;
+             password = "";                        // "" = trust; else SCRAM-SHA-256
+             database = "postgres";
+             sslmode = "prefer";                   // disable|prefer|require|verify-full
+             sock = -1; connected = false; tls = false;  // tls: derived, not a caller knob
              txn_state = "idle"; recv_chunk = 8192; /* + rx_buf BytesBuilder */ }
     // satisfies db::DbDriver: backend/open/close/exec/query_one/query_all/
     // exec_params/query_params/begin/commit/rollback/tx_status
 }
 
 locus PgPool {                                     // fixed-size connection pool
-    params { host; port; user; database; size: Int = 4; }
+    params { host; port; user; password = ""; database;
+             sslmode = "prefer"; size: Int = 4; pool_tls = false; }
     // satisfies db::DbDriver; round-robin acquire over `size` PgConns.
-    // begin/commit/rollback are no-ops (tx_status: "n/a (pool)") — use a
-    // single PgConn for transactions.
+    // `password` + `sslmode` are threaded into each pooled PgConn's
+    // open(); `pool_tls` is derived once (homogeneous pool) and selects
+    // the transport for every pooled op. begin/commit/rollback are
+    // no-ops (tx_status: "n/a (pool)") — use a single PgConn for
+    // transactions.
 }
 ```
 

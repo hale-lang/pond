@@ -1,0 +1,171 @@
+// pond/pq tests — SCRAM-SHA-256 core (scram.hl), fully offline.
+//
+// NO postgres server is involved. This pins the pure SCRAM-SHA-256
+// client computation against the RFC 7677 §3 published worked
+// example (username "user", password "pencil") byte-for-byte, plus
+// edge cases on the server-first parser, base64 round-trips, and
+// signature-mismatch fail-closed behaviour.
+//
+// SCOPE NOTE: imports `../scram` as a SINGLE FILE (like wire_test.hl
+// imports `../wire`). scram.hl is std-only pure Hale (std::crypto,
+// std::text::base64, std::os, std::bytes, std::str), so the whole
+// crypto core is testable in-tree without the vendored db seed.
+//
+// Run:  hale run pq/tests/scram_test.hl   (exit 0 = pass)
+
+import "../scram" as scram;
+
+// to_hex — local Bytes->hex helper (std::test has no assert_eq_bytes,
+// so byte vectors are pinned as hex strings via assert_eq_str).
+fn to_hex(b: Bytes) -> String {
+    let n = len(b);
+    let mut out = "";
+    let mut i = 0;
+    while i < n {
+        let v = std::bytes::at(b, i) or 0;
+        out = out + nib((v / 16) - ((v / 16) / 16) * 16) + nib(v - (v / 16) * 16);
+        i = i + 1;
+    }
+    return out;
+}
+fn nib(n: Int) -> String {
+    if n < 10 { return to_string(n); }
+    if n == 10 { return "a"; }
+    if n == 11 { return "b"; }
+    if n == 12 { return "c"; }
+    if n == 13 { return "d"; }
+    if n == 14 { return "e"; }
+    return "f";
+}
+
+fn main() {
+    // ================= RFC 7677 §3 worked example =================
+    // username = "user", password = "pencil",
+    // client nonce = "rOprNGfwEbeRWgbNEkqO".
+    let password = "pencil";
+    let client_first_bare = "n=user,r=rOprNGfwEbeRWgbNEkqO";
+    let server_first =
+        "r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096";
+
+    // ---- SaltedPassword = Hi(pencil, salt, 4096) ----
+    // Independently captured from the recon-spike (daydream-0v2),
+    // which reproduces every RFC 7677 §3 output byte-for-byte.
+    let salt = std::text::base64::decode("W22ZaJ0SNY7soEsUEjb6gQ==");
+    let salted = scram::salted_password(password, salt, 4096);
+    std::test::assert_eq_str(to_hex(salted),
+        "c4a49510323ab4f952cac1fa99441939e78ea74d6be81ddf7096e87513dc615d",
+        "SaltedPassword = Hi(pencil, salt, 4096) [RFC 7677 §3]");
+
+    // ---- full client-final + server signature ----
+    let cf = scram::compute_client_final(password, client_first_bare, server_first);
+    std::test::assert(cf.ok, "compute_client_final succeeds on RFC server-first");
+    std::test::assert_eq_str(cf.client_final,
+        "c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,p=dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=",
+        "client-final-message [RFC 7677 §3]");
+    std::test::assert_eq_str(cf.server_sig_b64,
+        "6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=",
+        "ServerSignature v= [RFC 7677 §3]");
+
+    // ---- server signature verification (v=) ----
+    let server_final = "v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=";
+    std::test::assert(scram::verify_server_final(server_final, cf.server_sig_b64),
+        "verify_server_final accepts the matching server signature");
+
+    // ============= server-first parsing (edge cases) =============
+    let sf = scram::parse_server_first(server_first);
+    std::test::assert(sf.ok, "parse_server_first ok on a well-formed message");
+    std::test::assert_eq_str(sf.nonce,
+        "rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0",
+        "parse_server_first extracts the full nonce (r=)");
+    std::test::assert_eq_str(sf.salt_b64, "W22ZaJ0SNY7soEsUEjb6gQ==",
+        "parse_server_first extracts the base64 salt (s=), padding intact");
+    std::test::assert_eq_int(sf.iters, 4096,
+        "parse_server_first reads the iteration count (i=), never hardcoded");
+
+    // A base64 salt whose LAST field-position sits before i= must not
+    // let the '=' padding swallow the comma: nonce/salt/iters all split
+    // cleanly regardless of field order in the payload.
+    let reordered = scram::parse_server_first("r=abc,i=8192,s=c2FsdA==");
+    std::test::assert(reordered.ok, "parse tolerates reordered fields");
+    std::test::assert_eq_str(reordered.salt_b64, "c2FsdA==", "salt parsed with '=' padding");
+    std::test::assert_eq_int(reordered.iters, 8192, "iters parsed when not last");
+
+    // Malformed / incomplete messages fail closed (ok=false), so
+    // compute_client_final never derives a proof from garbage.
+    std::test::assert(!scram::parse_server_first("total garbage").ok,
+        "parse_server_first fails on garbage");
+    std::test::assert(!scram::parse_server_first("r=abc,s=,i=4096").ok,
+        "parse_server_first fails on empty salt");
+    std::test::assert(!scram::parse_server_first("r=abc,s=c2FsdA==,i=0").ok,
+        "parse_server_first fails on non-positive iteration count");
+    let bad = scram::compute_client_final("pw", "n=,r=abc", "not a server-first");
+    std::test::assert(!bad.ok, "compute_client_final fails closed on malformed server-first");
+
+    // ============= F3: PBKDF2 iteration count DoS cap =============
+    // A hostile/misconfigured server can hand back an enormous i= to
+    // burn client CPU (Hi() is one HMAC-SHA256 per iteration). Cap well
+    // above any real deployment (postgres/RDS default is 4096).
+    std::test::assert(!scram::parse_server_first("r=abc,s=c2FsdA==,i=100000001").ok,
+        "parse_server_first rejects a PBKDF2 iteration count above the 1,000,000 DoS cap");
+    std::test::assert(scram::parse_server_first("r=abc,s=c2FsdA==,i=1000000").ok,
+        "parse_server_first accepts the iteration count exactly at the 1,000,000 cap");
+
+    // ============= F5(b): mandatory-extension (m=) rejection =============
+    // RFC 5802 §6: a server-first beginning with an extension we don't
+    // understand ("m=...") MUST abort the exchange.
+    std::test::assert(!scram::parse_server_first("m=ext,r=abc,s=c2FsdA==,i=4096").ok,
+        "parse_server_first rejects a server-first beginning with a mandatory extension (m=)");
+
+    // ============= base64 round-trips =============
+    // scram leans on std::text::base64 for salt decode and proof/sig
+    // encode; a broken round-trip would silently corrupt the proof.
+    let salt_rt = std::text::base64::decode(sf.salt_b64);
+    std::test::assert_eq_str(std::text::base64::encode(salt_rt), sf.salt_b64,
+        "base64 decode->encode round-trips the salt");
+
+    // ============= signature-mismatch fails closed =============
+    std::test::assert(!scram::verify_server_final(
+        "v=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", cf.server_sig_b64),
+        "verify_server_final rejects a wrong server signature");
+    std::test::assert(!scram::verify_server_final("v=", cf.server_sig_b64),
+        "verify_server_final rejects an empty v=");
+    std::test::assert(!scram::verify_server_final("e=other-error", cf.server_sig_b64),
+        "verify_server_final rejects a message with no v= field");
+
+    // ============= F1: nonce-extension check (RFC 5802 §5.1 MUST) =============
+    // The server's r= MUST begin with the client's nonce AND be strictly
+    // longer -- the server is required to append its own contribution.
+    // A foreign nonce, or an exact echo of the client nonce (no server
+    // contribution at all), must both be rejected. Fail closed.
+    let foreign_nonce_first =
+        "r=TOTALLYDIFFERENTNONCEVALUE,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096";
+    let foreign = scram::compute_client_final(password, client_first_bare, foreign_nonce_first);
+    std::test::assert(!foreign.ok,
+        "compute_client_final rejects a server r= that does not begin with the client nonce");
+
+    let echoed_nonce_first =
+        "r=rOprNGfwEbeRWgbNEkqO,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096";
+    let echoed = scram::compute_client_final(password, client_first_bare, echoed_nonce_first);
+    std::test::assert(!echoed.ok,
+        "compute_client_final rejects a server r= that exactly equals the client nonce (no server contribution) -- boundary case");
+
+    // ============= F5(c): scram_xor fails loud on a length mismatch =============
+    // Every real call site XORs two equal-width HMAC-SHA256/SHA-256
+    // outputs (32 bytes each); a mismatch is always an internal-bug
+    // signal. Guard against silently zero-padding the shorter side or
+    // truncating the result -- return empty Bytes so the corruption is
+    // visible downstream instead of authenticating with corrupted key
+    // material.
+    std::test::assert_eq_int(
+        len(scram::scram_xor(std::bytes::from_string("ab"), std::bytes::from_string("abcdef"))),
+        0, "scram_xor returns empty Bytes on a length mismatch instead of silently truncating");
+
+    // ============= gs2 header / empty-username client-first =============
+    std::test::assert_eq_str(scram::gs2_header(), "n,,", "gs2 header is 'n,,' (no channel binding)");
+    std::test::assert_eq_str(
+        std::text::base64::encode(std::bytes::from_string(scram::gs2_header())), "biws",
+        "base64(gs2 header) == biws (the fixed c= value)");
+    std::test::assert_eq_str(scram::make_client_first_bare("", "NONCE123"),
+        "n=,r=NONCE123",
+        "empty SASL username -> 'n=,r=<nonce>' (postgres uses StartupMessage user)");
+}

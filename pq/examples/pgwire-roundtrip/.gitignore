@@ -1,0 +1,8 @@
+# The vendor tree is materialized at run time (see README.md), not
+# committed: pq imports `vendor/pond/db`, so the example needs
+# vendor/pond/{db,pq} present to build. Symlinks into the live seeds
+# keep it tracking local edits.
+vendor/
+
+# built binary (named after the package)
+pgwire-roundtrip

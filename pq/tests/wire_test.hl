@@ -85,4 +85,303 @@ fn main() {
     std::test::assert_eq_int(len(x), 5, "terminate is 5 bytes");
     std::test::assert_eq_int(wire::byte_at(x, 0), 88, "type byte 'X'");
     std::test::assert_eq_int(wire::read_be32(x, 1), 4, "terminate length 4");
+
+    // ================= SASL frames (SCRAM-SHA-256) =================
+
+    // ---- SASLInitialResponse ----
+    // ['p'][Int32 len]["SCRAM-SHA-256"\0][Int32 client-first-len][client-first]
+    let cfirst = "n,,n=,r=abc";                  // 11 bytes
+    let si = wire::build_sasl_initial(cfirst);
+    // 'p'(1) + len(4) + mech "SCRAM-SHA-256"(13) + NUL(1) + Int32(4) + cfirst(11) = 34
+    std::test::assert_eq_int(len(si), 34, "SASLInitial total length");
+    std::test::assert_eq_int(wire::byte_at(si, 0), 112, "type byte 'p'");
+    std::test::assert_eq_int(wire::read_be32(si, 1), 33, "SASLInitial length excludes type byte");
+    let mech = std::str::from_bytes(std::bytes::slice(si, 5, 18));
+    std::test::assert_eq_str(mech, "SCRAM-SHA-256", "mechanism name cstr");
+    std::test::assert_eq_int(wire::byte_at(si, 18), 0, "mechanism NUL terminator");
+    std::test::assert_eq_int(wire::read_be32(si, 19), 11, "client-first length prefix");
+    let cf_echo = std::str::from_bytes(std::bytes::slice(si, 23, 34));
+    std::test::assert_eq_str(cf_echo, cfirst, "client-first payload (NOT NUL-terminated)");
+
+    // ---- SASLResponse ----
+    // ['p'][Int32 len][client-final] — no mechanism, no length prefix.
+    let cfinal = "c=biws,r=abc,p=xyz";           // 18 bytes
+    let sr = wire::build_sasl_response(cfinal);
+    std::test::assert_eq_int(len(sr), 23, "SASLResponse total length");
+    std::test::assert_eq_int(wire::byte_at(sr, 0), 112, "type byte 'p'");
+    std::test::assert_eq_int(wire::read_be32(sr, 1), 22, "SASLResponse length excludes type byte");
+    let cfinal_echo = std::str::from_bytes(std::bytes::slice(sr, 5, 23));
+    std::test::assert_eq_str(cfinal_echo, cfinal, "client-final payload (raw, no prefix)");
+
+    // ---- Authentication 'R' sub-code + payload parsers ----
+    // Build a synthetic SASLContinue: ['R'][Int32 len][Int32 11][text].
+    let stext = "r=abcSRV,s=c2FsdA==,i=4096";
+    let stb = std::bytes::from_string(stext);
+    let rmsg = std::bytes::BytesBuilder { initial_cap: 64 };
+    rmsg.append(std::bytes::from_int(82));        // 'R'
+    wire::be32_append(rmsg, 8 + len(stb));        // len field: itself(4) + code(4) + text
+    wire::be32_append(rmsg, 11);                  // sub-code 11 = SASLContinue
+    rmsg.append(stb);
+    let rbytes = rmsg.finish();
+    let rtotal = 9 + len(stb);                    // type(1) + len(4) + code(4) + text
+    std::test::assert_eq_int(wire::sasl_r_code(rbytes), 11, "sasl_r_code reads the R sub-code");
+    std::test::assert_eq_str(wire::sasl_r_text(rbytes, rtotal), stext,
+        "sasl_r_text extracts the server message payload after the sub-code");
+
+    // ---- F5 item 5: wire coverage for code-12 (SASLFinal) and code-0
+    // (AuthenticationOk) frames -- only code-11 was exercised above.
+    let vtext = "v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=";
+    let vtb = std::bytes::from_string(vtext);
+    let vmsg = std::bytes::BytesBuilder { initial_cap: 64 };
+    vmsg.append(std::bytes::from_int(82));        // 'R'
+    wire::be32_append(vmsg, 8 + len(vtb));        // len field: itself(4) + code(4) + text
+    wire::be32_append(vmsg, 12);                  // sub-code 12 = SASLFinal
+    vmsg.append(vtb);
+    let vbytes = vmsg.finish();
+    let vtotal = 9 + len(vtb);
+    std::test::assert_eq_int(wire::sasl_r_code(vbytes), 12, "sasl_r_code reads the SASLFinal sub-code (12)");
+    std::test::assert_eq_str(wire::sasl_r_text(vbytes, vtotal), vtext,
+        "sasl_r_text extracts the server-final-message payload (v=...) on a code-12 frame");
+
+    let okmsg = std::bytes::BytesBuilder { initial_cap: 16 };
+    okmsg.append(std::bytes::from_int(82));       // 'R'
+    wire::be32_append(okmsg, 8);                  // len field: itself(4) + code(4), no text
+    wire::be32_append(okmsg, 0);                  // sub-code 0 = AuthenticationOk
+    let okbytes = okmsg.finish();
+    std::test::assert_eq_int(wire::sasl_r_code(okbytes), 0, "sasl_r_code reads the AuthenticationOk sub-code (0)");
+    std::test::assert_eq_str(wire::sasl_r_text(okbytes, 9), "",
+        "sasl_r_text is empty on a code-0 AuthenticationOk frame (no payload after the sub-code)");
+
+    // ========= AuthenticationSASL (code 10) mechanism-list parsing =========
+    // The AuthenticationSASL body is ['R'][Int32 len][Int32 10] followed by
+    // a sequence of NUL-terminated mechanism-name cstrs, terminated by an
+    // empty string (a lone NUL). pq speaks only plain SCRAM-SHA-256 (no
+    // channel binding, never -PLUS), so before starting the exchange it MUST
+    // confirm the server actually advertised SCRAM-SHA-256 — otherwise a
+    // server offering only SCRAM-SHA-256-PLUS (or a non-SCRAM mech) would
+    // fail opaquely deep in the handshake instead of with a clear "no
+    // mutually supported mechanism" error. This parses that list offline.
+
+    // Helper builds an AuthenticationSASL frame from a mechanisms blob
+    // (already including per-name NULs + the trailing terminator NUL).
+    // ['R'][Int32 len][Int32 10][mechs...]. Returns the frame; `total` is
+    // len(frame).
+    //
+    // (a) server offers BOTH SCRAM-SHA-256 and SCRAM-SHA-256-PLUS.
+    let mechs_both = std::bytes::BytesBuilder { initial_cap: 64 };
+    wire::__append_cstr(mechs_both, "SCRAM-SHA-256");
+    wire::__append_cstr(mechs_both, "SCRAM-SHA-256-PLUS");
+    mechs_both.append(std::bytes::from_int(0));   // list terminator (empty string)
+    let mb = mechs_both.snapshot();
+    let sasl_both = std::bytes::BytesBuilder { initial_cap: 64 };
+    sasl_both.append(std::bytes::from_int(82));    // 'R'
+    wire::be32_append(sasl_both, 8 + len(mb));     // len: itself(4) + code(4) + mechs
+    wire::be32_append(sasl_both, 10);              // sub-code 10 = AuthenticationSASL
+    sasl_both.append(mb);
+    let sb = sasl_both.finish();
+    let sb_total = 9 + len(mb);
+    std::test::assert_eq_int(wire::sasl_r_code(sb), 10, "code 10 = AuthenticationSASL");
+    std::test::assert(wire::sasl_offers_scram_sha256(sb, sb_total),
+        "sasl_offers_scram_sha256 is true when the server advertises SCRAM-SHA-256");
+    std::test::assert_eq_str(wire::sasl_mechanisms(sb, sb_total),
+        "SCRAM-SHA-256, SCRAM-SHA-256-PLUS",
+        "sasl_mechanisms lists every advertised mechanism, comma-joined");
+
+    // (b) server offers ONLY SCRAM-SHA-256-PLUS (channel binding) — pq does
+    // NOT support -PLUS, so this must read as "SCRAM-SHA-256 NOT offered".
+    let mechs_plus = std::bytes::BytesBuilder { initial_cap: 64 };
+    wire::__append_cstr(mechs_plus, "SCRAM-SHA-256-PLUS");
+    mechs_plus.append(std::bytes::from_int(0));    // list terminator
+    let mp = mechs_plus.snapshot();
+    let sasl_plus = std::bytes::BytesBuilder { initial_cap: 64 };
+    sasl_plus.append(std::bytes::from_int(82));     // 'R'
+    wire::be32_append(sasl_plus, 8 + len(mp));
+    wire::be32_append(sasl_plus, 10);
+    sasl_plus.append(mp);
+    let sp = sasl_plus.finish();
+    let sp_total = 9 + len(mp);
+    std::test::assert(!wire::sasl_offers_scram_sha256(sp, sp_total),
+        "sasl_offers_scram_sha256 is FALSE when only SCRAM-SHA-256-PLUS is offered "
+        + "(pq has no channel binding, so -PLUS is not the same mechanism)");
+    std::test::assert_eq_str(wire::sasl_mechanisms(sp, sp_total),
+        "SCRAM-SHA-256-PLUS",
+        "sasl_mechanisms surfaces the offered mechanism for the error detail");
+
+    // (c) cstr_end steps over a NUL-terminated field by BYTE length (the
+    // shared UTF-8-robust walker used by both the mechanism list and the
+    // ErrorResponse field walk). "ab\0cd": NUL is at index 2.
+    let cs = std::bytes::from_string("ab");
+    let csb = std::bytes::BytesBuilder { initial_cap: 8 };
+    csb.append(cs); csb.append(std::bytes::from_int(0)); csb.append(std::bytes::from_string("cd"));
+    let csbytes = csb.finish();
+    std::test::assert_eq_int(wire::cstr_end(csbytes, 0, len(csbytes)), 2,
+        "cstr_end finds the NUL index (byte-length advance, no String round-trip)");
+    std::test::assert_eq_int(wire::cstr_end(csbytes, 3, len(csbytes)), len(csbytes),
+        "cstr_end returns the limit when no NUL is found before it");
+
+    // ================= F2/F4: SASL retry / fail-fast classification =================
+    // Single source of truth for the contract between __sasl_exchange's
+    // read-failure branches and open()'s retry loop (both in pq.hl,
+    // which needs the vendored db import to compile and so can't be
+    // unit-tested directly in-tree) -- this is the offline
+    // "classification level" test: a transient peer-close mid-exchange
+    // must classify as retryable ("io"), never "auth_failed", and the
+    // fail-fast set open() short-circuits on must be exactly the
+    // definitive-outcome kinds.
+    std::test::assert_eq_str(wire::sasl_retryable_kind(), "io",
+        "a transient peer-close mid-SASL-exchange is classified io (retryable)");
+    std::test::assert(!wire::is_fail_fast_kind(wire::sasl_retryable_kind()),
+        "io is NOT in open()'s fail-fast set -- a transient close must retry");
+    std::test::assert(wire::is_fail_fast_kind("auth_failed"),
+        "auth_failed (rejected password / protocol violation / sig mismatch) is fail-fast");
+    std::test::assert(wire::is_fail_fast_kind("unsupported"),
+        "an unsupported auth method is fail-fast");
+    std::test::assert(wire::is_fail_fast_kind("startup_rejected"),
+        "a pre-auth ErrorResponse (bad db name / pg_hba / conn limit) is fail-fast, not retried 8x");
+    std::test::assert(!wire::is_fail_fast_kind("open_failed"),
+        "a generic connect failure keeps retrying (unchanged baseline behaviour)");
+
+    // ================= SSLRequest preamble (TLS negotiation) =================
+    // The SSLRequest is NOT a normal pgwire message: it has no type byte.
+    // It is exactly 8 raw bytes — [Int32 8][Int32 80877103] big-endian —
+    // sent over the plaintext socket before StartupMessage. The server
+    // answers with a SINGLE byte ('S' = accept, 'N' = refuse), no framing.
+    //   80877103 = 0x04D2162F  => bytes 04 D2 16 2F
+    let ssl = wire::build_ssl_request();
+    std::test::assert_eq_int(len(ssl), 8, "SSLRequest is exactly 8 bytes (no type byte)");
+    std::test::assert_eq_int(wire::read_be32(ssl, 0), 8, "SSLRequest self-length field is 8");
+    std::test::assert_eq_int(wire::read_be32(ssl, 4), 80877103, "SSLRequest magic code 80877103");
+    // exact big-endian byte layout of the magic code.
+    std::test::assert_eq_int(wire::byte_at(ssl, 4), 4,   "magic byte 0 = 0x04");
+    std::test::assert_eq_int(wire::byte_at(ssl, 5), 210, "magic byte 1 = 0xD2");
+    std::test::assert_eq_int(wire::byte_at(ssl, 6), 22,  "magic byte 2 = 0x16");
+    std::test::assert_eq_int(wire::byte_at(ssl, 7), 47,  "magic byte 3 = 0x2F");
+
+    // ================= sslmode validation + TLS policy =================
+    // Caller-facing knob: only these four values are accepted; anything
+    // else must be rejected at open() (config error) rather than silently
+    // treated as a default.
+    std::test::assert(wire::is_valid_sslmode("disable"),     "disable is a valid sslmode");
+    std::test::assert(wire::is_valid_sslmode("prefer"),      "prefer is a valid sslmode");
+    std::test::assert(wire::is_valid_sslmode("require"),     "require is a valid sslmode");
+    std::test::assert(wire::is_valid_sslmode("verify-full"), "verify-full is a valid sslmode");
+    std::test::assert(!wire::is_valid_sslmode("verify-ca"),  "verify-ca is NOT supported (unknown -> reject)");
+    std::test::assert(!wire::is_valid_sslmode(""),           "empty sslmode is invalid");
+    std::test::assert(!wire::is_valid_sslmode("REQUIRE"),    "sslmode is case-sensitive (REQUIRE invalid)");
+
+    // sslmode_wants_tls: send the SSLRequest preamble for everything except
+    // disable (disable dials plaintext exactly as pre-TLS pq did).
+    std::test::assert(!wire::sslmode_wants_tls("disable"),    "disable -> no SSLRequest");
+    std::test::assert(wire::sslmode_wants_tls("prefer"),      "prefer -> send SSLRequest");
+    std::test::assert(wire::sslmode_wants_tls("require"),     "require -> send SSLRequest");
+    std::test::assert(wire::sslmode_wants_tls("verify-full"), "verify-full -> send SSLRequest");
+
+    // sslmode_requires_tls: on a server 'N' (TLS refused), require and
+    // verify-full MUST fail closed (never downgrade); prefer falls back to
+    // plaintext; disable never got here.
+    std::test::assert(!wire::sslmode_requires_tls("prefer"),     "prefer tolerates a plaintext fallback");
+    std::test::assert(wire::sslmode_requires_tls("require"),     "require fails closed on 'N'");
+    std::test::assert(wire::sslmode_requires_tls("verify-full"), "verify-full fails closed on 'N'");
+    std::test::assert(!wire::sslmode_requires_tls("disable"),    "disable does not require TLS");
+
+    // sslmode_verify: only verify-full authenticates the peer (hostname +
+    // chain against the system trust store); require encrypts without
+    // verifying (the whole fleet's posture against RDS).
+    std::test::assert(wire::sslmode_verify("verify-full"), "verify-full -> upgrade(verify=true)");
+    std::test::assert(!wire::sslmode_verify("require"),    "require -> upgrade(verify=false)");
+    std::test::assert(!wire::sslmode_verify("prefer"),     "prefer -> upgrade(verify=false)");
+
+    // A definitive TLS negotiation failure (server refuses TLS under
+    // require/verify-full, handshake failure, or an unexpected reply byte)
+    // is fail-fast: redialing won't change a server's TLS capability or a
+    // cert-verification outcome, and verify-full must fail cleanly/fast, not
+    // after an 8x retry storm. A peer-close BEFORE the reply stays "io"
+    // (retryable — same cold-dial transient class the retry loop targets).
+    std::test::assert(wire::is_fail_fast_kind("tls"),
+        "a definitive TLS negotiation failure is fail-fast (no retry storm)");
+    std::test::assert(!wire::is_fail_fast_kind("io"),
+        "a peer-close before the SSLRequest reply is retryable (io), unchanged");
+
+    // ================= F4: SSLRequest reply classification (truth table) =================
+    // classify_ssl_reply(reply_byte, sslmode) is the pure decision table
+    // __negotiate_tls (pq.hl) consumes for every byte the server can send
+    // back. pq.hl needs the vendored db import to compile, so this is the
+    // only place the FULL byte x sslmode truth table is unit-testable
+    // offline (the live gates only ever exercise 'S'/'N' against a real
+    // server, never the malformed-reply branch).
+    //
+    // 'S' (83) — TLS offered: upgrade, regardless of sslmode (disable never
+    // reaches __negotiate_tls at all, so only prefer/require/verify-full
+    // are meaningful inputs here).
+    std::test::assert_eq_str(wire::classify_ssl_reply(83, "prefer"), "upgrade",
+        "'S' under prefer -> upgrade");
+    std::test::assert_eq_str(wire::classify_ssl_reply(83, "require"), "upgrade",
+        "'S' under require -> upgrade");
+    std::test::assert_eq_str(wire::classify_ssl_reply(83, "verify-full"), "upgrade",
+        "'S' under verify-full -> upgrade");
+
+    // 'N' (78) — TLS unavailable: prefer falls back to plaintext;
+    // require/verify-full refuse to downgrade (fail closed).
+    std::test::assert_eq_str(wire::classify_ssl_reply(78, "prefer"), "plaintext",
+        "'N' under prefer -> plaintext (opportunistic fallback)");
+    std::test::assert_eq_str(wire::classify_ssl_reply(78, "require"), "refuse",
+        "'N' under require -> refuse (never downgrade)");
+    std::test::assert_eq_str(wire::classify_ssl_reply(78, "verify-full"), "refuse",
+        "'N' under verify-full -> refuse (never downgrade)");
+
+    // Any other byte is a protocol violation -- fail closed regardless of
+    // sslmode. Cover 0 (nothing sent -- shouldn't happen given the len==0
+    // peer-close case is handled before classify_ssl_reply is called, but
+    // 0 as an actual byte value must still classify safely), 69 ('E' --
+    // easy to confuse with an ErrorResponse type byte, but SSLRequest's
+    // reply is unframed so a literal 'E' byte here is still just junk),
+    // and an arbitrary out-of-set value.
+    std::test::assert_eq_str(wire::classify_ssl_reply(0, "prefer"), "protocol_error",
+        "byte 0 under prefer -> protocol_error");
+    std::test::assert_eq_str(wire::classify_ssl_reply(0, "require"), "protocol_error",
+        "byte 0 under require -> protocol_error");
+    std::test::assert_eq_str(wire::classify_ssl_reply(69, "prefer"), "protocol_error",
+        "byte 69 ('E') under prefer -> protocol_error (not a framed ErrorResponse here)");
+    std::test::assert_eq_str(wire::classify_ssl_reply(69, "verify-full"), "protocol_error",
+        "byte 69 ('E') under verify-full -> protocol_error");
+    std::test::assert_eq_str(wire::classify_ssl_reply(200, "require"), "protocol_error",
+        "an arbitrary out-of-set byte -> protocol_error");
+
+    // ================= F1: pool TLS homogeneity classification =================
+    // PgPool derives a single pool_tls from connection 0 (pool.hl `open()`)
+    // and threads it into every pooled PgConn reconstruction. This pure
+    // predicate is the single source of truth pool.hl consults for every
+    // connection after the first: a mismatch means a load-balanced/proxied
+    // endpoint let this connection negotiate a DIFFERENT transport than
+    // the pool already committed to -- driving its handle through the
+    // wrong transport family later would silently corrupt the shared
+    // handle table, so the pool must fail closed instead.
+    std::test::assert(!wire::pool_tls_mismatch(true, true),
+        "conn tls=true matching pool_tls=true is homogeneous (no mismatch)");
+    std::test::assert(!wire::pool_tls_mismatch(false, false),
+        "conn tls=false matching pool_tls=false is homogeneous (no mismatch)");
+    std::test::assert(wire::pool_tls_mismatch(false, true),
+        "conn tls=false against pool_tls=true IS a mismatch (conn 0 got TLS, this one didn't)");
+    std::test::assert(wire::pool_tls_mismatch(true, false),
+        "conn tls=true against pool_tls=false IS a mismatch (conn 0 got plaintext, this one got TLS)");
+
+    // Under disable/require/verify-full every successful open() always
+    // settles the SAME tls value (disable: always false; require/
+    // verify-full: always true, since a plaintext 'N' fails closed rather
+    // than returning ok=true) -- so pool_tls_mismatch can only ever trip
+    // under sslmode=prefer against a non-uniform backend, never the other
+    // three modes. Pin that invariant directly against the sslmode policy
+    // predicates (wire.hl's own source of truth), not just as a comment.
+    std::test::assert(!wire::sslmode_requires_tls("disable"),
+        "disable never fails closed on 'N' -- but disable also never calls "
+        + "__negotiate_tls at all (sslmode_wants_tls is false), so every conn "
+        + "in a disable pool settles tls=false uniformly");
+    std::test::assert(wire::sslmode_requires_tls("require")
+        && wire::sslmode_requires_tls("verify-full"),
+        "require/verify-full both fail closed on 'N' -- a successful open() under "
+        + "either mode can therefore only ever have settled tls=true, uniformly");
+
+    let detail = wire::pool_tls_mismatch_detail(2, false, true);
+    std::test::assert(std::str::index_of(detail, "2") >= 0,
+        "pool_tls_mismatch_detail names the offending connection index");
 }

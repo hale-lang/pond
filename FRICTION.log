@@ -3282,6 +3282,283 @@ model's layer count (single digits). No source change.
 No open contract deviations. Satisfies `db::DbDriver`; `hale check`
 clean in-repo.
 
+## [2026-07-14] TLS via SSLRequest + `sslmode` param (daydream-dvl)
+
+pq now speaks STARTTLS-style pgwire TLS so it can reach servers that
+require encryption (AWS RDS). `PgConn` + `PgPool` gained a caller-facing
+`sslmode` (`disable`|`prefer`|`require`|`verify-full`) plus a
+derived-internal `tls` flag. `open()` sends the 8-byte SSLRequest
+preamble (`wire.hl build_ssl_request`) before StartupMessage, reads the
+single unframed reply byte, and on `'S'` upgrades the fd via
+`std::io::tls::upgrade(fd, host, verify=(sslmode=="verify-full"))`.
+`'N'` continues plaintext under `prefer` but fails closed (kind `tls`)
+under `require`/`verify-full`. New `pq/stream.hl` ports keepalive.hl's
+`__send_raw`/`__recv_raw`/`__close_handle` dispatch (branch on `tls`);
+all five `std::io::tcp::Stream` I/O sites in `pq.hl` route through it, so
+the rx_buf accumulation loop is transport-agnostic. `PgPool` threads a
+single derived `pool_tls` through its six transient-`PgConn`
+reconstruction sites (a pooled fd is a TLS handle when the pool
+negotiated TLS).
+
+Deviations / decisions:
+
+- **DEFAULT `sslmode = "prefer"`, NOT the plan's `"require"`.** The plan
+  mandated both "default require" AND "defaults preserve every existing
+  call site" — mutually exclusive: default-require breaks every existing
+  plaintext-only consumer (incl. daydream's local docker dev, where the
+  server has no SSL and answers `'N'`). `prefer` is libpq's own default:
+  opportunistic TLS with plaintext fallback, so existing users keep
+  working and TLS-capable servers get encryption for free.
+  `require`/`verify-full` stay strict (no downgrade). Unknown `sslmode`
+  is rejected at `open()` (kind `config`).
+
+- **Fail-fast classification.** A definitive TLS negotiation failure
+  (refused under require/verify-full, handshake failure, junk reply
+  byte) is kind `tls`, added to `is_fail_fast_kind` — redialing won't
+  change a server's TLS capability or a cert outcome, and `verify-full`
+  must fail cleanly/fast, not after an 8x retry storm. A peer-close
+  *before* the reply stays `io` (retryable — same cold-dial transient
+  class as the 2026-06-30 entry below).
+
+- **fd ownership on upgrade failure.** `std::io::tls::upgrade` leaves the
+  caller-owned fd open on handshake failure (daydream-scb contract), so
+  `__negotiate_tls` closes it itself before returning.
+
+- **Toolchain gotcha #1 — Stream `owns_fd`.** `std::io::tcp::Stream`
+  defaults `owns_fd: true`, and its `dissolve()` closes `conn_fd`. A
+  transient `Stream { conn_fd: self.sock }` therefore closes the socket
+  when it drops at fn-return — which surfaced as "peer closed
+  mid-response" on the FIRST startup read the moment I split send/recv
+  into free-fn dispatch helpers. Every transient Stream in pq now
+  borrows: `owns_fd: false` (the documented borrowed-fd idiom). PgConn
+  still closes the fd exactly once via `__close_handle`.
+
+- **Toolchain gotcha #2 — free-fn send/recv segfault.** keepalive.hl's
+  TCP dispatch branch calls the free fns `std::io::tcp::__send_bytes` /
+  `__recv_bytes`. Called from user code on the pinned hale binary these
+  SEGFAULT natively (verified in isolation: a raw-fd `__send_bytes`
+  returns 0, the following `__recv_bytes` crashes). The `Stream` LOCUS
+  `send_bytes`/`recv_bytes` — pq's long-proven path — works, so
+  `stream.hl`'s TCP branch uses the locus. The TLS branch keeps the flat
+  `std::io::tls::*` calls (no tls Stream locus exists); those DO work
+  natively (verified end to end against a TLS postgres). `send_bytes`
+  return counts are unreliable across transports (both can report 0
+  while delivering), so pq never checks them — a failed send surfaces as
+  a length-0 recv, which the rx loop already handles.
+
+- **`verify-full` CA prerequisite.** Verification uses the system trust
+  store only (`SSL_CTX_set_default_verify_paths`); no pond-side CA
+  pinning. `verify-full` against RDS needs the RDS CA installed in the
+  container trust store — an operational prerequisite, documented in
+  README.md. `require` does not need it.
+
+- **Scheduler caveat (spike daydream-0v2).** hale's TLS recv does a
+  blocking `SSL_read` with no async_io park (unlike tcp recv). A TLS
+  `PgConn`/`PgPool` must NOT be placed on an async_io pool (it would
+  starve sibling coros) until hale grows non-blocking TLS reads — fine
+  on ordinary cooperative pools where pq already blocks.
+
+- **Live gates: `examples/pgwire-roundtrip/`** extended with `[sslmode]`
+  + `[mode]` (conn|pool) argv. Verified against dockerized `postgres:18`:
+  TLS+SCRAM require (OPEN OK tls=true + query), wrong-pw-over-TLS (fast
+  auth_failed), verify-full vs a self-signed cert (fast `tls` handshake
+  failure — verification wired), plaintext prefer (fallback), plaintext
+  require (fail closed), disable (no SSLRequest), trust regression, and
+  PgPool over TLS (3 conns, 4 round-robin queries, pool_tls=true).
+  Offline SSLRequest framing + sslmode validation + fail-fast
+  classification in `pq/tests/wire_test.hl`. Deferred (unchanged from
+  the plan): PG17 direct-TLS/ALPN — needs a new hale ALPN primitive,
+  PG17+ only; no other pond protocol needs ALPN yet.
+
+## [2026-07-14] TLS hardening (daydream-dvl, rl-critic round)
+
+A critic pass on the initial TLS landing (score 0.82, "ship after minor
+hardening") found four gaps + one accepted tradeoff. Addressed
+TDD-style (failing test first, `pq/tests/wire_test.hl`):
+
+- **F1 — pool TLS homogeneity was assumed, not enforced.** `PgPool.open()`
+  derived `pool_tls` from connection 0 and trusted every later connection
+  to match, with no check. Under `sslmode=prefer` against a
+  load-balanced/proxied endpoint, connection 0 could negotiate TLS while
+  connection N landed on a peer answering `'N'` — its plaintext fd would
+  later be driven through `std::io::tls` by `stream.hl`'s dispatch,
+  corrupting the shared TLS handle table silently. Extracted the pure
+  predicate `wire::pool_tls_mismatch(conn_tls, pool_tls) -> Bool`
+  (+ `pool_tls_mismatch_detail` for the error text), unit-tested including
+  the invariant that `disable`/`require`/`verify-full` can never trip it
+  (each structurally settles one deterministic `tls` value on a
+  successful `open()` — only `prefer` can vary). `PgPool.open()` now
+  checks every connection after the first; on mismatch it closes the
+  offending connection AND every already-opened one (`__teardown`) and
+  fails the whole pool closed (kind `tls`) rather than risk the
+  corruption.
+- **F2 — `prefer`'s silent plaintext fallback was invisible.**
+  (a) `__negotiate_tls`'s plaintext-fallback branch now prints a
+  one-line `[pq] tls: sslmode=... negotiated PLAINTEXT ...` notice
+  (pond's existing `[libname] ...` println idiom — see `jobs/pool.hl`,
+  `migrations/migrate.hl`), so TLS-stripping is observable instead of
+  silent. (b) README.md + CONTRACTS.md now tell production consumers to
+  pin `sslmode` explicitly (`require` for RDS-class deployments) instead
+  of relying on the `prefer` default; the daydream-side pinning itself is
+  tracked separately (daydream-8a4).
+- **F3 — `PgPool.close()` double-close hazard.** Pre-TLS a second
+  `close()` double-closed a kernel fd (relatively benign, `EBADF`); with
+  TLS handles a second close is a handle-table use-after-free (the slot
+  may already be reused by an unrelated connection). `close()` is now
+  guarded by the existing `opened` flag (no-op if not opened) and, on the
+  one call that proceeds, resets `n`/`fds`/`busy` to empty after tearing
+  down — via a new shared `__teardown()` also used by F1's mid-`open()`
+  failure path (which must tear down before `opened` is ever set true,
+  so it can't go through `close()`'s guard). Clearing `fds`/`busy` (not
+  just `n`) matters beyond hygiene: `open()` always `push`es rather than
+  overwrites, so a stale tail from a prior open/close cycle would
+  otherwise let a later `open()` push new fds past the range `__acquire`
+  indexes into, silently handing out stale/closed handles.
+- **F4 — the SSLRequest reply dispatch was only covered by live gates.**
+  Extracted `wire::classify_ssl_reply(reply_byte, sslmode) -> String`
+  (`"upgrade"` / `"plaintext"` / `"refuse"` / `"protocol_error"`),
+  consumed by `__negotiate_tls`, and unit-tested the full byte × sslmode
+  truth table offline in `wire_test.hl`: `'S'`/83 under
+  prefer/require/verify-full, `'N'`/78 under each (prefer → plaintext,
+  require/verify-full → refuse), and the protocol-error path for byte 0,
+  byte 69 (`'E'` — easy to confuse with a framed ErrorResponse, but
+  SSLRequest's reply is unframed), and an arbitrary out-of-set byte.
+- **F5 (note only, no code change).** A peer-close in direct response to
+  the SSLRequest preamble burns the full 8-attempt retry (~1.2s) before
+  surfacing, because that case classifies `"io"` (transient, same as
+  every other cold-dial peer-close) rather than being SSLRequest-aware.
+  Accepted tradeoff — a real server never behaves this way outside of
+  active interference, and a dedicated fail-fast path would need to
+  special-case "peer-close specifically here" from "peer-close during
+  the ordinary cold-dial window", adding branching for a case that isn't
+  a realistic operational failure mode.
+
+Re-verified live (`examples/pgwire-roundtrip/`, containers rebuilt from
+the recipe above): TLS+SCRAM require (OPEN OK tls=true + query),
+wrong-pw-over-TLS (fast `auth_failed`), verify-full vs self-signed (fast
+`tls` handshake failure), `prefer` plaintext fallback **with the new
+F2(a) notice line confirmed present**, `disable` (no SSLRequest, no
+notice line — confirms F2(a) only fires when TLS was actually
+negotiated), plaintext `require` fail-closed, trust regression, PgPool
+over TLS (3 conns, 4 round-robin queries, pool_tls=true), **plus a new
+back-to-back `pool.close(); pool.close();` in the example proving F3's
+idempotency live** (second call is a silent no-op, no crash). `hale
+check pq/` clean (5 files, only the pre-existing unbounded-alloc
+warnings). `pq/tests/wire_test.hl` + `pq/tests/scram_test.hl` exit 0
+with the new F1/F4 truth-table assertions.
+
+## [2026-07-14] SCRAM-SHA-256 auth + `password` param (daydream-hwj)
+
+`PgConn` / `PgPool` grew a `password: String = ""` param and pq now
+speaks **SCRAM-SHA-256** (RFC 5802 / 7677) alongside trust auth so it
+can reach servers (e.g. AWS RDS) that require a password. Empty
+password = trust (unchanged); non-empty = SCRAM. MD5 stays
+unsupported. New `pq/scram.hl` holds the pure offline crypto core
+(Hi/PBKDF2, ClientProof, ServerSignature verify, server-first parser),
+`wire.hl` gained the SASLInitialResponse/SASLResponse builders + the
+`R` sub-code/text parsers, and `pq.hl`'s `__open_once` dispatches on
+the first Authentication message into a new `__sasl_exchange`.
+
+Frictions / decisions encountered:
+
+- **`__pump` framing extracted to `__read_one_msg`.** The auth
+  exchange needs to read backend messages one at a time; `__pump`'s
+  inlined header/body accumulation loop was lifted into a shared
+  `__read_one_msg() -> __PgMsg` (behavior-preserving — the trust path
+  reads identically; gated by the offline tests + the live trust
+  container). No channel binding: gs2 header `n,,` only, never
+  `-PLUS` (tls-server-end-point needs a cert digest Hale doesn't
+  expose; a mandatory-reject per RFC 5802 §6). SASLprep skipped —
+  ASCII passwords documented.
+
+- **hale arena bug — `BytesBuilder.finish()` into crypto/base64
+  segfaults.** A `finish()`'d blob fed to `std::crypto::*` /
+  `std::text::base64::encode` / `std::bytes::clone` segfaults
+  deterministically (arena-lifetime bug; `len`/`at`/`slice`/send are
+  fine — that's why the existing codec works). `scram.hl` uses
+  `.snapshot()` for every builder result that reaches crypto/base64.
+  Logged upstream as daydream-dhu.
+
+- **`open()` fails fast on definitive auth outcomes.** The cold-dial
+  retry loop (≤8 × 150ms) is for transient peer-closes only; a
+  rejected password (`auth_failed`) or unsupported method
+  (`unsupported`) now short-circuits the loop instead of burning the
+  budget. (Previously an unsupported-auth server was also retried 8×.)
+
+- **Live gate: `examples/pgwire-roundtrip/`.** Closes the long-standing
+  "examples/ pending" note below. Because pq imports `vendor/pond/db`
+  it only builds in a vendored consumer tree (see "In-repo build vs
+  check"), so the example ships `main.hl` + `hale.toml` and
+  materializes a git-ignored `vendor/pond/{db,pq}` symlink tree at run
+  time (README has the one-liner). Verified against dockerized
+  `postgres:18` (`POSTGRES_HOST_AUTH_METHOD=scram-sha-256
+  --auth-host=scram-sha-256`): correct password logs in + queries,
+  wrong password fails closed with the server's message in ~1 attempt,
+  and a trust container still connects (regression). Offline crypto +
+  codec are covered by `pq/tests/scram_test.hl` (RFC 7677 §3 vector,
+  byte-for-byte) and the SASL additions in `pq/tests/wire_test.hl`.
+
+## [2026-07-14] SCRAM security hardening (daydream-hwj, rl-critic round)
+
+A critic pass on the initial SCRAM landing (score 0.70) found five gaps
+between the crypto-core-correct implementation and RFC 5802's MUSTs /
+open()'s retry-safety contract. All closed, TDD-style (failing test
+first, `pq/tests/scram_test.hl` + `pq/tests/wire_test.hl`):
+
+- **Nonce-extension check (RFC 5802 §5.1 MUST).** `scram.hl`'s
+  `compute_client_final` now verifies the server's `r=` both STARTS
+  WITH the client nonce (embedded in `client_first_bare`) and is
+  STRICTLY LONGER — rejecting a foreign nonce and an exact echo (no
+  server contribution) alike. Fails closed with `err_kind
+  "auth_failed"`.
+- **Retry-vs-fail-fast reclassification.** A read failure inside
+  `__sasl_exchange` (the `!m2/m3/m4.ok` branches) is a TRANSIENT
+  cold-dial peer-close (same root cause as the 2026-06-30 entry below),
+  not a definitive auth outcome — it was misclassified `"auth_failed"`,
+  which defeated `open()`'s retry loop. Now classified via the new
+  `wire::sasl_retryable_kind()` ("io"); `wire::is_fail_fast_kind(kind)`
+  is the single source of truth `open()` consults, kept in `wire.hl`
+  (not `pq.hl`, which needs the vendored `db` import to compile) so the
+  retry contract stays unit-testable offline.
+- **PBKDF2 iteration-count DoS cap.** `parse_server_first` now rejects
+  `i=` above 1,000,000 (postgres/RDS default is 4096) — an
+  uncapped server-supplied iteration count lets a hostile/misconfigured
+  server burn client CPU (`Hi()` is one HMAC-SHA256 per iteration; a
+  connection pool multiplies this by pool size).
+- **Pre-auth `ErrorResponse` fast path.** `__open_once` special-cases
+  `auth.mtype == 69` (an `'E'` arriving before any Authentication
+  challenge — e.g. a `pg_hba.conf` reject, verified live by inserting a
+  `reject` rule against a docker container) into a new
+  `"startup_rejected"` `err_kind` (added to `is_fail_fast_kind`'s set)
+  with the server's actual message as detail, instead of the previous
+  opaque "expected Authentication, got type 69" retried 8× on a
+  deterministic rejection. NOTE: a bad **database name** specifically
+  does NOT hit this path against postgres 18 — verified live (raw
+  socket capture) that postgres answers `AuthenticationSASL`/
+  `AuthenticationOk` first and only then rejects the database inside
+  what `__pump` reads (pre-existing `"open_failed"`/`query_failed`
+  path, unchanged here — out of this round's scope, filed as a
+  follow-up).
+- **Cheap parser hardening (F5).** `parse_server_first` /
+  `verify_server_final` anchor their leading field to the string start
+  (`scram_starts_with`) instead of an unanchored substring search —
+  this also rejects a server-first beginning `"m="` (RFC 5802 §6
+  mandatory-extension abort) for free. `scram_xor` now fails loud
+  (returns empty `Bytes`) on a length mismatch instead of silently
+  zero-padding/truncating — every real call site XORs equal-width
+  HMAC-SHA256/SHA-256 outputs, so a mismatch is always an internal-bug
+  signal. The non-constant-time `v=` compare is left as-is (matches
+  libpq; the compared value isn't a cross-principal secret) with a
+  comment explaining why.
+
+Re-verified live: SCRAM correct-password (OPEN OK + query), SCRAM
+wrong-password (clean `auth_failed` in ~0.02s, 1 attempt), trust
+regression, `PgPool` with SCRAM (3 conns), and the new
+`pg_hba.conf reject` fast-fail (`startup_rejected` in ~0.006s, 1
+attempt, confirmed via container log line count). `hale check pq/`
+clean (4 files); `pq/tests/scram_test.hl` + `pq/tests/wire_test.hl`
+pass with all new assertions.
+
 ## [CLOSED 2026-06-30] flaky cold dial: "peer closed mid-response" on a healthy server
 
 `PgConn.open()` dialed once and a single attempt was unreliable: the
@@ -3344,9 +3621,10 @@ redialing — logged for hale (cf. `recv_into`'s `-2` contract, which
   bounded by the pool's `size` param and the PgConns are
   intentionally retained for the pool's lifetime. Recorded
   2026-06-12; no source change.
-- **examples/ pending.** A demo needs a reachable Postgres; add a
-  docker-compose-backed `examples/pgwire-roundtrip/` when the harness
-  for ephemeral-pg-in-CI lands.
+- **examples/ shipped (2026-07-14).** `examples/pgwire-roundtrip/`
+  opens a live `PgConn` (trust or SCRAM) and runs a query — see the
+  2026-07-14 SCRAM entry above. It needs a reachable Postgres (docker
+  `postgres:18`), so it stays a manual/live gate, not a CI-wired test.
 
 
 ======================================================================
