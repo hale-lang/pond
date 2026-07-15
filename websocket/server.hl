@@ -163,7 +163,7 @@ locus WsServerConn {
 
         if !req.has_upgrade || req.key == "" {
             let body =   build_400_response("missing Upgrade or Sec-WebSocket-Key");
-            stream.send_bytes(body);
+            stream.send_bytes(body) or discard;
             self.last_error = WsError {
                 kind:   "handshake",
                 detail: "not a websocket upgrade",
@@ -174,7 +174,7 @@ locus WsServerConn {
 
         let accept_key =   compute_accept(req.key);
         let resp       =   build_101_response(accept_key);
-        stream.send_bytes(resp);
+        stream.send_bytes(resp) or discard;
 
         self.handshake_done = true;
         self.rx_buf.clear();
@@ -248,11 +248,11 @@ locus WsServerConn {
             // next frame.
             if kind == "ping" {
                 let pong =   emit_server_frame(true, 10, payload);
-                stream.send_bytes(pong);
+                stream.send_bytes(pong) or discard;
                 self.frames_sent = self.frames_sent + 1;
             } else if kind == "close" {
                 let close =   emit_server_frame(true, 8, payload);
-                stream.send_bytes(close);
+                stream.send_bytes(close) or discard;
                 self.frames_sent = self.frames_sent + 1;
                 self.connected = false;
                 self.last_error = WsError {
@@ -353,10 +353,9 @@ locus WsServerConn {
                 // First silence: proactive ping (best-effort),
                 // then arm the pong deadline.
                 self.awaiting_pong = true;
-                let n = stream.send_bytes(ping);
-                if n >= 0 {
-                    self.frames_sent = self.frames_sent + 1;
-                }
+                stream.send_bytes(ping) or discard;   // best-effort; a dead
+                // peer is caught by the pong deadline, not the send error
+                self.frames_sent = self.frames_sent + 1;
                 self.set_recv_deadline(self.pong_timeout);
             } else {
                 // EOF (0) or fatal recv error (< 0, not -2).
@@ -400,27 +399,27 @@ locus WsServerConn {
         }
         let stream = std::io::tcp::Stream { conn_fd: self.conn_fd, owns_fd: false };
         let frame =   emit_server_frame(true, opcode, payload);
-        let n = stream.send_bytes(frame);
-        // EPIPE / closed peer: lotus_tcp_send_bytes returns -1 on
-        // error, 0 on success (it loops until the whole frame is
-        // written). Flip connected only on a genuine error (< 0)
-        // — `0` is the success return, NOT a short write. The
-        // owner reads `connected` via the contract to drop a dead
-        // conn so it stops pushing to a closed socket.
-        if n < 0 {
-            self.connected = false;
-            self.logger.on_event(WsLogEvent {
-                phase:  "close",
-                detail: "send failed; peer gone",
-                bytes:  0,
-                op:     opcode,
-            });
-            fail WsError {
-                kind:   "io",
-                detail: "send failed; peer gone",
-            };
-        }
+        // EPIPE / closed peer: since hale 9bc53d5 send_bytes fails with
+        // IoError on a genuine error (success is Unit; it loops until the
+        // whole frame is written, so there is no short-write case).
+        // Translate to the WsError channel and flip `connected` so the
+        // owner stops pushing to a closed socket.
+        stream.send_bytes(frame) or self.__send_frame_failed(err);
         self.frames_sent = self.frames_sent + 1;
+    }
+
+    fn __send_frame_failed(e: IoError) -> () fallible(WsError) {
+        self.connected = false;
+        self.logger.on_event(WsLogEvent {
+            phase:  "close",
+            detail: "send failed; peer gone",
+            bytes:  0,
+            op:     -1,
+        });
+        fail WsError {
+            kind:   "io",
+            detail: "send failed; peer gone",
+        };
     }
 
     // close — graceful close frame + teardown. User-called member fn

@@ -5208,6 +5208,45 @@ minutes, not weeks. Logged as the next tui work item.
 Gaps, suspicions, and deviations from RFC 6455 surfaced while
 building this lib.
 
+## upstream 9bc53d5: Stream send/recv migrated to fallible(IoError) — [CLOSED 2026-07-15]
+
+hale `9bc53d5` (breaking, `feat(stdlib)!`) respelled the Stream
+surface: `send_bytes` now succeeds with Unit and fails with
+IoError (previously -1/0 sentinels); `recv`/`recv_bytes` fail
+with IoError on genuine errors and return empty for BOTH EOF and
+a recv-timeout expiry. server.hl carried six pre-migration call
+sites — four bare `stream.send_bytes(x);` statements (handshake
+400/101, read_msg pong/close echoes) and two
+`let n = stream.send_bytes(...)` value bindings (pump_recv's
+proactive ping; send_frame's error check).
+
+Migrated this pass (all six sites; no public-surface change):
+
+- Best-effort sends take `or discard` — a dead peer is detected
+  by the pong deadline, not the send error, exactly as before.
+- `send_frame` translates the IoError to the lib's WsError
+  channel via a fallible member handler
+  (`or self.__send_frame_failed(err)`) that also flips
+  `connected` — the same observable behavior as the old `n < 0`
+  branch, minus the short-write case that could never occur
+  (send_bytes loops until the whole frame is written).
+- client.hl needed nothing: it drives the raw primitives
+  (`std::io::tcp::__send_bytes`, path-call `recv_into`), which
+  9bc53d5 left alone.
+
+REQUIRES hale >= 9bc53d5 — on older compilers the `or` clauses
+are "or on non-fallible call" errors. Gates at 9bc53d5:
+`hale check` ok, `hale test websocket/` 2/2, echo-client builds.
+(Pre-migration baseline at 9bc53d5: both codegen gates fail with
+"method `send_bytes` returns no value but is used in expression
+position".)
+
+NOTE for the sibling libs: `pond/pq` (5 sites) and
+`pond/http` client (3 sites) have the same class of breakage and
+need the same pass; pq's unmigrated sites additionally surface as
+an LLVM verifier ICE instead of a typecheck error (reported
+upstream in the sme-hale handoff addendum, 2026-07-15).
+
 ## stdlib gap: SHA-1 + base64 for handshake validation — [CLOSED 2026-06-12]
 
 **2026-06-12 resolution.** `std::crypto::sha1` and

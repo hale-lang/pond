@@ -14,6 +14,17 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-07-15 status note — websocket on hale 9bc53d5's fallible Stream surface
+
+- **`pond/websocket` now requires hale >= `9bc53d5`** (breaking
+  `feat(stdlib)!`: Stream send/recv migrated to fallible(IoError)).
+  Internal call-site migration only — the locked public surface of
+  the lib is unchanged. Site inventory + rationale: FRICTION
+  § pond/websocket "upstream 9bc53d5".
+- Still to migrate against that compiler: `pond/pq` (5 Stream call
+  sites; fails as an LLVM ICE, reported upstream) and `pond/http`
+  client (3 sites). They fail to build at hale HEAD until then.
+
 ## 2026-07-06 status note — migrations v2 + sqlite adapter promotion
 
 - **`pond/migrations` respelled to v2 (registration-then-run).**
