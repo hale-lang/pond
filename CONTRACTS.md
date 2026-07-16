@@ -21,9 +21,19 @@ choose their own aliases per F.25.
   Internal call-site migration only — the locked public surface of
   the lib is unchanged. Site inventory + rationale: FRICTION
   § pond/websocket "upstream 9bc53d5".
-- Still to migrate against that compiler: `pond/pq` (5 Stream call
+- ~~Still to migrate against that compiler: `pond/pq` (5 Stream call
   sites; fails as an LLVM ICE, reported upstream) and `pond/http`
-  client (3 sites). They fail to build at hale HEAD until then.
+  client (3 sites). They fail to build at hale HEAD until then.~~
+  **CLOSED 2026-07-16:** `pond/pq` migrated — only the 2 Stream-locus
+  sites in `pq/stream.hl` needed `or` clauses (`__send_raw` takes
+  `or discard`, `__recv_raw` collapses the error to the documented
+  length-0 contract); the other sites were `std::io::tls` path-calls,
+  untouched by #209. `pond/http` client needed NO changes — its
+  wire path rides the raw `__send_bytes` / `__recv_bytes` free fns,
+  which #209 left alone (the upstream ICE is also gone: hale
+  `e554687` turned the unaddressed-fallible case into a clean codegen
+  error). Gates: `hale check pq/ http/client/` ok, `hale test pq/
+  http/` 4/4, downstream ledger/refstore/dashboard binaries build.
 
 ## 2026-07-06 status note — migrations v2 + sqlite adapter promotion
 
