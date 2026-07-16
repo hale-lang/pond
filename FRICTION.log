@@ -5514,3 +5514,15 @@ the no-CRLF branch; guarded by the regression assert in
 `tests/handshake_test.hl` ("terminal header line parses").
 First concrete proof of the tests-as-second-codegen-gate
 convention paying for itself on day one.
+
+## upstream 9bc53d5: fallible Stream send/recv — pq migration — [CLOSED 2026-07-16]
+pq/stream.hl carried the last two pre-migration Stream call sites
+(send_bytes bare-statement, recv_bytes value-return). `hale check`
+accepted them but `hale build` of a vendored consumer (daydream)
+failed LLVM module verification — bare calls emit the pre-fallible
+call signature. Migrated per websocket's pattern: `or discard` on
+the send (failed send surfaces as length-0 recv downstream, the
+documented contract), `or empty-Bytes` on the recv (preserves the
+EOF/error/retryable collapse). The check-passes/build-fails gap is
+a hale issue (typecheck admits bare fallible calls that codegen
+cannot emit).
