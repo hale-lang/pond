@@ -60,7 +60,9 @@ fn __send_raw(handle: Int, is_tls: Bool, b: Bytes) {
         // (close()/open()-teardown via __close_handle), so this wrapper
         // must BORROW.
         let s = std::io::tcp::Stream { conn_fd: handle, owns_fd: false };
-        s.send_bytes(b);
+        // hale#210 surface: a send failure is deliberately swallowed here —
+        // per the contract above, it surfaces downstream as the length-0 recv.
+        s.send_bytes(b) or discard;
     }
 }
 
@@ -70,7 +72,7 @@ fn __recv_raw(handle: Int, is_tls: Bool, max_bytes: Int) -> Bytes {
     if is_tls { return std::io::tls::recv_bytes(handle, max_bytes); }
     // owns_fd: false — borrow, do not close on dissolve (see __send_raw).
     let s = std::io::tcp::Stream { conn_fd: handle, owns_fd: false };
-    return s.recv_bytes(max_bytes);
+    return s.recv_bytes(max_bytes) or b"";   // hale#210: errors collapse to length-0
 }
 
 // __close_handle — close the connection via the right transport. For TLS
