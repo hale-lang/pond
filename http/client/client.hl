@@ -1,3 +1,15 @@
+// ============================================================
+// PROMOTED TO STDLIB (hale >= v0.11.4): this library shipped as
+// `std::http::get` / `post` / `request` / `parse_url` +
+// `std::http::Client` (keep-alive pool included) with types
+// `std::http::Url` / `ClientRequest` / `ClientResponse` /
+// `HttpError` — no import needed. This vendored copy is FROZEN
+// for consumers on older pins; new code should use the stdlib
+// surface. (Naming shift: pond's `Request`/`Response` became
+// `ClientRequest`/`ClientResponse` to coexist with the server-
+// side std::http types.)
+// ============================================================
+
 // pond/http/client — Client locus + free fn helpers.
 //
 // Public surface (per CONTRACTS.md):

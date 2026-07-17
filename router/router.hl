@@ -1,3 +1,14 @@
+// ============================================================
+// PROMOTED TO STDLIB (hale >= v0.11.4): this library shipped as
+// `std::http::Router` / `Context` / `RouteParams` / `RouteHandler`
+// / `Middleware` + `std::http::path_param` / `query_param` — no
+// import needed, handlers return `std::http::Response` directly
+// (the local Response type + boundary conversion below are the
+// vendored-lib workaround the stdlib version retires). This
+// vendored copy is FROZEN for consumers on older pins; new code
+// should use the stdlib surface.
+// ============================================================
+
 // pond/router — Router locus + 404 default + dispatch loop.
 //
 // Pattern 3 in spirit (service locus with implicit lifecycle —
