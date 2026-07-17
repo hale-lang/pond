@@ -1,3 +1,10 @@
+// NOTE (hale >= v0.11.5): std::process grew `try_wait(c)` (non-
+// blocking reap; -2 = still running) and `signal(c, sig)` (arbitrary
+// POSIX signal) — promoted from this lib's Process.signal surface
+// and closing the try_wait FRICTION want. New supervisors should
+// poll std::process::try_wait from a tick instead of blocking wait();
+// this lib's Process locus remains for the bus-streaming shape.
+
 // pond/subprocess — Process locus (long-lived streaming child)
 //
 // CONTRACTS.md declares:
