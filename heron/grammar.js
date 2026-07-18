@@ -59,6 +59,7 @@ module.exports = grammar({
     [$.binding_pattern, $.qualified_name], // bare ident in pattern position
     [$.if_stmt, $.if_expr],                // statement-position if vs value-position if
     [$.qualified_name, $.path_expr],       // `Foo::Bar` followed by `{` (struct literal) vs `(` (path call)
+    [$._locus_decorator, $.fn_decorators], // `@export` prefixes both locus and fn decls
     [$.qualified_name, $._expression],     // `foo` as qualified-name (for literal/type) vs identifier expression
     [$.named_type, $._expression],         // `from < total` — named_type's generic_args vs binary_expr's `<`
   ],
@@ -674,6 +675,7 @@ module.exports = grammar({
     // ===========================================================
 
     lifecycle_decl: $ => seq(
+      optional($.unbounded_annotation),
       field('kind', $._lifecycle_keyword),
       optional(seq('(', optional($._param_list), ')')),
       optional(seq('->', field('return_type', $._type_expr))),
@@ -925,6 +927,7 @@ module.exports = grammar({
     ),
 
     function_decl: $ => seq(
+      optional($.fn_decorators),
       'fn',
       field('name', $.identifier),
       optional($.generic_params),
@@ -955,6 +958,35 @@ module.exports = grammar({
       $.string_literal,
       ')',
     ),
+
+    // fn decorators (hale >= v0.11.x): `@export fn` (wasm module
+    // export), `@unbounded fn` (memory-bound carve-out — also valid
+    // on a lifecycle hook), `@budget(alloc_per_call = N) fn` (the
+    // enforced allocation ceiling), `@hot fn` (hot-path
+    // certification; the hale parser lets a `@budget` follow it:
+    // `@hot @budget(alloc_per_call = 0) fn`). The editor grammar is
+    // deliberately permissive — any sequence of decorators parses;
+    // stacking legality is the compiler's job.
+    fn_decorators: $ => repeat1(choice(
+      $.export_annotation,
+      $.unbounded_annotation,
+      $.budget_annotation,
+      $.hot_annotation,
+    )),
+
+    unbounded_annotation: $ => seq('@', 'unbounded'),
+
+    budget_annotation: $ => seq(
+      '@',
+      'budget',
+      '(',
+      'alloc_per_call',
+      '=',
+      $.integer_literal,
+      ')',
+    ),
+
+    hot_annotation: $ => seq('@', 'hot'),
 
     fallible_marker: $ => seq(
       'fallible',

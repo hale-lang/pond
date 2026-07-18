@@ -2682,6 +2682,18 @@
       "type": "SEQ",
       "members": [
         {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "unbounded_annotation"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
           "type": "FIELD",
           "name": "kind",
           "content": {
@@ -4056,6 +4068,18 @@
       "type": "SEQ",
       "members": [
         {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "fn_decorators"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
           "type": "STRING",
           "value": "fn"
         },
@@ -4234,6 +4258,89 @@
         {
           "type": "STRING",
           "value": ")"
+        }
+      ]
+    },
+    "fn_decorators": {
+      "type": "REPEAT1",
+      "content": {
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "export_annotation"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "unbounded_annotation"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "budget_annotation"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "hot_annotation"
+          }
+        ]
+      }
+    },
+    "unbounded_annotation": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "@"
+        },
+        {
+          "type": "STRING",
+          "value": "unbounded"
+        }
+      ]
+    },
+    "budget_annotation": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "@"
+        },
+        {
+          "type": "STRING",
+          "value": "budget"
+        },
+        {
+          "type": "STRING",
+          "value": "("
+        },
+        {
+          "type": "STRING",
+          "value": "alloc_per_call"
+        },
+        {
+          "type": "STRING",
+          "value": "="
+        },
+        {
+          "type": "SYMBOL",
+          "name": "integer_literal"
+        },
+        {
+          "type": "STRING",
+          "value": ")"
+        }
+      ]
+    },
+    "hot_annotation": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "@"
+        },
+        {
+          "type": "STRING",
+          "value": "hot"
         }
       ]
     },
@@ -7354,6 +7461,10 @@
     [
       "qualified_name",
       "path_expr"
+    ],
+    [
+      "_locus_decorator",
+      "fn_decorators"
     ],
     [
       "qualified_name",

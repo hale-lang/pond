@@ -1199,6 +1199,21 @@
     "fields": {}
   },
   {
+    "type": "budget_annotation",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "integer_literal",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "bus_block",
     "named": true,
     "fields": {},
@@ -3051,6 +3066,33 @@
     }
   },
   {
+    "type": "fn_decorators",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "budget_annotation",
+          "named": true
+        },
+        {
+          "type": "export_annotation",
+          "named": true
+        },
+        {
+          "type": "hot_annotation",
+          "named": true
+        },
+        {
+          "type": "unbounded_annotation",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "for_stmt",
     "named": true,
     "fields": {
@@ -3420,6 +3462,10 @@
           "named": true
         },
         {
+          "type": "fn_decorators",
+          "named": true
+        },
+        {
           "type": "generic_params",
           "named": true
         },
@@ -3592,6 +3638,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "hot_annotation",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "if_expr",
@@ -4642,6 +4693,10 @@
         },
         {
           "type": "parameter",
+          "named": true
+        },
+        {
+          "type": "unbounded_annotation",
           "named": true
         }
       ]
@@ -9180,6 +9235,11 @@
     }
   },
   {
+    "type": "unbounded_annotation",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "unit_type",
     "named": true,
     "fields": {}
@@ -9702,6 +9762,10 @@
     "named": false
   },
   {
+    "type": "alloc_per_call",
+    "named": false
+  },
+  {
     "type": "any",
     "named": false
   },
@@ -9752,6 +9816,10 @@
   },
   {
     "type": "bubble",
+    "named": false
+  },
+  {
+    "type": "budget",
     "named": false
   },
   {
@@ -9941,6 +10009,10 @@
   },
   {
     "type": "heap",
+    "named": false
+  },
+  {
+    "type": "hot",
     "named": false
   },
   {
@@ -10266,6 +10338,10 @@
   },
   {
     "type": "type",
+    "named": false
+  },
+  {
+    "type": "unbounded",
     "named": false
   },
   {
