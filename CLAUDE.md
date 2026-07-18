@@ -94,12 +94,13 @@ C_INCLUDE_PATH=$HOME/.local/include LIBRARY_PATH=$HOME/.local/lib \
 hale test path/to/lib/         # discovers <lib>/tests/*_test.hl, compiles + runs each
 hale test path/to/lib/ -run substr   # filter by test-file name
 hale test .                    # repo root: runs every lib's tests
-# CAVEAT: `hale test` skips the @ffi pickup `hale build` runs, so
-# sqlite-importing tests (sqlite/jobs/migrations) fail at link under
-# it (upstream gap — FRICTION.log § pond/sqlite). Interim gate:
+# @ffi tests (sqlite/jobs/migrations) link under `hale test` too as
+# of hale > v0.11.8 (the runner runs the same hale.toml [ffi] pickup
+# as `hale build` — FRICTION § pond/sqlite CLOSED 2026-07-18); the
+# include/lib shims are still needed when sqlite lives outside the
+# default search paths:
 C_INCLUDE_PATH=$HOME/.local/include LIBRARY_PATH=$HOME/.local/lib \
-  hale build sqlite/tests/crud_test.hl && ./sqlite/tests/crud_test
-# (pass = exit 0 + silent; same contract the runner enforces)
+  hale test sqlite/
 
 # heron only — tree-sitter grammar regen:
 cd heron && tree-sitter generate && tree-sitter test

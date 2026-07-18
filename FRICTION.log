@@ -4113,7 +4113,7 @@ upstream WS4 verdict (no stdlib primitive; `@ffi` is the surface):
       the F.7 entry's resolution note).
 
 
-## upstream CLI gap: `hale test` cannot link `@ffi` libs — OPEN 2026-07-04
+## upstream CLI gap: `hale test` cannot link `@ffi` libs — CLOSED 2026-07-18 (upstream fix)
 
 `hale test`'s per-file compile (`compile_test_binary`,
 hale-cli main.rs:1137) calls `build_executable_with_imports`
@@ -4138,6 +4138,14 @@ interim binaries can't be committed. Upstream ask: run the same
 ffi pickup in the test compile path; then this entry closes and
 `hale test .` goes fully green (currently 43 passed / 5
 ffi-link failures, all this class).
+
+CLOSED 2026-07-18: upstream shipped exactly that —
+`compile_test_binary` now runs `collect_ffi_from_imports` and
+builds with the ffi options (hale > v0.11.8). Verified here:
+`hale test sqlite/` 3/3, `hale test jobs/` 1/1,
+`hale test migrations/` 1/1, all green with only the
+C_INCLUDE_PATH/LIBRARY_PATH shims — no manual build gate. The
+interim per-test `hale build` workaround is obsolete.
 
 ======================================================================
  pond/subprocess
