@@ -1,5 +1,12 @@
 # pond/metrics — Prometheus-format exposition
 
+> **PROMOTED TO STDLIB** (hale ≥ v0.11.8): this library ships as
+> `std::metrics` — no import needed. The stdlib Registry owns its
+> storage (`Registry { namespace: "x" }` is the whole
+> construction) and histogram bounds are a space-separated String
+> instead of a math Matrix. This vendored copy is frozen for
+> older pins.
+
 Counter / gauge / histogram metric primitives plus a
 Prometheus-compatible text-format renderer and a
 `std::http::Handler` mountpoint for `/metrics`.

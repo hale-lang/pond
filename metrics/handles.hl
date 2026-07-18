@@ -1,3 +1,15 @@
+// ============================================================
+// PROMOTED TO STDLIB (hale >= v0.11.8): the full pond/metrics
+// surface ships as `std::metrics` — Registry / Counter / Gauge /
+// Histogram / labels_* / Endpoint, no import needed. Stdlib
+// differences: the Registry OWNS its storage (param-default
+// children; `Registry { namespace: "x" }` is the whole
+// construction — no separate MetricMap/HistogramList step) and
+// histogram bucket bounds are a space-separated String
+// ("0.005 0.01 0.05"), not a math-lib Matrix. This vendored
+// copy is FROZEN for older pins.
+// ============================================================
+
 // pond/metrics — factory free fns + Counter / Gauge /
 // Histogram handle loci.
 //

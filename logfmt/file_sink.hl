@@ -1,3 +1,10 @@
+// ============================================================
+// PROMOTED TO STDLIB (hale >= v0.11.8): FileSink and ConsoleSink
+// shipped as `std::log::FileSink` / `std::log::ConsoleSink` — no
+// import needed. This vendored copy is FROZEN for older pins.
+// OtlpSink stays HERE (vendor-protocol integration is app-tier).
+// ============================================================
+
 // pond/logfmt — FileSink.
 //
 // Service locus (catalog pattern 3): subscribes to "log.**", appends
