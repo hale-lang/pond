@@ -52,7 +52,7 @@ These shape non-obvious code in this repo. The first is a permanent language rul
 - **`agent/{llm,tools,conversation,sandbox,embeddings}/`, `ml/neural/`** — Tier 5 AI / agent orchestration.
 - **`websocket/`** — Tier 3 realtime: RFC 6455 client + server-side upgrade, with liveness deadlines (recv-timeout ping/pong) since 2026-06-12.
 - **`tui/`** — Tier 8 DevX: Elm-shaped full-screen TUI runtime (App/Program, typed input events, cell-grid diff renderer, widgets) + real apps as examples (logview, metricsdash, procpanel). Self-contained seed *by choice* (import of `term` evaluated and declined — see FRICTION.log).
-- **`heron/`** — outlier: tree-sitter grammar for Hale, not a Hale seed. Has its own build chain (tree-sitter CLI; see `heron/README.md`). Generated `src/parser.c` IS checked in so consumers only need `libtree-sitter` at link time.
+- **`heron/`** — MOVED to [hale-lang/tree-sitter-hale](https://github.com/hale-lang/tree-sitter-hale) (2026-07-19; full history). pond is Hale seeds only again; the grammar's corpus-sync CI lives with the grammar.
 
 FFI libs: `heron/` (tree-sitter) and `sqlite/` (`glue.c` + `hale.toml [ffi]`). Everything else is pure Hale. Note the `[ffi]` auto-pickup only scans *direct* imports — an end app using `jobs`/`migrations` over sqlite must also `import` sqlite itself (consistent with the vendoring rule below).
 
