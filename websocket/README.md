@@ -1,5 +1,13 @@
 # pond/websocket — RFC 6455 client + server-side upgrade
 
+> **Upstream unblock (hale > v0.11.9):** `std::http` now ships the
+> connection-takeover surface this library's server side was
+> waiting on — `req.conn_fd` + `Response { takeover: true }` +
+> `Stream.release_fd()`. A handler can answer
+> `101 Switching Protocols` behind a plain `std::http::Server` and
+> hand the live fd to a session locus; no hand-rolled accept loop
+> needed. Stdlib promotion of this library can now follow.
+
 Suggested import alias: **`ws`**
 
 ```hale
