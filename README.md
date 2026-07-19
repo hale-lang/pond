@@ -112,14 +112,13 @@ game/sim (`game/ecs`, `game/tick`, `game/spatial`); data formats
 `dev/docgen`, `dev/asserts`, `dev/bench`). Picked up when a workload
 demands.
 
-### Editor tooling — `heron/`
+### Editor tooling — moved
 
-Not a vendored `.hl` library but part of the repo: **heron** is the
-tree-sitter grammar for Hale — syntax highlighting and structural
-queries, consumed by editor extensions (Helix ships today; VSCode /
-Neovim / Zed / Emacs via the generated `parser.c`) and the future
-LSP. Packaged for npm / cargo / pip. See
-[`heron/README.md`](./heron/README.md).
+The tree-sitter grammar (**heron**) moved to its own repo,
+[hale-lang/tree-sitter-hale](https://github.com/hale-lang/tree-sitter-hale)
+(2026-07-19, full history), so editors and linguist can pin it by
+URL. The language server ships in the `hale` binary itself
+(`hale lsp`).
 
 ## Design rules
 

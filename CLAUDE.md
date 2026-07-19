@@ -54,7 +54,7 @@ These shape non-obvious code in this repo. The first is a permanent language rul
 - **`tui/`** — Tier 8 DevX: Elm-shaped full-screen TUI runtime (App/Program, typed input events, cell-grid diff renderer, widgets) + real apps as examples (logview, metricsdash, procpanel). Self-contained seed *by choice* (import of `term` evaluated and declined — see FRICTION.log).
 - **`heron/`** — MOVED to [hale-lang/tree-sitter-hale](https://github.com/hale-lang/tree-sitter-hale) (2026-07-19; full history). pond is Hale seeds only again; the grammar's corpus-sync CI lives with the grammar.
 
-FFI libs: `heron/` (tree-sitter) and `sqlite/` (`glue.c` + `hale.toml [ffi]`). Everything else is pure Hale. Note the `[ffi]` auto-pickup only scans *direct* imports — an end app using `jobs`/`migrations` over sqlite must also `import` sqlite itself (consistent with the vendoring rule below).
+FFI libs: `sqlite/` (`glue.c` + `hale.toml [ffi]`). Everything else is pure Hale. Note the `[ffi]` auto-pickup only scans *direct* imports — an end app using `jobs`/`migrations` over sqlite must also `import` sqlite itself (consistent with the vendoring rule below).
 
 Backlog tiers (6, 7, 8 — game/sim, data formats, devx; plus the rest of tier 3 realtime messaging beyond `websocket/`) are listed in `README.md` but not yet built.
 
@@ -102,8 +102,6 @@ hale test .                    # repo root: runs every lib's tests
 C_INCLUDE_PATH=$HOME/.local/include LIBRARY_PATH=$HOME/.local/lib \
   hale test sqlite/
 
-# heron only — tree-sitter grammar regen:
-cd heron && tree-sitter generate && tree-sitter test
 ```
 
 Per `.gitignore`, demo binaries land at `examples/<demo>/<demo>` and `examples/<demo>/main` and must not be committed (the ignore rule is generic: extensionless files under `examples/` are ignored).
