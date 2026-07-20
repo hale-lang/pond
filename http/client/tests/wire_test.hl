@@ -73,6 +73,32 @@ fn main() {
     let bad = http::__parse_response(std::bytes::from_string("garbage with no crlf"));
     std::test::assert_eq_int(bad.status, 0, "unparseable response yields status 0");
 
+    // ---- chunked transfer decoding ---------------------------
+
+    // Transfer-Encoding: chunked, no Content-Length: the body is
+    // de-chunked (hex-size framing, chunk extension, and trailer
+    // header all stripped) — the FRICTION-log raw-framing bug.
+    let chunked_raw = std::bytes::from_string(
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"
+        + "6\r\nhello,\r\n1;ext=x\r\n \r\n5\r\nworld\r\n0\r\nX-Trailer: ignored\r\n\r\n");
+    let rc = http::__parse_response(chunked_raw);
+    std::test::assert_eq_int(rc.status, 200, "chunked: status extracted");
+    std::test::assert_eq_str(std::str::from_bytes(rc.body), "hello, world",
+        "chunked: body de-chunked across chunks + ext + trailer");
+
+    // Truncated chunked stream (no terminator) -> status 0, never
+    // partial data.
+    let trunc = std::bytes::from_string(
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n6\r\nhello,\r\n");
+    std::test::assert_eq_int(http::__parse_response(trunc).status, 0,
+        "chunked: truncated stream yields status 0");
+
+    // Malformed chunk-size line -> status 0.
+    let malformed = std::bytes::from_string(
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\nbogus\r\n0\r\n\r\n");
+    std::test::assert_eq_int(http::__parse_response(malformed).status, 0,
+        "chunked: malformed size line yields status 0");
+
     // ---- status-line parsing ---------------------------------
 
     std::test::assert_eq_int(http::__parse_status("HTTP/1.1 503 Service Unavailable"), 503,

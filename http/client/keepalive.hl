@@ -98,27 +98,42 @@ fn __hex_size(raw: Bytes, lo: Int, hi: Int) -> Int {
     return v;
 }
 
-type __ChunkScan { body: Bytes; complete: Bool; }
+type __ChunkScan { body: Bytes; complete: Bool; bad: Bool; }
 
 // Try to de-chunk [start, end). complete=true once the 0-size terminator chunk
-// is reached (body is the assembled payload); otherwise complete=false (need
-// more bytes off the wire before the chunked stream is whole).
+// AND its trailer section (optional trailer headers + final CRLF) are seen;
+// bad=true means the framing is malformed (not "need more wire bytes") —
+// callers must error, never return partial data.
 fn __scan_chunks(raw: Bytes, start: Int, end: Int) -> __ChunkScan {
     let out = std::bytes::BytesBuilder { initial_cap: 4096 };
     let mut pos = start;
     while pos < end {
         let nl = __crlf_at(raw, pos, end);
-        if nl < 0 { return __ChunkScan { body: b"", complete: false }; }       // size line incomplete
+        if nl < 0 { return __ChunkScan { body: b"", complete: false, bad: false }; }   // size line incomplete
         let size = __hex_size(raw, pos, nl);
-        if size < 0 { return __ChunkScan { body: b"", complete: false }; }
-        if size == 0 { return __ChunkScan { body: out.snapshot(), complete: true }; }  // terminator
+        if size < 0 { return __ChunkScan { body: b"", complete: false, bad: true }; }
+        if size == 0 {
+            // Terminator chunk: skip trailer headers (ignored), then the
+            // blank line that ends the message.
+            let mut tpos = nl + 2;
+            while tpos < end {
+                let tnl = __crlf_at(raw, tpos, end);
+                if tnl < 0 { return __ChunkScan { body: b"", complete: false, bad: false }; }
+                if tnl == tpos { return __ChunkScan { body: out.snapshot(), complete: true, bad: false }; }
+                tpos = tnl + 2;
+            }
+            return __ChunkScan { body: b"", complete: false, bad: false };
+        }
         let data_start = nl + 2;
         let data_end = data_start + size;
-        if data_end + 2 > end { return __ChunkScan { body: b"", complete: false }; }    // data incomplete
+        if data_end + 2 > end { return __ChunkScan { body: b"", complete: false, bad: false }; }    // data incomplete
+        let ca = std::bytes::at(raw, data_end) or -1;
+        let cb = std::bytes::at(raw, data_end + 1) or -1;
+        if ca != 13 || cb != 10 { return __ChunkScan { body: b"", complete: false, bad: true }; }
         out.append(std::bytes::slice(raw, data_start, data_end));
         pos = data_end + 2;                                                    // skip trailing CRLF
     }
-    return __ChunkScan { body: b"", complete: false };
+    return __ChunkScan { body: b"", complete: false, bad: false };
 }
 
 type __FramedRead { bytes: Bytes; framed: Bool; }
@@ -155,11 +170,13 @@ fn __recv_framed(handle: Int, is_tls: Bool, max_body: Int) -> __FramedRead {
     if std::str::index_of(te, "chunked") >= 0 {
         while total < max_body {
             let sc = __scan_chunks(full, body_start, total);
+            // Raw bytes go back whole — __parse_response de-chunks.
+            // framed=true ⇒ terminator + trailers seen.
             if sc.complete {
-                let hb = std::bytes::BytesBuilder { initial_cap: 4096 };
-                hb.append(std::bytes::slice(full, 0, body_start));
-                hb.append(sc.body);
-                return __FramedRead { bytes: hb.snapshot(), framed: true };
+                return __FramedRead { bytes: full, framed: true };
+            }
+            if sc.bad {
+                return __FramedRead { bytes: full, framed: false };
             }
             let take = if (max_body - total) < chunk { max_body - total } else { chunk };
             let piece = __recv_raw(handle, is_tls, take);

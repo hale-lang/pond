@@ -224,7 +224,16 @@ fn __parse_response(raw: Bytes) -> Response {
 
     let body_start = header_end + 4;
     let mut body = b"";
-    if body_start < raw_len {
+    // A `Transfer-Encoding: chunked` body is de-chunked here — the
+    // caller always sees the payload, never the hex-size framing.
+    // Incomplete/malformed chunk framing parses as status=0 (caller
+    // treats as bad_response) rather than partial data.
+    let te = std::str::lower(__find_header(headers, "transfer-encoding"));
+    if std::str::index_of(te, "chunked") >= 0 {
+        let sc = __scan_chunks(raw, body_start, raw_len);
+        if !sc.complete { return __empty_response(); }
+        body = sc.body;
+    } else if body_start < raw_len {
         body = std::bytes::slice(raw, body_start, raw_len);
     }
 

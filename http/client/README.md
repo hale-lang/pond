@@ -1,5 +1,11 @@
 # pond/http/client
 
+> **Promoted**: this client was promoted into the hale stdlib as
+> `std::http` (client + router, 2026-07-17) — new code should use
+> `std::http::get` / `std::http::Client` directly, and this copy
+> should track the stdlib, not fork from it. (The chunked
+> transfer-decoding fix of 2026-07-20 is mirrored in both.)
+
 HTTP/1.1 client built on `std::io::tcp::*` plus
 `std::io::tls::*`. Exposes `get` / `post` / `request` free fns
 for one-shot calls, plus a `Client` locus with a connection-
