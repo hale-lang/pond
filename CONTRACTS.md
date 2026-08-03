@@ -35,6 +35,22 @@ choose their own aliases per F.25.
   FRICTION § pond/pq "In-repo build vs check" CLOSED.
 - Gates at hale v0.13.0 after this pass: `hale test .` 49/49,
   `hale check` green on all 30 libs, all 36 examples build.
+- **Repo record re-baselined at v0.13.0 (same date, follow-up
+  pass).** Probe-verified gotcha ledger refreshed in CLAUDE.md
+  (topic check/build divergence, `or fail` err-payload, `-> ()`
+  method returns, form-vec `or`-substitute: all still open;
+  plain-`or` err-field reads: lifted in v0.12). The
+  § pond/ml/neural method-frame heap corruption is **FIXED
+  upstream** (exact repro 20/20 clean; workaround removal is a
+  separate pending pass), while § pond/migrations entry 14
+  still segfaults 5/5 and is now known to be a separable bug.
+  Unbounded-alloc warnings re-triaged repo-wide against the
+  v0.11.12 analysis: 5 libs cleared to 0 with no source change
+  (embeddings, crypto, logfmt, migrations, ml/neural), tui
+  dropped 45→41, and first-time triage records added for
+  kvpack, rowbuf, math/matrix, sqlite, metrics. 62 advisory
+  sites remain, all triaged in FRICTION.log. No contract
+  deviations opened or closed by this pass.
 
 ## 2026-07-15 status note — websocket on hale 9bc53d5's fallible Stream surface
 
