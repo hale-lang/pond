@@ -10,31 +10,31 @@
 // few thousand epochs and is what this demo uses. See
 // FRICTION.log "xor-2-2-1-init-sensitive".
 //
-// **Structure note (2026-06-12).** The demo drives the main
-// training loop from `fn main()` + a free fn calling
-// `model.train_step` directly, NOT through `Trainer.fit`. At
-// hale HEAD (b716696) a Matrix created inside one locus's
-// method frame and passed into `Model.train_step` corrupts the
-// heap — the process segfaults at some later allocation
+// **Structure note (2026-08-03).** Training runs through
+// `Trainer.fit` — the natural shape. From 2026-06-12 to
+// 2026-08-03 the demo instead drove `model.train_step` from a
+// `fn main()`-frame loop (`train_corners`) because an upstream
+// heap-corruption bug made the fit call chain poison the heap;
+// that bug is FIXED at hale v0.13.0 and the loop is retired
 // (FRICTION.log "method-frame-fresh locus args corrupt the
-// heap", 2026-06-12). The main/free-fn-driven chain is
-// unaffected (verified at 20k+ steps). `Trainer.fit` +
-// `TrainStepEvent` + `TrainLogger` are still exercised — as the
-// demo's FINAL act, after which nothing else allocates, which
-// is the one ordering that exits cleanly today.
+// heap"). One discipline REMAINS: every input Matrix is created
+// BEFORE the first `add_dense` — a Matrix allocated after the
+// receiver Model's @form(vec) buffer has grown still reads as
+// all zeros inside that Model's method frames (the same
+// FRICTION entry's second manifestation, still open at
+// v0.13.0). Do not reorder the lets in main().
 //
 // Wiring:
-//   1. Construct a Model and add two dense layers (2 -> 3 -> 1).
-//   2. Build the four XOR corner samples as column vecs.
-//   3. Train 5000 epochs of per-sample SGD via train_corners
-//      (free fn over model.train_step) at lr=0.5.
+//   1. Build the four XOR corner samples + the 4-sample batch
+//      matrices as column vecs (all matrices FIRST — see above).
+//   2. Construct TrainLogger (subscriber before publisher),
+//      a Model with two dense layers (2 -> 3 -> 1), a Trainer.
+//   3. Train 5000 epochs via trainer.fit; the logger receives
+//      the per-epoch TrainStepEvent stream and keeps last_loss.
 //   4. Run nn::forward on each corner; check round(out) against
 //      the truth table.
 //   5. state-mirroring round-trip: snapshot_bytes ->
 //      apply_delta into a fresh model; re-check two corners.
-//   6. FINAL act: construct TrainLogger (subscriber) + Trainer,
-//      fit a fresh model for 500 epochs, assert the logger saw
-//      the per-epoch TrainStepEvent stream.
 //
 // Compose: pond/math/matrix (Matrix + free-fn factories),
 // pond/ml/neural (Layer / Model / Trainer / NnError / TrainStep).
@@ -53,16 +53,13 @@ locus TrainLogger {
     fn on_step(s: nn::TrainStep) {
         self.last_loss = s.loss;
         let e = s.epoch_idx;
-        if e == 1 || e == 100 || e == 500 {
-            println("[xor]   trainer epoch=", to_string(e),
+        if e == 1 || e == 1000 || e == 2000 || e == 3000
+            || e == 4000 || e == 5000 {
+            println("[xor]   epoch=", to_string(e),
                     " loss=", to_string(s.loss));
             self.printed_any = true;
         }
     }
-}
-
-fn report_step_err(e: nn::NnError) {
-    println("FAIL train_step error kind=", e.kind, " detail=", e.detail);
 }
 
 fn report_fit_err(e: nn::NnError) {
@@ -92,37 +89,6 @@ fn assert_eq_int(label: String, got: Int, want: Int) {
     }
 }
 
-// Per-sample SGD over the four XOR corners for `epochs` epochs.
-// Mirrors Trainer.fit's inner loop, but driven from the
-// main/free-fn chain (see the structure note up top). Returns
-// the final epoch's mean loss. Prints progress every 1000
-// epochs.
-fn train_corners(model: nn::Model,
-                 x00: mat::Matrix, x01: mat::Matrix,
-                 x10: mat::Matrix, x11: mat::Matrix,
-                 y00: mat::Matrix, y01: mat::Matrix,
-                 y10: mat::Matrix, y11: mat::Matrix,
-                 epochs: Int, lr: Float) -> Float fallible(nn::NnError)
-{
-    let mut e = 1;
-    let mut mean_loss = 0.0;
-    while e <= epochs {
-        let mut acc = 0.0;
-        acc = acc + (model.train_step(x00, y00, lr) or raise);
-        acc = acc + (model.train_step(x01, y01, lr) or raise);
-        acc = acc + (model.train_step(x10, y10, lr) or raise);
-        acc = acc + (model.train_step(x11, y11, lr) or raise);
-        mean_loss = acc / 4.0;
-        if e == 1 || e == 1000 || e == 2000 || e == 3000
-            || e == 4000 || e == 5000 {
-            println("[xor]   epoch=", to_string(e),
-                    " loss=", to_string(mean_loss));
-        }
-        e = e + 1;
-    }
-    return mean_loss;
-}
-
 // Round a sigmoid output to a 0/1 class label by thresholding at
 // 0.5. The trained network's outputs settle within a few
 // thousandths of 0 or 1 on the four XOR corners.
@@ -138,9 +104,9 @@ fn predict_label(model: nn::Model, x: mat::Matrix) -> Int fallible(nn::NnError) 
 }
 
 fn main() {
-    // The four XOR corners as 2x1 column vecs + 1x1 targets
-    // (matrix factories are free fns as of hale v0.8.2's m90
-    // enforcement):
+    // ALL matrices first (zero-reads ordering discipline — see the
+    // structure note up top). The four XOR corners as 2x1 column
+    // vecs + 1x1 targets for verification:
     //   (0, 0) -> 0      (0, 1) -> 1
     //   (1, 0) -> 1      (1, 1) -> 0
     let x00 = mat::from_rows(2, 1, "0.0, 0.0");
@@ -151,6 +117,12 @@ fn main() {
     let y01 = mat::from_rows(1, 1, "1.0");
     let y10 = mat::from_rows(1, 1, "1.0");
     let y11 = mat::from_rows(1, 1, "0.0");
+    // The same corners as one 4-sample batch for Trainer.fit.
+    let xs = mat::from_rows(4, 2, "0.0,0.0, 0.0,1.0, 1.0,0.0, 1.0,1.0");
+    let ys = mat::from_rows(4, 1, "0.0, 1.0, 1.0, 0.0");
+
+    // Subscribers MUST be born before publishers fire.
+    let logger = TrainLogger { };
 
     // 2-3-1 MLP with sigmoid throughout. rng_state=42 seeds a
     // reproducible weight init so the demo's loss is identical
@@ -163,13 +135,17 @@ fn main() {
     model.add_dense(2, 3, "sigmoid");
     model.add_dense(3, 1, "sigmoid");
 
-    println("[xor] training 2-3-1 MLP for 5000 epochs ...");
-    let final_loss = train_corners(model, x00, x01, x10, x11,
-                                   y00, y01, y10, y11, 5000, 0.5)
-        or 999.0;
+    let trainer = nn::Trainer {
+        lr:         0.5,
+        batch_size: 4,
+    };
 
-    // Final loss should be small.
-    assert_lt_float("final loss", final_loss, 0.05);
+    println("[xor] training 2-3-1 MLP for 5000 epochs via Trainer.fit ...");
+    trainer.fit(model, xs, ys, 5000) or report_fit_err(err);
+
+    // Final loss should be small; the logger's last event carries
+    // the final epoch's mean loss.
+    assert_lt_float("final loss", logger.last_loss, 0.05);
 
     // Verify the truth table on the four corners. predict_label
     // is fallible; `or -1` substitutes a sentinel label so the
@@ -203,37 +179,6 @@ fn main() {
     copy.apply_delta(snap) or report_delta_err(err);
     assert_eq_int("copy XOR(0,1)", predict_label(copy, x01) or -1, 1);
     assert_eq_int("copy XOR(1,1)", predict_label(copy, x11) or -1, 0);
-
-    // ---- FINAL act: Trainer.fit + TrainStepEvent ----
-    //
-    // This MUST come last: at hale HEAD the fit call chain
-    // (Trainer method frame manufacturing Matrices for
-    // model.train_step) corrupts the heap, and the process
-    // segfaults at the next allocation-heavy work after fit
-    // returns. With only the logger assert + final println
-    // after it, the demo exits cleanly. See FRICTION.log
-    // "method-frame-fresh locus args corrupt the heap"
-    // (2026-06-12) — when that upstream bug is fixed, fold the
-    // main training loop back into Trainer.fit and retire
-    // train_corners.
-    println("[xor] exercising Trainer.fit + TrainStepEvent (500 epochs, fresh model) ...");
-    let xs = mat::from_rows(4, 2, "0.0,0.0, 0.0,1.0, 1.0,0.0, 1.0,1.0");
-    let ys = mat::from_rows(4, 1, "0.0, 1.0, 1.0, 0.0");
-    let model2 = nn::Model {
-        name:       "xor2",
-        rng_state:  42,
-    };
-    model2.add_dense(2, 3, "sigmoid");
-    model2.add_dense(3, 1, "sigmoid");
-
-    // Subscribers MUST be born before publishers fire.
-    let logger = TrainLogger { };
-    let trainer = nn::Trainer {
-        lr:         0.5,
-        batch_size: 4,
-    };
-    trainer.fit(model2, xs, ys, 500) or report_fit_err(err);
-    assert_lt_float("trainer last_loss", logger.last_loss, 0.05);
 
     println("[xor] xor-trainer demo complete");
 }

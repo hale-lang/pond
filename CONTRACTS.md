@@ -51,6 +51,15 @@ choose their own aliases per F.25.
   kvpack, rowbuf, math/matrix, sqlite, metrics. 62 advisory
   sites remain, all triaged in FRICTION.log. No contract
   deviations opened or closed by this pass.
+- **ml/neural workaround-removal pass (same date, third pass).**
+  xor-trainer trains through `Trainer.fit` again (`train_corners`
+  retired; verified 3/3, convergence 0.000265, outputs
+  byte-identical to the retired path). The zero-reads
+  manifestation was retested and is STILL PRESENT at v0.13.0
+  (differential probe, 5/5), so the input-matrices-before-model
+  ordering discipline and fit's `extract_row_into` shape remain
+  binding. No public-surface change; entry re-scoped in
+  FRICTION § pond/ml/neural.
 
 ## 2026-07-15 status note — websocket on hale 9bc53d5's fallible Stream surface
 

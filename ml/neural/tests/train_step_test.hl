@@ -2,17 +2,17 @@
 // a finite positive MSE loss; repeated steps on the same fixed
 // sample reduce the loss; error surface (empty model, bad shapes).
 //
-// NOTE upstream heap-corruption bug family (FRICTION.log §
-// pond/ml/neural "method-frame-fresh locus args corrupt the heap"):
-// everything here runs directly in the fn main() frame — the
-// verified-safe shape. ADDITIONALLY (new repro found while writing
-// this test, 2026-07-04): a Matrix allocated AFTER the receiver
-// Model's @form(vec) buffer has grown (i.e. after add_dense) reads
-// back as all zeros inside that Model's METHOD frame (train_step) —
-// x.get(i) fails and `or 0.0` masks it — while free-fn frames
-// (forward) read the same Matrix fine. Workaround (matches the
-// xor-trainer example's ordering): create every input Matrix BEFORE
-// the first add_dense. Do not reorder the lets below.
+// NOTE upstream bug family (FRICTION.log § pond/ml/neural
+// "method-frame-fresh locus args corrupt the heap"): the segfault
+// half is FIXED at hale v0.13.0 (2026-08-03 retest), but the second
+// manifestation found while writing this test (2026-07-04) is STILL
+// PRESENT: a Matrix allocated AFTER the receiver Model's @form(vec)
+// buffer has grown (i.e. after add_dense) reads back as all zeros
+// inside that Model's METHOD frame (train_step) — x.get(i) fails and
+// `or 0.0` masks it — while free-fn frames (forward) read the same
+// Matrix fine. Workaround (matches the xor-trainer example's
+// ordering): create every input Matrix BEFORE the first add_dense.
+// Do not reorder the lets below.
 
 import "../../../math/matrix" as mat;
 import ".." as nn;

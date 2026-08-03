@@ -2887,11 +2887,11 @@ seeds, FakeDriver, one caught bad_set failure, then a
 factory call). Newly established: this is a **SEPARABLE bug**,
 not a manifestation of the § pond/ml/neural method-frame family
 it was filed under — that parent repro is FIXED at v0.13.0
-(20/20 clean) while this one still crashes. That makes it worth
-its own upstream report: the probe seed is self-contained and
-deterministic, and the "no toy reduction reproduces it" matrix
-below is exactly the triage a report needs. Workaround
-unchanged and still binding.
+(20/20 clean) while this one still crashes. **Reported upstream
+same day as hale-lang/hale#375** (full repro inline, the
+reduction matrix, and the separability finding; the still-open
+ml/neural zero-reads manifestation is cross-referenced there as
+a possible shared root). Workaround unchanged and still binding.
 
 **Symptom (hale HEAD `400ac68`, deterministic 3/3 runs).** After
 ANY `Migrator` run-op failure is caught by an `or` handler in
@@ -3054,6 +3054,9 @@ not matter.
 back into a plain `trainer.fit(model, xs, ys, 5000)` call at the
 top of the demo, drop workaround 1 if profiling says the fresh
 per-sample extract is preferable, and delete this entry.
+(*2026-08-03: the fold-back is DONE — see the workaround
+disposition below. The entry stays open, re-scoped to
+manifestation 2.*)
 
 **2026-07-04 retest (hale HEAD 400ac68): STILL SEGFAULTS, 5/5
 runs** — despite this HEAD's large memory-model work (WS1#4
@@ -3095,14 +3098,46 @@ correct accumulator — at 400ac68 it segfaulted 5/5 before
 printing. Nothing in the v0.11.10→v0.13.0 changelogs names this
 fix explicitly; most plausible candidates are the v0.11.12
 form-vec `.set` retire/arena work and the v0.12.0 memory-model
-batch. NOT yet retested: the second (zero-reads) manifestation
-above — it needs the matrix lib shapes, so it rides the
-workaround-removal pass. Workarounds (preallocate +
-`extract_row_into`, main-frame training drive, allocation-order
-discipline in train_step_test.hl) STAY until that pass
-revalidates each one against both manifestations; see also
-§ pond/migrations entry 14, which this retest proves is a
-SEPARABLE bug (it still crashes with this one fixed).
+batch. See also § pond/migrations entry 14, which this retest
+proves is a SEPARABLE bug (it still crashes with this one
+fixed).
+
+**2026-08-03 (same day, workaround-removal pass): the SECOND
+manifestation is NOT fixed — retested, STILL PRESENT 5/5.**
+Differential probe (same seeded 2-3-1 model, one `train_step`):
+input matrices created BEFORE `add_dense` → loss 0.16499; the
+same matrices created AFTER the model's form-vec growth →
+exactly **0.158267**, the documented zero-input-forward
+signature. Deterministic 5/5. The entry therefore SPLITS:
+manifestation 1 (method-frame segfault) is CLOSED; manifestation
+2 (zero-reads of matrices allocated after receiver form-vec
+growth, inside the receiver's method frames) is the entry's
+live scope — it now has a ~30-line differential repro and is
+cross-referenced upstream in hale-lang/hale#375 (the
+§ pond/migrations entry-14 report) as a possible shared root;
+a dedicated issue for it is not filed yet.
+
+**Workaround disposition after the removal pass:**
+
+1. Demo restructure (old workaround 2) — **RETIRED**. xor-trainer
+   trains through `trainer.fit(model, xs, ys, 5000)` at the top
+   again and `train_corners` is deleted. Verified 3/3 clean
+   runs: convergence 0.000265 @ 5000 epochs, truth table 4/4,
+   sigmoid outputs byte-identical to the retired main-frame
+   path (same seed), and the post-fit allocation-heavy work
+   (forward ×8, snapshot/apply_delta) runs clean — the exact
+   sequence that segfaulted before the fix.
+2. `Trainer.fit` preallocate + `extract_row_into` (workaround 1)
+   — **RETAINED**. No longer needed against the fixed segfault,
+   but fit's correctness under manifestation 2 has only been
+   validated in THIS shape: a fresh-`extract_row`-per-sample
+   respell would allocate matrices in fit's method frame after
+   the model's growth, squarely in manifestation 2's trigger
+   zone. Revisit only with a dedicated probe (the old "if
+   profiling says" clause now has a correctness precondition).
+3. Matrices-before-first-`add_dense` ordering discipline
+   (train_step_test.hl, demo) — **RETAINED**, as the live guard
+   for manifestation 2. Do not reorder those lets.
 
 ## Resolved (2026-06-08 source pass)
 
