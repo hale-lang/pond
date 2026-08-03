@@ -247,10 +247,7 @@ fn sasl_offers_scram_sha256(body: Bytes, total: Int) -> Bool {
 // fail-fast.
 //
 // This pair of pure functions is the single source of truth for that
-// contract. It lives here rather than in pq.hl (whose
-// `import "vendor/pond/db"` only resolves inside a vendored consumer
-// tree, so pq.hl can't be typechecked/run standalone — see
-// FRICTION.log § pond/pq, "In-repo build vs check") so the
+// contract. It lives here rather than in pq.hl so the
 // retry/fail-fast classification stays unit-testable offline: the
 // "classification level" test for a behaviour that's otherwise
 // awkward to exercise without a live socket dropping mid-handshake.

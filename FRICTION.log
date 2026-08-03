@@ -731,6 +731,54 @@ should retry-scan until a colon follows the key match — any
 JSON document where a searched key's name appears as an earlier
 string VALUE hits this class.
 
+**2026-08-03 follow-up — upstream ask DELIVERED (hale v0.11.18),
+in-lib workaround retired at the content-block site.** The
+stdlib finders were rebuilt on a single-pass object cursor
+("matches key positions, not key text", Crumb 4-2): probe
+confirmed `find_string_field({"type":"text","text":"Hel"},
+"text")` now returns `Hel`. The same rebuild ENFORCES the
+whole-value chaining contract — feeding a mid-document tail
+slice (this lib's old workaround shape) now returns "" instead
+of scanning forward, which is exactly how wire_test.hl caught
+the change (masked until 2026-08-03 behind the Stream-send
+codegen failure below). `__parse_anthropic_response` now calls
+the stdlib finder on the intact array element; `__key_pos`
+stays only as the key-locator inside `__extract_field_raw`,
+whose duplicate-suspected status is unchanged (the internal
+raw-field helper is still unexported).
+
+## upstream 9bc53d5/hale#210: fallible Stream send/recv — missed in the 2026-07-15/16 migration pass, migrated 2026-08-03
+
+The repo-wide migration to hale 9bc53d5's fallible
+`Stream.send/recv` surface (see FRICTION § pond/websocket
+"upstream 9bc53d5" and the 2026-07-15 CONTRACTS.md status note)
+inventoried websocket, pq, and http/client — but never swept
+agent/llm, whose `__stream_send` / `__stream_recv_bytes`
+(anthropic.hl) drive a `std::io::tcp::Stream` locus directly on
+the plaintext path. Both codegen gates failed from 2026-07-15
+until today (`error not addressed: Stream.send is fallible`);
+`hale check` stayed green throughout — fallibility disposition
+enforcement is still codegen-only at v0.13.0, so the
+green-check-≠-codegen-clean gotcha hid a 19-day breakage in a
+lib whose gates weren't re-run.
+
+Migration mirrors pq/stream.hl's dispositions: `tcp.send(wire)
+or discard` (a failed send surfaces downstream as the length-0
+recv in `__drain_stream`, matching the TLS path's negative
+sentinel — every caller discards the send return), and
+`tcp.recv_bytes(max) or b""` (errors collapse to the length-0
+end-of-stream contract). The `std::io::tls::*` path-call sites
+are untouched — still non-fallible Int-sentinel per the v0.13
+stdlib surface. No public-surface change. Gates at hale
+v0.13.0: check ok (0 warnings), test 2/2, echo-completion
+builds.
+
+Process lesson (recorded so the next breaking-stdlib pass
+doesn't repeat it): the 07-15 site inventory was built by
+grepping the libs the ICE reports named, not by sweeping the
+repo for `Stream` construction — `hale test .` at the migration
+compiler would have caught agent/llm on day one.
+
 ======================================================================
  pond/agent/sandbox
 ======================================================================
@@ -3600,7 +3648,8 @@ redialing — logged for hale (cf. `recv_into`'s `-2` contract, which
   transactional work. Lifting this needs a checkout/checkin handle
   that holds one `PgConn` for the transaction's span; deferred until a
   workload needs pooled transactions.
-- **In-repo build vs check.** `hale check pq` typechecks standalone.
+- **In-repo build vs check — [CLOSED 2026-08-03: imports respelled
+  relative].** `hale check pq` typechecks standalone.
   `hale build` of a *consumer* resolves `import "vendor/pond/db"`
   against a vendored tree (F.26); inside this repo there is no
   `vendor/` dir, so build a consumer that has vendored both seeds
@@ -3614,6 +3663,26 @@ redialing — logged for hale (cf. `recv_into`'s `-2` contract, which
   root: the `vendor/...` import fallback resolves against the
   workspace root, which `find_workspace_root` anchors on
   `hale.toml` (or `Cargo.toml`).
+
+  *2026-08-03 close:* hale v0.12.0 made `hale check` resolve
+  imports (the cross-seed effect-analysis work), so the vendor
+  spelling stopped checking standalone — `hale check pq/` failed
+  with `could not resolve import "vendor/pond/db"`, killing the
+  per-lib verification gate. pq was the only lib using the
+  consumer-style spelling for an intra-pond dep (jobs, migrations,
+  logfmt, tracing all import relative). Respelled `pq.hl` /
+  `pool.hl` to `import "../db"` (consumers vendor the whole pond
+  tree, so `vendor/pond/pq/../db` resolves identically) and the
+  example to the standard `../..` + `../../../db` shape — which
+  also makes `pgwire-roundtrip` BUILD in-repo for the first time
+  (it still needs a live postgres to run). Repo invariant going
+  forward: intra-pond imports are always relative; `vendor/pond/…`
+  spellings belong to consumer apps only. Side effect: check now
+  runs the full advisory analyses over pq for the first time —
+  3 warnings surfaced (the two 2026-06-12 `PgPool.open`
+  false-positive-shaped sites, now worded as hot-path-allocation,
+  plus a new `wire.hl:212` string-concat site); triage refresh
+  belongs to the repo-wide v0.13.0 re-baseline pass.
 - **`--warn-unbounded-alloc` (now on by default) flags
   `PgPool.open`** — two warnings: the per-iteration `PgConn` and
   `db::Status` structs in open's connection loop "accumulate in

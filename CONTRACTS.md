@@ -14,6 +14,28 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-08-03 status note — v0.13.0 fix pass (agent/llm Stream migration, pq import respell)
+
+- **`pond/agent/llm` migrated to the fallible Stream surface.** The
+  2026-07-15/16 migration pass (next note) inventoried websocket, pq,
+  and http/client but missed agent/llm's two plaintext `tcp.send` /
+  `tcp.recv_bytes` sites — its codegen gates were broken from
+  2026-07-15 until today while `hale check` stayed green. Dispositions
+  mirror pq's (`or discard` / `or b""`); no public-surface change.
+  Also retired in the same pass: the 2026-07-04 in-lib key-position
+  workaround in `__parse_anthropic_response` — hale v0.11.18's rebuilt
+  `std::json` finders both fixed the key-shadowing bug upstream and
+  broke the workaround's tail-slice shape (enforced whole-value
+  chaining). FRICTION § pond/agent/llm has both entries.
+- **`pond/pq` intra-pond imports respelled relative** (`../db`), because
+  hale ≥ v0.12.0's import-resolving `hale check` fails on the
+  consumer-style `vendor/pond/db` spelling. No public-surface change;
+  the pgwire-roundtrip example now builds in-repo. Repo invariant:
+  intra-pond imports are relative; `vendor/pond/…` is for consumers.
+  FRICTION § pond/pq "In-repo build vs check" CLOSED.
+- Gates at hale v0.13.0 after this pass: `hale test .` 49/49,
+  `hale check` green on all 30 libs, all 36 examples build.
+
 ## 2026-07-15 status note — websocket on hale 9bc53d5's fallible Stream surface
 
 - **`pond/websocket` now requires hale >= `9bc53d5`** (breaking

@@ -12,9 +12,9 @@
 // gate for everyone. Per the repo convention (FRICTION.log § pond/pq
 // "examples/ pending"), live cases live in examples/, not tests/.
 //
-// pq imports `vendor/pond/db`, so this example only builds inside a
-// vendored consumer tree (FRICTION.log § pond/pq "In-repo build vs
-// check"). Materialize the vendor tree first — see README.md — then:
+// Builds in-repo (pq's db import is relative since 2026-08-03 —
+// FRICTION.log § pond/pq "In-repo build vs check", CLOSED). Needs a
+// live postgres to RUN:
 //
 //   hale build .
 //   ./pgwire-roundtrip                                  # SCRAM :55433, prefer
@@ -26,8 +26,8 @@
 //   sslmode: disable | prefer(default) | require | verify-full
 //   mode:    conn(default) | pool   (pool exercises TLS over 3 conns)
 
-import "vendor/pond/db" as db;
-import "vendor/pond/pq" as pq;
+import "../../../db" as db;
+import "../.." as pq;
 
 fn main() {
     let host     = std::env::arg_or(1, "127.0.0.1");

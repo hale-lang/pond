@@ -25,7 +25,7 @@
 // calls): begin/commit/rollback return an error directing the
 // caller to a dedicated PgConn.
 
-import "vendor/pond/db" as db;
+import "../db" as db;
 
 @form(vec)
 locus __FdVec {

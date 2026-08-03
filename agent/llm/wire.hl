@@ -133,21 +133,16 @@ fn __parse_anthropic_response(body: String) -> LlmResponse {
     if len(content_raw) > 0 {
         let mut it = std::json::array_first(content_raw);
         while !it.done {
-            // A realistic block is {"type":"text","text":"..."} —
-            // the stdlib flat finder first-matches the needle
-            // "text" inside the VALUE of "type", sees no colon,
-            // and returns "" without retrying (bug found by
-            // tests/wire_test.hl 2026-07-04). Locate the real
-            // KEY (quote-needle followed by a colon) ourselves,
-            // then run the stdlib finder on the slice from
-            // there so its first match is the key.
-            let kp = __key_pos(it.element, "text");
-            if kp >= 0 {
-                let tail = it.element[kp..len(it.element)];
-                let chunk_text = std::json::find_string_field(tail, "text");
-                if len(chunk_text) > 0 {
-                    std::str::builder_append(buf, chunk_text);
-                }
+            // A realistic block is {"type":"text","text":"..."}.
+            // std::json's finders match key POSITIONS since hale
+            // v0.11.18, so "text" appearing as the VALUE of "type"
+            // can't shadow the real key — and the same rebuild
+            // enforces the whole-value chaining contract, so the
+            // element must be fed intact (a mid-document tail
+            // slice returns "").
+            let chunk_text = std::json::find_string_field(it.element, "text");
+            if len(chunk_text) > 0 {
+                std::str::builder_append(buf, chunk_text);
             }
             it = std::json::array_next(it);
         }
