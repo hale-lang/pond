@@ -24,10 +24,12 @@
 // (`ef85ed5`). The constant-time compare, hex encode, and hex
 // decode kernels live in `util.hl` / `hex.hl`.
 
+@deterministic @no_syscall
 fn sha256(input: Bytes) -> Bytes {
     return std::crypto::sha256(input);
 }
 
+@deterministic @no_syscall
 fn hmac_sha256(key: Bytes, message: Bytes) -> Bytes {
     return std::crypto::hmac_sha256(key, message);
 }
@@ -36,10 +38,12 @@ fn hmac_sha256(key: Bytes, message: Bytes) -> Bytes {
 // hmac_sha512} (hale `045577a`, 2026-06-14; grown for exchange
 // APIs that authenticate with HMAC-SHA512). Additive contract
 // extension, 2026-07-04 status note.
+@deterministic @no_syscall
 fn sha512(input: Bytes) -> Bytes {
     return std::crypto::sha512(input);
 }
 
+@deterministic @no_syscall
 fn hmac_sha512(key: Bytes, message: Bytes) -> Bytes {
     return std::crypto::hmac_sha512(key, message);
 }

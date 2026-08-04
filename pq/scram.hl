@@ -40,7 +40,7 @@ type ScramClientFinal {
 // block, so INT(1) is the only block index):
 //   U1 = HMAC(password, salt || INT(1)),  Uk = HMAC(password, U(k-1)),
 //   SaltedPassword = U1 XOR U2 XOR ... XOR Ui.
-fn salted_password(password: String, salt: Bytes, iters: Int) -> Bytes {
+fn salted_password(@secret password: String, salt: Bytes, iters: Int) -> Bytes {
     let pw = std::bytes::from_string(password);
     let blk = std::bytes::BytesBuilder { initial_cap: len(salt) + 4 };
     blk.append(salt);
@@ -69,7 +69,7 @@ fn salted_password(password: String, salt: Bytes, iters: Int) -> Bytes {
 //
 // where cfmwp (client-final-without-proof) = "c=biws,r=<full nonce>"
 // and "biws" is the fixed base64 of the gs2 header "n,,".
-fn compute_client_final(password: String, client_first_bare: String,
+fn compute_client_final(@secret password: String, client_first_bare: String,
                         server_first: String) -> ScramClientFinal {
     let sf = parse_server_first(server_first);
     if !sf.ok {

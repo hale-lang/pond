@@ -60,6 +60,27 @@ choose their own aliases per F.25.
   ordering discipline and fit's `extract_row_into` shape remain
   binding. No public-surface change; entry re-scoped in
   FRICTION § pond/ml/neural.
+- **Opt-in adoption pass (2026-08-04, fifth pass).** Four items:
+  (1) **OTLP transport → stdlib client**: logfmt `OtlpSink` and
+  tracing `export_otlp` POST via `std::http::post` (the surface
+  `pond/http/client` was promoted into at v0.11.4) — consumers of
+  those features NO LONGER need to vendor `pond/http`; same
+  fallible surface, signature-identical swap (READMEs + CLAUDE.md
+  updated). (2) **Effects pilot**: crypto's nine pure fns carry
+  `@deterministic @no_syscall` (additive annotations, surface
+  unchanged; `hale verify crypto/` = 0 findings) and pq's SCRAM
+  password params carry `@secret`; both enforced — negative
+  controls produce check errors with witness paths. (3)
+  **websocket takeover demo**: new `examples/upgrade-server/`
+  runs the promoted-server shape end-to-end in one binary (3/3
+  clean runs). (4) **Gate assessment**: `hale fmt --check` drifts
+  on ~140/189 files (pond predates `hale fmt` — adopting means
+  one big reformat commit, open decision); `hale verify` fails on
+  exactly the 9 warning-bearing libs (62 triaged advisories), and
+  two of those are FROZEN libs that can't take `@unbounded`
+  annotations without unfreezing — verify-as-gate is blocked on
+  that policy call. Upstream: the still-open zero-reads bug is
+  now filed as hale-lang/hale#381.
 - **Ordinary-layer dedup pass (same date, fourth pass).** hale
   v0.13.0's everyday surface replaces pond hand-rolled helpers —
   internal changes only, no public-surface deltas: agent/llm's

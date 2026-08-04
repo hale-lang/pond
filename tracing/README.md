@@ -107,9 +107,11 @@ tree printer can coexist on the same Tracer.
 
 `end_span` also stashes each completed span in an internal export
 buffer; `export_otlp(endpoint)` assembles the buffer into a JSON
-batch and POSTs it as `application/json` via `pond/http/client`
-(live since 2026-06-12 — see `FRICTION.log`, the
-"export_otlp doesn't actually POST" entry, closed).
+batch and POSTs it as `application/json` via the stdlib client
+(`std::http::post`, since 2026-08-04; live since 2026-06-12 on
+the pond client the stdlib one was promoted from — see
+`FRICTION.log`, the "export_otlp doesn't actually POST" entry,
+closed).
 
 ```hale
 tr.export_otlp("http://collector:4318/v1/traces") or handle_export(err);
@@ -118,8 +120,8 @@ tr.export_otlp("http://collector:4318/v1/traces") or handle_export(err);
 - Success (2xx) clears the export buffer; an empty buffer is a
   no-op success.
 - `TraceError { kind: "io" }` — transport failure (the underlying
-  `http::HttpError` is folded into `detail`); the buffer is kept,
-  so a retry re-sends the same batch.
+  `std::http::HttpError` is folded into `detail`); the buffer is
+  kept, so a retry re-sends the same batch.
 - `TraceError { kind: "non_2xx" }` — the collector answered
   outside 200..299; buffer kept.
 
@@ -128,12 +130,10 @@ The body is a *simplified* OTLP shape (flattened
 permissive collectors ingest it; protocol-perfect nesting is a
 v1.x followup (see `FRICTION.log` "span counts and trace ids").
 
-**Vendoring:** consumers calling `export_otlp` must vendor
-`pond/http` alongside `pond/tracing` (pond design rule 4 — no
-transitive deps; this lib imports `../http/client` internally, so
-the relative path must exist in your vendor tree). You do NOT
-need your own `import "vendor/pond/http/client"` line unless your
-code names `http::*` types itself.
+**Vendoring:** since 2026-08-04 the transport is the stdlib
+client, so `pond/http` is NOT needed — vendor `pond/tracing`
+(plus `pond/_util`) alone. (Before that date the lib imported
+`../http/client` and consumers had to vendor `pond/http` too.)
 
 ## Files
 

@@ -7,6 +7,11 @@
 > `101 Switching Protocols` behind a plain `std::http::Server` and
 > hand the live fd to a session locus; no hand-rolled accept loop
 > needed. Stdlib promotion of this library can now follow.
+> **Demonstrated (2026-08-04):** `examples/upgrade-server/` runs
+> that exact shape end-to-end in one binary — pinned
+> `std::http::Server` + takeover handler publishing the fd to a
+> pinned `WsServerConn { handshake_done: true }` echo session,
+> driven by this lib's own `WsClient`.
 
 Suggested import alias: **`ws`**
 
@@ -263,6 +268,9 @@ frames, prints the echoes, and exits.
 - `server.hl` — `WsServerConn` per-connection server locus
 - `loggers.hl` — `NoopWsLogger` / `StderrWsLogger` sinks
 - `examples/echo-client/main.hl` — runnable echo demo
+- `examples/upgrade-server/main.hl` — server-side upgrade behind
+  `std::http::Server` (takeover + bus fd-handoff + echo session +
+  in-process client; run-to-exit, prints `demo: OK`)
 - `FRICTION.log` — gaps, deviations, substrate asks
 
 ## Cross-references

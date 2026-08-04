@@ -6,6 +6,7 @@
 // per-byte XOR diffs and reports whether the accumulator is
 // zero — no early exit on the first mismatch.
 
+@deterministic @no_syscall
 fn constant_time_eq(a: Bytes, b: Bytes) -> Bool {
     let la = len(a);
     let lb = len(b);

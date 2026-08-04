@@ -1388,6 +1388,25 @@ change.
 the classifier now models exactly the shape triaged above
 (`fail` exits the loop). Clean with no source change.
 
+## effects pilot — 2026-08-04: the lib carries certificates
+
+First pond lib to adopt the hale v0.11.23+ effect-assertion
+surface. All nine pure fns (`sha256` / `hmac_sha256` / `sha512`
+/ `hmac_sha512` / `constant_time_eq` / `hex_encode` /
+`hex_decode` / `nibble_char` / `nibble_value`) now carry
+`@deterministic @no_syscall` — the stdlib crypto primitives they
+delegate to are classified effect-free, so the certificates hold
+under `hale check`'s fail-closed engine. `random_bytes` is
+deliberately NOT annotated (it reaches
+`std::os::getrandom` — `syscall` + `entropy`; that reach is its
+purpose). Negative control verified before shipping: a
+`@deterministic` mis-placed on `random_bytes` fails check with a
+witness path (`must not reach entropy … [std::os::getrandom —
+an entropy read]`), so the annotations are enforced, not
+decorative. `hale verify crypto/` reports 0 findings. Pilot
+verdict for the repo: the surface is cheap where a lib is
+genuinely pure; roll out opportunistically, not as a mandate.
+
 ======================================================================
  pond/db
 ======================================================================
@@ -1998,7 +2017,12 @@ dead endpoint (`127.0.0.1:1`) the flush completes with
 `OtlpSink` must vendor `pond/http` alongside `pond/logfmt` so the
 relative import resolves in their tree (pond design rule 4;
 jobs→sqlite precedent). They do NOT need their own `import` line
-unless they name `http::*` types themselves.
+unless they name `http::*` types themselves. (*RETIRED
+2026-08-04:* the transport moved to the stdlib client —
+`std::http::post`, the surface `pond/http/client` was promoted
+into at v0.11.4 — so OtlpSink has no cross-lib import and
+`pond/logfmt` vendors alone. Same pass migrated tracing's
+`export_otlp`. Signature-identical swap; both libs' gates green.)
 
 Note: `__handle_http`'s sentinel `http::Response` draws the
 same "unbounded allocation" warning class that
@@ -3128,10 +3152,13 @@ signature. Deterministic 5/5. The entry therefore SPLITS:
 manifestation 1 (method-frame segfault) is CLOSED; manifestation
 2 (zero-reads of matrices allocated after receiver form-vec
 growth, inside the receiver's method frames) is the entry's
-live scope — it now has a ~30-line differential repro and is
-cross-referenced upstream in hale-lang/hale#375 (the
-§ pond/migrations entry-14 report) as a possible shared root;
-a dedicated issue for it is not filed yet.
+live scope — reported upstream 2026-08-04 as
+**hale-lang/hale#381** (differential repro inline, incl. two
+toy reductions that do NOT reproduce — plain two-form-vec-loci
+shapes read correctly even at 5000-push forced-realloc growth,
+so the trigger needs something of Model's real shape).
+Cross-referenced with hale-lang/hale#375 as a possible shared
+root.
 
 **Workaround disposition after the removal pass:**
 
@@ -3883,6 +3910,18 @@ redialing — logged for hale (cf. `recv_into`'s `-2` contract, which
   `sasl_mechanisms` string-concat in a loop — FP-shaped, bounded
   by the server's advertised mechanism list (single digits). No
   source change.
+
+- **`@secret` on the SCRAM password params (2026-08-04, effects
+  pilot).** `salted_password` and `compute_client_final` declare
+  `@secret password: String` — semantically exact here: the
+  password itself must never leave the process (only derived
+  proofs go on the wire), and the hale v0.11.23+ taint check
+  enforces that it reaches no bus publish and no log/file sink.
+  Negative control verified: a `println(password)` inside
+  `salted_password` fails check with "a `@secret` value reaches
+  a log / file sink". agent/llm's `api_key` was considered and
+  NOT annotated — it legitimately flows into the request bytes,
+  so the annotation would be either wrong or vacuous there.
 - **examples/ shipped (2026-07-14).** `examples/pgwire-roundtrip/`
   opens a live `PgConn` (trust or SCRAM) and runs a query — see the
   2026-07-14 SCRAM entry above. It needs a reachable Postgres (docker
