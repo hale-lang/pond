@@ -658,7 +658,21 @@ broader duplicate — `pond/router` does the same over its
 history. A `std::iter::TabFields` (or `std::str::split_tab`)
 would lift the pattern. Stays inlined here.
 
-## duplicate-suspected: __extract_field_raw is a copy of stdlib internal
+## duplicate-suspected: __extract_field_raw is a copy of stdlib internal — [CLOSED 2026-08-03: stdlib surface shipped, helper deleted]
+
+**Closed:** upstream delivered the fix path better than asked —
+`std::json::find_field_raw(json, name) -> String` is PUBLIC
+(rebuilt on the object cursor in v0.11.18, spec'd in
+spec/stdlib.md § std::json with the re-feed-the-substring
+chaining contract this lib's nested walks already use). All 10
+call sites (wire.hl ×5 incl. __extract_error_detail, sse.hl ×5)
+now call it directly; `__extract_field_raw` AND `__key_pos`
+(~144 lines) are deleted. Gates: check ok, test 2/2 (wire_test
+covers content/usage/message extraction, sse_test the delta
+paths), echo-completion builds. The typed
+`find_object_field`/`find_array_field` split asked for below
+never happened — the untyped raw surface is strictly more
+general and did the job.
 
 `__extract_field_raw` in `wire.hl` does the same job as
 `std::json`'s internal `__json_find_field_raw` — find a
@@ -781,10 +795,12 @@ slice (this lib's old workaround shape) now returns "" instead
 of scanning forward, which is exactly how wire_test.hl caught
 the change (masked until 2026-08-03 behind the Stream-send
 codegen failure below). `__parse_anthropic_response` now calls
-the stdlib finder on the intact array element; `__key_pos`
-stays only as the key-locator inside `__extract_field_raw`,
-whose duplicate-suspected status is unchanged (the internal
-raw-field helper is still unexported).
+the stdlib finder on the intact array element. (*Same-day
+correction:* the raw-field helper turned out to be exported —
+`std::json::find_field_raw` is public — so the
+duplicate-suspected entry below is CLOSED and both
+`__extract_field_raw` and `__key_pos` are deleted in the
+ordinary-layer dedup pass.)
 
 ## upstream 9bc53d5/hale#210: fallible Stream send/recv — missed in the 2026-07-15/16 migration pass, migrated 2026-08-03
 

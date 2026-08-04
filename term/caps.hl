@@ -36,8 +36,8 @@ fn detect_profile() -> Int {
 
     let t = std::env::var("TERM");
     if t == "dumb" { return 0; }
-    if std::str::index_of(t, "truecolor") >= 0 { return 3; }
-    if std::str::index_of(t, "256color") >= 0 { return 2; }
+    if std::str::contains(t, "truecolor") { return 3; }
+    if std::str::contains(t, "256color") { return 2; }
     return 1;
 }
 

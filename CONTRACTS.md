@@ -60,6 +60,17 @@ choose their own aliases per F.25.
   ordering discipline and fit's `extract_row_into` shape remain
   binding. No public-surface change; entry re-scoped in
   FRICTION § pond/ml/neural.
+- **Ordinary-layer dedup pass (same date, fourth pass).** hale
+  v0.13.0's everyday surface replaces pond hand-rolled helpers —
+  internal changes only, no public-surface deltas: agent/llm's
+  `__extract_field_raw` + `__key_pos` deleted for the now-public
+  `std::json::find_field_raw` (FRICTION duplicate-suspected
+  entry CLOSED); pq's `scram_starts_with`, agent/llm's SSE
+  `data:`/`event:` prefix slices, and websocket's URL-scheme
+  slices moved to `std::str::starts_with`; term's TERM sniffing
+  and websocket's header-terminator scan moved to
+  `std::str::contains`. Gates on all four touched libs: check
+  ok, tests 8/8, examples build (term demos run).
 
 ## 2026-07-15 status note — websocket on hale 9bc53d5's fallible Stream surface
 

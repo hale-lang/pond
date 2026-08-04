@@ -855,12 +855,12 @@ fn parse_url(u: String) -> UrlParts {
     let mut scheme = "";
     let mut port = 0;
     let mut after_scheme = 0;
-    if total >= 5 && u[0..5] == "ws://" {
+    if std::str::starts_with(u, "ws://") {
         scheme = "ws";
         port = 80;
         after_scheme = 5;
     } else {
-        if total >= 6 && u[0..6] == "wss://" {
+        if std::str::starts_with(u, "wss://") {
             scheme = "wss";
             port = 443;
             after_scheme = 6;

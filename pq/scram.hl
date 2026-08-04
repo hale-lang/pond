@@ -84,7 +84,7 @@ fn compute_client_final(password: String, client_first_bare: String,
     // downgrade/reflection here is an authentication protocol
     // violation, not a retryable condition.
     let want_nonce = scram_field_after(client_first_bare, "r=");
-    if !scram_starts_with(sf.nonce, want_nonce) || len(sf.nonce) <= len(want_nonce) {
+    if !std::str::starts_with(sf.nonce, want_nonce) || len(sf.nonce) <= len(want_nonce) {
         return ScramClientFinal { ok: false,
             err: "nonce mismatch: server r= does not extend the client nonce" };
     }
@@ -132,7 +132,7 @@ fn compute_client_final(password: String, client_first_bare: String,
 // HMAC-SHA256 per iteration) — cap it well above any real deployment
 // (postgres/RDS default is 4096) and fail closed above the cap.
 fn parse_server_first(msg: String) -> ScramServerFirst {
-    if !scram_starts_with(msg, "r=") {
+    if !std::str::starts_with(msg, "r=") {
         return ScramServerFirst { ok: false };
     }
     let r     = scram_field_after(msg, "r=");
@@ -159,7 +159,7 @@ fn parse_server_first(msg: String) -> ScramServerFirst {
 // leak here is the server's signature, which the wire already handed
 // us in plaintext. Left as-is intentionally, not an oversight.
 fn verify_server_final(server_final: String, expected_sig_b64: String) -> Bool {
-    if !scram_starts_with(server_final, "v=") { return false; }
+    if !std::str::starts_with(server_final, "v=") { return false; }
     let got = scram_field_after(server_final + ",", "v=");
     if len(got) == 0 { return false; }
     return got == expected_sig_b64;
@@ -230,11 +230,3 @@ fn scram_field_after(msg: String, prefix: String) -> String {
     return rest[0..c];
 }
 
-// scram_starts_with — true if `s` begins with `prefix` (byte-exact).
-// Anchors the r=/v= leading-field parses (F5a) instead of relying on
-// an unanchored substring search.
-fn scram_starts_with(s: String, prefix: String) -> Bool {
-    let n = len(prefix);
-    if len(s) < n { return false; }
-    return s[0..n] == prefix;
-}
