@@ -2918,7 +2918,24 @@ with no source change.
 
 ---
 
-## 14. NEW (2026-07-06) — UPSTREAM BUG: form-vec-growing free-fn factory segfaults after a caught Migrator failure — [OPEN, workaround in tests/example]
+## 14. (2026-07-06) — UPSTREAM BUG: form-vec-growing free-fn factory segfaults after a caught Migrator failure — [CLOSED 2026-08-11 — fixed upstream at hale v0.14.0 (GH #375)]
+
+**2026-08-11 retest (hale v0.16.0): FIXED — 5/5 CLEAN.**
+Reconstructed per the in-tree recipe below (real migrations+db
+seeds, the FakeDriver, one caught `bad_set` failure, then a
+`std_set()` free-fn factory building `Migrations { }` + `add()`
+x3): exits 0 every run with the correct post-failure count.
+Upstream fix is hale v0.14.0's "The caller-arena TLS can no
+longer outlive the arena it points to (GH #375)" — a fallible
+method chain that published its own scratch and exited down the
+error edge left the TLS pointing at destroyed memory, which is
+exactly this shape. The workaround below is therefore NO LONGER
+BINDING; the cleanup recipe under "When this unblocks" is
+**PERFORMED 2026-08-11**: `tests/migrator_test.hl` now shares a
+`std_set()` factory across the seven scenarios that want the
+standard three-migration fixture (465 -> 437 lines), the SHAPE
+RULE header note is replaced by the factory's rationale, and the
+test passes 3/3 runs. This entry is fully closed.
 
 **2026-08-03 retest (hale v0.13.0): STILL SEGFAULTS, 5/5 runs**
 (reconstructed per the in-tree recipe below: real migrations+db
@@ -3046,7 +3063,7 @@ this lib.
   Int") — but the std::math primitive is now the supported
   bridge, so the gap no longer costs an ASCII roundtrip.
 
-## OPEN BLOCKER (upstream runtime): method-frame-fresh locus args corrupt the heap — 2026-06-12
+## (upstream runtime): method-frame-fresh locus args corrupt the heap — 2026-06-12 — [CLOSED 2026-08-11 — both manifestations fixed upstream]
 
 At hale HEAD (b716696), a locus created via free-fn return
 inside a locus-METHOD frame and passed as an argument into
@@ -3159,6 +3176,72 @@ shapes read correctly even at 5000-push forced-realloc growth,
 so the trigger needs something of Model's real shape).
 Cross-referenced with hale-lang/hale#375 as a possible shared
 root.
+
+**2026-08-11 retest (hale v0.16.0): manifestation 2 is FIXED —
+5/5.** The documented differential probe (same seeded 2-3-1
+model, one `train_step`, input matrices created BEFORE vs AFTER
+the model's first `add_dense`) now returns an IDENTICAL
+`loss=0.16499` on both arms, five runs out of five — that is the
+"before" (correct) value; the `0.158267` zero-input signature is
+gone. With manifestation 1 already closed at v0.13.0, this entry
+closes entirely. hale#381 can be closed upstream.
+
+**Workarounds RETIRED 2026-08-11** (after hale `3c05dad` closed
+the v0.16.0 rebinding regression and the lib went green again):
+
+- The **allocation-ordering discipline** is gone from
+  `tests/train_step_test.hl`, `tests/forward_test.hl` and the
+  xor-trainer demo. train_step_test now builds each model
+  *before* the inputs it is exercised with — the natural reading
+  order the discipline specifically forbade — and passes 3/3
+  runs, which is the proof the constraint is dead rather than an
+  assertion that it is.
+- `Trainer.fit`'s **preallocate + `extract_row_into` is KEPT.**
+  It is the correct shape independent of any bug: `fit` runs
+  epochs x n_samples iterations, so a fresh per-sample Matrix
+  would allocate once per iteration and hold every one until
+  `fit` returned — exactly what the unbounded-alloc lint flags.
+  Its comment now makes the allocation argument instead of
+  citing the segfault.
+
+Nothing in this lib is shaped by a memory bug any more.
+
+**2026-08-11 — a same-day upstream regression, since FIXED.**
+**RESOLVED at hale `3c05dad`** — the section below records why
+this lib's tests were briefly red and, more usefully, the judgment
+call about not contorting the library. `ml/neural` is green again
+with NO source change.
+
+**(original entry)** `ml/neural`'s `forward()` (model.hl:482) is the
+natural spelling of a layer sweep and rebinds a locus-typed
+`let mut` inside a FREE FN:
+
+    let mut a = column_view(x, first.input_dim);
+    while li < model.layer_count { ...; a = apply_activation(zb, ...); }
+    return a;
+
+At hale v0.16.0 that hands the caller a Matrix whose `capacity`
+heap buffer has been reclaimed — `rows`/`cols` intact, every
+`get(i)` failing. Both `forward_test.hl` and `train_step_test.hl`
+fail on it (train_step's own arithmetic is fine; its last
+assertion reads through `forward`). The xor-trainer demo shows
+it at its clearest: training converges to the byte-identical
+documented `loss=0.000264721` and then every prediction reads
+`0`. Bisected to hale `cd75511` (GH #402); full repro matrix in
+`COMPILER-BUGS.md` § 1.
+
+A workaround WAS attempted and WITHDRAWN: relocating the sweep
+onto a `Model.__sweep_into(x, out)` method frame (method frames
+are unaffected by the regression) made `forward_test` pass and
+turned `train_step_test`'s clean assertion failure into a
+segfault — and inserting `println` calls made that segfault
+disappear, i.e. it was a latent use-after-free, not a fix. The
+library was left in its correct-as-written form, and that call
+paid off: upstream fixed the regression the same day and
+`ml/neural` went green again with zero source churn. Standing
+lesson for this repo — when a *fresh, bisected* compiler
+regression breaks a lib, report it and wait; do not contort
+correct library code around it.
 
 **Workaround disposition after the removal pass:**
 

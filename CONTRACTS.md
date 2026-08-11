@@ -14,6 +14,43 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-08-11 status note — hale v0.16.0 (`3c05dad`) hygiene pass
+
+- **Three vestigial empty namespace loci REMOVED from the surface:**
+  `math/matrix`'s `Mat`, `ml/neural`'s `NnOps`, and
+  `agent/embeddings`' `EmbeddingOps`. Each was an empty
+  `locus X { params { } }` with no methods, kept only so a caller
+  writing `mat::Mat { }` would still typecheck after the v0.8.2 m90
+  extraction moved their methods to free fns. Constructing one was a
+  no-op, nothing in-tree referenced them, and pond is vendored inline
+  (consumers pin a version and upgrade deliberately), so the compat
+  they preserved was not real. `Mat`'s doc comment additionally
+  asserted the *inverse* of the current rule ("codegen rejects
+  free-fn returns of LocusRef") and has been corrected.
+
+- **`pond/agent/embeddings` decomposed by concern.** It was the only
+  lib holding its types, storage loci, service locus and helper free
+  fns in one 442-line file. Now `types.hl` / `storage.hl` /
+  `embeddings.hl` (the `Store` locus) / `helpers.hl`, matching every
+  sibling lib and `spec/projects.md`'s "one file per concern".
+  No surface change — a seed is order-free and has no per-file
+  visibility. `pond/ml/neural`'s 865-line `model.hl` got the same
+  treatment: `model.hl` (the `Model` locus + its inference surface)
+  / `cache.hl` (the per-`train_step` buffers) / `meta.hl` (the
+  `meta_csv` encoding) / `shaping.hl` (matrix-shaping free fns +
+  scalar activation kernels).
+
+- **Memory-shaped workarounds retired** (the bugs they guarded are
+  fixed upstream): `migrations/tests/migrator_test.hl` collapses
+  seven inline copies of the standard three-migration fixture into a
+  `std_set()` factory, and `ml/neural`'s allocation-ordering
+  discipline is gone from both tests and the xor-trainer demo (the
+  train_step test now builds each model before its inputs — the
+  natural order the discipline forbade). `Trainer.fit`'s
+  preallocate + `extract_row_into` is KEPT: it is the
+  allocation-free hot loop on its own merits, and its comment now
+  says so instead of citing a fixed segfault.
+
 ## 2026-08-03 status note — v0.13.0 fix pass (agent/llm Stream migration, pq import respell)
 
 - **`pond/agent/llm` migrated to the fallible Stream surface.** The
@@ -689,7 +726,6 @@ fn check_same_shape(a_rows: Int, a_cols: Int, b_rows: Int, b_cols: Int) -> () fa
 fn check_dot_shapes(a_rows: Int, a_cols: Int, b_rows: Int, b_cols: Int) -> () fallible(MatrixError);
 
 type MatrixError { kind: String; }       // "shape_mismatch" | "empty"
-// `locus Mat { }` remains as a vestigial empty namespace lotus.
 ```
 
 **Consumer pattern:**

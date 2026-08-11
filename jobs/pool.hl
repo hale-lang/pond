@@ -184,6 +184,8 @@ locus Worker {
     // Dequeue error bridge: "empty" is the idle signal (not worth
     // a log line); anything else is logged. Returns the id=0
     // sentinel Job the loop branches on.
+    // @unbounded: one error payload per failed dequeue, reclaimed with the handler frame.
+    @unbounded
     fn __on_dequeue_err(e: JobError) -> Job {
         if e.kind == "empty" {
             self.saw_empty = true;

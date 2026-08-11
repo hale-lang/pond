@@ -68,6 +68,8 @@ locus RowBuf {
     // the row whose first tab-separated field equals
     // `target_first_field` removed. Rows are `\n`-delimited.
     // Returns `buf` unchanged if no row matches.
+    // @unbounded: rebuilds the buffer, bounded by the input string's row count.
+    @unbounded
     fn remove_row(buf: String, target_first_field: String) -> String {
         let total = len(buf);
         if total <= 0 { return buf; }

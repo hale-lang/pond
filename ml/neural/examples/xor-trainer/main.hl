@@ -10,23 +10,18 @@
 // few thousand epochs and is what this demo uses. See
 // FRICTION.log "xor-2-2-1-init-sensitive".
 //
-// **Structure note (2026-08-03).** Training runs through
-// `Trainer.fit` — the natural shape. From 2026-06-12 to
-// 2026-08-03 the demo instead drove `model.train_step` from a
-// `fn main()`-frame loop (`train_corners`) because an upstream
-// heap-corruption bug made the fit call chain poison the heap;
-// that bug is FIXED at hale v0.13.0 and the loop is retired
-// (FRICTION.log "method-frame-fresh locus args corrupt the
-// heap"). One discipline REMAINS: every input Matrix is created
-// BEFORE the first `add_dense` — a Matrix allocated after the
-// receiver Model's @form(vec) buffer has grown still reads as
-// all zeros inside that Model's method frames (the same
-// FRICTION entry's second manifestation, still open at
-// v0.13.0). Do not reorder the lets in main().
+// **Structure note (2026-08-11).** Training runs through
+// `Trainer.fit` — the natural shape. Two upstream memory bugs
+// once forced this demo into contortions (a `fn main()`-frame
+// `train_corners` loop, and an ordering discipline that built
+// every input Matrix before the first `add_dense`). Both are
+// fixed — at hale v0.13.0 and v0.16.0 respectively — and both
+// contortions are retired; see FRICTION.log § pond/ml/neural.
+// The demo now reads in its natural order.
 //
 // Wiring:
 //   1. Build the four XOR corner samples + the 4-sample batch
-//      matrices as column vecs (all matrices FIRST — see above).
+//      matrices as column vecs.
 //   2. Construct TrainLogger (subscriber before publisher),
 //      a Model with two dense layers (2 -> 3 -> 1), a Trainer.
 //   3. Train 5000 epochs via trainer.fit; the logger receives
@@ -104,9 +99,8 @@ fn predict_label(model: nn::Model, x: mat::Matrix) -> Int fallible(nn::NnError) 
 }
 
 fn main() {
-    // ALL matrices first (zero-reads ordering discipline — see the
-    // structure note up top). The four XOR corners as 2x1 column
-    // vecs + 1x1 targets for verification:
+    // The four XOR corners as 2x1 column vecs + 1x1 targets for
+    // verification:
     //   (0, 0) -> 0      (0, 1) -> 1
     //   (1, 0) -> 1      (1, 1) -> 0
     let x00 = mat::from_rows(2, 1, "0.0, 0.0");

@@ -264,6 +264,11 @@ frames, prints the echoes, and exits.
 - `frame.hl` — RFC 6455 frame parse + emit + opcode mapping
 - `handshake.hl` — HTTP/1.1 upgrade request/response (client) +
   upgrade parse / accept compute / 101 response (server)
+- `transport.hl` — `WsTransport`, the fd pair (plain TCP XOR TLS)
+  and the four operations over it (recv deadline / write-all /
+  recv-into / close). Held as a child locus by `WsClient`, so it
+  is born and dissolved with its owner and a reconnect re-adopts
+  handles into the same instance.
 - `client.hl` — `WsClient` locus + `parse_url`
 - `server.hl` — `WsServerConn` per-connection server locus
 - `loggers.hl` — `NoopWsLogger` / `StderrWsLogger` sinks

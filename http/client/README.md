@@ -5,6 +5,13 @@
 > `std::http::get` / `std::http::Client` directly, and this copy
 > should track the stdlib, not fork from it. (The chunked
 > transfer-decoding fix of 2026-07-20 is mirrored in both.)
+>
+> **Maintained, not frozen** (2026-08-11). "Track the stdlib" governs
+> *behaviour*: no local feature work, and a stdlib fix gets mirrored
+> here. It does not bar local hygiene — annotations, comments and
+> triage — which the vendored copy needs to satisfy the same gates as
+> every other lib. Behavioural divergence from `std::http` is still a
+> bug in this copy.
 
 HTTP/1.1 client built on `std::io::tcp::*` plus
 `std::io::tls::*`. Exposes `get` / `post` / `request` free fns

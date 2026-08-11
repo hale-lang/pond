@@ -10,9 +10,7 @@
 // `dot` / `transpose` and the sentinel helpers are FREE FNS.
 // hale v0.8.2's m90 enforcement is the permanent CQRS rule —
 // methods on loci may not return locus values; free fns MAY
-// return loci (commit 04657b1 did the extraction). The empty
-// `locus Mat { }` below is a vestigial namespace placeholder
-// kept for source compat with `mat::Mat { }` instantiations.
+// return loci (commit 04657b1 did the extraction).
 //
 // Failure shape: the binary ops are non-fallible and use
 // sentinel-predicate pairs — `matmul` / `add` return
@@ -98,9 +96,8 @@ fn set_at_checked(m: Matrix, r: Int, c: Int, v: Float) -> Float fallible(IndexEr
     return v;
 }
 
-// Shape-compat free fns. Free fns CAN be fallible; they just can't
-// return loci. The Mat methods consume these to decide whether to
-// short-circuit to an error sentinel.
+// Shape-compat free fns. The binary ops below consume these to
+// decide whether to short-circuit to an error sentinel.
 
 fn check_matmul_shapes(a_rows: Int, a_cols: Int, b_rows: Int, b_cols: Int)
     -> Int fallible(MatrixError)
@@ -137,25 +134,16 @@ fn check_dot_shapes(a_rows: Int, a_cols: Int, b_rows: Int, b_cols: Int)
     return na;
 }
 
-// ===== Mat namespace lotus =====
-//
-// Factories + binary ops. Codegen rejects free-fn returns of
-// LocusRef; locus-method returns are allowed (heap-allocated per
-// m90), so the surface lives here. Empty params per the
-// namespace-lotus pattern (spec/styleguide.md § 2).
-
-locus Mat {
-    params { }
-    // Factory methods extracted to module-level free fns below
-    // per hale v0.8.2 m90 enforcement. The Mat locus is now an
-    // empty namespace placeholder kept for backwards-source-compat
-    // (callers that do `mat::Mat { }` still typecheck).
-}
-
 // ===== Free-fn factory + algebra surface =====
+//
+// Factories and binary ops are free fns: methods may not return
+// locus values (m90 / #18.6), and free fns may. This is the
+// blessed entity-creation path.
 
 // transpose(m) — freshly-allocated transpose. Replaces
 // Matrix.transpose().
+// @unbounded: fills this fn's own freshly-allocated return value; the loop bound is rows*cols.
+@unbounded
 fn transpose(m: Matrix) -> Matrix {
     let out = Matrix { rows: m.cols, cols: m.rows };
     let n = out.rows * out.cols;
@@ -204,6 +192,8 @@ fn is_nan(f: Float) -> Bool {
     return std::math::is_nan(f);
 }
 
+// @unbounded: fills this fn's own freshly-allocated return value; the loop bound is rows*cols.
+@unbounded
 fn zeros(rows: Int, cols: Int) -> Matrix {
     let m = Matrix { rows: rows, cols: cols };
     let n = rows * cols;
@@ -227,6 +217,8 @@ fn eye(n: Int) -> Matrix {
 
 // Build from a comma-separated, row-by-row literal:
 // "1,2,3,4,5,6" with rows=2, cols=3 yields [[1,2,3],[4,5,6]].
+// @unbounded: fills this fn's own freshly-allocated return value; the loop bound is rows*cols.
+@unbounded
 fn from_rows(rows: Int, cols: Int, data: String) -> Matrix {
     let m = Matrix { rows: rows, cols: cols };
     let n = rows * cols;

@@ -1,0 +1,99 @@
+// pond/websocket — the byte transport under a WebSocket connection.
+//
+// `WsTransport` owns the fd pair and the four operations over it:
+// set a recv deadline, write all, read into a builder, close. Exactly
+// one handle is live at a time — `tls` for a wss:// connection,
+// `sock` for ws:// — and every call dispatches on that, so no caller
+// repeats the `if tls >= 0 … else sock` ladder.
+//
+// It is a child locus (F.29 lifecycle cascade): `WsClient` holds one
+// as a param, so it is born with the parent and dissolved with it,
+// and a reconnect re-adopts handles into the same instance rather
+// than allocating a new one. Instantiation cost is paid once, at the
+// owner's birth.
+//
+// Ownership rule: whatever is handed to `adopt_tls` / `adopt_tcp` is
+// this locus's to close. `close()` is idempotent and safe to call on
+// an already-closed transport.
+//
+// NOT the place for protocol state — the handshake key, fragment
+// reassembly, liveness deadlines and frame counters stay with the
+// connection locus. This is bytes in, bytes out.
+
+locus WsTransport {
+    params {
+        // -1 = closed. At most one is >= 0 at any time.
+        sock: Int = -1;
+        tls:  Int = -1;
+
+        // Kernel/user RX timestamps for the TLS fast path (hale
+        // #146). `std::io::tls::last_recv_*_ns()` reads thread-locals
+        // that ANY later syscall clobbers, so `recv_into` captures
+        // them here in the same breath as the recvmsg. The owner
+        // copies them out afterwards; nothing else may sit between.
+        rx_kernel_ns: Int = 0;
+        rx_user_ns:   Int = 0;
+    }
+
+    fn is_open() -> Bool {
+        return self.tls >= 0 || self.sock >= 0;
+    }
+
+    // Take ownership of a dialled handle. The caller must have
+    // closed any previous one (`close()`), which `connect_once`
+    // does on every retry.
+    fn adopt_tls(h: Int) {
+        self.tls = h;
+    }
+
+    fn adopt_tcp(h: Int) {
+        self.sock = h;
+    }
+
+    fn set_recv_deadline(d: Duration) {
+        if self.tls >= 0 {
+            std::io::tls::set_recv_timeout(self.tls, d) or discard;
+        } else if self.sock >= 0 {
+            std::io::tcp::set_recv_timeout(self.sock, d) or discard;
+        }
+    }
+
+    fn write_all(b: Bytes) -> Int {
+        if self.tls >= 0 {
+            return std::io::tls::send_bytes(self.tls, b);
+        }
+        return std::io::tcp::__send_bytes(self.sock, b);
+    }
+
+    // Pull up to `n` bytes into `buf`'s tail — zero allocation in
+    // g_bus_payload_arena. POSIX read(2) semantics plus the timeout
+    // sentinel: > 0 bytes appended, 0 peer closed, -2 recv deadline
+    // fired (retryable), other < 0 fatal.
+    fn recv_into(buf: std::bytes::BytesBuilder, n: Int) -> Int {
+        if self.tls >= 0 {
+            // recv_into + kernel RX timestamp capture in one recvmsg;
+            // the stamp reads MUST follow with no syscall between.
+            let g = std::io::tls::recv_stamped_into(self.tls, buf, n);
+            self.rx_kernel_ns = std::io::tls::last_recv_kernel_ns();
+            self.rx_user_ns   = std::io::tls::last_recv_user_ns();
+            return g;
+        }
+        return std::io::tcp::recv_into(self.sock, buf, n);
+    }
+
+    // Close whichever handle is live and reset to the closed state.
+    // Idempotent. Returns true if something was actually open, so the
+    // owner can decide whether the event is worth logging.
+    fn close() -> Bool {
+        let was_open = self.is_open();
+        if self.tls >= 0 {
+            std::io::tls::close(self.tls);
+            self.tls = -1;
+        }
+        if self.sock >= 0 {
+            std::io::tcp::close_fd(self.sock);
+            self.sock = -1;
+        }
+        return was_open;
+    }
+}

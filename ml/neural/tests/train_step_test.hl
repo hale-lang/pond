@@ -2,17 +2,13 @@
 // a finite positive MSE loss; repeated steps on the same fixed
 // sample reduce the loss; error surface (empty model, bad shapes).
 //
-// NOTE upstream bug family (FRICTION.log § pond/ml/neural
-// "method-frame-fresh locus args corrupt the heap"): the segfault
-// half is FIXED at hale v0.13.0 (2026-08-03 retest), but the second
-// manifestation found while writing this test (2026-07-04) is STILL
-// PRESENT: a Matrix allocated AFTER the receiver Model's @form(vec)
-// buffer has grown (i.e. after add_dense) reads back as all zeros
-// inside that Model's METHOD frame (train_step) — x.get(i) fails and
-// `or 0.0` masks it — while free-fn frames (forward) read the same
-// Matrix fine. Workaround (matches the xor-trainer example's
-// ordering): create every input Matrix BEFORE the first add_dense.
-// Do not reorder the lets below.
+// This test once carried an allocation-ordering discipline (every
+// input Matrix built before the first `add_dense`) to dodge an
+// upstream bug where a Matrix allocated after the receiver Model's
+// @form(vec) had grown read back as all zeros inside that Model's
+// method frames. That bug is fixed (FRICTION.log § pond/ml/neural,
+// closed 2026-08-11), so the setup below reads in its natural
+// order: each model, then the inputs it is exercised with.
 
 import "../../../math/matrix" as mat;
 import ".." as nn;
@@ -26,13 +22,6 @@ fn near_eq(actual: Float, expected: Float, msg: String) {
 }
 
 fn main() {
-    // ---- all input matrices FIRST (see ordering note above) ----
-    let x = mat::from_rows(2, 1, "1.0, 0.0");
-    let y = mat::from_rows(1, 1, "1.0");
-    let x3 = mat::from_rows(3, 1, "1.0, 2.0, 3.0");   // wrong input dim
-    let y2 = mat::from_rows(2, 1, "1.0, 0.0");        // wrong target dim
-
-    // ---- models after the matrices ----
     // 2-3-1 sigmoid MLP, fixed seed for reproducibility; `fresh` is
     // an identical twin kept untrained for the gradient check.
     let model = nn::Model { name: "train", rng_state: 42 };
@@ -42,6 +31,13 @@ fn main() {
     fresh.add_dense(2, 3, "sigmoid");
     fresh.add_dense(3, 1, "sigmoid");
     let empty = nn::Model { name: "empty" };
+
+    // The sample the model is trained on, plus two wrong-shaped
+    // inputs for the error surface.
+    let x = mat::from_rows(2, 1, "1.0, 0.0");
+    let y = mat::from_rows(1, 1, "1.0");
+    let x3 = mat::from_rows(3, 1, "1.0, 2.0, 3.0");   // wrong input dim
+    let y2 = mat::from_rows(2, 1, "1.0, 0.0");        // wrong target dim
 
     // First step: finite, positive loss (untrained net can't be exact).
     let loss0 = model.train_step(x, y, 0.5) or -1.0;

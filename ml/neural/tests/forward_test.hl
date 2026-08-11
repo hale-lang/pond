@@ -3,11 +3,10 @@
 // dims, exact forward on a hand-loaded linear model (via apply_delta),
 // and the fallible surface (empty model / shape mismatch).
 //
-// NOTE upstream heap-corruption bug (FRICTION.log § pond/ml/neural
-// "method-frame-fresh locus args corrupt the heap"): all Matrix /
-// Model creation and every forward call stays directly in the
-// fn main() frame — the verified-safe shape. Do not move these
-// into helper loci.
+// The upstream heap-corruption bug that once required all Matrix /
+// Model creation to stay in the fn main() frame is fixed
+// (FRICTION.log § pond/ml/neural, closed 2026-08-11); this file is
+// laid out for readability, not to dodge it.
 
 import "../../../math/matrix" as mat;
 import ".." as nn;

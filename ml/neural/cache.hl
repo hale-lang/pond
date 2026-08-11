@@ -1,0 +1,80 @@
+// pond/ml/neural — per-`train_step` forward-activation caches.
+//
+// `FwdCache` (Float) and `OffsetTable` (Int) are a sibling pair:
+// `Model.train_step` let-binds one of each per invocation, pushes
+// every layer's pre-activation (z) and post-activation (a) vector
+// into the cache in a strict order, and records each slot's start
+// in the offset table so the backward sweep can re-extract a
+// slice without re-summing predecessor lengths. Both dissolve at
+// `train_step`'s exit.
+
+import "../../math/matrix" as mat;
+
+// `FwdCache` — flat Float buffer for cached forward-pass vectors.
+// Per-vector storage runs in declaration order; offsets are
+// implicit because each push appends, and `get_vec(slot_idx,
+// length)` re-derives the offset by summing predecessor lengths.
+// At v1 we don't have a hashmap of (slot -> offset), so the
+// cache assumes uniform-record layout: caller pushes each vec in
+// order, then asks for slot N by length L. The Model's
+// train_step is the only caller and pushes in a strict order:
+//   slot 0: input  (input_dim long)
+//   slot 1: z_0    (layer 0 output_dim long)
+//   slot 2: a_1    (layer 0 output_dim long)
+//   slot 3: z_1    (layer 1 output_dim long)
+//   ...
+// `get_vec(slot, length)` walks the layer-by-layer schedule and
+// re-derives the offset. Costs O(layer_count) per call; fine.
+
+// `OffsetTable` — parallel Int vec recording each cache slot's
+// starting offset inside FwdCache. Sibling to FwdCache so each
+// `train_step` invocation gets its own pair (both let-bound on
+// the Model.train_step frame; both dissolve at fn exit).
+@form(vec)
+locus OffsetTable {
+    params { }
+    capacity { heap data of Int; }
+}
+
+@form(vec)
+locus FwdCache {
+    params { }
+    capacity { heap data of Float; }
+
+    // @unbounded: one push per layer slot, bounded by the model's layer count.
+    @unbounded
+    fn push_vec(v: mat::Matrix) {
+        let n = v.len();
+        let mut i = 0;
+        while i < n {
+            let f = v.get(i) or 0.0;
+            self.push(f);
+            i = i + 1;
+        }
+    }
+}
+
+// Re-extract a cached vector slice as a fresh `length x 1`
+// Matrix. Caller-side knows the schedule (input_dim, then
+// per-layer (output_dim, output_dim)) and passes the matching
+// offset + length. Free fn (was `FwdCache.get_vec_from`) per
+// the m90 enforcement; the unused `get_vec(slot, length)`
+// documentation-anchor method was dropped in the same pass —
+// Model.train_step keeps its own offset bookkeeping in the
+// OffsetTable.
+fn cache_vec_from(cache: FwdCache, offset: Int, length: Int) -> mat::Matrix {
+    let m = mat::zeros(length, 1);
+    let mut i = 0;
+    while i < length {
+        let v = cache.get(offset + i) or 0.0;
+        m.set(i, v) or discard;
+        i = i + 1;
+    }
+    return m;
+}
+
+// Walk the meta_csv string to extract layer `i`. CSV shape:
+//   "in,out,act;in,out,act;..."  (semicolon-separated rows)
+// Computes the weights_offset / biases_offset windows by summing
+// preceding layers' (in * out + out) slot counts. The last
+// layer's terminal byte index is `params_len`; we don't need

@@ -91,8 +91,12 @@ locus WsClient {
         path: String = "";
         scheme: String = "";
 
-        sock: Int = -1;
-        tls: Int = -1;
+        // The byte transport (fd pair + the four ops over it) lives
+        // on a child locus, born and dissolved with this one. A
+        // reconnect re-adopts handles into the same instance, so
+        // the allocation is paid once at birth. See transport.hl.
+        io: WsTransport = WsTransport { };
+
         connected: Bool = false;
 
         // Liveness state: true between "silence deadline fired,
@@ -593,23 +597,16 @@ locus WsClient {
         return self.mask_seed;
     }
 
-    // set_recv_deadline — arm SO_RCVTIMEO on the active transport
-    // (handle-aware tls sibling when on wss). d = 0 disables. A
-    // setsockopt failure degrades to the old fully-blocking recv,
-    // so it is logged-and-dropped rather than bubbled.
+    // set_recv_deadline — arm SO_RCVTIMEO on the active transport.
+    // d = 0 disables. A setsockopt failure degrades to the old
+    // fully-blocking recv, so `WsTransport` drops it rather than
+    // bubbling it.
     fn set_recv_deadline(d: Duration) {
-        if self.tls >= 0 {
-            std::io::tls::set_recv_timeout(self.tls, d) or discard;
-        } else if self.sock >= 0 {
-            std::io::tcp::set_recv_timeout(self.sock, d) or discard;
-        }
+        self.io.set_recv_deadline(d);
     }
 
     fn write_all(b: Bytes) -> Int {
-        if self.tls >= 0 {
-            return std::io::tls::send_bytes(self.tls, b);
-        }
-        return std::io::tcp::__send_bytes(self.sock, b);
+        return self.io.write_all(b);
     }
 
     // recv_into_rx — pulls up to recv_chunk bytes from the active
@@ -621,17 +618,13 @@ locus WsClient {
     // Any received bytes prove peer liveness: clear awaiting_pong
     // and re-arm the steady-state ping_interval deadline.
     fn recv_into_rx() -> Int {
-        let got = if self.tls >= 0 {
-            // TLS fast-path (hale #146): recv_into + kernel RX timestamp
-            // capture in one recvmsg. Read the thread-local stamps
-            // IMMEDIATELY after — errno-style, any later syscall clobbers.
-            let g = std::io::tls::recv_stamped_into(self.tls, self.rx_buf, self.recv_chunk);
-            self.rx_kernel_ns = std::io::tls::last_recv_kernel_ns();
-            self.rx_user_ns   = std::io::tls::last_recv_user_ns();
-            g
-        } else {
-            std::io::tcp::recv_into(self.sock, self.rx_buf, self.recv_chunk)
-        };
+        // WsTransport captures the TLS fast-path RX stamps (hale
+        // #146) inside the same breath as the recvmsg — the
+        // thread-locals are errno-style and any later syscall
+        // clobbers them. Copy them onto the exposed fields here.
+        let got = self.io.recv_into(self.rx_buf, self.recv_chunk);
+        self.rx_kernel_ns = self.io.rx_kernel_ns;
+        self.rx_user_ns   = self.io.rx_user_ns;
         if got > 0 {
             self.logger.on_event(WsLogEvent {
                 phase: "recv", detail: "bytes from socket", bytes: got });
@@ -672,14 +665,14 @@ locus WsClient {
                     phase: "error", detail: "tls connect failed" });
                 return false;
             }
-            self.tls = h;
+            self.io.adopt_tls(h);
             // TLS fast-path setup (hale #146), best-effort like
             // set_recv_timeout: TCP_NODELAY so partial md frames aren't
             // Nagle-delayed, and SO_TIMESTAMPNS so recv_stamped_into can
             // surface a kernel RX (wire-arrival) timestamp. A setsockopt
             // failure must NOT fail the connection — degrade silently.
-            std::io::tls::set_nodelay(self.tls, true) or discard;
-            std::io::tls::set_rx_timestamps(self.tls, true) or discard;
+            std::io::tls::set_nodelay(h, true) or discard;
+            std::io::tls::set_rx_timestamps(h, true) or discard;
             self.logger.on_event(WsLogEvent {
                 phase: "tls", detail: "handshake ok" });
         } else {
@@ -690,7 +683,7 @@ locus WsClient {
                     phase: "error", detail: "tcp connect failed" });
                 return false;
             }
-            self.sock = h;
+            self.io.adopt_tcp(h);
             self.logger.on_event(WsLogEvent {
                 phase: "dial", detail: "tcp connect ok" });
         }
@@ -781,15 +774,7 @@ locus WsClient {
     }
 
     fn close_sock() {
-        let was_open = self.tls >= 0 || self.sock >= 0;
-        if self.tls >= 0 {
-            std::io::tls::close(self.tls);
-            self.tls = -1;
-        }
-        if self.sock >= 0 {
-            std::io::tcp::close_fd(self.sock);
-            self.sock = -1;
-        }
+        let was_open = self.io.close();
         if was_open {
             self.logger.on_event(WsLogEvent {
                 phase: "close", detail: "socket closed" });

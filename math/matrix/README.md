@@ -40,9 +40,7 @@ First `push` allocates a 4-element buffer; subsequent grows double
 Factories, binary ops, `transpose`, and the sentinel helpers are
 free fns (`mat::zeros(...)`, etc.) — hale v0.8.2's m90 CQRS rule
 is permanent: locus methods may not return locus values; free fns
-may. The empty `locus Mat { }` remains only as a vestigial
-namespace placeholder so old `mat::Mat { }` instantiations still
-typecheck. Matches CONTRACTS.md (re-cut 2026-06-08).
+may. Matches CONTRACTS.md (re-cut 2026-06-08).
 
 | Free fn                                      | Returns  | Failure shape              |
 |----------------------------------------------|----------|----------------------------|
@@ -116,8 +114,8 @@ exercises the shape-mismatch sentinel paths for matmul and dot.
 
 ## Files
 
-- `matrix.hl` — the `Matrix` locus, the free-fn factory/algebra
-  surface, the vestigial `Mat` placeholder.
+- `matrix.hl` — the `Matrix` locus and the free-fn
+  factory/algebra surface.
 - `examples/matmul-demo/main.hl` — end-to-end demo.
 - `FRICTION.log` — contract deviations, language gaps, duplication
   suspicions.

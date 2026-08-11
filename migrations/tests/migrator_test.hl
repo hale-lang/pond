@@ -19,12 +19,12 @@
 //   - v1→v2 tracking-table upgrade (dirty column probe + ALTER)
 //   - name quoting ('' doubling) in the tracking INSERT
 //
-// SHAPE RULE: every Migrations set below is built INLINE in
-// main's frame — never via a set-building free-fn factory. A
-// form-vec-growing factory called after a caught Migrator failure
-// segfaults at HEAD 400ac68 (deterministic; new manifestation of
-// the open method-frame heap-corruption family — see FRICTION.log
-// § pond/migrations "factory-after-caught-failure").
+// The seven scenarios that want the same three-migration fixture
+// share `std_set()` below. That factory used to be forbidden here:
+// a form-vec-growing free-fn factory called after a caught
+// Migrator failure segfaulted (FRICTION.log § pond/migrations
+// entry 14 / hale#375), so every set was built inline. Fixed
+// upstream at hale v0.14.0 and re-verified 2026-08-11.
 
 import ".." as migs;
 import "../../db" as db;
@@ -181,15 +181,23 @@ fn __expect_int(e: migs::MigrationError, kind: String, label: String) -> Int {
     return 0 - 1;
 }
 
+// The standard three-migration fixture: one irreversible create
+// plus two reversible steps. Seven scenarios below use it as-is;
+// the rest build bespoke sets inline.
+fn std_set() -> migs::Migrations {
+    let s = migs::Migrations { };
+    s.add(1, "create_posts", "CREATE TABLE posts (id int)");
+    s.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
+        "DROP TABLE comments");
+    s.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
+        "DROP TABLE tags");
+    return s;
+}
+
 fn main() {
     // ---- up(): fresh apply, counts, idempotent re-run ----
     let f1 = FakeDriver { };
-    let s1 = migs::Migrations { };
-    s1.add(1, "create_posts", "CREATE TABLE posts (id int)");
-    s1.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
-        "DROP TABLE comments");
-    s1.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
-        "DROP TABLE tags");
+    let s1 = std_set();
     let m1 = migs::Migrator { driver: f1, set: s1, verbose: false };
     std::test::assert_eq_int(m1.pending(), 3, "fresh set: 3 pending");
     let n1 = m1.up() or __die_int(err);
@@ -206,12 +214,7 @@ fn main() {
 
     // ---- steps(±n) both directions ----
     let f2 = FakeDriver { };
-    let s2 = migs::Migrations { };
-    s2.add(1, "create_posts", "CREATE TABLE posts (id int)");
-    s2.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
-        "DROP TABLE comments");
-    s2.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
-        "DROP TABLE tags");
+    let s2 = std_set();
     let m2 = migs::Migrator { driver: f2, set: s2, verbose: false };
     let k1 = m2.steps(2) or __die_int(err);
     std::test::assert_eq_int(k1, 2, "steps(2) applies two");
@@ -225,12 +228,7 @@ fn main() {
 
     // ---- goto(v) up, down, no-op, and not_found ----
     let f3 = FakeDriver { };
-    let s3 = migs::Migrations { };
-    s3.add(1, "create_posts", "CREATE TABLE posts (id int)");
-    s3.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
-        "DROP TABLE comments");
-    s3.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
-        "DROP TABLE tags");
+    let s3 = std_set();
     let m3 = migs::Migrator { driver: f3, set: s3, verbose: false };
     let g1 = m3.goto(2) or __die_int(err);
     std::test::assert_eq_int(g1, 2, "goto(2) from 0 applies two");
@@ -269,12 +267,7 @@ fn main() {
 
     // ---- irreversible: down over a migration with no down_sql ----
     let f7 = FakeDriver { };
-    let s7 = migs::Migrations { };
-    s7.add(1, "create_posts", "CREATE TABLE posts (id int)");
-    s7.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
-        "DROP TABLE comments");
-    s7.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
-        "DROP TABLE tags");
+    let s7 = std_set();
     let m7 = migs::Migrator { driver: f7, set: s7, verbose: false };
     let _ = m7.up() or __die_int(err);
     let d1 = m7.down(3) or __expect_int(err, "irreversible", "v1 has no down_sql");
@@ -284,12 +277,7 @@ fn main() {
 
     // ---- not_found: applied version missing from the set ----
     let f8 = FakeDriver { applied: "\t9" };
-    let s8 = migs::Migrations { };
-    s8.add(1, "create_posts", "CREATE TABLE posts (id int)");
-    s8.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
-        "DROP TABLE comments");
-    s8.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
-        "DROP TABLE tags");
+    let s8 = std_set();
     let m8 = migs::Migrator { driver: f8, set: s8, verbose: false };
     let d2 = m8.down(1) or __expect_int(err, "not_found", "applied v9 not in set");
     std::test::assert_eq_int(d2, 0 - 1, "down over unknown applied version failed");
@@ -326,12 +314,7 @@ fn main() {
 
     // ---- postgres: advisory lock held and released, both paths ----
     let f11 = FakeDriver { backend_tag: "postgres" };
-    let s11 = migs::Migrations { };
-    s11.add(1, "create_posts", "CREATE TABLE posts (id int)");
-    s11.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
-        "DROP TABLE comments");
-    s11.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
-        "DROP TABLE tags");
+    let s11 = std_set();
     let m11 = migs::Migrator { driver: f11, set: s11, verbose: false };
     let _ = m11.up() or __die_int(err);
     std::test::assert_eq_int(f11.locks, 1, "pg run takes the advisory lock");
@@ -346,12 +329,7 @@ fn main() {
 
     // ---- v1→v2 tracking upgrade: dirty column added by ensure ----
     let f13 = FakeDriver { has_dirty_col: false };
-    let s13 = migs::Migrations { };
-    s13.add(1, "create_posts", "CREATE TABLE posts (id int)");
-    s13.add_rev(2, "add_comments", "CREATE TABLE comments (id int)",
-        "DROP TABLE comments");
-    s13.add_rev(3, "add_tags", "CREATE TABLE tags (id int)",
-        "DROP TABLE tags");
+    let s13 = std_set();
     let m13 = migs::Migrator { driver: f13, set: s13, verbose: false };
     let _ = m13.up() or __die_int(err);
     std::test::assert(f13.has_dirty_col, "ensure upgraded v1 table (ALTER ran)");

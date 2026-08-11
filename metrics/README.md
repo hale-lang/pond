@@ -4,8 +4,14 @@
 > `std::metrics` — no import needed. The stdlib Registry owns its
 > storage (`Registry { namespace: "x" }` is the whole
 > construction) and histogram bounds are a space-separated String
-> instead of a math Matrix. This vendored copy is frozen for
-> older pins.
+> instead of a math Matrix.
+>
+> **Maintained for older pins, not frozen** (2026-08-11). The surface
+> is closed — no new features, and consumers on a current hale should
+> use `std::metrics` — but the copy still takes hygiene changes
+> (annotations, comments, triage) so it satisfies the same gates as
+> every other lib. A hard freeze meant it could never be made clean,
+> which blocked adopting `hale verify` repo-wide.
 
 Counter / gauge / histogram metric primitives plus a
 Prometheus-compatible text-format renderer and a
