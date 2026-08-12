@@ -119,9 +119,6 @@ Matrix straight through.
 ```hale
 let e = emb::embedding_from_matrix("id", v, "meta");
 let m = emb::to_matrix(e);
-// (`emb::EmbeddingOps { }` is a retired empty placeholder —
-// its `to_matrix` moved to the free fn per the v0.8.2 m90
-// enforcement; see FRICTION.log 2026-06-12.)
 ```
 
 ## Example
@@ -150,10 +147,14 @@ mismatch `search` failure path (`or report_dim_mismatch(err)`) and the `remove` 
 
 ## Files
 
-- `embeddings.hl` — `Store`, parallel `@form(vec)` sub-loci,
-  Embedding / SearchHit / Rows / EmbError shape types,
-  free-fn surface (`to_matrix`, `embedding_from_matrix`, ...),
-  retired `EmbeddingOps` placeholder.
+- `embeddings.hl` — the `Store` locus (add / search / remove /
+  count) and the lib's doc header.
+- `types.hl` — `Embedding` / `SearchHit` / `Rows` / `EmbError`
+  shape types.
+- `storage.hl` — the parallel `@form(vec)` sub-loci `IdBuf` /
+  `MetaBuf` / `FloatBuf`.
+- `helpers.hl` — pure free fns: cosine arithmetic, the argmax
+  scan, row formatting, `to_matrix` / `embedding_from_matrix`.
 - `examples/topk-demo/main.hl` — end-to-end demo.
 - `FRICTION.log` — contract deviations, language gaps,
   duplication suspicions.

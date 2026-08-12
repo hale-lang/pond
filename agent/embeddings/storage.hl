@@ -1,0 +1,30 @@
+// pond/agent/embeddings — internal storage sub-loci (pattern 3).
+//
+// `@form(vec)` cells must be primitives or value-typed structs
+// (`spec/forms.md` § "Required capacity shape"), so a single vec of
+// `Embedding` is rejected. Three parallel buffers are the v1 shape:
+// `ids[r]` and `metas[r]` pair with the `dim` Floats at
+// `flat[r*dim .. (r+1)*dim]`. `Store`'s add/remove are the only
+// mutators and keep all three in lockstep.
+
+// ----- internal storage sub-loci (pattern 3) -----
+//
+// Three parallel @form(vec) children. `ids[r]` and `metas[r]`
+// pair with the dim Floats at `flat[r*dim .. (r+1)*dim]`. All
+// three are kept in lockstep; the Store's add/remove are the
+// only mutators.
+
+@form(vec)
+locus IdBuf {
+    capacity { heap data of String; }
+}
+
+@form(vec)
+locus MetaBuf {
+    capacity { heap data of String; }
+}
+
+@form(vec)
+locus FloatBuf {
+    capacity { heap data of Float; }
+}

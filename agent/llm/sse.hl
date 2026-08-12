@@ -130,7 +130,7 @@ fn next_data_line(buf: SseBuffer) -> __NextResult {
         if rel >= 0 { line_end = cursor + rel; }
         let line = frame[cursor..line_end];
         let line_len = len(line);
-        if line_len >= 5 && line[0..5] == "data:" {
+        if std::str::starts_with(line, "data:") {
             // Trim leading space after the colon (SSE spec
             // says: "if the value starts with a U+0020 SPACE
             // character, that character must be ignored").
@@ -141,7 +141,7 @@ fn next_data_line(buf: SseBuffer) -> __NextResult {
             data_line = line[vstart..line_len];
             has_data = true;
         }
-        if line_len >= 6 && line[0..6] == "event:" {
+        if std::str::starts_with(line, "event:") {
             let mut vstart = 6;
             if vstart < line_len && line[vstart..(vstart + 1)] == " " {
                 vstart = vstart + 1;
@@ -186,7 +186,7 @@ fn extract_anthropic_delta(json_payload: String) -> String {
     if kind != "content_block_delta" {
         return "";
     }
-    let delta = __extract_field_raw(json_payload, "delta");
+    let delta = std::json::find_field_raw(json_payload, "delta");
     if len(delta) == 0 {
         return "";
     }
@@ -206,7 +206,7 @@ fn extract_anthropic_delta(json_payload: String) -> String {
 // announcement event has `delta:{role:"assistant"}` only) is
 // filtered out as the empty string.
 fn extract_openai_delta(json_payload: String) -> String {
-    let choices = __extract_field_raw(json_payload, "choices");
+    let choices = std::json::find_field_raw(json_payload, "choices");
     if len(choices) == 0 {
         return "";
     }
@@ -215,7 +215,7 @@ fn extract_openai_delta(json_payload: String) -> String {
         return "";
     }
     let first = it.element;
-    let delta = __extract_field_raw(first, "delta");
+    let delta = std::json::find_field_raw(first, "delta");
     if len(delta) == 0 {
         return "";
     }
@@ -234,7 +234,7 @@ fn extract_anthropic_stop_reason(json_payload: String) -> String {
     if kind != "message_delta" {
         return "";
     }
-    let delta = __extract_field_raw(json_payload, "delta");
+    let delta = std::json::find_field_raw(json_payload, "delta");
     if len(delta) == 0 {
         return "";
     }
@@ -245,7 +245,7 @@ fn extract_anthropic_stop_reason(json_payload: String) -> String {
 // the final chunk's choices[0]. We read it alongside delta in
 // the stream loop.
 fn extract_openai_stop_reason(json_payload: String) -> String {
-    let choices = __extract_field_raw(json_payload, "choices");
+    let choices = std::json::find_field_raw(json_payload, "choices");
     if len(choices) == 0 {
         return "";
     }

@@ -50,6 +50,8 @@ locus Screen {
 
     // Grow the grids to w*h (vec capacity is monotonic — no
     // shrink; the logical size is w*h). Forces a full redraw.
+    // @unbounded: grows the cell grid to exactly w*h and stops; bounded by the terminal size.
+    @unbounded
     fn resize(w: Int, h: Int) {
         self.w = w;
         self.h = h;

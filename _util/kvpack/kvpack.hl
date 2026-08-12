@@ -59,6 +59,8 @@ locus KvPack {
 
     // set(data, key, val) -- return a new packed String with
     // `key=val` either replacing the existing pair or appended.
+    // @unbounded: rebuilds the pack, bounded by the input string's entry count.
+    @unbounded
     fn set(data: String, key: String, val: String) -> String {
         let total      = len(data);
         let needle     = key + "=";

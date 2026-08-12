@@ -129,8 +129,7 @@ does forward + backward + per-sample SGD update and returns the
 sample's MSE loss; shape errors `fail NnError { ... }`.
 CONTRACTS.md declares `forward` as a `Model` method — the m90
 enforcement forbids that shape (locus-valued returns); the free
-fn is the deviation, logged in FRICTION.log. `NnOps` survives
-only as an empty placeholder locus.
+fn is the deviation, logged in FRICTION.log.
 
 ### `nn::Trainer` — service locus, publishes TrainStepEvent
 
@@ -186,7 +185,10 @@ type NnError { kind: String; detail: String; }
 | `errors.hl`   | `NnError` payload type.                                  |
 | `metrics.hl`  | `TrainStep` per-epoch metric record.                     |
 | `layer.hl`    | `Layer` shape type carrying (offset, count) windows.     |
-| `model.hl`    | `Model` locus (`@form(vec)` of Float), matrix-shaping free fns (former `NnOps` methods; the locus is an empty placeholder now), `FwdCache` + `OffsetTable` per-train_step buffers, `NnVersion` shape type. |
+| `model.hl`    | `Model` locus (`@form(vec)` of Float), the `NnVersion` shape type, and the inference surface over it (`forward`, `load_weights`, `load_biases`). |
+| `cache.hl`    | `FwdCache` + `OffsetTable`, the per-`train_step` forward-activation cache pair, and `cache_vec_from`. |
+| `meta.hl`     | The `meta_csv` layer-table encoding: `parse_layer_at`, `count_layers_in_meta`, `canonical_activation`. |
+| `shaping.hl`  | Matrix-shaping free fns (`column_view`, `apply_activation`, `extract_row`/`_into`, `backprop_activation`) and the scalar activation kernels. |
 | `trainer.hl`  | `Trainer` service locus + the `TrainStepEvent` topic decl (explicit `nn.TrainStep` subject), co-located with its single publisher. |
 
 `FwdCache` and `OffsetTable` are `@form(vec)` sibling loci

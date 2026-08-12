@@ -14,6 +14,122 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-08-11 status note — hale v0.16.0 (`3c05dad`) hygiene pass
+
+- **Three vestigial empty namespace loci REMOVED from the surface:**
+  `math/matrix`'s `Mat`, `ml/neural`'s `NnOps`, and
+  `agent/embeddings`' `EmbeddingOps`. Each was an empty
+  `locus X { params { } }` with no methods, kept only so a caller
+  writing `mat::Mat { }` would still typecheck after the v0.8.2 m90
+  extraction moved their methods to free fns. Constructing one was a
+  no-op, nothing in-tree referenced them, and pond is vendored inline
+  (consumers pin a version and upgrade deliberately), so the compat
+  they preserved was not real. `Mat`'s doc comment additionally
+  asserted the *inverse* of the current rule ("codegen rejects
+  free-fn returns of LocusRef") and has been corrected.
+
+- **`pond/agent/embeddings` decomposed by concern.** It was the only
+  lib holding its types, storage loci, service locus and helper free
+  fns in one 442-line file. Now `types.hl` / `storage.hl` /
+  `embeddings.hl` (the `Store` locus) / `helpers.hl`, matching every
+  sibling lib and `spec/projects.md`'s "one file per concern".
+  No surface change — a seed is order-free and has no per-file
+  visibility. `pond/ml/neural`'s 865-line `model.hl` got the same
+  treatment: `model.hl` (the `Model` locus + its inference surface)
+  / `cache.hl` (the per-`train_step` buffers) / `meta.hl` (the
+  `meta_csv` encoding) / `shaping.hl` (matrix-shaping free fns +
+  scalar activation kernels).
+
+- **Memory-shaped workarounds retired** (the bugs they guarded are
+  fixed upstream): `migrations/tests/migrator_test.hl` collapses
+  seven inline copies of the standard three-migration fixture into a
+  `std_set()` factory, and `ml/neural`'s allocation-ordering
+  discipline is gone from both tests and the xor-trainer demo (the
+  train_step test now builds each model before its inputs — the
+  natural order the discipline forbade). `Trainer.fit`'s
+  preallocate + `extract_row_into` is KEPT: it is the
+  allocation-free hot loop on its own merits, and its comment now
+  says so instead of citing a fixed segfault.
+
+## 2026-08-03 status note — v0.13.0 fix pass (agent/llm Stream migration, pq import respell)
+
+- **`pond/agent/llm` migrated to the fallible Stream surface.** The
+  2026-07-15/16 migration pass (next note) inventoried websocket, pq,
+  and http/client but missed agent/llm's two plaintext `tcp.send` /
+  `tcp.recv_bytes` sites — its codegen gates were broken from
+  2026-07-15 until today while `hale check` stayed green. Dispositions
+  mirror pq's (`or discard` / `or b""`); no public-surface change.
+  Also retired in the same pass: the 2026-07-04 in-lib key-position
+  workaround in `__parse_anthropic_response` — hale v0.11.18's rebuilt
+  `std::json` finders both fixed the key-shadowing bug upstream and
+  broke the workaround's tail-slice shape (enforced whole-value
+  chaining). FRICTION § pond/agent/llm has both entries.
+- **`pond/pq` intra-pond imports respelled relative** (`../db`), because
+  hale ≥ v0.12.0's import-resolving `hale check` fails on the
+  consumer-style `vendor/pond/db` spelling. No public-surface change;
+  the pgwire-roundtrip example now builds in-repo. Repo invariant:
+  intra-pond imports are relative; `vendor/pond/…` is for consumers.
+  FRICTION § pond/pq "In-repo build vs check" CLOSED.
+- Gates at hale v0.13.0 after this pass: `hale test .` 49/49,
+  `hale check` green on all 30 libs, all 36 examples build.
+- **Repo record re-baselined at v0.13.0 (same date, follow-up
+  pass).** Probe-verified gotcha ledger refreshed in CLAUDE.md
+  (topic check/build divergence, `or fail` err-payload, `-> ()`
+  method returns, form-vec `or`-substitute: all still open;
+  plain-`or` err-field reads: lifted in v0.12). The
+  § pond/ml/neural method-frame heap corruption is **FIXED
+  upstream** (exact repro 20/20 clean; workaround removal is a
+  separate pending pass), while § pond/migrations entry 14
+  still segfaults 5/5 and is now known to be a separable bug.
+  Unbounded-alloc warnings re-triaged repo-wide against the
+  v0.11.12 analysis: 5 libs cleared to 0 with no source change
+  (embeddings, crypto, logfmt, migrations, ml/neural), tui
+  dropped 45→41, and first-time triage records added for
+  kvpack, rowbuf, math/matrix, sqlite, metrics. 62 advisory
+  sites remain, all triaged in FRICTION.log. No contract
+  deviations opened or closed by this pass.
+- **ml/neural workaround-removal pass (same date, third pass).**
+  xor-trainer trains through `Trainer.fit` again (`train_corners`
+  retired; verified 3/3, convergence 0.000265, outputs
+  byte-identical to the retired path). The zero-reads
+  manifestation was retested and is STILL PRESENT at v0.13.0
+  (differential probe, 5/5), so the input-matrices-before-model
+  ordering discipline and fit's `extract_row_into` shape remain
+  binding. No public-surface change; entry re-scoped in
+  FRICTION § pond/ml/neural.
+- **Opt-in adoption pass (2026-08-04, fifth pass).** Four items:
+  (1) **OTLP transport → stdlib client**: logfmt `OtlpSink` and
+  tracing `export_otlp` POST via `std::http::post` (the surface
+  `pond/http/client` was promoted into at v0.11.4) — consumers of
+  those features NO LONGER need to vendor `pond/http`; same
+  fallible surface, signature-identical swap (READMEs + CLAUDE.md
+  updated). (2) **Effects pilot**: crypto's nine pure fns carry
+  `@deterministic @no_syscall` (additive annotations, surface
+  unchanged; `hale verify crypto/` = 0 findings) and pq's SCRAM
+  password params carry `@secret`; both enforced — negative
+  controls produce check errors with witness paths. (3)
+  **websocket takeover demo**: new `examples/upgrade-server/`
+  runs the promoted-server shape end-to-end in one binary (3/3
+  clean runs). (4) **Gate assessment**: `hale fmt --check` drifts
+  on ~140/189 files (pond predates `hale fmt` — adopting means
+  one big reformat commit, open decision); `hale verify` fails on
+  exactly the 9 warning-bearing libs (62 triaged advisories), and
+  two of those are FROZEN libs that can't take `@unbounded`
+  annotations without unfreezing — verify-as-gate is blocked on
+  that policy call. Upstream: the still-open zero-reads bug is
+  now filed as hale-lang/hale#381.
+- **Ordinary-layer dedup pass (same date, fourth pass).** hale
+  v0.13.0's everyday surface replaces pond hand-rolled helpers —
+  internal changes only, no public-surface deltas: agent/llm's
+  `__extract_field_raw` + `__key_pos` deleted for the now-public
+  `std::json::find_field_raw` (FRICTION duplicate-suspected
+  entry CLOSED); pq's `scram_starts_with`, agent/llm's SSE
+  `data:`/`event:` prefix slices, and websocket's URL-scheme
+  slices moved to `std::str::starts_with`; term's TERM sniffing
+  and websocket's header-terminator scan moved to
+  `std::str::contains`. Gates on all four touched libs: check
+  ok, tests 8/8, examples build (term demos run).
+
 ## 2026-07-15 status note — websocket on hale 9bc53d5's fallible Stream surface
 
 - **`pond/websocket` now requires hale >= `9bc53d5`** (breaking
@@ -610,7 +726,6 @@ fn check_same_shape(a_rows: Int, a_cols: Int, b_rows: Int, b_cols: Int) -> () fa
 fn check_dot_shapes(a_rows: Int, a_cols: Int, b_rows: Int, b_cols: Int) -> () fallible(MatrixError);
 
 type MatrixError { kind: String; }       // "shape_mismatch" | "empty"
-// `locus Mat { }` remains as a vestigial empty namespace lotus.
 ```
 
 **Consumer pattern:**

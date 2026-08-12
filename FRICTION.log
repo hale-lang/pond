@@ -71,6 +71,40 @@ The underlying language gap this lib papered over is NOT closed:
 § pond/ml/neural "int-to-float-ascription-rejected").
 
 ======================================================================
+ pond/_util/kvpack
+======================================================================
+
+# pond/_util/kvpack — FRICTION
+
+No open contract deviations.
+
+## unbounded-alloc triage — 2026-08-03 (first recorded)
+
+One default-on warning at hale v0.13.0: `KvPack::set`'s
+string-concat rebuild loop (`kvpack.hl:93`). FP-shaped: the
+loop walks the existing pack once (bounded by pack length) to
+splice the replaced pair; the rebuilt string is the method's
+return value, not retained state. Rebuild-on-write is the lib's
+documented TSV-pack design. No source change.
+
+======================================================================
+ pond/_util/rowbuf
+======================================================================
+
+# pond/_util/rowbuf — FRICTION
+
+No open contract deviations.
+
+## unbounded-alloc triage — 2026-08-03 (first recorded)
+
+One default-on warning at hale v0.13.0: `RowBuf::remove_row`'s
+string-concat rebuild loop (`rowbuf.hl:89`). FP-shaped: the
+loop walks the buffer once (bounded by buffer size) rebuilding
+it minus the removed row — compaction churn proportional to
+content, same verdict as embeddings' `remove_at` triage. No
+source change.
+
+======================================================================
  pond/agent/conversation
 ======================================================================
 
@@ -454,6 +488,11 @@ Growth is the lib's documented purpose; bounding it is the
 consumer's policy (cap checks before add). No source change;
 revisit if a `max_items` param gets contract'd.
 
+*2026-08-03 re-baseline (hale v0.13.0):* 4 → **0 warnings** —
+the v0.11.12 analysis improvements (vec `.set` retire modeling
++ const-folded loop ceilings) cleared all four with no source
+change here. Nothing left to triage.
+
 ======================================================================
  pond/agent/llm
 ======================================================================
@@ -619,7 +658,21 @@ broader duplicate — `pond/router` does the same over its
 history. A `std::iter::TabFields` (or `std::str::split_tab`)
 would lift the pattern. Stays inlined here.
 
-## duplicate-suspected: __extract_field_raw is a copy of stdlib internal
+## duplicate-suspected: __extract_field_raw is a copy of stdlib internal — [CLOSED 2026-08-03: stdlib surface shipped, helper deleted]
+
+**Closed:** upstream delivered the fix path better than asked —
+`std::json::find_field_raw(json, name) -> String` is PUBLIC
+(rebuilt on the object cursor in v0.11.18, spec'd in
+spec/stdlib.md § std::json with the re-feed-the-substring
+chaining contract this lib's nested walks already use). All 10
+call sites (wire.hl ×5 incl. __extract_error_detail, sse.hl ×5)
+now call it directly; `__extract_field_raw` AND `__key_pos`
+(~144 lines) are deleted. Gates: check ok, test 2/2 (wire_test
+covers content/usage/message extraction, sse_test the delta
+paths), echo-completion builds. The typed
+`find_object_field`/`find_array_field` split asked for below
+never happened — the untyped raw surface is strictly more
+general and did the job.
 
 `__extract_field_raw` in `wire.hl` does the same job as
 `std::json`'s internal `__json_find_field_raw` — find a
@@ -730,6 +783,56 @@ duplicate-suspected entry above): std::json's flat finders
 should retry-scan until a colon follows the key match — any
 JSON document where a searched key's name appears as an earlier
 string VALUE hits this class.
+
+**2026-08-03 follow-up — upstream ask DELIVERED (hale v0.11.18),
+in-lib workaround retired at the content-block site.** The
+stdlib finders were rebuilt on a single-pass object cursor
+("matches key positions, not key text", Crumb 4-2): probe
+confirmed `find_string_field({"type":"text","text":"Hel"},
+"text")` now returns `Hel`. The same rebuild ENFORCES the
+whole-value chaining contract — feeding a mid-document tail
+slice (this lib's old workaround shape) now returns "" instead
+of scanning forward, which is exactly how wire_test.hl caught
+the change (masked until 2026-08-03 behind the Stream-send
+codegen failure below). `__parse_anthropic_response` now calls
+the stdlib finder on the intact array element. (*Same-day
+correction:* the raw-field helper turned out to be exported —
+`std::json::find_field_raw` is public — so the
+duplicate-suspected entry below is CLOSED and both
+`__extract_field_raw` and `__key_pos` are deleted in the
+ordinary-layer dedup pass.)
+
+## upstream 9bc53d5/hale#210: fallible Stream send/recv — missed in the 2026-07-15/16 migration pass, migrated 2026-08-03
+
+The repo-wide migration to hale 9bc53d5's fallible
+`Stream.send/recv` surface (see FRICTION § pond/websocket
+"upstream 9bc53d5" and the 2026-07-15 CONTRACTS.md status note)
+inventoried websocket, pq, and http/client — but never swept
+agent/llm, whose `__stream_send` / `__stream_recv_bytes`
+(anthropic.hl) drive a `std::io::tcp::Stream` locus directly on
+the plaintext path. Both codegen gates failed from 2026-07-15
+until today (`error not addressed: Stream.send is fallible`);
+`hale check` stayed green throughout — fallibility disposition
+enforcement is still codegen-only at v0.13.0, so the
+green-check-≠-codegen-clean gotcha hid a 19-day breakage in a
+lib whose gates weren't re-run.
+
+Migration mirrors pq/stream.hl's dispositions: `tcp.send(wire)
+or discard` (a failed send surfaces downstream as the length-0
+recv in `__drain_stream`, matching the TLS path's negative
+sentinel — every caller discards the send return), and
+`tcp.recv_bytes(max) or b""` (errors collapse to the length-0
+end-of-stream contract). The `std::io::tls::*` path-call sites
+are untouched — still non-fallible Int-sentinel per the v0.13
+stdlib surface. No public-surface change. Gates at hale
+v0.13.0: check ok (0 warnings), test 2/2, echo-completion
+builds.
+
+Process lesson (recorded so the next breaking-stdlib pass
+doesn't repeat it): the 07-15 site inventory was built by
+grepping the libs the ICE reports named, not by sweeping the
+repo for `Stream` construction — `hale test .` at the migration
+compiler would have caught agent/llm on day one.
 
 ======================================================================
  pond/agent/sandbox
@@ -1281,6 +1384,29 @@ The one default-on warning (`hex_decode`'s `HexError` literal
 by the input string length and the `fail` exits it. No source
 change.
 
+*2026-08-03 re-baseline (hale v0.13.0):* 1 → **0 warnings** —
+the classifier now models exactly the shape triaged above
+(`fail` exits the loop). Clean with no source change.
+
+## effects pilot — 2026-08-04: the lib carries certificates
+
+First pond lib to adopt the hale v0.11.23+ effect-assertion
+surface. All nine pure fns (`sha256` / `hmac_sha256` / `sha512`
+/ `hmac_sha512` / `constant_time_eq` / `hex_encode` /
+`hex_decode` / `nibble_char` / `nibble_value`) now carry
+`@deterministic @no_syscall` — the stdlib crypto primitives they
+delegate to are classified effect-free, so the certificates hold
+under `hale check`'s fail-closed engine. `random_bytes` is
+deliberately NOT annotated (it reaches
+`std::os::getrandom` — `syscall` + `entropy`; that reach is its
+purpose). Negative control verified before shipping: a
+`@deterministic` mis-placed on `random_bytes` fails check with a
+witness path (`must not reach entropy … [std::os::getrandom —
+an entropy read]`), so the annotations are enforced, not
+decorative. `hale verify crypto/` reports 0 findings. Pilot
+verdict for the repo: the surface is cheap where a lib is
+genuinely pure; roll out opportunistically, not as a mandate.
+
 ======================================================================
  pond/db
 ======================================================================
@@ -1478,6 +1604,17 @@ literals in the recv loops) and `client.hl`
 documented residual-FP class — loops runtime-bounded by
 `max_body` / `max_attempts` in scratch-reclaimed frames. No
 source change.
+
+*2026-08-03 re-baseline (hale v0.13.0):* 12 → **2 warnings**.
+Every keepalive.hl site cleared via the v0.11.12 analysis
+improvements. Remaining: `client.hl:150` (the HttpError site
+above, still accepted as triaged) and a NEW class on
+`wire.hl:111` — "hot-path allocation: `recv_bytes` in a loop
+allocates a fresh result buffer each iteration", recommending
+`recv_into` + a reused `BytesBuilder`. Valid advice, not taken:
+this lib is FROZEN (promoted to `std::http` in hale ≥ v0.11.4;
+vendored copy kept for older pins), and older pins predate
+`recv_into`. The live surface to optimize is the stdlib client.
 
 ## Out-of-scope notes
 
@@ -1763,6 +1900,24 @@ fields) is staged upstream in notes/anchor-retirement.md.
 Revisit when that lands or if a workload runs workers hot for
 weeks.
 
+*2026-08-03 re-baseline (hale v0.13.0):* 1 → **7 warnings**.
+The `Job { }` site above is unchanged (still accepted). Six NEW
+sites in `queue.hl` (`dequeue`/`ack`/`fail`): the `fail
+JobError { ... }` literals and their string-concat details, now
+flagged as "in a fn invoked unboundedly" because the callers are
+Worker's run-loop poll and bus-reached paths. Same accepted
+class as the Job sentinel: an error payload per FAILED
+poll/ack, allocated in the caller's region at poll rate —
+tens of KB/day, reclaimed at worker dissolve. (Contrast
+migrations' identical-looking fail-literals, which sat inside
+`while` loops the `fail` exits and are now modeled clean —
+these six are flagged for the caller's loop, not their own, so
+the v0.11.12 modeling correctly does NOT clear them.) Accepted
+at parity with the sentinel entry; same revisit trigger
+(anchor-retirement, or hot-for-weeks workers — a worker could
+also acknowledge with `@unbounded` on the run hook if the
+count should stop appearing in the gate).
+
 ======================================================================
  pond/logfmt
 ======================================================================
@@ -1862,7 +2017,12 @@ dead endpoint (`127.0.0.1:1`) the flush completes with
 `OtlpSink` must vendor `pond/http` alongside `pond/logfmt` so the
 relative import resolves in their tree (pond design rule 4;
 jobs→sqlite precedent). They do NOT need their own `import` line
-unless they name `http::*` types themselves.
+unless they name `http::*` types themselves. (*RETIRED
+2026-08-04:* the transport moved to the stdlib client —
+`std::http::post`, the surface `pond/http/client` was promoted
+into at v0.11.4 — so OtlpSink has no cross-lib import and
+`pond/logfmt` vendors alone. Same pass migrated tracing's
+`export_otlp`. Signature-identical swap; both libs' gates green.)
 
 Note: `__handle_http`'s sentinel `http::Response` draws the
 same "unbounded allocation" warning class that
@@ -1870,7 +2030,8 @@ same "unbounded allocation" warning class that
 `__raise_connect`, ...) — one small allocation per FAILED flush,
 reached from a bus handler. Accepted at parity with the
 transport lib; a future pass on http/client's warnings covers
-this site too.
+this site too. (*2026-08-03:* cleared — `hale check logfmt/` is
+0 warnings at v0.13.0 after the v0.11.12 analysis improvements.)
 
 ## duplicate-suspected: last-error capture triple
 
@@ -2080,6 +2241,16 @@ carried the `(0.0 + n)` idiom and migrated (see its FRICTION).
   row-major buffer story.
 - `or discard` remains the right addressing shape for the
   ignore-OOB `set` calls.
+
+## unbounded-alloc triage — 2026-08-03 (first recorded)
+
+Four default-on warnings at hale v0.13.0, all vec-inserts in
+the buffer-fill loops of `zeros`, `transpose`, and `from_rows`
+(×2). TRUE-but-by-design: each loop fills a freshly-constructed
+Matrix to exactly `rows * cols` cells — the allocation IS the
+factory's contract, bounded by the caller-requested dimensions.
+Same verdict class as embeddings' `Store::add`. No source
+change.
 
 
 ======================================================================
@@ -2458,6 +2629,16 @@ lib). The natural composition is: mount `MetricsEndpoint` at a
 itself stays unconditional so it works both standalone and
 behind a router.
 
+## unbounded-alloc triage — 2026-08-03 (first recorded)
+
+Two default-on warnings at hale v0.13.0: `render_labels`'
+string-concat loop (`helpers.hl:132/134`). FP-shaped: bounded
+by the metric's label-pair count (single digits in practice),
+building the exposition line the caller returns. This lib is
+FROZEN (promoted wholesale to `std::metrics` in hale ≥ v0.11.8)
+so no source change on principle; the live surface is the
+stdlib's.
+
 
 ======================================================================
  pond/migrations
@@ -2731,9 +2912,43 @@ inside `while` loops (`__validate` ×2, `__down_to` ×2).
 False-positive-shaped: `fail` EXITS the loop — at most one such
 payload is ever constructed per call. Not restructured.
 
+*2026-08-03 re-baseline (hale v0.13.0):* 4 → **0 warnings** —
+the classifier now models the fail-exits-the-loop shape. Clean
+with no source change.
+
 ---
 
-## 14. NEW (2026-07-06) — UPSTREAM BUG: form-vec-growing free-fn factory segfaults after a caught Migrator failure — [OPEN, workaround in tests/example]
+## 14. (2026-07-06) — UPSTREAM BUG: form-vec-growing free-fn factory segfaults after a caught Migrator failure — [CLOSED 2026-08-11 — fixed upstream at hale v0.14.0 (GH #375)]
+
+**2026-08-11 retest (hale v0.16.0): FIXED — 5/5 CLEAN.**
+Reconstructed per the in-tree recipe below (real migrations+db
+seeds, the FakeDriver, one caught `bad_set` failure, then a
+`std_set()` free-fn factory building `Migrations { }` + `add()`
+x3): exits 0 every run with the correct post-failure count.
+Upstream fix is hale v0.14.0's "The caller-arena TLS can no
+longer outlive the arena it points to (GH #375)" — a fallible
+method chain that published its own scratch and exited down the
+error edge left the TLS pointing at destroyed memory, which is
+exactly this shape. The workaround below is therefore NO LONGER
+BINDING; the cleanup recipe under "When this unblocks" is
+**PERFORMED 2026-08-11**: `tests/migrator_test.hl` now shares a
+`std_set()` factory across the seven scenarios that want the
+standard three-migration fixture (465 -> 437 lines), the SHAPE
+RULE header note is replaced by the factory's rationale, and the
+test passes 3/3 runs. This entry is fully closed.
+
+**2026-08-03 retest (hale v0.13.0): STILL SEGFAULTS, 5/5 runs**
+(reconstructed per the in-tree recipe below: real migrations+db
+seeds, FakeDriver, one caught bad_set failure, then a
+`std_set()` factory — exit 139 every run, crash inside the
+factory call). Newly established: this is a **SEPARABLE bug**,
+not a manifestation of the § pond/ml/neural method-frame family
+it was filed under — that parent repro is FIXED at v0.13.0
+(20/20 clean) while this one still crashes. **Reported upstream
+same day as hale-lang/hale#375** (full repro inline, the
+reduction matrix, and the separability finding; the still-open
+ml/neural zero-reads manifestation is cross-referenced there as
+a possible shared root). Workaround unchanged and still binding.
 
 **Symptom (hale HEAD `400ac68`, deterministic 3/3 runs).** After
 ANY `Migrator` run-op failure is caught by an `or` handler in
@@ -2848,7 +3063,7 @@ this lib.
   Int") — but the std::math primitive is now the supported
   bridge, so the gap no longer costs an ASCII roundtrip.
 
-## OPEN BLOCKER (upstream runtime): method-frame-fresh locus args corrupt the heap — 2026-06-12
+## (upstream runtime): method-frame-fresh locus args corrupt the heap — 2026-06-12 — [CLOSED 2026-08-11 — both manifestations fixed upstream]
 
 At hale HEAD (b716696), a locus created via free-fn return
 inside a locus-METHOD frame and passed as an argument into
@@ -2896,6 +3111,9 @@ not matter.
 back into a plain `trainer.fit(model, xs, ys, 5000)` call at the
 top of the demo, drop workaround 1 if profiling says the fresh
 per-sample extract is preferable, and delete this entry.
+(*2026-08-03: the fold-back is DONE — see the workaround
+disposition below. The entry stays open, re-scoped to
+manifestation 2.*)
 
 **2026-07-04 retest (hale HEAD 400ac68): STILL SEGFAULTS, 5/5
 runs** — despite this HEAD's large memory-model work (WS1#4
@@ -2927,6 +3145,125 @@ allocations to the safe shape. This narrows the upstream hunt:
 the corruption tracks the receiver's form-vec GROWTH
 (realloc?) invalidating cross-locus views of later
 method-frame allocations.
+
+**2026-08-03 retest (hale v0.13.0): the FIRST manifestation is
+FIXED.** The exact 2026-07-04 minimal repro (plain loci,
+`make()` free-fn factory called ×20000 inside
+`trainer.fit(model)` from a locus-method frame, post-fit
+allocation + one more `make`) now runs **20/20 clean** with a
+correct accumulator — at 400ac68 it segfaulted 5/5 before
+printing. Nothing in the v0.11.10→v0.13.0 changelogs names this
+fix explicitly; most plausible candidates are the v0.11.12
+form-vec `.set` retire/arena work and the v0.12.0 memory-model
+batch. See also § pond/migrations entry 14, which this retest
+proves is a SEPARABLE bug (it still crashes with this one
+fixed).
+
+**2026-08-03 (same day, workaround-removal pass): the SECOND
+manifestation is NOT fixed — retested, STILL PRESENT 5/5.**
+Differential probe (same seeded 2-3-1 model, one `train_step`):
+input matrices created BEFORE `add_dense` → loss 0.16499; the
+same matrices created AFTER the model's form-vec growth →
+exactly **0.158267**, the documented zero-input-forward
+signature. Deterministic 5/5. The entry therefore SPLITS:
+manifestation 1 (method-frame segfault) is CLOSED; manifestation
+2 (zero-reads of matrices allocated after receiver form-vec
+growth, inside the receiver's method frames) is the entry's
+live scope — reported upstream 2026-08-04 as
+**hale-lang/hale#381** (differential repro inline, incl. two
+toy reductions that do NOT reproduce — plain two-form-vec-loci
+shapes read correctly even at 5000-push forced-realloc growth,
+so the trigger needs something of Model's real shape).
+Cross-referenced with hale-lang/hale#375 as a possible shared
+root.
+
+**2026-08-11 retest (hale v0.16.0): manifestation 2 is FIXED —
+5/5.** The documented differential probe (same seeded 2-3-1
+model, one `train_step`, input matrices created BEFORE vs AFTER
+the model's first `add_dense`) now returns an IDENTICAL
+`loss=0.16499` on both arms, five runs out of five — that is the
+"before" (correct) value; the `0.158267` zero-input signature is
+gone. With manifestation 1 already closed at v0.13.0, this entry
+closes entirely. hale#381 can be closed upstream.
+
+**Workarounds RETIRED 2026-08-11** (after hale `3c05dad` closed
+the v0.16.0 rebinding regression and the lib went green again):
+
+- The **allocation-ordering discipline** is gone from
+  `tests/train_step_test.hl`, `tests/forward_test.hl` and the
+  xor-trainer demo. train_step_test now builds each model
+  *before* the inputs it is exercised with — the natural reading
+  order the discipline specifically forbade — and passes 3/3
+  runs, which is the proof the constraint is dead rather than an
+  assertion that it is.
+- `Trainer.fit`'s **preallocate + `extract_row_into` is KEPT.**
+  It is the correct shape independent of any bug: `fit` runs
+  epochs x n_samples iterations, so a fresh per-sample Matrix
+  would allocate once per iteration and hold every one until
+  `fit` returned — exactly what the unbounded-alloc lint flags.
+  Its comment now makes the allocation argument instead of
+  citing the segfault.
+
+Nothing in this lib is shaped by a memory bug any more.
+
+**2026-08-11 — a same-day upstream regression, since FIXED.**
+**RESOLVED at hale `3c05dad`** — the section below records why
+this lib's tests were briefly red and, more usefully, the judgment
+call about not contorting the library. `ml/neural` is green again
+with NO source change.
+
+**(original entry)** `ml/neural`'s `forward()` (model.hl:482) is the
+natural spelling of a layer sweep and rebinds a locus-typed
+`let mut` inside a FREE FN:
+
+    let mut a = column_view(x, first.input_dim);
+    while li < model.layer_count { ...; a = apply_activation(zb, ...); }
+    return a;
+
+At hale v0.16.0 that hands the caller a Matrix whose `capacity`
+heap buffer has been reclaimed — `rows`/`cols` intact, every
+`get(i)` failing. Both `forward_test.hl` and `train_step_test.hl`
+fail on it (train_step's own arithmetic is fine; its last
+assertion reads through `forward`). The xor-trainer demo shows
+it at its clearest: training converges to the byte-identical
+documented `loss=0.000264721` and then every prediction reads
+`0`. Bisected to hale `cd75511` (GH #402); full repro matrix in
+`COMPILER-BUGS.md` § 1.
+
+A workaround WAS attempted and WITHDRAWN: relocating the sweep
+onto a `Model.__sweep_into(x, out)` method frame (method frames
+are unaffected by the regression) made `forward_test` pass and
+turned `train_step_test`'s clean assertion failure into a
+segfault — and inserting `println` calls made that segfault
+disappear, i.e. it was a latent use-after-free, not a fix. The
+library was left in its correct-as-written form, and that call
+paid off: upstream fixed the regression the same day and
+`ml/neural` went green again with zero source churn. Standing
+lesson for this repo — when a *fresh, bisected* compiler
+regression breaks a lib, report it and wait; do not contort
+correct library code around it.
+
+**Workaround disposition after the removal pass:**
+
+1. Demo restructure (old workaround 2) — **RETIRED**. xor-trainer
+   trains through `trainer.fit(model, xs, ys, 5000)` at the top
+   again and `train_corners` is deleted. Verified 3/3 clean
+   runs: convergence 0.000265 @ 5000 epochs, truth table 4/4,
+   sigmoid outputs byte-identical to the retired main-frame
+   path (same seed), and the post-fit allocation-heavy work
+   (forward ×8, snapshot/apply_delta) runs clean — the exact
+   sequence that segfaulted before the fix.
+2. `Trainer.fit` preallocate + `extract_row_into` (workaround 1)
+   — **RETAINED**. No longer needed against the fixed segfault,
+   but fit's correctness under manifestation 2 has only been
+   validated in THIS shape: a fresh-`extract_row`-per-sample
+   respell would allocate matrices in fit's method frame after
+   the model's growth, squarely in manifestation 2's trigger
+   zone. Revisit only with a dedicated probe (the old "if
+   profiling says" clause now has a correctness precondition).
+3. Matrices-before-first-`add_dense` ordering discipline
+   (train_step_test.hl, demo) — **RETAINED**, as the live guard
+   for manifestation 2. Do not reorder those lets.
 
 ## Resolved (2026-06-08 source pass)
 
@@ -3273,6 +3610,9 @@ One default-on warning: `parse_layer_at`'s `Layer` literal "in
 an unbounded loop" — FP-shaped; the loop is bounded by the
 model's layer count (single digits). No source change.
 
+*2026-08-03 re-baseline (hale v0.13.0):* 1 → **0 warnings** —
+cleared by the v0.11.12 analysis improvements, no source change.
+
 ======================================================================
  pond/pq
 ======================================================================
@@ -3600,7 +3940,8 @@ redialing — logged for hale (cf. `recv_into`'s `-2` contract, which
   transactional work. Lifting this needs a checkout/checkin handle
   that holds one `PgConn` for the transaction's span; deferred until a
   workload needs pooled transactions.
-- **In-repo build vs check.** `hale check pq` typechecks standalone.
+- **In-repo build vs check — [CLOSED 2026-08-03: imports respelled
+  relative].** `hale check pq` typechecks standalone.
   `hale build` of a *consumer* resolves `import "vendor/pond/db"`
   against a vendored tree (F.26); inside this repo there is no
   `vendor/` dir, so build a consumer that has vendored both seeds
@@ -3614,6 +3955,26 @@ redialing — logged for hale (cf. `recv_into`'s `-2` contract, which
   root: the `vendor/...` import fallback resolves against the
   workspace root, which `find_workspace_root` anchors on
   `hale.toml` (or `Cargo.toml`).
+
+  *2026-08-03 close:* hale v0.12.0 made `hale check` resolve
+  imports (the cross-seed effect-analysis work), so the vendor
+  spelling stopped checking standalone — `hale check pq/` failed
+  with `could not resolve import "vendor/pond/db"`, killing the
+  per-lib verification gate. pq was the only lib using the
+  consumer-style spelling for an intra-pond dep (jobs, migrations,
+  logfmt, tracing all import relative). Respelled `pq.hl` /
+  `pool.hl` to `import "../db"` (consumers vendor the whole pond
+  tree, so `vendor/pond/pq/../db` resolves identically) and the
+  example to the standard `../..` + `../../../db` shape — which
+  also makes `pgwire-roundtrip` BUILD in-repo for the first time
+  (it still needs a live postgres to run). Repo invariant going
+  forward: intra-pond imports are always relative; `vendor/pond/…`
+  spellings belong to consumer apps only. Side effect: check now
+  runs the full advisory analyses over pq for the first time —
+  3 warnings surfaced (the two 2026-06-12 `PgPool.open`
+  false-positive-shaped sites, now worded as hot-path-allocation,
+  plus a new `wire.hl:212` string-concat site); triage refresh
+  belongs to the repo-wide v0.13.0 re-baseline pass.
 - **`--warn-unbounded-alloc` (now on by default) flags
   `PgPool.open`** — two warnings: the per-iteration `PgConn` and
   `db::Status` structs in open's connection loop "accumulate in
@@ -3621,6 +3982,29 @@ redialing — logged for hale (cf. `recv_into`'s `-2` contract, which
   bounded by the pool's `size` param and the PgConns are
   intentionally retained for the pool's lifetime. Recorded
   2026-06-12; no source change.
+
+  *2026-08-03 re-baseline (hale v0.13.0, first full-analysis
+  check since the relative-import respell):* **3 warnings.** The
+  two `PgPool` sites persist reworded as "hot-path allocation:
+  locus `PgConn` instantiated inside a loop" (`pool.hl:90` open,
+  `pool.hl:136` the reconnect path) — same by-design verdict:
+  pool construction retains its connections deliberately,
+  bounded by `size`. One NEW site: `wire.hl:212`
+  `sasl_mechanisms` string-concat in a loop — FP-shaped, bounded
+  by the server's advertised mechanism list (single digits). No
+  source change.
+
+- **`@secret` on the SCRAM password params (2026-08-04, effects
+  pilot).** `salted_password` and `compute_client_final` declare
+  `@secret password: String` — semantically exact here: the
+  password itself must never leave the process (only derived
+  proofs go on the wire), and the hale v0.11.23+ taint check
+  enforces that it reaches no bus publish and no log/file sink.
+  Negative control verified: a `println(password)` inside
+  `salted_password` fails check with "a `@secret` value reaches
+  a log / file sink". agent/llm's `api_key` was considered and
+  NOT annotated — it legitimately flows into the request bytes,
+  so the annotation would be either wrong or vacuous there.
 - **examples/ shipped (2026-07-14).** `examples/pgwire-roundtrip/`
   opens a live `PgConn` (trust or SCRAM) and runs a query — see the
   2026-07-14 SCRAM entry above. It needs a reachable Postgres (docker
@@ -4146,6 +4530,14 @@ builds with the ffi options (hale > v0.11.8). Verified here:
 `hale test migrations/` 1/1, all green with only the
 C_INCLUDE_PATH/LIBRARY_PATH shims — no manual build gate. The
 interim per-test `hale build` workaround is obsolete.
+
+## unbounded-alloc triage — 2026-08-03 (first recorded)
+
+One default-on warning at hale v0.13.0: `__sq_collect_row`'s
+string-concat loop (`db.hl:54`). FP-shaped: bounded by the
+statement's column count, building the TSV row the Rows
+contract returns (the delimited-string shape is the documented
+design for unbounded row data). No source change.
 
 ======================================================================
  pond/subprocess
@@ -5206,6 +5598,18 @@ with before/after RSS measurement (same bar the upstream audit
 used), not drive-by edits. Interim risk assessment: interactive
 apps are human-rate bounded; the logview/metricsdash demos run
 minutes, not weeks. Logged as the next tui work item.
+
+*2026-08-03 re-baseline (hale v0.13.0):* 45 → **41 sites**, and
+class 2 mostly resolved itself: the v0.11.12 vec `.set` retire
+fix (replaced elements go to the arena freelist; `.set` is no
+longer an accumulation channel) cleared every `set_cell` /
+`clear` / `flush` refill site — exactly the split the entry
+above wanted "real reading" for, answered upstream. Remaining:
+39 `Event` struct sites in event.hl (class 1, human-rate
+bounded, unchanged) and `Screen::resize` ×2 (`screen.hl:58-59`
+— genuine growth, but per-resize-event, not per-frame). The
+dedicated pass is now scoped to class 1 + resize only; the
+per-frame cell-churn half of the concern is gone.
 
 ======================================================================
  pond/websocket

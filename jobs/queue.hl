@@ -132,6 +132,8 @@ locus Queue {
     // UPDATE affected 0 rows another worker won the race — rescan
     // (bounded) rather than fail, so contention stays invisible
     // to the caller. Zero ready rows → fail kind="empty".
+    // @unbounded: the payload is built on the failure-EXIT path, which runs at most once per call.
+    @unbounded
     fn dequeue() -> Job fallible(JobError) {
         self.__guard() or raise;
         let mut tries = 0;
@@ -158,6 +160,8 @@ locus Queue {
 
     // ack — mark a claimed row done. Only an 'in_flight' row can
     // be acked; anything else fails kind="not_found".
+    // @unbounded: the payload is built on the failure-EXIT path, which runs at most once per call.
+    @unbounded
     fn ack(job_id: Int) -> () fallible(JobError) {
         self.__guard() or raise;
         let upd = "UPDATE " + self.table + " SET state = 'done'"
@@ -182,6 +186,8 @@ locus Queue {
     //
     // Named `fail` per CONTRACTS.md — the keyword and the member
     // fn coexist (probed at HEAD; FRICTION.log item 13 closed).
+    // @unbounded: the payload is built on the failure-EXIT path, which runs at most once per call.
+    @unbounded
     fn fail(job_id: Int, retry: Bool) -> () fallible(JobError) {
         self.__guard() or raise;
         let mut upd = "UPDATE " + self.table + " SET state = 'failed'"

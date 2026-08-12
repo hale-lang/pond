@@ -42,6 +42,8 @@ type Event {
 // Read one event, waiting up to timeout_ms for the first byte.
 // Continuation bytes of an in-flight sequence use short fixed
 // timeouts so a lone ESC keypress still resolves promptly.
+// @unbounded: one Event per decoded input sequence, handed to the caller.
+@unbounded
 fn next_event(timeout_ms: Int) -> Event {
     let b = std::io::stdin::read_byte(timeout_ms);
     if b == -1 { return Event { kind: "none" }; }
@@ -52,6 +54,8 @@ fn next_event(timeout_ms: Int) -> Event {
 
 // ---- Plain bytes → key events ----
 
+// @unbounded: one Event per decoded input sequence, handed to the caller.
+@unbounded
 fn __key_from_byte(b: Int, alt: Bool) -> Event {
     if b == 13 || b == 10 { return Event { kind: "key", key: "enter", alt: alt }; }
     if b == 9 { return Event { kind: "key", key: "tab", alt: alt }; }
@@ -76,6 +80,8 @@ fn __key_from_byte(b: Int, alt: Bool) -> Event {
 }
 
 // Assemble a multi-byte UTF-8 scalar starting at lead.
+// @unbounded: one Event per decoded input sequence, handed to the caller.
+@unbounded
 fn __utf8_char(lead: Int, alt: Bool) -> Event {
     let mut need = 0;
     let mut cp = 0;
@@ -114,6 +120,8 @@ fn __one_byte_text(b: Int) -> String {
 
 // ---- Escape sequences ----
 
+// @unbounded: one Event per decoded input sequence, handed to the caller.
+@unbounded
 fn __parse_escape() -> Event {
     let b = std::io::stdin::read_byte(20);
     if b == -1 || b == -2 { return Event { kind: "key", key: "esc" }; }
@@ -125,6 +133,8 @@ fn __parse_escape() -> Event {
 }
 
 // SS3 (ESC O): arrows on application-keypad terminals, F1-F4.
+// @unbounded: one Event per decoded input sequence, handed to the caller.
+@unbounded
 fn __parse_ss3() -> Event {
     let b = std::io::stdin::read_byte(20);
     if b == 65 { return Event { kind: "key", key: "up" }; }
@@ -142,6 +152,8 @@ fn __parse_ss3() -> Event {
 
 // CSI (ESC [): accumulate up to three numeric params + the
 // SGR-mouse '<' marker, dispatch on the final byte.
+// @unbounded: one Event per decoded input sequence, handed to the caller.
+@unbounded
 fn __parse_csi() -> Event {
     let mut p1 = 0;
     let mut p2 = 0;
@@ -167,6 +179,8 @@ fn __parse_csi() -> Event {
     return Event { kind: "none" };
 }
 
+// @unbounded: one Event per decoded input sequence, handed to the caller.
+@unbounded
 fn __finish_csi(fin: Int, p1: Int, p2: Int, p3: Int,
                 nparams: Int, mouse: Bool) -> Event {
     if mouse && (fin == 77 || fin == 109) {
@@ -225,6 +239,8 @@ fn __tilde_key(code: Int) -> String {
 
 // SGR mouse (CSI < b ; x ; y M/m). Final 'M' = press/move,
 // 'm' = release.
+// @unbounded: one Event per decoded input sequence, handed to the caller.
+@unbounded
 fn __mouse_event(fin: Int, b: Int, x: Int, y: Int) -> Event {
     let mut btn = "";
     if fin == 109 {
@@ -255,6 +271,8 @@ fn __mouse_event(fin: Int, b: Int, x: Int, y: Int) -> Event {
 // NOT begin "[201~" is preserved verbatim (the matched prefix
 // bytes are appended) and scanning continues — pasted text
 // containing raw escapes survives intact.
+// @unbounded: one Event per decoded input sequence, handed to the caller.
+@unbounded
 fn __parse_paste() -> Event {
     let buf = std::bytes::BytesBuilder { initial_cap: 256 };
     while true {

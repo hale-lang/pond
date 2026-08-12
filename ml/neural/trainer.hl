@@ -92,14 +92,15 @@ locus Trainer {
         let in_dim = xs.cols;
         let out_dim = ys.cols;
 
-        // Preallocate two reusable row buffers and refill them
-        // in place per sample (extract_row_into). Allocating a
-        // fresh Matrix per sample inside this method loop and
-        // passing it into model.train_step segfaults at hale
-        // HEAD (see FRICTION.log "fresh-locus-arg-to-train_step
-        // segfault", 2026-06-12); the reuse shape is also the
-        // allocation-free hot loop the unbounded-alloc lint
-        // wants.
+        // Two reusable row buffers, refilled in place per sample
+        // (`extract_row_into`). This is the allocation-free hot
+        // loop: `fit` runs epochs x n_samples iterations, so a
+        // fresh Matrix per sample would allocate once per
+        // iteration and hold every one until `fit` returns —
+        // exactly what the unbounded-alloc lint flags. (It was
+        // also the shape that dodged an upstream segfault, fixed
+        // at hale v0.13.0; the allocation argument is why it
+        // stays.)
         let x_row = mat::zeros(in_dim, 1);
         let y_row = mat::zeros(out_dim, 1);
 
@@ -131,5 +132,5 @@ locus Trainer {
     }
 }
 
-// `extract_row` is a free fn in model.hl (formerly an NnOps
-// method; moved by the v0.8.2 m90 enforcement — see FRICTION.log).
+// `extract_row` is a free fn in model.hl — it returns a fresh
+// `mat::Matrix`, and methods may not return locus values.

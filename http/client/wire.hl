@@ -99,6 +99,8 @@ fn __build_request_headers(req: Request, user_agent: String, keep_alive: Bool) -
 // preserves embedded NULs end-to-end. Migrated to the locus-shaped
 // surface after hale dropped the free-fn surface in favor of a
 // long-lived locus (runtime/stdlib/bytes_builder.hl).
+// @unbounded: one chunk per recv, bounded by the caller's max_total body cap.
+@unbounded
 fn __recv_response_bytes(s: __HttpConn, max_total: Int) -> Bytes {
     let chunk_size = 8192;
     let mut total = 0;

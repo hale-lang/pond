@@ -2,7 +2,6 @@
 
 import "../_util/duration_int" as durint;
 import "../_util/rowbuf"       as rb;
-import "../http/client"        as http;
 
 //
 // Per CONTRACTS.md:
@@ -63,14 +62,11 @@ import "../http/client"        as http;
 // / `or handler(err)`.
 
 // =====================================================================
-// Transport: pond/http/client. The resolver follows imports inside
-// imported seeds since upstream WS3.3 (2026-06-11), so this lib's
-// `import "../http/client"` resolves at every downstream build
-// site. Pond's no-transitive-deps rule still applies at the
-// VENDORING level: a consumer of `export_otlp` must vendor
-// `pond/http` alongside `pond/tracing` so the relative import
-// path exists in its tree. (The consumer does NOT need its own
-// `import` line unless it names http types itself — the re-export
+// Transport: the stdlib client (`std::http::post`) since
+// 2026-08-04 — the old `pond/http/client` transport was promoted
+// upstream in hale v0.11.4, so `export_otlp` needs no cross-lib
+// import and a consumer vendors `pond/tracing` (plus `_util`)
+// without `pond/http`. (Historical note: the old re-export
 // barrier is about naming, not resolution.)
 // =====================================================================
 
@@ -233,7 +229,7 @@ locus Tracer {
     //
     // Error kinds:
     //   "io"      — the transport failed (connect / send / recv /
-    //               bad response); the underlying http::HttpError
+    //               bad response); the underlying std::http::HttpError
     //               is folded into `detail`.
     //   "non_2xx" — the collector answered outside 200..299.
     //
@@ -247,7 +243,7 @@ locus Tracer {
             let _ = endpoint;
         } else {
             let body = __build_otlp_json(self.service_name, self.completed_buf);
-            let resp = http::post(
+            let resp = std::http::post(
                 endpoint,
                 std::bytes::from_string(body),
                 "application/json"
@@ -310,15 +306,15 @@ locus Tracer {
 // live in pond/_util/duration_int and pond/_util/rowbuf. Call sites
 // use the `durint` / `rb` aliases declared at the top of this file.
 
-// __raise_transport — translate the transport's http::HttpError
+// __raise_transport — translate the transport's std::http::HttpError
 // into this lib's TraceError and raise. Always fails; the
-// http::Response success type only satisfies the typechecker so
+// std::http::ClientResponse success type only satisfies the typechecker so
 // the helper slots into export_otlp's or-chain
 // (`or __raise_transport(err, endpoint)` — the handler's own
 // failure propagates implicitly since hale 400ac68), the same
 // payload-translation idiom pond/http/client's __raise_connect
 // uses.
-fn __raise_transport(e: http::HttpError, endpoint: String) -> http::Response fallible(TraceError) {
+fn __raise_transport(e: std::http::HttpError, endpoint: String) -> std::http::ClientResponse fallible(TraceError) {
     fail TraceError {
         kind:   "io",
         detail: "OTLP POST to " + endpoint + " failed: "

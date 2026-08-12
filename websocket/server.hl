@@ -147,7 +147,7 @@ locus WsServerConn {
             total = total + got;
             let snap = self.rx_buf.snapshot();
             let s = std::str::from_bytes(snap);
-            if std::str::index_of(s, "\r\n\r\n") >= 0 {
+            if std::str::contains(s, "\r\n\r\n") {
                 total = cap;     // exit loop
             }
         }

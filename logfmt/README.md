@@ -20,7 +20,7 @@ The bare alias `logfmt` matches `pond/CONTRACTS.md` and
 | Locus | Destination | Status |
 |------|-----------|--------|
 | `FileSink`  | Appends to a path; size-based rotation | shipped |
-| `OtlpSink`  | Batches + POSTs to an OTLP/HTTP endpoint | shipped (transport live since 2026-06-12; **vendor `pond/http` too**, see below) |
+| `OtlpSink`  | Batches + POSTs to an OTLP/HTTP endpoint | shipped (stdlib `std::http` transport since 2026-08-04 — no extra vendoring) |
 | `ConsoleSink` | Colored, aligned human-facing console lines (stdout; WARN/ERROR → stderr) | shipped |
 
 Both loci satisfy `std::text::Sink` structurally (`write(s) -> ()`,
@@ -167,25 +167,24 @@ locus OtlpSink {
 The full pipeline is live: batching, severity mapping
 (`std::log::LogEvent.level` → OTLP `severityNumber`), OTLP/JSON
 payload assembly via `std::json::Builder`, and the HTTP POST
-itself (`http::post(endpoint, body, "application/json")` via
-`pond/http/client`, since 2026-06-12 — see FRICTION.log
+itself (`std::http::post(endpoint, body, "application/json")` —
+the stdlib client since 2026-08-04, live since 2026-06-12 on the
+pond client the stdlib one was promoted from — see FRICTION.log
 `otlp-transport-stubbed`, closed).
 
 Delivery semantics: a batch flushes when `pending_count` reaches
 `batch_size`, on `flush()`, and at `dissolve()`. The `last_error_*`
 triple is reset per flush and reflects the most recent one — `""`
-means the collector answered 2xx; an `http::HttpError` kind
+means the collector answered 2xx; a `std::http::HttpError` kind
 (`"connect_failed"`, ...) means the transport failed; `"non_2xx"`
 means the collector rejected the batch. The pending buffer clears
 either way (best-effort shipping); callers needing delivery
 confirmation check `last_error_kind()` after `flush()`.
 
-**Vendoring:** consumers using `OtlpSink` must vendor `pond/http`
-alongside `pond/logfmt` (pond design rule 4 — no transitive deps;
-this lib imports `../http/client` internally, so the relative path
-must exist in your vendor tree). You do NOT need your own
-`import "vendor/pond/http/client"` line unless your code names
-`http::*` types itself.
+**Vendoring:** since 2026-08-04 the transport is the stdlib
+client, so `pond/http` is NOT needed — vendor `pond/logfmt`
+alone. (Before that date the lib imported `../http/client` and
+OtlpSink consumers had to vendor `pond/http` too.)
 
 ## Two-channel rule — interface-binding EXEMPTION
 

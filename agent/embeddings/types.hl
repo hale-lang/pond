@@ -1,0 +1,38 @@
+// pond/agent/embeddings — shape types (pattern 5).
+//
+// `Embedding.vector_csv` is a row-major CSV String rather than a
+// `mat::Matrix`: v0 codegen cannot store a cross-seed locus ref in
+// a `type` field (see FRICTION.log). Build one from a Matrix with
+// `embedding_from_matrix` in helpers.hl.
+
+// ----- shape types (pattern 5) -----
+
+// Public-facing record. v0 codegen can't store a cross-seed locus
+// ref in a type field, so the `vector` field is the row-major flat
+// representation as a CSV-encoded String. Callers building an
+// Embedding from a Matrix go via `embedding_from_matrix`. The Store
+// surface itself doesn't consume the Embedding type — callers
+// invoke `add(id, vector, metadata)` with the Matrix directly.
+type Embedding {
+    id: String;
+    vector_csv: String;
+    metadata: String;
+}
+
+// One search result. Score is the cosine similarity in [-1, 1].
+type SearchHit {
+    id: String;
+    score: Float;
+    metadata: String;
+}
+
+// Returned as a row-record from `Rows.csv` (newline-separated).
+// Each row is `id\tscore\tmetadata`. Consumers split on '\n' then
+// '\t' (same convention as stdlib's `Rows` shape).
+type Rows {
+    csv: String;
+}
+
+type EmbError {
+    kind: String;
+}

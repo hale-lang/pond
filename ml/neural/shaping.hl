@@ -1,0 +1,164 @@
+// pond/ml/neural — matrix-shaping free fns and scalar activation
+// math.
+//
+// `column_view`, `transpose_col_to_row`, `apply_activation`,
+// `extract_row` and `backprop_activation` all return a fresh
+// `mat::Matrix`, so they are free fns: methods may not return
+// locus values (m90 / #18.6). `extract_row_into` is the
+// allocation-free variant that refills a caller-owned buffer —
+// `Trainer.fit`'s hot loop uses it.
+//
+// `activate_one` / `activation_deriv` and the scalar kernels
+// below are the per-element half of the same surface.
+
+import "../../math/matrix" as mat;
+
+// ===== matrix-shaping free fns =====
+//
+// `column_view`, `transpose_col_to_row`, `apply_activation`,
+// `extract_row`, and `backprop_activation` all return a fresh
+// `mat::Matrix`, so they are free fns: methods may not return
+// locus values (m90 / #18.6).
+
+// Re-shape `x` into a `length x 1` column-vec Matrix. The
+// underlying flat buffer order is preserved.
+fn column_view(x: mat::Matrix, length: Int) -> mat::Matrix {
+    let out = mat::zeros(length, 1);
+    let n = x.len();
+    let mut i = 0;
+    while i < length {
+        let mut got = 0.0;
+        if i < n {
+            got = x.get(i) or 0.0;
+        }
+        out.set(i, got) or discard;
+        i = i + 1;
+    }
+    return out;
+}
+
+// Transpose a `length x 1` column vec to `1 x length` row
+// vec by re-shape — same storage order.
+fn transpose_col_to_row(v: mat::Matrix) -> mat::Matrix {
+    let n = v.len();
+    let out = mat::zeros(1, n);
+    let mut i = 0;
+    while i < n {
+        let val = v.get(i) or 0.0;
+        out.set(i, val) or discard;
+        i = i + 1;
+    }
+    return out;
+}
+
+// Element-wise activation: sigmoid / relu / tanh / linear.
+// Input is a column vec; returns a fresh column vec.
+fn apply_activation(z: mat::Matrix, name: String) -> mat::Matrix {
+    let n = z.len();
+    let out = mat::zeros(z.rows, z.cols);
+    let mut i = 0;
+    while i < n {
+        let v = z.get(i) or 0.0;
+        let av = activate_one(v, name);
+        out.set(i, av) or discard;
+        i = i + 1;
+    }
+    return out;
+}
+
+// Extract row `r` from `m` (shape rows x cols) as a fresh
+// `cols x 1` column-vec Matrix.
+fn extract_row(m: mat::Matrix, r: Int, cols: Int) -> mat::Matrix {
+    let out = mat::zeros(cols, 1);
+    extract_row_into(m, r, cols, out);
+    return out;
+}
+
+// In-place variant: copy row `r` of `m` into the preallocated
+// `cols x 1` column-vec `out`. Trainer.fit uses this with two
+// reusable row buffers instead of allocating a fresh Matrix per
+// sample — at hale HEAD (b716696) a free-fn-returned locus
+// allocated inside a locus-method loop and passed as an arg to
+// `Model.train_step` segfaults after a few iterations (see
+// FRICTION.log "fresh-locus-arg-to-train_step segfault",
+// 2026-06-12); reusing preallocated buffers sidesteps it and is
+// cheaper anyway.
+fn extract_row_into(m: mat::Matrix, r: Int, cols: Int, out: mat::Matrix) {
+    let mut c = 0;
+    while c < cols {
+        let v = m.at(r, c);
+        out.set(c, v) or discard;
+        c = c + 1;
+    }
+}
+
+// dL/dz = dL/da * da/dz, element-wise. Returns grad_z with
+// the same shape as `grad_a` and `z`.
+fn backprop_activation(grad_a: mat::Matrix, z: mat::Matrix,
+                       name: String) -> mat::Matrix
+{
+    let n = z.len();
+    let out = mat::zeros(z.rows, z.cols);
+    let mut i = 0;
+    while i < n {
+        let ga = grad_a.get(i) or 0.0;
+        let zv = z.get(i) or 0.0;
+        let dadz = activation_deriv(zv, name);
+        out.set(i, ga * dadz) or discard;
+        i = i + 1;
+    }
+    return out;
+}
+
+fn activate_one(v: Float, name: String) -> Float {
+    if name == "sigmoid" {
+        return sigmoid(v);
+    }
+    if name == "relu" {
+        if v > 0.0 {
+            return v;
+        }
+        return 0.0;
+    }
+    if name == "tanh" {
+        return std::math::tanh(v);
+    }
+    return v;
+}
+
+fn activation_deriv(z: Float, name: String) -> Float {
+    if name == "sigmoid" {
+        let s = sigmoid(z);
+        return s * (1.0 - s);
+    }
+    if name == "relu" {
+        if z > 0.0 {
+            return 1.0;
+        }
+        return 0.0;
+    }
+    if name == "tanh" {
+        let t = std::math::tanh(z);
+        return 1.0 - t * t;
+    }
+    return 1.0;
+}
+
+// Bridge Int → Float via the std::math primitive (lowers in
+// expression position as of the 2026-06-11 post-audit batch).
+// This replaced the ASCII roundtrip
+// (`std::str::parse_float(to_string(n))`) on 2026-06-12 — see
+// FRICTION.log "int_to_float requires ASCII roundtrip" [CLOSED].
+// The wrapper fn is kept so call sites read the same.
+fn int_to_float(n: Int) -> Float {
+    return std::math::int_to_float(n);
+}
+
+fn sigmoid(x: Float) -> Float {
+    // 1 / (1 + exp(-x)). std::math::exp is the libm primitive.
+    return 1.0 / (1.0 + std::math::exp(0.0 - x));
+}
+
+// `std::math::tanh` (C8, hale `d946ae2`) replaces this
+// lib's former in-line `tanh_float(x) = (e^x - e^-x) / (e^x +
+// e^-x)` helper. Call sites use `std::math::tanh(...)` directly.

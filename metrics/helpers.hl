@@ -115,6 +115,8 @@ fn prom_escape_label_value(v: String) -> String {
 // `render_labels(kv)` — emit the `{k1="v1",k2="v2"}` block for
 // a Labels.kv tab-joined string. Returns "" for empty kv so the
 // metric line renders as `name 1.23` (no braces).
+// @unbounded: concatenates one label pair per entry, bounded by the metric's label cardinality.
+@unbounded
 fn render_labels(kv: String) -> String {
     if len(kv) == 0 {
         return "";

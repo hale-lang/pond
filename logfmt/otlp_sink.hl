@@ -6,16 +6,13 @@
 // surface as FileSink so the locus structurally satisfies
 // `std::text::Sink` — drop-in alternative for any sink position.
 //
-// Transport status — LIVE since 2026-06-12. The resolver follows
-// imports inside imported seeds since upstream WS3.3 (post-audit
-// pass 2026-06-11), so this lib's `import "../http/client"`
-// resolves at every downstream build site. Pond's
-// no-transitive-deps rule still applies at the VENDORING level: a
-// consumer of OtlpSink must vendor `pond/http` alongside
-// `pond/logfmt` so the relative import path exists in its tree.
-// (The consumer does NOT need its own `import` line unless it
-// names http types itself.) See FRICTION.log
-// `otlp-transport-stubbed` (closed).
+// Transport status — LIVE since 2026-06-12; on the STDLIB client
+// (`std::http::post`) since 2026-08-04. The old `pond/http/client`
+// transport was promoted upstream in hale v0.11.4, so the vendored
+// copy is no longer needed here: OtlpSink has no cross-lib imports
+// and a consumer vendors `pond/logfmt` alone. See FRICTION.log
+// `otlp-transport-stubbed` (closed) and the 2026-08-04 transport
+// note.
 //
 // What's wired:
 //   - bus subscription on "log.**"
@@ -57,7 +54,6 @@
 //   4 DEBUG → 5
 //   5 TRACE → 1
 
-import "../http/client" as http;
 
 locus OtlpSink {
     params {
@@ -156,7 +152,7 @@ locus OtlpSink {
     // Render the pending batch and POST it. The last_* triple is
     // reset at the top so it always reflects THIS flush:
     //   ""         — POST returned 2xx
-    //   transport  — http::HttpError.kind ("connect_failed", ...)
+    //   transport  — std::http::HttpError.kind ("connect_failed", ...)
     //   "non_2xx"  — collector answered outside 200..299
     //
     // The pending buffer clears either way — the batch is
@@ -169,7 +165,7 @@ locus OtlpSink {
         self.last_kind = "";
         self.last_status = 0;
         self.last_detail = "";
-        let resp = http::post(
+        let resp = std::http::post(
             self.endpoint,
             std::bytes::from_string(payload),
             "application/json"
@@ -191,11 +187,11 @@ locus OtlpSink {
     // last_* triple and returns a status-0 sentinel Response so
     // __post_batch keeps control (same shape FileSink.__handle_io
     // uses for IoError).
-    fn __handle_http(e: http::HttpError) -> http::Response {
+    fn __handle_http(e: std::http::HttpError) -> std::http::ClientResponse {
         self.last_kind = e.kind;
         self.last_status = e.status;
         self.last_detail = e.detail;
-        return http::Response { status: 0, headers: "", body: b"" };
+        return std::http::ClientResponse { status: 0, headers: "", body: b"" };
     }
 
     // Translate the pending_buf into an OTLP/JSON string.

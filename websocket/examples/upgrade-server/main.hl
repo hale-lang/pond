@@ -1,0 +1,156 @@
+// pond/websocket/examples/upgrade-server — server-side upgrade
+// behind a plain `std::http::Server` via connection takeover.
+//
+// This is the shape the lib's README banner announced when hale
+// > v0.11.9 shipped the takeover surface: no hand-rolled accept
+// loop — the HTTP front door answers `101 Switching Protocols`
+// itself and hands the live fd to a session locus.
+//
+// Self-contained: ONE binary runs all three roles —
+//
+//   1. `std::http::Server` (pinned, `max_accepts: 1`) with
+//      `WsUpgradeHandler` as its handler: reads
+//      `Sec-WebSocket-Key` off the request, answers 101 with
+//      `takeover: true` (the server writes the status line + our
+//      headers and forgets the socket), and publishes the
+//      taken-over `req.conn_fd` on the bus.
+//   2. `EchoSession` (pinned): receives the fd, wraps it in
+//      `WsServerConn { handshake_done: true }` — the HTTP layer
+//      already did the handshake, so the conn starts directly in
+//      frame mode — and echoes text frames until the peer closes.
+//   3. The demo's own `WsClient`, driven from main's `run()`
+//      (children are born before `run()` starts, so the listen
+//      socket is already up — no connect race): sends three text
+//      frames, checks the echoes, closes.
+//
+// Build + run:
+//   hale build pond/websocket/examples/upgrade-server/
+//   ./pond/websocket/examples/upgrade-server/upgrade-server
+//
+// Expected output ends with `upgrade-server demo: OK` and exit 0.
+
+import "../.." as ws;
+
+// ConnHandoff — the taken-over socket, crossing from the server
+// thread to the session thread over the bus.
+type ConnHandoff {
+    fd: Int = -1;
+}
+
+// WsUpgradeHandler — satisfies `std::http::Handler` structurally.
+// Runs on the Server's thread; must not block, so it only computes
+// the accept key, publishes the fd, and returns the 101.
+locus WsUpgradeHandler {
+    params {
+        upgrades: Int = 0;
+    }
+    bus {
+        publish "demo.ws.conn" of type ConnHandoff;
+    }
+    fn handle(req: std::http::Request) -> std::http::Response {
+        let key = std::http::header(req, "Sec-WebSocket-Key");
+        if key == "" {
+            return std::http::Response {
+                status: 400,
+                body:   "not a websocket upgrade",
+            };
+        }
+        self.upgrades = self.upgrades + 1;
+        "demo.ws.conn" <- ConnHandoff { fd: req.conn_fd };
+        // takeover: the server writes ONLY the status line + these
+        // headers, leaves the socket open, and forgets it.
+        return std::http::Response {
+            status:  101,
+            headers: "Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: "
+                + ws::compute_accept(key),
+            body:     "",
+            takeover: true,
+        };
+    }
+}
+
+// EchoSession — owns the taken-over fd for the session's lifetime.
+// The echo loop blocks, so this locus gets its own pinned thread.
+locus EchoSession {
+    params {
+        echoed: Int = 0;
+    }
+    bus {
+        subscribe "demo.ws.conn" as on_conn of type ConnHandoff;
+    }
+    fn on_conn(c: ConnHandoff) {
+        // The HTTP layer already performed the handshake — start
+        // the conn directly in frame mode.
+        let conn = ws::WsServerConn {
+            conn_fd:        c.fd,
+            handshake_done: true,
+        };
+        while conn.read_msg() {
+            let m = conn.last_message;
+            if m.kind == "text" {
+                conn.send_text(m.text) or discard;
+                self.echoed = self.echoed + 1;
+            }
+        }
+        // read_msg returning false = peer closed (or errored) —
+        // either way the session is over.
+        conn.close() or discard;
+        println("[session] over; echoed=", to_string(self.echoed));
+    }
+}
+
+main locus UpgradeDemo {
+    params {
+        // Subscriber first: EchoSession must be born before the
+        // handler's publish can fire.
+        session: EchoSession = EchoSession { };
+        server: std::http::Server = std::http::Server {
+            port:        9321,
+            max_accepts: 1,
+            handler:     WsUpgradeHandler { },
+        };
+    }
+    placement {
+        session: pinned;
+        server:  pinned;
+    }
+    run() {
+        println("=== upgrade-server demo ===");
+        let conn = ws::WsClient {
+            url:            "ws://127.0.0.1:9321/",
+            auto_reconnect: false,
+            ping_interval:  30s,
+            pong_timeout:   10s,
+            recv_chunk:     4096,
+        };
+        if !conn.open() {
+            println("FAIL open: kind=", conn.last_error.kind,
+                    " detail=", conn.last_error.detail);
+        } else {
+            conn.send_text("one") or discard;
+            conn.send_text("two") or discard;
+            conn.send_text("three") or discard;
+            let mut seen = 0;
+            let mut ok = true;
+            while seen < 3 && ok {
+                if conn.read_msg() {
+                    seen = seen + 1;
+                    println("[client] echo #", to_string(seen), ": ",
+                            conn.last_message.text);
+                } else {
+                    println("FAIL read: kind=", conn.last_error.kind,
+                            " detail=", conn.last_error.detail);
+                    ok = false;
+                }
+            }
+            conn.close() or discard;
+            if seen == 3 {
+                println("upgrade-server demo: OK");
+            }
+        }
+    }
+}
+
+fn main() {
+    UpgradeDemo { };
+}

@@ -129,32 +129,27 @@ fn __parse_anthropic_response(body: String) -> LlmResponse {
     // `text` field. Use the std::str::builder so the inner
     // append stays amortized O(N).
     let buf = std::str::builder_new();
-    let content_raw = __extract_field_raw(body, "content");
+    let content_raw = std::json::find_field_raw(body, "content");
     if len(content_raw) > 0 {
         let mut it = std::json::array_first(content_raw);
         while !it.done {
-            // A realistic block is {"type":"text","text":"..."} —
-            // the stdlib flat finder first-matches the needle
-            // "text" inside the VALUE of "type", sees no colon,
-            // and returns "" without retrying (bug found by
-            // tests/wire_test.hl 2026-07-04). Locate the real
-            // KEY (quote-needle followed by a colon) ourselves,
-            // then run the stdlib finder on the slice from
-            // there so its first match is the key.
-            let kp = __key_pos(it.element, "text");
-            if kp >= 0 {
-                let tail = it.element[kp..len(it.element)];
-                let chunk_text = std::json::find_string_field(tail, "text");
-                if len(chunk_text) > 0 {
-                    std::str::builder_append(buf, chunk_text);
-                }
+            // A realistic block is {"type":"text","text":"..."}.
+            // std::json's finders match key POSITIONS since hale
+            // v0.11.18, so "text" appearing as the VALUE of "type"
+            // can't shadow the real key — and the same rebuild
+            // enforces the whole-value chaining contract, so the
+            // element must be fed intact (a mid-document tail
+            // slice returns "").
+            let chunk_text = std::json::find_string_field(it.element, "text");
+            if len(chunk_text) > 0 {
+                std::str::builder_append(buf, chunk_text);
             }
             it = std::json::array_next(it);
         }
     }
 
     // Nested usage object — slice it out then find ints inside.
-    let usage_raw = __extract_field_raw(body, "usage");
+    let usage_raw = std::json::find_field_raw(body, "usage");
     let mut in_tok = 0;
     let mut out_tok = 0;
     if len(usage_raw) > 0 {
@@ -187,7 +182,7 @@ fn __parse_anthropic_response(body: String) -> LlmResponse {
 // We take choices[0] (most chat completions never request n>1)
 // and pull message.content out of it.
 fn __parse_openai_response(body: String) -> LlmResponse {
-    let choices_raw = __extract_field_raw(body, "choices");
+    let choices_raw = std::json::find_field_raw(body, "choices");
     let mut text = "";
     let mut stop = "";
     if len(choices_raw) > 0 {
@@ -196,14 +191,14 @@ fn __parse_openai_response(body: String) -> LlmResponse {
             let first = it.element;
             stop = std::json::find_string_field(first, "finish_reason");
             // message is a nested object; slice it then dig.
-            let msg_raw = __extract_field_raw(first, "message");
+            let msg_raw = std::json::find_field_raw(first, "message");
             if len(msg_raw) > 0 {
                 text = std::json::find_string_field(msg_raw, "content");
             }
         }
     }
 
-    let usage_raw = __extract_field_raw(body, "usage");
+    let usage_raw = std::json::find_field_raw(body, "usage");
     let mut in_tok = 0;
     let mut out_tok = 0;
     if len(usage_raw) > 0 {
@@ -219,156 +214,12 @@ fn __parse_openai_response(body: String) -> LlmResponse {
     };
 }
 
-// __key_pos — absolute index of the `"name"` KEY occurrence in
-// `json`: the quoted needle followed (after optional ws) by a
-// colon. Retries past matches of the needle appearing as a
-// string VALUE (e.g. {"type":"text",...} when looking for the
-// "text" key). Returns -1 if no key occurrence exists.
-fn __key_pos(json: String, name: String) -> Int {
-    let needle = "\"" + name + "\"";
-    let nl = len(needle);
-    let total = len(json);
-    let bs = std::bytes::from_string(json);
-    let mut base = 0;
-    let mut rest = json;
-    let mut scanning = true;
-    while scanning {
-        let pos = std::str::index_of(rest, needle);
-        if pos < 0 {
-            scanning = false;
-        } else {
-            let mut p = base + pos + nl;
-            let mut verdict = 0;
-            while p < total && verdict == 0 {
-                let c = std::bytes::at(bs, p) or 0;
-                if c == 32 || c == 9 || c == 10 || c == 13 {
-                    p = p + 1;
-                } else if c == 58 {
-                    verdict = 1;
-                } else {
-                    verdict = 2;
-                }
-            }
-            if verdict == 1 {
-                return base + pos;
-            }
-            base = base + pos + 1;
-            rest = json[base..total];
-        }
-    }
-    return 0 - 1;
-}
-
-// __extract_field_raw — return the raw substring value of a
-// top-level JSON field, including surrounding quotes /
-// braces / brackets. Mirrors what std::json's internal
-// `__json_find_field_raw` does, but exposes it for our nested-
-// object case (usage, message, etc.) which the flat finders
-// can't drill into.
-//
-// FRICTION: duplicate-suspected with std::json's internal
-// `__json_find_field_raw` — that helper isn't exported. Once
-// the stdlib lifts it (or adds a `find_object_field(json,
-// name) -> String`), this can go. Logged in FRICTION.log.
-fn __extract_field_raw(json: String, name: String) -> String {
-    // __key_pos (not a bare index_of) so a needle that appears
-    // as a string VALUE earlier in the document can't shadow
-    // the real key — the same first-match bug class as the
-    // content-block "text" lookup above.
-    let pos = __key_pos(json, name);
-    if pos < 0 { return ""; }
-    let needle = "\"" + name + "\"";
-    let total = len(json);
-    let mut p = pos + len(needle);
-    let bs = std::bytes::from_string(json);
-    // Skip ws + colon + ws.
-    while p < total {
-        let c = std::bytes::at(bs, p) or 0;
-        if c == 32 || c == 9 || c == 10 || c == 13 { p = p + 1; }
-        else if c == 58 { p = p + 1; break; }
-        else { return ""; }
-    }
-    while p < total {
-        let c = std::bytes::at(bs, p) or 0;
-        if c == 32 || c == 9 || c == 10 || c == 13 { p = p + 1; }
-        else { break; }
-    }
-    if p >= total { return ""; }
-    let start_v = p;
-    let first = std::bytes::at(bs, p) or 0;
-    if first == 34 {
-        // String — walk to closing quote (skipping escapes).
-        p = p + 1;
-        while p < total {
-            let c = std::bytes::at(bs, p) or 0;
-            if c == 92 { p = p + 2; continue; }
-            if c == 34 { p = p + 1; break; }
-            p = p + 1;
-        }
-        return json[start_v..p];
-    }
-    if first == 123 {
-        // Object — depth-track braces, respecting nested strings.
-        let mut depth = 1;
-        p = p + 1;
-        while p < total && depth > 0 {
-            let c = std::bytes::at(bs, p) or 0;
-            if c == 34 {
-                // Skip string.
-                p = p + 1;
-                while p < total {
-                    let cc = std::bytes::at(bs, p) or 0;
-                    if cc == 92 { p = p + 2; continue; }
-                    if cc == 34 { p = p + 1; break; }
-                    p = p + 1;
-                }
-                continue;
-            }
-            if c == 123 { depth = depth + 1; }
-            else if c == 125 { depth = depth - 1; }
-            p = p + 1;
-        }
-        return json[start_v..p];
-    }
-    if first == 91 {
-        // Array — depth-track brackets, respecting nested strings.
-        let mut depth = 1;
-        p = p + 1;
-        while p < total && depth > 0 {
-            let c = std::bytes::at(bs, p) or 0;
-            if c == 34 {
-                p = p + 1;
-                while p < total {
-                    let cc = std::bytes::at(bs, p) or 0;
-                    if cc == 92 { p = p + 2; continue; }
-                    if cc == 34 { p = p + 1; break; }
-                    p = p + 1;
-                }
-                continue;
-            }
-            if c == 91 { depth = depth + 1; }
-            else if c == 93 { depth = depth - 1; }
-            p = p + 1;
-        }
-        return json[start_v..p];
-    }
-    // Scalar — walk to comma / closing brace / closing bracket.
-    while p < total {
-        let c = std::bytes::at(bs, p) or 0;
-        if c == 44 || c == 125 || c == 93 || c == 32 || c == 9 || c == 10 || c == 13 {
-            break;
-        }
-        p = p + 1;
-    }
-    return json[start_v..p];
-}
-
 // __extract_error_detail — vendor error envelopes share the
 // "{"error": {"message": "...", ...}}" outer shape. We pull
 // the nested message out so the LlmError.detail carries
 // something useful.
 fn __extract_error_detail(body: String) -> String {
-    let err_obj = __extract_field_raw(body, "error");
+    let err_obj = std::json::find_field_raw(body, "error");
     if len(err_obj) == 0 {
         return "";
     }

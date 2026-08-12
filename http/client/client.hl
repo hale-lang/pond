@@ -126,6 +126,8 @@ fn __round_trip_oneshot(
 // Only retries on connect_failed / send_failed / recv_failed /
 // 5xx; honors the user's max_retries cap. 4xx is returned
 // directly so the caller can handle it.
+// @unbounded: one error payload per retry attempt, bounded by max_attempts and only on the 5xx branch.
+@unbounded
 fn __round_trip_with_retry(
     req: Request,
     user_agent: String,

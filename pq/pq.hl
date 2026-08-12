@@ -16,7 +16,7 @@
 // refstore on `main`), so the blocking recv in __pump is fine —
 // NOT an async_io connection-handler shape.
 
-import "vendor/pond/db" as db;
+import "../db" as db;
 
 // __PgResult — internal parse accumulator for one query's
 // backend response (everything up to ReadyForQuery).

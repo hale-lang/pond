@@ -257,7 +257,12 @@ fn __stream_send(s: __LlmStream, wire: String) -> Int {
         return std::io::tls::send_bytes(s.handle, std::bytes::from_string(wire));
     }
     let tcp = std::io::tcp::Stream { conn_fd: s.fd };
-    return tcp.send(wire);
+    // hale#210 surface: a send failure is deliberately swallowed —
+    // it surfaces downstream as the length-0 recv in __drain_stream,
+    // matching the TLS path's negative sentinel (every caller
+    // discards this return).
+    tcp.send(wire) or discard;
+    return 0;
 }
 
 fn __stream_recv_bytes(s: __LlmStream, max_bytes: Int) -> Bytes {
@@ -265,7 +270,7 @@ fn __stream_recv_bytes(s: __LlmStream, max_bytes: Int) -> Bytes {
         return std::io::tls::recv_bytes(s.handle, max_bytes);
     }
     let tcp = std::io::tcp::Stream { conn_fd: s.fd };
-    return tcp.recv_bytes(max_bytes);
+    return tcp.recv_bytes(max_bytes) or b"";   // hale#210: errors collapse to length-0
 }
 
 fn __stream_close(s: __LlmStream) -> Int {

@@ -9,6 +9,7 @@ type HexError {
     kind: String;   // "odd_length" | "invalid_char"
 }
 
+@deterministic @no_syscall
 fn hex_encode(b: Bytes) -> String {
     let n = len(b);
     let mut out = "";
@@ -28,6 +29,7 @@ fn hex_encode(b: Bytes) -> String {
 // (codegen handles `alias::fn(...) or ...` correctly). Consumers
 // who want typed err handling should call this directly:
 //     let bs = crypto::hex_decode(s) or self.report(err);
+@deterministic @no_syscall
 fn hex_decode(s: String) -> Bytes fallible(HexError) {
     let n = len(s);
     if n % 2 != 0 {
@@ -56,6 +58,7 @@ fn hex_decode(s: String) -> Bytes fallible(HexError) {
 
 // Helpers — internal to hex.hl.
 
+@deterministic @no_syscall
 fn nibble_char(n: Int) -> String {
     if n == 0  { return "0"; }
     if n == 1  { return "1"; }
@@ -76,6 +79,7 @@ fn nibble_char(n: Int) -> String {
 }
 
 // Returns 0..15 for valid hex chars (case-insensitive); -1 otherwise.
+@deterministic @no_syscall
 fn nibble_value(c: Int) -> Int {
     if c >= 48 && c <= 57  { return c - 48; }       // '0'..'9'
     if c >= 97 && c <= 102 { return c - 97 + 10; }  // 'a'..'f'

@@ -1,0 +1,147 @@
+// pond/ml/neural — the `meta_csv` layer table: parse and normalize.
+//
+// `Model.meta_csv` packs one record per layer as
+// `"in,out,act;in,out,act;..."`. These free fns are the only code
+// that knows that encoding: `parse_layer_at` walks it to build a
+// `Layer` window, `count_layers_in_meta` counts records, and
+// `canonical_activation` normalizes an activation name (an
+// unrecognized one canonicalizes to "linear" at the `add_dense`
+// boundary rather than raising).
+
+fn parse_layer_at(meta: String, i: Int, params_len: Int, layer_count: Int)
+    -> Layer
+{
+    let total = len(meta);
+    let mut cursor = 0;
+    let mut idx = 0;
+    let mut running_offset = 0;
+    let mut found_in = 0;
+    let mut found_out = 0;
+    let mut found_act = "linear";
+
+    while idx <= i && cursor < total {
+        // Find next ';' (or end).
+        let mut j = cursor;
+        let mut row_end = total;
+        while j < total {
+            let c = std::str::substring(meta, j, j + 1);
+            if c == ";" {
+                row_end = j;
+                j = total;
+            } else {
+                j = j + 1;
+            }
+        }
+        let row = std::str::substring(meta, cursor, row_end);
+        // Parse "in,out,act".
+        let parts = parse_three_csv(row);
+        let in_d = std::str::parse_int(parts.first) or 0;
+        let out_d = std::str::parse_int(parts.second) or 0;
+        let act = parts.third;
+
+        if idx == i {
+            found_in = in_d;
+            found_out = out_d;
+            found_act = act;
+            // running_offset is this layer's weights_offset.
+            return Layer {
+                name:           "dense_" + to_string(i),
+                input_dim:      in_d,
+                output_dim:     out_d,
+                activation:     act,
+                weights_offset: running_offset,
+                weights_count:  in_d * out_d,
+                biases_offset:  running_offset + in_d * out_d,
+                biases_count:   out_d,
+            };
+        }
+        running_offset = running_offset + in_d * out_d + out_d;
+        cursor = row_end + 1;
+        idx = idx + 1;
+    }
+    let _ = params_len;
+    let _ = layer_count;
+    let _ = found_in;
+    let _ = found_out;
+    let _ = found_act;
+    return Layer { };
+}
+
+// Helper return type for splitting "a,b,c" into three Strings.
+type TripleCsv {
+    first:  String = "";
+    second: String = "";
+    third:  String = "";
+}
+
+fn parse_three_csv(row: String) -> TripleCsv {
+    let total = len(row);
+    let mut a_end = total;
+    let mut b_end = total;
+    let mut i = 0;
+    let mut seen = 0;
+    while i < total && seen < 2 {
+        let c = std::str::substring(row, i, i + 1);
+        if c == "," {
+            if seen == 0 {
+                a_end = i;
+            } else {
+                b_end = i;
+            }
+            seen = seen + 1;
+        }
+        i = i + 1;
+    }
+    let first = std::str::substring(row, 0, a_end);
+    let mut second = "";
+    let mut third = "";
+    if a_end < total {
+        second = std::str::substring(row, a_end + 1, b_end);
+    }
+    if b_end < total {
+        third = std::str::substring(row, b_end + 1, total);
+    }
+    return TripleCsv {
+        first:  std::str::trim(first),
+        second: std::str::trim(second),
+        third:  std::str::trim(third),
+    };
+}
+
+// Count semicolons + 1; tolerates empty / single-layer meta.
+fn count_layers_in_meta(meta: String) -> Int {
+    let total = len(meta);
+    if total == 0 {
+        return 0;
+    }
+    let mut count = 1;
+    let mut i = 0;
+    while i < total {
+        let c = std::str::substring(meta, i, i + 1);
+        if c == ";" {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+// Canonicalize activation names; unknown returns "unknown".
+fn canonical_activation(s: String) -> String {
+    if s == "sigmoid" {
+        return "sigmoid";
+    }
+    if s == "relu" {
+        return "relu";
+    }
+    if s == "tanh" {
+        return "tanh";
+    }
+    if s == "linear" {
+        return "linear";
+    }
+    if s == "" {
+        return "linear";
+    }
+    return "unknown";
+}
