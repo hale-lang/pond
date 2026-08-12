@@ -10,8 +10,12 @@ app code.
 ```toml
 # in your app's hale.toml
 [deps]
-pond = { git = "https://github.com/hale-lang/pond", tag = "v0.8.0" }
+pond = { git = "https://github.com/hale-lang/pond", rev = "<commit>" }
 ```
+
+Pin a commit. The one published tag (`v0.8.0`) predates most of
+the catalog, and pond tracks hale closely enough that "latest" is
+not a safe default for an app pinned to an older compiler.
 
 ```bash
 hale fetch
@@ -20,16 +24,18 @@ hale fetch
 ```hale
 // in your .hl files
 import "vendor/pond/sqlite" as db;
-import "vendor/pond/router" as router;
+import "vendor/pond/websocket" as ws;
 import "vendor/pond/agent/llm" as llm;
 ```
 
 You vendor the whole pond repo, then import only the libs you
 use. Each lib lives at its own path under `vendor/pond/`.
 
-> pond HEAD tracks a recent hale release (v0.9.2+). See
-> [`CONTRACTS.md`](./CONTRACTS.md) for the exact upstream commit
-> each refresh pass builds against.
+> **Upstream baseline: hale 0.16.0.** Every lib type-checks, tests
+> and runs against it. [`CONTRACTS.md`](./CONTRACTS.md) records the
+> exact commit each refresh pass builds against, and
+> [`COMPILER-BUGS.md`](./COMPILER-BUGS.md) carries any compiler
+> defects the current pass is blocked on.
 
 ## Catalog
 
@@ -53,7 +59,7 @@ apps, other `_util` libs, and tier libs — since upstream WS3.4
 
 | Path | What it is | Suggested alias |
 |------|------------|------|
-| `http/client/` | HTTP/1.1 client (pool, retry, fallible(IoError)) | `http` |
+| `http/client/` | HTTP/1.1 client (pool, retry, fallible(IoError)) — **superseded by `std::http`** (hale ≥ v0.11.4); kept for older pins | `http` |
 | `crypto/` | HMAC-SHA256/512, SHA-256/512, CSPRNG, hex | `crypto` |
 | `subprocess/` | fork/exec wrapper with pipes + timeout | `sub` |
 | `math/matrix/` | Dense matrix + matmul + linalg primitives | `mat` |
@@ -67,7 +73,7 @@ apps, other `_util` libs, and tier libs — since upstream WS3.4
 | `db/` | Backend-neutral `DbDriver` interface (Go database/sql shape) | `db` |
 | `pq/` | Postgres driver (pgwire v3 over TCP) + connection pool; satisfies `DbDriver` | `pq` |
 | `sqlite/` | SQLite driver — pure `@ffi` over system `libsqlite3` (Db locus, fallible(DbError); needs `libsqlite3-dev` to build) + `Driver` adapter satisfying `db::DbDriver` | `sqlite` |
-| `router/` | HTTP router with path params + middleware | `router` |
+| `router/` | HTTP router with path params + middleware — **superseded by `std::http::Router`** (hale ≥ v0.11.4); kept for older pins | `router` |
 | `sessions/` | HMAC-signed cookie sessions | `sess` |
 | `jobs/` | Background job queue + worker pool (sqlite-backed) | `jobs` |
 | `migrations/` | Schema migration runner (`Migrator` on `db::DbDriver`: registered set + up/down/steps/goto/force, per-step txns; the sqlite adapter is `sqlite::Driver` in `sqlite/`) | `migs` |
@@ -76,8 +82,8 @@ apps, other `_util` libs, and tier libs — since upstream WS3.4
 
 | Path | What it is | Suggested alias |
 |------|------------|------|
-| `logfmt/` | Structured log sinks (file/OTLP/colored console) for `std::log`; OTLP POSTs via `pond/http` | `logfmt` |
-| `metrics/` | Prometheus-format exposition (counter/gauge/histogram) | `metrics` |
+| `logfmt/` | Structured log sinks (file/OTLP/colored console) for `std::log`. The file and console sinks are **superseded by `std::log`** (hale ≥ v0.11.8); `OtlpSink` is pond-only and POSTs via `std::http` | `logfmt` |
+| `metrics/` | Prometheus-format exposition (counter/gauge/histogram) — **superseded by `std::metrics`** (hale ≥ v0.11.8); kept for older pins | `metrics` |
 | `supervisor/` | Erlang-style restart strategies on `on_failure` | `sup` |
 | `tracing/` | Span tree mirroring the locus tower | `trace` |
 
@@ -96,7 +102,7 @@ apps, other `_util` libs, and tier libs — since upstream WS3.4
 | `agent/conversation/` | Conversation locus (bounded chat history + bus events) | `conv` |
 | `agent/sandbox/` | Subprocess-based code-execution sandbox | `sandbox` |
 | `agent/embeddings/` | Vector store with top-k search | `emb` |
-| `ml/neural/` | Tiny NN trainer (MNIST-class problems) | `nn` |
+| `ml/neural/` | Toy dense-layer NN trainer with hand-rolled backprop (XOR-scale; ≤ 4 layers) | `nn` |
 
 ### Tier 8 — DevX
 
@@ -104,13 +110,13 @@ apps, other `_util` libs, and tier libs — since upstream WS3.4
 |------|------------|------|
 | `tui/` | Elm-shaped full-screen TUI runtime: App/Program loop, typed input events (keys/mouse/paste), cell-grid diff renderer, widgets | `tui` |
 
-### Tier 6, 7, 8 — backlog (not yet built)
+### Backlog — not yet built
 
-Messaging (`realtime/pubsub`, `realtime/nats`, `realtime/cron`);
-game/sim (`game/ecs`, `game/tick`, `game/spatial`); data formats
-(`data/csv`, `data/timeseries`, `data/pipeline`); DevX (`dev/lsp`,
-`dev/docgen`, `dev/asserts`, `dev/bench`). Picked up when a workload
-demands.
+The rest of tiers 6–8: messaging (`realtime/pubsub`,
+`realtime/nats`, `realtime/cron`); game/sim (`game/ecs`,
+`game/tick`, `game/spatial`); data formats (`data/csv`,
+`data/timeseries`, `data/pipeline`); more DevX (`dev/docgen`,
+`dev/asserts`, `dev/bench`). Picked up when a workload demands.
 
 ### Editor tooling — moved
 
@@ -119,6 +125,24 @@ The tree-sitter grammar (**heron**) moved to its own repo,
 (2026-07-19, full history), so editors and linguist can pin it by
 URL. The language server ships in the `hale` binary itself
 (`hale lsp`).
+
+## Working on pond
+
+There is no monorepo build. Each lib is verified on its own, with
+three gates:
+
+```bash
+hale check <lib>/                 # type-check (libs have no fn main)
+hale test  <lib>/                 # unit tests under <lib>/tests/
+hale build <lib>/examples/<demo>/ # then run the binary it emits
+```
+
+`hale test .` runs every lib's tests. A green `hale check` does not
+imply codegen-clean — bare libs never reach codegen — so the test run
+and the example are the real gates.
+
+`sqlite/` and anything linking it (`jobs/`, `migrations/` demos) need
+`libsqlite3-dev` at build time.
 
 ## Design rules
 
@@ -132,7 +156,10 @@ URL. The language server ships in the `hale` binary itself
 3. Public surface is locked in [`CONTRACTS.md`](./CONTRACTS.md).
    Implementations must match the contract; deviations get
    logged in the lib's `FRICTION.log` section and reflected back
-   in `CONTRACTS.md`.
+   in `CONTRACTS.md`. Compiler defects that block a lib are
+   reported separately, in
+   [`COMPILER-BUGS.md`](./COMPILER-BUGS.md) — reproduced defects
+   only, so it stays usable as an upstream handoff.
 4. No transitive deps in v1 — at the vendoring level: a consumer
    that uses `pond/jobs` (which uses `pond/sqlite`) must vendor
    both. Lib-from-lib imports themselves are fine.

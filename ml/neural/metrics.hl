@@ -14,8 +14,8 @@
 //           than CONTRACTS.md's `epoch` because `epoch` is a
 //           reserved keyword (TokenKind::Epoch — closure cadence
 //           clause); a `type` field named `epoch` is unparseable.
-//           Same deviation pattern the a future store pattern lib applied for
-//           Version.era. Surfaces in FRICTION.log.
+//           The version shape's `era` field carries the same
+//           rename for the same reason. See FRICTION.log.
 // `step`  — 1-indexed sample counter for the LAST sample of the
 //           epoch (i.e. epoch_idx * num_samples). Lets consumers
 //           reconstruct total samples-seen without re-deriving

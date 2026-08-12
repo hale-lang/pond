@@ -17,7 +17,7 @@
 //                            any `add_dense` registered a layer.
 //   - "decode_failed"      — `apply_delta` couldn't decode the
 //                            incoming Bytes into a recognized
-//                            in-memory shape (state-mirroring surface surface).
+//                            in-memory shape (the state-mirroring surface).
 //   - "snapshot_decode_failed"
 //                          — `apply_delta` (or a consumer's
 //                            on_snapshot) hit a malformed snapshot

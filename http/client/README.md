@@ -1,4 +1,4 @@
-# pond/http/client
+# pond/http/client — HTTP/1.1 client with pooling and retry
 
 > **Promoted**: this client was promoted into the hale stdlib as
 > `std::http` (client + router, 2026-07-17) — new code should use

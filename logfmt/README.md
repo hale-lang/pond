@@ -1,5 +1,11 @@
 # pond/logfmt — drop-in log sinks for `std::log`
 
+> **Partly superseded**: `FileSink` and `ConsoleSink` were promoted
+> into the hale stdlib as `std::log` sinks (hale ≥ v0.11.8), and new
+> code should use those. `OtlpSink` has no stdlib equivalent and is
+> the reason to vendor this lib — it POSTs via `std::http`, so it no
+> longer drags `pond/http` in with it.
+
 Alternative `std::log` sinks that wear the `std::text::Sink` shape
 (F.20-structural — no `impl I for L`) and subscribe to `log.**` the
 same way `std::log::StdoutSink` does. Use these in place of the

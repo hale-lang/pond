@@ -1,4 +1,4 @@
-# pond/crypto
+# pond/crypto — HMAC, SHA-2, CSPRNG and hex
 
 Suggested alias: `crypto`.
 
