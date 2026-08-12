@@ -47,29 +47,27 @@
 // single forward+backward sweep per sample. Loss is MSE over the
 // final layer's output vs. target.
 //
-// **state-mirroring surface.** `version() -> Version`,
-// `snapshot_bytes() -> Bytes`, `apply_delta(d: Bytes) -> ()`
-// match state-mirroring surface (which itself dropped the
-// fallible(E) marker per the two-channel rule; see
-// a future store-pattern lib header). The snapshot encodes meta_csv
-// + the entire params buffer as a tab-separated ASCII payload so
-// any consumer with std::str + std::math primitives can decode.
+// **State-mirroring surface.** `version()`, `snapshot_bytes()` and
+// `apply_delta(d)` let one Model mirror another's state: snapshot
+// the source, ship the bytes, apply them at the destination. The
+// snapshot encodes meta_csv plus the entire params buffer as a
+// tab-separated ASCII payload, so any consumer with std::str and
+// std::math primitives can decode it without this lib.
 
 import "../../math/matrix" as mat;
 
-// **the store-pattern lib import deviation**. The Model is contractually a
-// `state-mirroring surface` (CONTRACTS.md § pond/ml/neural). Importing
-// the future store-pattern lib as `the store-pattern lib` and referencing `the version shape` from this
-// file's signatures parse-clean but codegen rejects with
-// "qualified type `the version shape` not in stdlib path-renames
-// table" — the cross-seed qualified-type lookup table doesn't
-// yet register user-lib qualified types in fn return positions.
-// The same surface for store-lib::an error type surfaces too. Workaround:
-// declare local twin shapes (`NnVersion`) here matching the store-pattern lib's
-// wire-stable layout (`generation: Int; era: Int;`). A consumer
-// that needs the version shape exactly can construct one from
-// the NnVersion pair at the boundary. See FRICTION.log
-// "the store-pattern lib-qualified-type-codegen".
+// `NnVersion` is a local twin, not the shared version shape.
+// CONTRACTS.md describes `version()` as returning a `Version` type
+// owned by a shared store library — one pond does not ship, and has
+// never shipped. Even once it exists, naming a cross-seed qualified
+// type in a RETURN position is rejected at codegen ("qualified type
+// ... not in stdlib path-renames table"): the lookup table does not
+// register user-lib qualified types there. So the shape is declared
+// locally with the wire-stable layout the contract specifies
+// (`generation: Int; era: Int;`), and a consumer that needs the
+// shared type can build one from this pair at the boundary. See
+// FRICTION.log § pond/ml/neural, "cross-seed qualified-type
+// codegen".
 type NnVersion {
     generation: Int = 0;
     era:        Int = 0;

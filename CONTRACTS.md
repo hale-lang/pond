@@ -112,12 +112,10 @@ choose their own aliases per F.25.
   runs the promoted-server shape end-to-end in one binary (3/3
   clean runs). (4) **Gate assessment**: `hale fmt --check` drifts
   on ~140/189 files (pond predates `hale fmt` — adopting means
-  one big reformat commit, open decision); `hale verify` fails on
-  exactly the 9 warning-bearing libs (62 triaged advisories), and
-  two of those are FROZEN libs that can't take `@unbounded`
-  annotations without unfreezing — verify-as-gate is blocked on
-  that policy call. Upstream: the still-open zero-reads bug is
-  now filed as hale-lang/hale#381.
+  one big reformat commit, open decision). `hale verify` is not the
+  gate yet: see the 2026-08-11 status note above for the advisory
+  triage that took the repo to 18 advisories, all of them held open
+  by one upstream lint defect.
 - **Ordinary-layer dedup pass (same date, fourth pass).** hale
   v0.13.0's everyday surface replaces pond hand-rolled helpers —
   internal changes only, no public-surface deltas: agent/llm's

@@ -1,4 +1,4 @@
-# pond/sqlite — SQLite driver (pure `@ffi`, WORKING)
+# pond/sqlite — SQLite driver over the system libsqlite3
 
 Connection + query surface around SQLite: a Service-locus `Db`
 (birth opens the connection, dissolve closes it) and a

@@ -3373,23 +3373,24 @@ it is a style choice, not a workaround anymore.
 
 `epoch` is a reserved keyword (`TokenKind::Epoch` — the closure
 cadence clause: `epoch tick;` / `epoch dissolve;` / `epoch
-inline;`), so a `type` field named `epoch` is unparseable. Same
-deviation pattern `a future store-pattern lib` applies for Version.era
-(CONTRACTS.md spells it `epoch`; lib spells it `era`).
+inline;`), so a `type` field named `epoch` is unparseable. The
+same rename applies to the version shape's `era` field
+(CONTRACTS.md spells it `epoch`; the lib spells it `era`).
 
 Suggested CONTRACTS.md amendment: rename the field to
-`epoch_idx` to match the lib (or `era` for symmetry with
-the version shape).
+`epoch_idx` to match the lib (or `era`, for symmetry with the
+version shape).
 
-### `the version shape` → `nn::NnVersion`
+### The shared `Version` shape → `nn::NnVersion`
 
-CONTRACTS.md declares `Model` as satisfying `state-mirroring surface`,
-which includes `fn version() -> Version`. Importing
-`the future store-pattern lib` and referencing `the version shape` in a return-position
-type fires "codegen error: qualified type `the version shape` not in
-stdlib path-renames table" — the cross-seed qualified-type
-lookup table doesn't yet register user-lib qualified types in
-fn return positions. Shipped shape: a locally-declared
+CONTRACTS.md declares `Model` as satisfying a state-mirroring
+surface, which includes `fn version() -> Version` — where
+`Version` belongs to a shared store library pond does not ship.
+Even with such a lib present, naming an imported qualified type
+in a RETURN position fires "codegen error: qualified type ... not
+in stdlib path-renames table": the cross-seed qualified-type
+lookup table doesn't register user-lib qualified types in fn
+return positions. Shipped shape: a locally-declared
 `NnVersion` type with the same `{ generation: Int; era: Int; }`
 shape. The interface satisfaction is moot until the
 qualified-type codegen gap is fixed; the wire-shape stability
@@ -3494,12 +3495,12 @@ A cleaner fix at the typecheck level: topics and types should
 live in disjoint scopes (the grammar already keeps them
 syntactically distinct).
 
-### Cross-seed qualified-type codegen — `the version shape` rejected
+### Cross-seed qualified-type codegen — an imported return type is rejected
 
 ```hale
-import "../../future store-pattern" as store;
-fn version() -> the version shape { ... }
-// codegen error: qualified type `the version shape` not in stdlib
+import "../../some-lib" as store;
+fn version() -> store::Version { ... }
+// codegen error: qualified type `store::Version` not in stdlib
 //                path-renames table
 ```
 
@@ -3508,11 +3509,11 @@ but loses the qualified-type registration at codegen. Workaround:
 declare a local twin shape (`NnVersion { generation: Int; era:
 Int; }`) and return that. The Model's state-mirroring surface
 is technically incomplete until the qualified-type codegen gap
-is fixed — the contract calls for `version() -> the version shape`
-but the lib ships `version() -> NnVersion`. The wire-shape
-stability is preserved (same two-Int payload, same
-declaration order, same field names) so a consumer that needs
-the version shape can construct one at the boundary.
+is fixed — the contract calls for a shared `Version` return type
+but the lib ships `version() -> NnVersion`. The wire shape is
+preserved (same two-Int payload, same declaration order, same
+field names), so a consumer that needs the shared type can
+construct one at the boundary.
 
 ### Float / Int binary-op widening
 

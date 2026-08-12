@@ -1,4 +1,10 @@
-# pond/router
+# pond/router — HTTP routing with path params and middleware
+
+> **Superseded**: this router was promoted into the hale stdlib as
+> `std::http::Router` (hale ≥ v0.11.4). New code should use that
+> directly. This vendored copy is kept for apps pinned to an older
+> compiler; its surface is closed and it tracks the stdlib rather
+> than forking from it.
 
 HTTP router on top of `std::http`. Routes have a method + a
 pattern (with `:name` captures); middleware is a chain of
@@ -86,7 +92,7 @@ the field-equal local type stays and the Router converts at the
 Server boundary. `Response.headers` (CRLF-joined extra header
 lines, e.g. `Set-Cookie`) passes through to
 `std::http::Response.headers`. See
-[`FRICTION.log`](FRICTION.log) for the refreshed log.
+[`FRICTION.log`](../FRICTION.log) for the refreshed log.
 
 ## Demo
 

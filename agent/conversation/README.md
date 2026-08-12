@@ -1,4 +1,4 @@
-# pond/agent/conversation — alias `conv`
+# pond/agent/conversation — bounded chat history with bus events
 
 Chat-history locus for AI-agent pipelines. Holds an ordered
 stream of `Message` records bounded by `max_messages`, and
