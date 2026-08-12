@@ -41,7 +41,7 @@ import "../../../sqlite" as sqlite;
 locus BlogSchemaDemo {
     params {
         db_path: String = "/tmp/pond-migrations-blog-demo.db";
-        failed:  Int    = 0;   // bumped by the __die handlers
+        failed: Int = 0; // bumped by the __die handlers
     }
 
     // Fallible-call handlers: run() is a lifecycle body (can't be
@@ -66,14 +66,14 @@ locus BlogSchemaDemo {
         // Self-cleaning: drop everything this demo creates.
         let _ = conn.exec(
             "DROP TABLE IF EXISTS tags; "
-            + "DROP TABLE IF EXISTS comments; "
-            + "DROP TABLE IF EXISTS posts; "
-            + "DROP TABLE IF EXISTS schema_migrations"
+                + "DROP TABLE IF EXISTS comments; "
+                + "DROP TABLE IF EXISTS posts; "
+                + "DROP TABLE IF EXISTS schema_migrations"
         ) or sqlite::ExecResult { };
 
         let d = sqlite::Driver { conn: conn };
         println("[blog-schema] driver backend: ", d.backend(),
-                " (open ok=", to_string(d.open().ok), ")");
+            " (open ok=", to_string(d.open().ok), ")");
 
         // The migration set: v1 irreversible, v2/v3 reversible.
         // IF NOT EXISTS on the creates keeps replay-after-force(2)
@@ -117,25 +117,25 @@ locus BlogSchemaDemo {
         // 7: show the tracking rows + prove the tables exist.
         let tracked = d.query_all(
             "SELECT version, name, applied_at FROM schema_migrations"
-            + " ORDER BY version");
+                + " ORDER BY version");
         println("[blog-schema] schema_migrations rows (n=",
-                to_string(tracked.n), "):");
+            to_string(tracked.n), "):");
         println(tracked.csv);
 
         let tables = conn.query_all(
             "SELECT name FROM sqlite_master WHERE type='table'"
-            + " AND name IN ('posts','comments','tags') ORDER BY name"
+                + " AND name IN ('posts','comments','tags') ORDER BY name"
         ) or sqlite::Rows { csv: "ERR" };
         println("[blog-schema] tables present: ", tables.csv);
 
         if self.failed == 0 && n1 == 3 && n2 == 0 && n3 == 2 && n4 == 2
             && n5 == 1 && m.current_version() == 3
             && tables.csv == "comments\nposts\ntags" {
-            println("[blog-schema] OK — up x3, no-op re-run, goto/steps"
-                + " round-trip, force+replay, all tables exist");
-        } else {
-            println("[blog-schema] FAIL — unexpected state");
-        }
+                println("[blog-schema] OK — up x3, no-op re-run, goto/steps"
+                        + " round-trip, force+replay, all tables exist");
+            } else {
+                println("[blog-schema] FAIL — unexpected state");
+            }
     }
 }
 

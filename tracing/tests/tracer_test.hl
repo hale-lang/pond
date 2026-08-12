@@ -14,17 +14,17 @@ import ".." as trace;
 // assertions exact).
 locus CaptureSink {
     params {
-        count:   Int = 0;
+        count: Int = 0;
 
-        id1:     String = "";
+        id1: String = "";
         parent1: String = "";
-        name1:   String = "";
-        attrs1:  String = "";
+        name1: String = "";
+        attrs1: String = "";
 
-        id2:     String = "";
+        id2: String = "";
         parent2: String = "";
-        name2:   String = "";
-        attrs2:  String = "";
+        name2: String = "";
+        attrs2: String = "";
 
         // Every span must have start_ns > 0 and end_ns >= start_ns.
         times_ok: Bool = true;
@@ -36,16 +36,16 @@ locus CaptureSink {
 
     fn on_span(s: trace::Span) {
         if self.count == 0 {
-            self.id1     = s.id.id;
+            self.id1 = s.id.id;
             self.parent1 = s.parent.id;
-            self.name1   = s.name;
-            self.attrs1  = s.attrs;
+            self.name1 = s.name;
+            self.attrs1 = s.attrs;
         }
         if self.count == 1 {
-            self.id2     = s.id.id;
+            self.id2 = s.id.id;
             self.parent2 = s.parent.id;
-            self.name2   = s.name;
-            self.attrs2  = s.attrs;
+            self.name2 = s.name;
+            self.attrs2 = s.attrs;
         }
         if s.start_ns <= 0 {
             self.times_ok = false;

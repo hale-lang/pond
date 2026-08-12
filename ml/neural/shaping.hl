@@ -95,7 +95,7 @@ fn extract_row_into(m: mat::Matrix, r: Int, cols: Int, out: mat::Matrix) {
 // dL/dz = dL/da * da/dz, element-wise. Returns grad_z with
 // the same shape as `grad_a` and `z`.
 fn backprop_activation(grad_a: mat::Matrix, z: mat::Matrix,
-                       name: String) -> mat::Matrix
+    name: String) -> mat::Matrix
 {
     let n = z.len();
     let out = mat::zeros(z.rows, z.cols);

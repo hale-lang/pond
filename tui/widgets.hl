@@ -42,7 +42,7 @@ locus Spinner {
         let frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
         let lo = self.frame * 3;
         s.put(x, y, std::str::substring(frames, lo, lo + 3),
-              fg, -1, 0);
+            fg, -1, 0);
     }
 }
 
@@ -50,7 +50,7 @@ locus Spinner {
 
 locus ProgressBar {
     params {
-        pct: Int = 0;     // 0..100
+        pct: Int = 0; // 0..100
     }
 
     fn set(p: Int) {
@@ -70,7 +70,7 @@ locus ProgressBar {
 
     // [█████░░░░░] 50%  — total width w (>= 9).
     fn draw(s: Screen, x: Int, y: Int, w: Int, fg: Int) {
-        let mut inner = w - 7;       // brackets + " 100%"
+        let mut inner = w - 7; // brackets + " 100%"
         if inner < 1 { inner = 1; }
         let filled = inner * self.pct / 100;
         s.print(x, y, "[");
@@ -237,13 +237,13 @@ fn str_width(s: String) -> Int {
         }
         if sz == 3 {
             cp = ((b - 224) * 64
-                + (std::str::byte_at_unchecked(s, i + 1) - 128)) * 64
+                    + (std::str::byte_at_unchecked(s, i + 1) - 128)) * 64
                 + (std::str::byte_at_unchecked(s, i + 2) - 128);
         }
         if sz == 4 {
             cp = (((b - 240) * 64
-                + (std::str::byte_at_unchecked(s, i + 1) - 128)) * 64
-                + (std::str::byte_at_unchecked(s, i + 2) - 128)) * 64
+                    + (std::str::byte_at_unchecked(s, i + 1) - 128)) * 64
+                    + (std::str::byte_at_unchecked(s, i + 2) - 128)) * 64
                 + (std::str::byte_at_unchecked(s, i + 3) - 128);
         }
         total = total + char_width(cp);
@@ -259,7 +259,7 @@ fn __drop_last_char(s: String) -> String {
     let mut i = n - 1;
     while i > 0 {
         let b = std::str::byte_at_unchecked(s, i);
-        if b < 128 || b >= 192 { break; }   // not a continuation byte
+        if b < 128 || b >= 192 { break; } // not a continuation byte
         i = i - 1;
     }
     return std::str::substring(s, 0, i);

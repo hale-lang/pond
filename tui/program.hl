@@ -49,11 +49,11 @@ interface App {
 
 locus Program {
     params {
-        app: App;                  // required — the user's model locus
+        app: App; // required — the user's model locus
         fps: Int = 30;
         mouse: Bool = false;
         use_alt_screen: Bool = true;
-        max_frames: Int = -1;      // >= 0 bounds the run (demos, tests)
+        max_frames: Int = -1; // >= 0 bounds the run (demos, tests)
 
         // internals — `raw` is the std::term RAII guard: its
         // construction (params-init) puts stdin in raw mode
@@ -139,9 +139,9 @@ locus Program {
         if w != self.screen.w || h != self.screen.h {
             self.screen.resize(w, h);
             if self.app.update(Event { kind: "resize", w: w, h: h },
-                               self.screen) {
-                self.quit = true;
-            }
+                self.screen) {
+                    self.quit = true;
+                }
         }
     }
 }

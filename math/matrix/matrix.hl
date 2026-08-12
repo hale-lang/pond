@@ -42,7 +42,7 @@ locus Matrix {
     // Read element (r, c). On out-of-range, returns 0.0 silently;
     // use `at_checked(m, r, c) or raise` for the fallible surface.
     fn at(r: Int, c: Int) -> Float {
-        let idx = index_of(self.rows, self.cols, r, c) or -1;
+        let idx = index_of(self.rows, self.cols, r, c) or - 1;
         if idx < 0 {
             return 0.0;
         }
@@ -52,7 +52,7 @@ locus Matrix {
     // Write element (r, c) = v. Silent no-op on OOB; use
     // `set_at_checked` for the fallible surface.
     fn set_at(r: Int, c: Int, v: Float) {
-        let idx = index_of(self.rows, self.cols, r, c) or -1;
+        let idx = index_of(self.rows, self.cols, r, c) or - 1;
         if idx < 0 {
             return;
         }
@@ -254,7 +254,7 @@ fn from_rows(rows: Int, cols: Int, data: String) -> Matrix {
 
 fn matmul(a: Matrix, b: Matrix) -> Matrix {
     let _check = check_matmul_shapes(a.rows, a.cols, b.rows, b.cols)
-        or -1;
+    or - 1;
     if _check < 0 {
         return error_matrix();
     }
@@ -279,7 +279,7 @@ fn matmul(a: Matrix, b: Matrix) -> Matrix {
 
 fn add(a: Matrix, b: Matrix) -> Matrix {
     let _check = check_same_shape(a.rows, a.cols, b.rows, b.cols)
-        or -1;
+    or - 1;
     if _check < 0 {
         return error_matrix();
     }
@@ -312,7 +312,7 @@ fn scale(a: Matrix, k: Float) -> Matrix {
 
 fn dot(a: Matrix, b: Matrix) -> Float {
     let na = check_dot_shapes(a.rows, a.cols, b.rows, b.cols)
-        or -1;
+    or - 1;
     if na < 0 {
         return nan_sentinel();
     }

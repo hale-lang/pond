@@ -9,15 +9,15 @@ locus ConvTest {
         // ----- append + read-back -----------------------------------
         let c = conv::Conversation {
             system_prompt: "you are terse",
-            max_messages:  10
+            max_messages: 10
         };
         std::test::assert_eq_int(c.history_count(), 0, "fresh history is empty");
         std::test::assert_eq_str(c.system_prompt, "you are terse",
             "system_prompt retained on the locus");
 
-        c.append(conv::Message { role: "user",      content: "hello" });
+        c.append(conv::Message { role: "user", content: "hello" });
         c.append(conv::Message { role: "assistant", content: "hi there" });
-        c.append(conv::Message { role: "user",      content: "how are you" });
+        c.append(conv::Message { role: "user", content: "how are you" });
         std::test::assert_eq_int(c.history_count(), 3,
             "three appends retain three messages");
 
@@ -49,7 +49,7 @@ locus ConvTest {
         let mut i = 0;
         while i < 7 {
             e.append(conv::Message {
-                role:    "user",
+                role: "user",
                 content: "m" + to_string(i)
             });
             i = i + 1;

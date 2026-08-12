@@ -30,12 +30,12 @@
 // empty `stdin` closes stdin immediately. `timeout_ms <= 0`
 // means no timeout (block until child exits naturally).
 type SpawnOpts {
-    cmd:        String;
-    args:       String = "";
-    cwd:        String = "";
-    env:        String = "";
-    stdin:      Bytes  = std::bytes::from_string("");
-    timeout_ms: Int    = 0;
+    cmd: String;
+    args: String = "";
+    cwd: String = "";
+    env: String = "";
+    stdin: Bytes = std::bytes::from_string("");
+    timeout_ms: Int = 0;
 }
 
 // ExitStatus — how a child terminated.
@@ -45,9 +45,9 @@ type SpawnOpts {
 // signal number too (matching POSIX WTERMSIG); when not signaled
 // `signal` is 0.
 type ExitStatus {
-    code:     Int  = 0;
+    code: Int = 0;
     signaled: Bool = false;
-    signal:   Int  = 0;
+    signal: Int = 0;
 }
 
 // Output — the full result of a one-shot `spawn(opts)` call.
@@ -74,7 +74,7 @@ type Output {
 // `errno` carries the raw platform errno where applicable;
 // `detail` is a human-readable explanation.
 type SpawnError {
-    kind:   String = "";
+    kind: String = "";
     detail: String = "";
-    errno:  Int    = 0;
+    errno: Int = 0;
 }

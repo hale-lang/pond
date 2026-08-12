@@ -73,8 +73,8 @@ fn __raise_connect(e: IoError, host: String, port: Int) -> Int fallible(HttpErro
 // channel implicitly (fallible or-handlers, hale ≥ 400ac68).
 fn __dial(host: String, port: Int) -> Int fallible(HttpError) {
     let fd = std::io::tcp::connect(host, port)
-        or __raise_connect(err, host, port);
-    std::io::tcp::set_nodelay(fd, true) or discard;   // kill Nagle (best-effort)
+    or __raise_connect(err, host, port);
+    std::io::tcp::set_nodelay(fd, true) or discard; // kill Nagle (best-effort)
     return fd;
 }
 
@@ -84,8 +84,8 @@ fn __dial(host: String, port: Int) -> Int fallible(HttpError) {
 // SSL_set_tlsext_host_name + SSL_set1_host).
 fn __dial_tls(host: String, port: Int) -> Int fallible(HttpError) {
     let handle = std::io::tls::connect(host, port)
-        or __raise_connect(err, host, port);
-    std::io::tls::set_nodelay(handle, true) or discard;   // kill Nagle (best-effort)
+    or __raise_connect(err, host, port);
+    std::io::tls::set_nodelay(handle, true) or discard; // kill Nagle (best-effort)
     return handle;
 }
 
@@ -144,7 +144,7 @@ fn __round_trip_with_retry(
     let mut backoff_ms = 50;
     while attempt < max_attempts {
         let resp = __round_trip_oneshot(req, user_agent, max_body)
-            or __retry_err_capture(err);
+        or __retry_err_capture(err);
         if resp.status > 0 && resp.status < 500 {
             return resp;
         }
@@ -334,7 +334,7 @@ locus Client {
                 else { __close_handle(pfd, is_tls); }
                 return ex.resp;
             }
-            __close_handle(pfd, is_tls);   // stale; fall through to a fresh dial
+            __close_handle(pfd, is_tls); // stale; fall through to a fresh dial
         }
 
         let mut attempt = 0;

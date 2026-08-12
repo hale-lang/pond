@@ -23,8 +23,8 @@
 // `spec/stdlib.md` § json: JSON is a wire format, not a tree
 // value type.
 type ToolSpec {
-    name:         String = "";
-    description:  String = "";
+    name: String = "";
+    description: String = "";
     input_schema: String = "{}";
 }
 
@@ -38,9 +38,9 @@ type ToolSpec {
 // `call_id` is the vendor-supplied correlation id; the result
 // carries it back so the conversation thread re-attaches.
 type ToolCall {
-    name:     String = "";
+    name: String = "";
     args_json: String = "{}";
-    call_id:  String = "";
+    call_id: String = "";
 }
 
 // ToolResult — what a Tool returns from invoke().
@@ -54,9 +54,9 @@ type ToolCall {
 // the vendor surfaces this as `is_error: true` in the
 // tool_result block so the model can reason about the failure.
 type ToolResult {
-    call_id:  String = "";
-    content:  String = "";
-    is_error: Bool   = false;
+    call_id: String = "";
+    content: String = "";
+    is_error: Bool = false;
 }
 
 // ToolError — the single fallible(ToolError) payload for the
@@ -74,6 +74,6 @@ type ToolResult {
 // NOT dispatched as ToolError. Dispatch failure means the
 // Registry couldn't find/route the tool at all.
 type ToolError {
-    kind:   String = "";
+    kind: String = "";
     detail: String = "";
 }

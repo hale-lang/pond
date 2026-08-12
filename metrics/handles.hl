@@ -46,11 +46,11 @@ fn counter(reg: Registry, name: String, labels: Labels) -> Counter {
     let k = metric_key(name, labels);
     if !reg.store.has(k) {
         reg.store.set(MetricEntry {
-            key:      k,
-            name:     name,
-            labels:   labels.kv,
-            kind:     0,
-            value:    0.0,
+            key: k,
+            name: name,
+            labels: labels.kv,
+            kind: 0,
+            value: 0.0,
             hist_idx: -1
         });
     }
@@ -61,11 +61,11 @@ fn gauge(reg: Registry, name: String, labels: Labels) -> Gauge {
     let k = metric_key(name, labels);
     if !reg.store.has(k) {
         reg.store.set(MetricEntry {
-            key:      k,
-            name:     name,
-            labels:   labels.kv,
-            kind:     1,
-            value:    0.0,
+            key: k,
+            name: name,
+            labels: labels.kv,
+            kind: 1,
+            value: 0.0,
             hist_idx: -1
         });
     }
@@ -73,67 +73,67 @@ fn gauge(reg: Registry, name: String, labels: Labels) -> Gauge {
 }
 
 fn histogram(reg: Registry, name: String,
-             buckets: mat::Matrix, labels: Labels) -> Histogram {
-    let k = metric_key(name, labels);
-    if !reg.store.has(k) {
-        // bounded fields auto-init EMPTY and reject literal
-        // init, so build the struct bare and fill via the push
-        // intrinsic; the vec push below copies elements + count
-        // (whole-struct copies carry bounded contents).
-        let mut nb = buckets.len();
-        if nb > 32 { nb = 32; }   // cap = 32; over-cap clamps
-        let h = HistogramData {
-            name:   name,
-            labels: labels.kv,
-            sum:    0.0,
-            count:  0
+    buckets: mat::Matrix, labels: Labels) -> Histogram {
+        let k = metric_key(name, labels);
+        if !reg.store.has(k) {
+            // bounded fields auto-init EMPTY and reject literal
+            // init, so build the struct bare and fill via the push
+            // intrinsic; the vec push below copies elements + count
+            // (whole-struct copies carry bounded contents).
+            let mut nb = buckets.len();
+            if nb > 32 { nb = 32; } // cap = 32; over-cap clamps
+            let h = HistogramData {
+                name: name,
+                labels: labels.kv,
+                sum: 0.0,
+                count: 0
+            };
+            let mut bi = 0;
+            while bi < nb {
+                push(h.bounds, buckets.get(bi) or 0.0) or discard;
+                bi = bi + 1;
+            }
+            let mut ci = 0;
+            while ci <= nb {
+                push(h.counts, 0) or discard;
+                ci = ci + 1;
+            }
+            reg.histograms.push(h);
+            let new_idx = reg.histograms.len() - 1;
+            reg.store.set(MetricEntry {
+                key: k,
+                name: name,
+                labels: labels.kv,
+                kind: 2,
+                value: 0.0,
+                hist_idx: new_idx
+            });
+        }
+        let e = reg.store.get(k) or MetricEntry { };
+        return Histogram {
+            store: reg.store,
+            histograms: reg.histograms,
+            key: k,
+            hist_idx: e.hist_idx,
+            bucket_count: buckets.len()
         };
-        let mut bi = 0;
-        while bi < nb {
-            push(h.bounds, buckets.get(bi) or 0.0) or discard;
-            bi = bi + 1;
-        }
-        let mut ci = 0;
-        while ci <= nb {
-            push(h.counts, 0) or discard;
-            ci = ci + 1;
-        }
-        reg.histograms.push(h);
-        let new_idx = reg.histograms.len() - 1;
-        reg.store.set(MetricEntry {
-            key:      k,
-            name:     name,
-            labels:   labels.kv,
-            kind:     2,
-            value:    0.0,
-            hist_idx: new_idx
-        });
     }
-    let e = reg.store.get(k) or MetricEntry { };
-    return Histogram {
-        store:        reg.store,
-        histograms:   reg.histograms,
-        key:          k,
-        hist_idx:     e.hist_idx,
-        bucket_count: buckets.len()
-    };
-}
 
 locus Counter {
     params {
         store: MetricMap;
-        key:   String = "";
+        key: String = "";
     }
 
     fn inc() {
         if self.store.has(self.key) {
             let e = self.store.get(self.key) or MetricEntry { };
             self.store.set(MetricEntry {
-                key:      e.key,
-                name:     e.name,
-                labels:   e.labels,
-                kind:     e.kind,
-                value:    e.value + 1.0,
+                key: e.key,
+                name: e.name,
+                labels: e.labels,
+                kind: e.kind,
+                value: e.value + 1.0,
                 hist_idx: e.hist_idx
             });
         }
@@ -143,11 +143,11 @@ locus Counter {
         if self.store.has(self.key) {
             let e = self.store.get(self.key) or MetricEntry { };
             self.store.set(MetricEntry {
-                key:      e.key,
-                name:     e.name,
-                labels:   e.labels,
-                kind:     e.kind,
-                value:    e.value + v,
+                key: e.key,
+                name: e.name,
+                labels: e.labels,
+                kind: e.kind,
+                value: e.value + v,
                 hist_idx: e.hist_idx
             });
         }
@@ -157,18 +157,18 @@ locus Counter {
 locus Gauge {
     params {
         store: MetricMap;
-        key:   String = "";
+        key: String = "";
     }
 
     fn set(v: Float) {
         if self.store.has(self.key) {
             let e = self.store.get(self.key) or MetricEntry { };
             self.store.set(MetricEntry {
-                key:      e.key,
-                name:     e.name,
-                labels:   e.labels,
-                kind:     e.kind,
-                value:    v,
+                key: e.key,
+                name: e.name,
+                labels: e.labels,
+                kind: e.kind,
+                value: v,
                 hist_idx: e.hist_idx
             });
         }
@@ -178,11 +178,11 @@ locus Gauge {
         if self.store.has(self.key) {
             let e = self.store.get(self.key) or MetricEntry { };
             self.store.set(MetricEntry {
-                key:      e.key,
-                name:     e.name,
-                labels:   e.labels,
-                kind:     e.kind,
-                value:    e.value + 1.0,
+                key: e.key,
+                name: e.name,
+                labels: e.labels,
+                kind: e.kind,
+                value: e.value + 1.0,
                 hist_idx: e.hist_idx
             });
         }
@@ -192,11 +192,11 @@ locus Gauge {
         if self.store.has(self.key) {
             let e = self.store.get(self.key) or MetricEntry { };
             self.store.set(MetricEntry {
-                key:      e.key,
-                name:     e.name,
-                labels:   e.labels,
-                kind:     e.kind,
-                value:    e.value - 1.0,
+                key: e.key,
+                name: e.name,
+                labels: e.labels,
+                kind: e.kind,
+                value: e.value - 1.0,
                 hist_idx: e.hist_idx
             });
         }
@@ -205,18 +205,18 @@ locus Gauge {
 
 locus Histogram {
     params {
-        store:        MetricMap;
-        histograms:   HistogramList;
-        key:          String = "";
-        hist_idx:     Int    = -1;
-        bucket_count: Int    = 0;
+        store: MetricMap;
+        histograms: HistogramList;
+        key: String = "";
+        hist_idx: Int = -1;
+        bucket_count: Int = 0;
         // `out_of_order` is the closure-monitored invariant:
         // count of cumulative-bucket pairs where counts[i+1] <
         // counts[i]. Stays 0 by construction (observe() only
         // increments cumulatively), so the closure passes
         // silently. The closure declaration below makes the
         // invariant audit-channel-observable.
-        out_of_order: Int    = 0;
+        out_of_order: Int = 0;
     }
 
     // Inline closure — the "buckets sum monotonically"

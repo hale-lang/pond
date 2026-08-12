@@ -17,7 +17,7 @@
 // both vendor adapters.
 fn __emit_message(b: std::json::Builder, role: String, content: String) {
     b.begin_object();
-    b.string_field("role",    role);
+    b.string_field("role", role);
     b.string_field("content", content);
     b.end_object();
 }
@@ -153,14 +153,14 @@ fn __parse_anthropic_response(body: String) -> LlmResponse {
     let mut in_tok = 0;
     let mut out_tok = 0;
     if len(usage_raw) > 0 {
-        in_tok  = std::json::find_int_field(usage_raw, "input_tokens");
+        in_tok = std::json::find_int_field(usage_raw, "input_tokens");
         out_tok = std::json::find_int_field(usage_raw, "output_tokens");
     }
 
     return LlmResponse {
-        text:          std::str::builder_finish(buf),
-        stop_reason:   stop,
-        input_tokens:  in_tok,
+        text: std::str::builder_finish(buf),
+        stop_reason: stop,
+        input_tokens: in_tok,
         output_tokens: out_tok
     };
 }
@@ -202,14 +202,14 @@ fn __parse_openai_response(body: String) -> LlmResponse {
     let mut in_tok = 0;
     let mut out_tok = 0;
     if len(usage_raw) > 0 {
-        in_tok  = std::json::find_int_field(usage_raw, "prompt_tokens");
+        in_tok = std::json::find_int_field(usage_raw, "prompt_tokens");
         out_tok = std::json::find_int_field(usage_raw, "completion_tokens");
     }
 
     return LlmResponse {
-        text:          text,
-        stop_reason:   stop,
-        input_tokens:  in_tok,
+        text: text,
+        stop_reason: stop,
+        input_tokens: in_tok,
         output_tokens: out_tok
     };
 }

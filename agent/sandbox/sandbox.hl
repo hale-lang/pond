@@ -48,9 +48,9 @@ import "../../subprocess" as sub;
 // surface yet, so it's a documented no-op at v1.
 locus Sandbox {
     params {
-        runtime:         String = "python3";
-        timeout_ms:      Int    = 30000;
-        memory_limit_mb: Int    = 512;
+        runtime: String = "python3";
+        timeout_ms: Int = 30000;
+        memory_limit_mb: Int = 512;
     }
 
     birth() {
@@ -73,11 +73,11 @@ locus Sandbox {
     // on it, capture stdout/stderr.
     fn run_code(code: String) -> SandboxResult fallible(SandboxError) {
         let path = std::io::fs::mktemp("/tmp/hale_sb_", ".script")
-            or self.raise_io(err);
+        or self.raise_io(err);
         std::io::fs::write_file(path, code)
-            or self.raise_io_after_cleanup(err, path);
+        or self.raise_io_after_cleanup(err, path);
         let r = self.run_file(path)
-            or self.raise_after_cleanup(err, path);
+        or self.raise_after_cleanup(err, path);
         // Best-effort cleanup of the temp file once run_file returned cleanly.
         std::io::fs::unlink(path) or discard;
         return r;
@@ -87,11 +87,11 @@ locus Sandbox {
     // `path`, capture stdout/stderr.
     fn run_file(path: String) -> SandboxResult fallible(SandboxError) {
         let out = sub::run_cmd(self.runtime, path)
-            or self.raise_spawn(err);
+        or self.raise_spawn(err);
         return SandboxResult {
             exit_code: out.status.code,
-            stdout:    std::str::from_bytes(out.stdout),
-            stderr:    std::str::from_bytes(out.stderr),
+            stdout: std::str::from_bytes(out.stdout),
+            stderr: std::str::from_bytes(out.stderr),
         };
     }
 
@@ -103,7 +103,7 @@ locus Sandbox {
     // propagates implicitly since hale 400ac68).
     fn raise_io(e: IoError) -> String fallible(SandboxError) {
         fail SandboxError {
-            kind:   "io",
+            kind: "io",
             detail: e.kind + ": " + e.path,
         };
     }
@@ -114,7 +114,7 @@ locus Sandbox {
     fn raise_io_after_cleanup(e: IoError, path: String) -> Int fallible(SandboxError) {
         std::io::fs::unlink(path) or discard;
         fail SandboxError {
-            kind:   "io",
+            kind: "io",
             detail: e.kind + ": " + e.path,
         };
     }
@@ -126,7 +126,7 @@ locus Sandbox {
     fn raise_after_cleanup(e: SandboxError, path: String) -> SandboxResult fallible(SandboxError) {
         std::io::fs::unlink(path) or discard;
         fail SandboxError {
-            kind:   e.kind,
+            kind: e.kind,
             detail: e.detail,
         };
     }
@@ -136,7 +136,7 @@ locus Sandbox {
     // re-fails. The sub::Output return type is never produced.
     fn raise_spawn(e: sub::SpawnError) -> sub::Output fallible(SandboxError) {
         fail SandboxError {
-            kind:   map_kind(e.kind),
+            kind: map_kind(e.kind),
             detail: e.detail,
         };
     }

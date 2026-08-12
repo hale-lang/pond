@@ -30,16 +30,16 @@
 // cross-lib dependency on pond/agent/conversation::Message —
 // that type also carries `ts`, which the vendors don't take).
 type LlmMsg {
-    role:    String = "";
+    role: String = "";
     content: String = "";
 }
 
 type LlmRequest {
-    model:       String = "";
-    system:      String = "";
-    messages:    bounded[LlmMsg; 128];
-    max_tokens:  Int    = 0;
-    temperature: Float  = 1.0;
+    model: String = "";
+    system: String = "";
+    messages: bounded[LlmMsg; 128];
+    max_tokens: Int = 0;
+    temperature: Float = 1.0;
 }
 
 // LlmResponse — the parsed response from a completion call.
@@ -52,10 +52,10 @@ type LlmRequest {
 // surfaced from the vendor's usage block; 0 if the vendor
 // didn't include them.
 type LlmResponse {
-    text:          String = "";
-    stop_reason:   String = "";
-    input_tokens:  Int    = 0;
-    output_tokens: Int    = 0;
+    text: String = "";
+    stop_reason: String = "";
+    input_tokens: Int = 0;
+    output_tokens: Int = 0;
 }
 
 // LlmError — the single fallible(LlmError) payload for every
@@ -78,7 +78,7 @@ type LlmResponse {
 // from a post-connect error envelope; 0 otherwise. `detail` is
 // the human-readable explanation.
 type LlmError {
-    kind:   String = "";
-    status: Int    = 0;
+    kind: String = "";
+    status: Int = 0;
     detail: String = "";
 }

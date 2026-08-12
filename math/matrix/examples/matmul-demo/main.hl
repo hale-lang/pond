@@ -115,6 +115,6 @@ fn main() {
     // at_checked free-fn — fallible surface.
     let v_ok = mat::at_checked(a, 1, 2) or 0.0;
     assert_eq_float("at_checked(A,1,2)", v_ok, 6.0);
-    let v_oob = mat::at_checked(a, 5, 5) or -1.0;
+    let v_oob = mat::at_checked(a, 5, 5) or - 1.0;
     assert_eq_float("at_checked(A,5,5) substitute", v_oob, -1.0);
 }

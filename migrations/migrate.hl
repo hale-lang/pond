@@ -73,7 +73,7 @@ import "../db" as db;
 @form(vec)
 locus Migrations {
     params {
-        n: Int = 0;   // tracked count (don't rely on synthesized len shape)
+        n: Int = 0; // tracked count (don't rely on synthesized len shape)
     }
     capacity { heap data of Migration; }
 
@@ -86,9 +86,9 @@ locus Migrations {
     // add_rev — register a reversible migration.
     fn add_rev(version: Int, name: String, up_sql: String, down_sql: String) {
         self.push(Migration {
-            version:  version,
-            name:     name,
-            up_sql:   up_sql,
+            version: version,
+            name: name,
+            up_sql: up_sql,
             down_sql: down_sql,
         });
         self.n = self.n + 1;
@@ -104,9 +104,9 @@ locus Migrations {
 
 locus Migrator {
     params {
-        driver:  db::DbDriver;   // injected: pq::PgConn / pq::PgPool / sqlite::Driver
-        set:     Migrations;     // injected: built in a main/lifecycle frame
-        verbose: Bool = true;    // false = silent (unit-test construction)
+        driver: db::DbDriver; // injected: pq::PgConn / pq::PgPool / sqlite::Driver
+        set: Migrations; // injected: built in a main/lifecycle frame
+        verbose: Bool = true; // false = silent (unit-test construction)
     }
 
     // ensure — create (or v1→v2 upgrade) the tracking table. Run
@@ -122,14 +122,14 @@ locus Migrator {
         }
         let e = self.driver.exec(
             "CREATE TABLE IF NOT EXISTS schema_migrations ("
-            + "version int PRIMARY KEY, "
-            + "name text NOT NULL, "
-            + "dirty int NOT NULL DEFAULT 0, "
-            + applied_at_ddl + ")");
+                + "version int PRIMARY KEY, "
+                + "name text NOT NULL, "
+                + "dirty int NOT NULL DEFAULT 0, "
+                + applied_at_ddl + ")");
         if !e.ok {
             fail MigrationError {
-                kind:        "ensure_failed",
-                detail:      e.err.detail,
+                kind: "ensure_failed",
+                detail: e.err.detail,
                 engine_code: e.err.engine_code,
             };
         }
@@ -140,11 +140,11 @@ locus Migrator {
         if !probe.ok {
             let a = self.driver.exec(
                 "ALTER TABLE schema_migrations"
-                + " ADD COLUMN dirty int NOT NULL DEFAULT 0");
+                    + " ADD COLUMN dirty int NOT NULL DEFAULT 0");
             if !a.ok {
                 fail MigrationError {
-                    kind:        "ensure_failed",
-                    detail:      "add dirty column: " + a.err.detail,
+                    kind: "ensure_failed",
+                    detail: "add dirty column: " + a.err.detail,
                     engine_code: a.err.engine_code,
                 };
             }
@@ -187,7 +187,7 @@ locus Migrator {
     fn up() -> Int fallible(MigrationError) {
         self.__pre() or raise;
         let n = self.__up_to(self.__last_version(), 1000000000)
-            or self.__unlock_refail(err);
+        or self.__unlock_refail(err);
         self.__unlock();
         return n;
     }
@@ -210,7 +210,7 @@ locus Migrator {
         self.__pre() or raise;
         if n > 0 {
             let k = self.__up_to(self.__last_version(), n)
-                or self.__unlock_refail(err);
+            or self.__unlock_refail(err);
             self.__unlock();
             return k;
         }
@@ -227,9 +227,9 @@ locus Migrator {
         if v != 0 && !self.__has(v) {
             self.__unlock();
             fail MigrationError {
-                kind:    "not_found",
+                kind: "not_found",
                 version: v,
-                detail:  "goto: version " + to_string(v)
+                detail: "goto: version " + to_string(v)
                     + " is not in the migration set",
             };
         }
@@ -258,9 +258,9 @@ locus Migrator {
         let b = self.driver.begin();
         if !b.ok {
             fail MigrationError {
-                kind:        "force_failed",
-                version:     v,
-                detail:      "begin: " + b.err.detail,
+                kind: "force_failed",
+                version: v,
+                detail: "begin: " + b.err.detail,
                 engine_code: b.err.engine_code,
             };
         }
@@ -269,9 +269,9 @@ locus Migrator {
         if !d.ok {
             let _ = self.driver.rollback();
             fail MigrationError {
-                kind:        "force_failed",
-                version:     v,
-                detail:      "delete: " + d.err.detail,
+                kind: "force_failed",
+                version: v,
+                detail: "delete: " + d.err.detail,
                 engine_code: d.err.engine_code,
             };
         }
@@ -279,18 +279,18 @@ locus Migrator {
         if !u.ok {
             let _ = self.driver.rollback();
             fail MigrationError {
-                kind:        "force_failed",
-                version:     v,
-                detail:      "clear dirty: " + u.err.detail,
+                kind: "force_failed",
+                version: v,
+                detail: "clear dirty: " + u.err.detail,
                 engine_code: u.err.engine_code,
             };
         }
         let c = self.driver.commit();
         if !c.ok {
             fail MigrationError {
-                kind:        "force_failed",
-                version:     v,
-                detail:      "commit: " + c.err.detail,
+                kind: "force_failed",
+                version: v,
+                detail: "commit: " + c.err.detail,
                 engine_code: c.err.engine_code,
             };
         }
@@ -309,7 +309,7 @@ locus Migrator {
         self.ensure() or raise;
         if self.dirty() {
             fail MigrationError {
-                kind:   "dirty",
+                kind: "dirty",
                 detail: "tracking table has dirty rows —"
                     + " inspect the schema, repair, then force(v)",
             };
@@ -319,8 +319,8 @@ locus Migrator {
                 "SELECT pg_advisory_lock(" + to_string(__lock_key()) + ")");
             if !l.ok {
                 fail MigrationError {
-                    kind:        "lock_failed",
-                    detail:      l.err.detail,
+                    kind: "lock_failed",
+                    detail: l.err.detail,
                     engine_code: l.err.engine_code,
                 };
             }
@@ -341,10 +341,10 @@ locus Migrator {
     fn __unlock_refail(e: MigrationError) -> Int fallible(MigrationError) {
         self.__unlock();
         fail MigrationError {
-            kind:        e.kind,
-            version:     e.version,
-            name:        e.name,
-            detail:      e.detail,
+            kind: e.kind,
+            version: e.version,
+            name: e.name,
+            detail: e.detail,
             engine_code: e.engine_code,
         };
     }
@@ -361,17 +361,17 @@ locus Migrator {
             let m = self.set.entry(i);
             if m.version <= prev {
                 fail MigrationError {
-                    kind:    "bad_set",
+                    kind: "bad_set",
                     version: m.version,
-                    name:    m.name,
-                    detail:  "versions must be strictly ascending and >= 1",
+                    name: m.name,
+                    detail: "versions must be strictly ascending and >= 1",
                 };
             }
             if m.name == "" {
                 fail MigrationError {
-                    kind:    "bad_set",
+                    kind: "bad_set",
                     version: m.version,
-                    detail:  "migration name must be non-empty",
+                    detail: "migration name must be non-empty",
                 };
             }
             prev = m.version;
@@ -435,18 +435,18 @@ locus Migrator {
                 let m = self.__find(cur);
                 if m.version == 0 {
                     fail MigrationError {
-                        kind:    "not_found",
+                        kind: "not_found",
                         version: cur,
-                        detail:  "applied version " + to_string(cur)
+                        detail: "applied version " + to_string(cur)
                             + " is not in the migration set — cannot revert",
                     };
                 }
                 if m.down_sql == "" {
                     fail MigrationError {
-                        kind:    "irreversible",
+                        kind: "irreversible",
                         version: m.version,
-                        name:    m.name,
-                        detail:  "no down_sql registered",
+                        name: m.name,
+                        detail: "no down_sql registered",
                     };
                 }
                 self.__revert_one(m) or raise;
@@ -462,10 +462,10 @@ locus Migrator {
         let b = self.driver.begin();
         if !b.ok {
             fail MigrationError {
-                kind:        "migration_failed",
-                version:     m.version,
-                name:        m.name,
-                detail:      "begin: " + b.err.detail,
+                kind: "migration_failed",
+                version: m.version,
+                name: m.name,
+                detail: "begin: " + b.err.detail,
                 engine_code: b.err.engine_code,
             };
         }
@@ -476,7 +476,7 @@ locus Migrator {
         }
         let t = self.driver.exec(
             "INSERT INTO schema_migrations (version, name) VALUES ("
-            + to_string(m.version) + ", " + __quote(m.name) + ")");
+                + to_string(m.version) + ", " + __quote(m.name) + ")");
         if !t.ok {
             self.__abort(m.version, m.name, "record", t.err,
                 __dirty_insert_sql(m)) or raise;
@@ -495,10 +495,10 @@ locus Migrator {
         let b = self.driver.begin();
         if !b.ok {
             fail MigrationError {
-                kind:        "migration_failed",
-                version:     m.version,
-                name:        m.name,
-                detail:      "begin: " + b.err.detail,
+                kind: "migration_failed",
+                version: m.version,
+                name: m.name,
+                detail: "begin: " + b.err.detail,
                 engine_code: b.err.engine_code,
             };
         }
@@ -509,7 +509,7 @@ locus Migrator {
         }
         let t = self.driver.exec(
             "DELETE FROM schema_migrations WHERE version = "
-            + to_string(m.version));
+                + to_string(m.version));
         if !t.ok {
             self.__abort(m.version, m.name, "unrecord", t.err,
                 __dirty_update_sql(m)) or raise;
@@ -541,19 +541,19 @@ locus Migrator {
         if !rb.ok {
             let _ = self.driver.exec(dirty_sql);
             fail MigrationError {
-                kind:        "rollback_failed",
-                version:     version,
-                name:        name,
-                detail:      stage + ": " + e.detail
+                kind: "rollback_failed",
+                version: version,
+                name: name,
+                detail: stage + ": " + e.detail
                     + " (rollback also failed: " + rb.err.detail + ")",
                 engine_code: e.engine_code,
             };
         }
         fail MigrationError {
-            kind:        "migration_failed",
-            version:     version,
-            name:        name,
-            detail:      stage + ": " + e.detail,
+            kind: "migration_failed",
+            version: version,
+            name: name,
+            detail: stage + ": " + e.detail,
             engine_code: e.engine_code,
         };
     }

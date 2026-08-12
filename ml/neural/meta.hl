@@ -45,14 +45,14 @@ fn parse_layer_at(meta: String, i: Int, params_len: Int, layer_count: Int)
             found_act = act;
             // running_offset is this layer's weights_offset.
             return Layer {
-                name:           "dense_" + to_string(i),
-                input_dim:      in_d,
-                output_dim:     out_d,
-                activation:     act,
+                name: "dense_" + to_string(i),
+                input_dim: in_d,
+                output_dim: out_d,
+                activation: act,
                 weights_offset: running_offset,
-                weights_count:  in_d * out_d,
-                biases_offset:  running_offset + in_d * out_d,
-                biases_count:   out_d,
+                weights_count: in_d * out_d,
+                biases_offset: running_offset + in_d * out_d,
+                biases_count: out_d,
             };
         }
         running_offset = running_offset + in_d * out_d + out_d;
@@ -69,9 +69,9 @@ fn parse_layer_at(meta: String, i: Int, params_len: Int, layer_count: Int)
 
 // Helper return type for splitting "a,b,c" into three Strings.
 type TripleCsv {
-    first:  String = "";
+    first: String = "";
     second: String = "";
-    third:  String = "";
+    third: String = "";
 }
 
 fn parse_three_csv(row: String) -> TripleCsv {
@@ -102,9 +102,9 @@ fn parse_three_csv(row: String) -> TripleCsv {
         third = std::str::substring(row, b_end + 1, total);
     }
     return TripleCsv {
-        first:  std::str::trim(first),
+        first: std::str::trim(first),
         second: std::str::trim(second),
-        third:  std::str::trim(third),
+        third: std::str::trim(third),
     };
 }
 

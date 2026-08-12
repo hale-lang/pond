@@ -52,14 +52,14 @@ fn main() {
     std::test::assert_eq_int(lst.selected, 0, "wheel_up moves selection back");
 
     let empty = tui::List { };
-    empty.handle(key_ev("down"));   // must not crash / go negative
+    empty.handle(key_ev("down")); // must not crash / go negative
     std::test::assert_eq_int(empty.count(), 0, "empty list stays empty");
     std::test::assert_eq_str(empty.selected_item(), "", "empty list has no item");
 
     // ----- List draw -> cells ----------------------------------------------------
     let s = tui::Screen { };
     s.resize(20, 6);
-    lst.handle(key_ev("down"));   // select "beta"
+    lst.handle(key_ev("down")); // select "beta"
     lst.draw(s, 0, 0, 10, 3);
     // row 0 (unselected): "  alpha"
     let r0c2 = cell_at(s, 2, 0);

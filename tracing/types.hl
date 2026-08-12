@@ -56,12 +56,12 @@ type SpanId {
 // trailing tab. Empty string means no attributes. Parsers
 // tokenize on `\t` and split each entry on the first `=`.
 type Span {
-    id:       SpanId;
-    parent:   SpanId;
-    name:     String = "";
-    start_ns: Int    = 0;
-    end_ns:   Int    = 0;
-    attrs:    String = "";
+    id: SpanId;
+    parent: SpanId;
+    name: String = "";
+    start_ns: Int = 0;
+    end_ns: Int = 0;
+    attrs: String = "";
 }
 
 // TraceError — fallible(TraceError) payload for export_otlp.
@@ -75,6 +75,6 @@ type Span {
 // transport is translated into this shape at the call site via
 // `... or fail TraceError { ... }`.
 type TraceError {
-    kind:   String = "";
+    kind: String = "";
     detail: String = "";
 }

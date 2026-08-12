@@ -20,7 +20,7 @@
 // content may now contain anything). Access via
 // `history_count()` / `history_at(i)`.
 type Message {
-    role:    String = "";
+    role: String = "";
     content: String = "";
-    ts:      Time   = `1970-01-01T00:00:00Z`;
+    ts: Time = `1970-01-01T00:00:00Z`;
 }

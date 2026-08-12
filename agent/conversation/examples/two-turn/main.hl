@@ -37,19 +37,19 @@ locus TwoTurn {
         // wired (the topic exists for downstream consumers like
         // an LLM-client mirror).
         c.append(conv::Message {
-            role:    "user",
+            role: "user",
             content: "hello",
-            ts:      `2026-05-16T00:00:00Z`,
+            ts: `2026-05-16T00:00:00Z`,
         });
         c.append(conv::Message {
-            role:    "assistant",
+            role: "assistant",
             content: "hi there",
-            ts:      `2026-05-16T00:00:01Z`,
+            ts: `2026-05-16T00:00:01Z`,
         });
         c.append(conv::Message {
-            role:    "user",
+            role: "user",
             content: "how are you",
-            ts:      `2026-05-16T00:00:02Z`,
+            ts: `2026-05-16T00:00:02Z`,
         });
 
         // Step 3: print the retained history (2026-07-02 —

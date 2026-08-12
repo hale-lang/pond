@@ -12,14 +12,14 @@
 //   driver.exec_params("INSERT INTO contract (symbol,min_tick,note) VALUES ($1,$2,$3)", a);
 
 type ArgVal {
-    val:     String = "";
-    is_null: Bool   = false;
+    val: String = "";
+    is_null: Bool = false;
 }
 
 @form(vec)
 locus Args {
     params {
-        n: Int = 0;     // tracked count (don't rely on synthesized len shape)
+        n: Int = 0; // tracked count (don't rely on synthesized len shape)
     }
     capacity { heap data of ArgVal; }
 
@@ -32,6 +32,6 @@ locus Args {
         self.n = self.n + 1;
     }
     fn count() -> Int { return self.n; }
-    fn val_at(i: Int)  -> String { let a = self.get(i) or ArgVal { }; return a.val; }
-    fn null_at(i: Int) -> Bool   { let a = self.get(i) or ArgVal { }; return a.is_null; }
+    fn val_at(i: Int) -> String { let a = self.get(i) or ArgVal { }; return a.val; }
+    fn null_at(i: Int) -> Bool { let a = self.get(i) or ArgVal { }; return a.is_null; }
 }

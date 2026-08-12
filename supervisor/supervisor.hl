@@ -48,7 +48,7 @@ locus Supervisor {
         // `window_seconds`, the supervisor itself escalates via
         // bubble(err) instead of continuing to restart. Defaults
         // (3 in 60s) match Erlang OTP's traditional MaxR/MaxT.
-        max_restarts:   Int = 3;
+        max_restarts: Int = 3;
         window_seconds: Int = 60;
 
         // Internal restart-window bookkeeping. Initialized in birth();
@@ -69,12 +69,12 @@ locus Supervisor {
         //   spec_restarts    — newline-separated restart policies
         //                      ("permanent" / "transient" / "temporary"),
         //                      one per line, parallel to spec_names.
-        restart_count:    Int    = 0;
-        window_start_ns:  Int    = 0;
-        children_seen:    Int    = 0;
-        spec_count:       Int    = 0;
-        spec_names:       String = "";
-        spec_restarts:    String = "";
+        restart_count: Int = 0;
+        window_start_ns: Int = 0;
+        children_seen: Int = 0;
+        spec_count: Int = 0;
+        spec_names: String = "";
+        spec_restarts: String = "";
     }
 
     birth() {
@@ -122,10 +122,10 @@ locus Supervisor {
     fn add_child(spec: ChildSpec, child_name: String) {
         let _ = child_name;
         if self.spec_count == 0 {
-            self.spec_names    = spec.name;
+            self.spec_names = spec.name;
             self.spec_restarts = spec.policy;
         } else {
-            self.spec_names    = self.spec_names    + "\n" + spec.name;
+            self.spec_names = self.spec_names + "\n" + spec.name;
             self.spec_restarts = self.spec_restarts + "\n" + spec.policy;
         }
         self.spec_count = self.spec_count + 1;
@@ -150,14 +150,14 @@ locus Supervisor {
     // birth" behavior; production callers leave it false and route
     // real failures through Worker.fail(reason).
     fn spawn_worker(name: String, kind: String, payload: String,
-                    fail_on_birth: Bool) {
-        Worker {
-            name:          name,
-            kind:          kind,
-            payload:       payload,
-            fail_on_birth: fail_on_birth,
-        };
-    }
+        fail_on_birth: Bool) {
+            Worker {
+                name: name,
+                kind: kind,
+                payload: payload,
+                fail_on_birth: fail_on_birth,
+            };
+        }
 
     // lookup_restart(name) — find a child's restart policy in the
     // spec table. Returns "permanent" if the child wasn't registered
@@ -178,11 +178,11 @@ locus Supervisor {
         let r_len = len(rests);
         while i < self.spec_count {
             let mut name_end = name_start;
-            while name_end < n_len && names[name_end..name_end+1] != "\n" {
+            while name_end < n_len && names[name_end..name_end + 1] != "\n" {
                 name_end = name_end + 1;
             }
             let mut rest_end = rest_start;
-            while rest_end < r_len && rests[rest_end..rest_end+1] != "\n" {
+            while rest_end < r_len && rests[rest_end..rest_end + 1] != "\n" {
                 rest_end = rest_end + 1;
             }
             let this_name = names[name_start..name_end];
@@ -272,13 +272,13 @@ locus Supervisor {
         // chain the cases through if/else.
         if policy == "temporary" {
             println("supervisor: child=", c.name,
-                    " policy=temporary; absorbing closure=", err.closure);
+                " policy=temporary; absorbing closure=", err.closure);
         } else {
             if !self.intensity_check() {
                 println("supervisor: intensity exceeded (",
-                        self.restart_count, " > ", self.max_restarts,
-                        " in ", self.window_seconds, "s) — bubbling");
-                bubble(err);
+                    self.restart_count, " > ", self.max_restarts,
+                    " in ", self.window_seconds, "s) — bubbling");
+                bubble (err);
             } else {
                 self.route_by_strategy(c, err);
             }
@@ -296,13 +296,13 @@ locus Supervisor {
 
         if kind == "escalate" {
             println("supervisor: strategy=escalate; bubbling closure=",
-                    err.closure, " from child=", c.name);
-            bubble(err);
+                err.closure, " from child=", c.name);
+            bubble (err);
         } else {
             if kind == "one_for_one" {
                 println("supervisor: one_for_one restart child=", c.name,
-                        " (last_error=", c.last_error, ")");
-                restart(c);
+                    " (last_error=", c.last_error, ")");
+                restart (c);
             } else {
                 if kind == "rest_for_one" {
                     // TODO: needs sibling iteration that supports
@@ -311,8 +311,8 @@ locus Supervisor {
                     // child; the spec is documented and exercised by
                     // example/one-for-one. See FRICTION.log.
                     println("supervisor: rest_for_one (degraded — restarting only c=",
-                            c.name, "); see FRICTION.log");
-                    restart(c);
+                        c.name, "); see FRICTION.log");
+                    restart (c);
                 } else {
                     if kind == "one_for_all" {
                         // TODO: needs `for sib in self.children {
@@ -320,15 +320,15 @@ locus Supervisor {
                         // set. Degraded to one_for_one semantics with
                         // a friction note. See FRICTION.log.
                         println("supervisor: one_for_all (degraded — restarting only c=",
-                                c.name, "); see FRICTION.log");
-                        restart(c);
+                            c.name, "); see FRICTION.log");
+                        restart (c);
                     } else {
                         // Unknown strategy.kind — defensive default:
                         // bubble so the problem surfaces rather than
                         // silently absorbing.
                         println("supervisor: unknown strategy kind=", kind,
-                                "; bubbling");
-                        bubble(err);
+                            "; bubbling");
+                        bubble (err);
                     }
                 }
             }

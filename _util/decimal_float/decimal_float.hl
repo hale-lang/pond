@@ -52,7 +52,7 @@ locus DecimalFloat {
         let neg = f < 0.0;
         let mut g = f;
         if neg { g = 0.0 - g; }
-        let whole          = Int(g);
+        let whole = Int(g);
         let whole_f: Float = whole;
         let frac_thousands = Int((g - whole_f) * 1000.0);
 

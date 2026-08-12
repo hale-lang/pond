@@ -45,7 +45,7 @@ locus DurationInt {
     // intermediate String allocation that surfaces in
     // allocation profilers (~410 events/sec at 60fps WS recv).
     fn to_ns(d: Duration) -> Int {
-        let s     = to_string(d);
+        let s = to_string(d);
         let s_len = len(s);
         if s_len < 2 {
             return 0;

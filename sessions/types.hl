@@ -24,7 +24,7 @@
 //      reason. (Logged as a duplicate-suspected candidate in
 //      FRICTION.log.)
 type Session {
-    id:   String = "";
+    id: String = "";
     data: String = "";
 }
 

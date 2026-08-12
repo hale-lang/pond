@@ -51,43 +51,43 @@ locus WsServerConn {
         // Any inbound bytes count as liveness and re-arm
         // `ping_interval`.
         ping_interval: Duration = 30s;
-        pong_timeout:  Duration = 10s;
+        pong_timeout: Duration = 10s;
 
         // ---- internal state ----
         handshake_done: Bool = false;
-        connected:      Bool = false;
-        awaiting_pong:  Bool = false;
+        connected: Bool = false;
+        awaiting_pong: Bool = false;
 
         rx_buf: std::bytes::BytesBuilder
-              = std::bytes::BytesBuilder { initial_cap: 8192 };
+            = std::bytes::BytesBuilder { initial_cap: 8192 };
 
         frag_kind: String = "";
-        frag_buf:  std::bytes::BytesBuilder
-                 = std::bytes::BytesBuilder { initial_cap: 1024 };
+        frag_buf: std::bytes::BytesBuilder
+            = std::bytes::BytesBuilder { initial_cap: 1024 };
 
         scratch_buf: std::bytes::BytesBuilder
-                   = std::bytes::BytesBuilder { initial_cap: 128 };
+            = std::bytes::BytesBuilder { initial_cap: 128 };
 
         // ---- exposed via contract ----
         last_message: WsMessage;
-        last_error:   WsError;
+        last_error: WsError;
 
         frames_received: Int = 0;
-        frames_sent:     Int = 0;
+        frames_sent: Int = 0;
 
         // ---- diagnostic logger ----
-        logger: WsLogger =   StderrWsLogger { };
+        logger: WsLogger = StderrWsLogger { };
 
         // recv chunk size
         recv_chunk: Int = 4096;
     }
 
     contract {
-        expose connected:        Bool;
-        expose last_message:     WsMessage;
-        expose last_error:       WsError;
-        expose frames_received:  Int;
-        expose frames_sent:      Int;
+        expose connected: Bool;
+        expose last_message: WsMessage;
+        expose last_error: WsError;
+        expose frames_received: Int;
+        expose frames_sent: Int;
     }
 
     birth() {
@@ -118,28 +118,28 @@ locus WsServerConn {
             let got = std::io::tcp::recv_into(self.conn_fd, self.rx_buf, self.recv_chunk);
             if got == -2 {
                 self.last_error = WsError {
-                    kind:   "timeout",
+                    kind: "timeout",
                     detail: "no upgrade request within pong_timeout",
                 };
                 self.logger.on_event(WsLogEvent {
-                    phase:  "handshake",
+                    phase: "handshake",
                     detail: "upgrade request timed out",
-                    bytes:  total,
-                    op:     -1,
+                    bytes: total,
+                    op: -1,
                 });
                 self.connected = false;
                 return false;
             }
             if got <= 0 {
                 self.last_error = WsError {
-                    kind:   "handshake",
+                    kind: "handshake",
                     detail: "peer closed before upgrade headers complete",
                 };
                 self.logger.on_event(WsLogEvent {
-                    phase:  "handshake",
+                    phase: "handshake",
                     detail: "peer closed",
-                    bytes:  total,
-                    op:     -1,
+                    bytes: total,
+                    op: -1,
                 });
                 self.connected = false;
                 return false;
@@ -148,32 +148,32 @@ locus WsServerConn {
             let snap = self.rx_buf.snapshot();
             let s = std::str::from_bytes(snap);
             if std::str::contains(s, "\r\n\r\n") {
-                total = cap;     // exit loop
+                total = cap; // exit loop
             }
         }
 
         let req_bytes = self.rx_buf.snapshot();
         let req = parse_request(req_bytes);
         self.logger.on_event(WsLogEvent {
-            phase:  "handshake",
+            phase: "handshake",
             detail: "recv upgrade path=" + req.path,
-            bytes:  len(req_bytes),
-            op:     -1,
+            bytes: len(req_bytes),
+            op: -1,
         });
 
         if !req.has_upgrade || req.key == "" {
-            let body =   build_400_response("missing Upgrade or Sec-WebSocket-Key");
+            let body = build_400_response("missing Upgrade or Sec-WebSocket-Key");
             stream.send_bytes(body) or discard;
             self.last_error = WsError {
-                kind:   "handshake",
+                kind: "handshake",
                 detail: "not a websocket upgrade",
             };
             self.connected = false;
             return false;
         }
 
-        let accept_key =   compute_accept(req.key);
-        let resp       =   build_101_response(accept_key);
+        let accept_key = compute_accept(req.key);
+        let resp = build_101_response(accept_key);
         stream.send_bytes(resp) or discard;
 
         self.handshake_done = true;
@@ -183,10 +183,10 @@ locus WsServerConn {
         self.set_recv_deadline(self.ping_interval);
 
         self.logger.on_event(WsLogEvent {
-            phase:  "handshake",
+            phase: "handshake",
             detail: "101 sent for path " + req.path,
-            bytes:  len(resp),
-            op:     -1,
+            bytes: len(resp),
+            op: -1,
         });
         return true;
     }
@@ -199,7 +199,7 @@ locus WsServerConn {
     fn read_msg() -> Bool {
         if !self.handshake_done {
             self.last_error = WsError {
-                kind:   "framing",
+                kind: "framing",
                 detail: "read_msg before handshake",
             };
             return false;
@@ -215,7 +215,7 @@ locus WsServerConn {
             }
 
             let buf = self.rx_buf.snapshot();
-            let hdr =   peek_header(buf, 0) or __raise_framing(err, self);
+            let hdr = peek_header(buf, 0) or __raise_framing(err, self);
             if hdr.total <= 0 {
                 return false;
             }
@@ -233,30 +233,30 @@ locus WsServerConn {
             // Unmask payload into scratch (client-to-server is
             // always masked per RFC 6455 § 5.1).
             self.scratch_buf.clear();
-              unmask_into(self.scratch_buf, full,
-                            hdr.payload_off, hdr.payload_len,
-                            hdr.masked,
-                            hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
+            unmask_into(self.scratch_buf, full,
+                hdr.payload_off, hdr.payload_len,
+                hdr.masked,
+                hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
             let payload = self.scratch_buf.snapshot();
 
             // Consume the frame from rx_buf.
             self.rx_buf.shift_front(hdr.total);
 
-            let kind =   opcode_to_kind(hdr.opcode);
+            let kind = opcode_to_kind(hdr.opcode);
 
             // Control frames: handle inline, then loop for the
             // next frame.
             if kind == "ping" {
-                let pong =   emit_server_frame(true, 10, payload);
+                let pong = emit_server_frame(true, 10, payload);
                 stream.send_bytes(pong) or discard;
                 self.frames_sent = self.frames_sent + 1;
             } else if kind == "close" {
-                let close =   emit_server_frame(true, 8, payload);
+                let close = emit_server_frame(true, 8, payload);
                 stream.send_bytes(close) or discard;
                 self.frames_sent = self.frames_sent + 1;
                 self.connected = false;
                 self.last_error = WsError {
-                    kind:   "close",
+                    kind: "close",
                     detail: "peer requested close",
                 };
                 return false;
@@ -283,7 +283,7 @@ locus WsServerConn {
                         if self.last_message.kind != self.frag_kind {
                             self.last_message.kind = self.frag_kind;
                         }
-                        self.last_message.text  = self.frag_buf.text_view();
+                        self.last_message.text = self.frag_buf.text_view();
                         self.last_message.bytes = self.frag_buf.view();
                         self.frag_kind = "";
                     } else {
@@ -299,7 +299,7 @@ locus WsServerConn {
                         if self.last_message.kind != kind {
                             self.last_message.kind = kind;
                         }
-                        self.last_message.text  = self.frag_buf.text_view();
+                        self.last_message.text = self.frag_buf.text_view();
                         self.last_message.bytes = self.frag_buf.view();
                     }
                     return true;
@@ -325,10 +325,10 @@ locus WsServerConn {
         let stream = std::io::tcp::Stream { conn_fd: self.conn_fd, owns_fd: false };
         let ping = emit_server_frame(true, 9, b"");
         let pong_dead = WsLogEvent {
-            phase:  "error",
+            phase: "error",
             detail: "pong deadline exceeded; peer presumed dead",
-            bytes:  0,
-            op:     -1,
+            bytes: 0,
+            op: -1,
         };
         while true {
             let got = std::io::tcp::recv_into(self.conn_fd, self.rx_buf, self.recv_chunk);
@@ -344,7 +344,7 @@ locus WsServerConn {
                     self.awaiting_pong = false;
                     self.connected = false;
                     self.last_error = WsError {
-                        kind:   "timeout",
+                        kind: "timeout",
                         detail: "no pong within pong_timeout; peer presumed dead",
                     };
                     self.logger.on_event(pong_dead);
@@ -353,14 +353,14 @@ locus WsServerConn {
                 // First silence: proactive ping (best-effort),
                 // then arm the pong deadline.
                 self.awaiting_pong = true;
-                stream.send_bytes(ping) or discard;   // best-effort; a dead
+                stream.send_bytes(ping) or discard; // best-effort; a dead
                 // peer is caught by the pong deadline, not the send error
                 self.frames_sent = self.frames_sent + 1;
                 self.set_recv_deadline(self.pong_timeout);
             } else {
                 // EOF (0) or fatal recv error (< 0, not -2).
                 self.last_error = WsError {
-                    kind:   "io",
+                    kind: "io",
                     detail: "peer closed",
                 };
                 self.connected = false;
@@ -393,12 +393,12 @@ locus WsServerConn {
     fn send_frame(opcode: Int, payload: Bytes) -> () fallible(WsError) {
         if !self.connected {
             fail WsError {
-                kind:   "io",
+                kind: "io",
                 detail: "send on closed connection",
             };
         }
         let stream = std::io::tcp::Stream { conn_fd: self.conn_fd, owns_fd: false };
-        let frame =   emit_server_frame(true, opcode, payload);
+        let frame = emit_server_frame(true, opcode, payload);
         // EPIPE / closed peer: since hale 9bc53d5 send_bytes fails with
         // IoError on a genuine error (success is Unit; it loops until the
         // whole frame is written, so there is no short-write case).
@@ -411,13 +411,13 @@ locus WsServerConn {
     fn __send_frame_failed(e: IoError) -> () fallible(WsError) {
         self.connected = false;
         self.logger.on_event(WsLogEvent {
-            phase:  "close",
+            phase: "close",
             detail: "send failed; peer gone",
-            bytes:  0,
-            op:     -1,
+            bytes: 0,
+            op: -1,
         });
         fail WsError {
-            kind:   "io",
+            kind: "io",
             detail: "send failed; peer gone",
         };
     }
@@ -436,16 +436,15 @@ locus WsServerConn {
 
 // ===== free-fn helpers =====
 
-fn __raise_framing(e: WsError, c: WsServerConn) ->   FrameHeader {
+fn __raise_framing(e: WsError, c: WsServerConn) -> FrameHeader {
     c.last_error = WsError {
-        kind:   "framing",
+        kind: "framing",
         detail: e.detail,
     };
     c.connected = false;
-    return   FrameHeader {
-        fin:    false,
+    return FrameHeader {
+        fin: false,
         opcode: 0,
-        total:  -1,
+        total: -1,
     };
 }
-

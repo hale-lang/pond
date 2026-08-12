@@ -42,10 +42,10 @@ locus Calculator {
 
     fn spec() -> tools::ToolSpec {
         return tools::ToolSpec {
-            name:        "calculator",
+            name: "calculator",
             description: "Evaluate a simple arithmetic op (add/sub/mul/div) on two ints.",
             input_schema:
-                "{\"type\":\"object\","
+            "{\"type\":\"object\","
                 + "\"properties\":{"
                 + "\"op\":{\"type\":\"string\",\"enum\":[\"add\",\"sub\",\"mul\",\"div\"]},"
                 + "\"a\":{\"type\":\"integer\"},"
@@ -57,8 +57,8 @@ locus Calculator {
 
     fn invoke(call: tools::ToolCall) -> tools::ToolResult {
         let op = std::json::find_string_field(call.args_json, "op");
-        let a  = std::json::find_int_field(call.args_json, "a");
-        let b  = std::json::find_int_field(call.args_json, "b");
+        let a = std::json::find_int_field(call.args_json, "a");
+        let b = std::json::find_int_field(call.args_json, "b");
 
         let mut out = "";
         let mut err = false;
@@ -88,8 +88,8 @@ locus Calculator {
         }
 
         return tools::ToolResult {
-            call_id:  call.call_id,
-            content:  out,
+            call_id: call.call_id,
+            content: out,
             is_error: err
         };
     }
@@ -126,13 +126,13 @@ locus CalcDemo {
         // come back as ToolResult with `is_error: true` even on
         // the happy `dispatch` path.
         let add_call = tools::ToolCall {
-            name:      "calculator",
+            name: "calculator",
             args_json: "{\"op\":\"add\",\"a\":2,\"b\":3}",
-            call_id:   "call_001"
+            call_id: "call_001"
         };
         let add_res = reg.dispatch(add_call) or err_to_result(err);
         println("add(2,3)        = ", add_res.content,
-                "  is_error=", add_res.is_error);
+            "  is_error=", add_res.is_error);
         if add_res.content != "5" {
             println("FAIL: expected \"5\", got \"", add_res.content, "\"");
         } else {
@@ -141,25 +141,25 @@ locus CalcDemo {
 
         // ----- 2. Other ops: sub / mul / div ------------------
         let sub_call = tools::ToolCall {
-            name:      "calculator",
+            name: "calculator",
             args_json: "{\"op\":\"sub\",\"a\":10,\"b\":4}",
-            call_id:   "call_002"
+            call_id: "call_002"
         };
         let sub_res = reg.dispatch(sub_call) or err_to_result(err);
         println("sub(10,4)       = ", sub_res.content);
 
         let mul_call = tools::ToolCall {
-            name:      "calculator",
+            name: "calculator",
             args_json: "{\"op\":\"mul\",\"a\":6,\"b\":7}",
-            call_id:   "call_003"
+            call_id: "call_003"
         };
         let mul_res = reg.dispatch(mul_call) or err_to_result(err);
         println("mul(6,7)        = ", mul_res.content);
 
         let div_call = tools::ToolCall {
-            name:      "calculator",
+            name: "calculator",
             args_json: "{\"op\":\"div\",\"a\":20,\"b\":4}",
-            call_id:   "call_004"
+            call_id: "call_004"
         };
         let div_res = reg.dispatch(div_call) or err_to_result(err);
         println("div(20,4)       = ", div_res.content);
@@ -168,23 +168,23 @@ locus CalcDemo {
         // Tool-internal failures surface as ToolResult with
         // is_error=true, NOT as a ToolError. Dispatch succeeds.
         let dz_call = tools::ToolCall {
-            name:      "calculator",
+            name: "calculator",
             args_json: "{\"op\":\"div\",\"a\":5,\"b\":0}",
-            call_id:   "call_005"
+            call_id: "call_005"
         };
         let dz_res = reg.dispatch(dz_call) or err_to_result(err);
         println("div(5,0)        = ", dz_res.content,
-                "  is_error=", dz_res.is_error);
+            "  is_error=", dz_res.is_error);
 
         // ----- 4. Unknown op (Tool-internal) ------------------
         let uo_call = tools::ToolCall {
-            name:      "calculator",
+            name: "calculator",
             args_json: "{\"op\":\"pow\",\"a\":2,\"b\":8}",
-            call_id:   "call_006"
+            call_id: "call_006"
         };
         let uo_res = reg.dispatch(uo_call) or err_to_result(err);
         println("pow(2,8)        = ", uo_res.content,
-                "  is_error=", uo_res.is_error);
+            "  is_error=", uo_res.is_error);
 
         // ----- 5. Unknown tool (Registry-side failure) --------
         // The fallible method `reg.dispatch` raises
@@ -193,13 +193,13 @@ locus CalcDemo {
         // demo printed before so the contract surface stays
         // visible to the test oracle.
         let bad_call = tools::ToolCall {
-            name:      "nonexistent",
+            name: "nonexistent",
             args_json: "{}",
-            call_id:   "call_007"
+            call_id: "call_007"
         };
         let bad_res = reg.dispatch(bad_call) or err_to_result(err);
         println("nonexistent     = ", bad_res.content,
-                "  is_error=", bad_res.is_error);
+            "  is_error=", bad_res.is_error);
 
         // ----- 6. JSON spec dump ------------------------------
         // This is what gets concatenated into the `tools: [...]`
@@ -218,8 +218,8 @@ locus CalcDemo {
 // reason about the failure.
 fn err_to_result(e: tools::ToolError) -> tools::ToolResult {
     return tools::ToolResult {
-        call_id:  "",
-        content:  e.kind + ": " + e.detail,
+        call_id: "",
+        content: e.kind + ": " + e.detail,
         is_error: true
     };
 }

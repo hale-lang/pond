@@ -41,8 +41,8 @@ locus StatsDemo {
         //   mean    = 20 / 5  = 4.0
         //   var     = sum((xi-4)^2)/5 = (4+0+0+0+4)/5 = 1.6
         //   stddev  = sqrt(1.6)        ≈ 1.2649110...
-        let mu  = stats::mean(xs);
-        let sd  = stats::stddev(xs);
+        let mu = stats::mean(xs);
+        let sd = stats::stddev(xs);
         println("batch mean   = ", to_string(mu));
         println("batch stddev = ", to_string(sd));
         near_eq(mu, 4.0, 0.0001, "batch mean");
@@ -70,7 +70,7 @@ locus StatsDemo {
         om.observe(4.0);
         om.observe(6.0);
         let online_mean = om.current_mean();
-        let online_var  = om.current_var();
+        let online_var = om.current_var();
         println("online mean = ", to_string(online_mean));
         println("online var  = ", to_string(online_var));
         near_eq(online_mean, mu, 0.0001, "online mean vs batch mean");

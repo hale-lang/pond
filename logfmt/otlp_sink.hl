@@ -54,7 +54,6 @@
 //   4 DEBUG → 5
 //   5 TRACE → 1
 
-
 locus OtlpSink {
     params {
         endpoint: String = "";
@@ -295,11 +294,11 @@ locus OtlpSink {
     }
 
     fn __severity_number(level: Int) -> Int {
-        if level == 1 { return 9; }   // INFO
-        if level == 2 { return 13; }  // WARN
-        if level == 3 { return 17; }  // ERROR
-        if level == 4 { return 5; }   // DEBUG
-        if level == 5 { return 1; }   // TRACE
+        if level == 1 { return 9; } // INFO
+        if level == 2 { return 13; } // WARN
+        if level == 3 { return 17; } // ERROR
+        if level == 4 { return 5; } // DEBUG
+        if level == 5 { return 1; } // TRACE
         return 0;
     }
 

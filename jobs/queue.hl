@@ -122,7 +122,7 @@ locus Queue {
         let _ = self.db.step(stmt) or self.__db_step_fin(err, stmt);
         self.db.finalize(stmt) or self.__db_unit(err);
         let row = self.db.query_one("SELECT last_insert_rowid()")
-            or self.__db_row(err);
+        or self.__db_row(err);
         return std::str::parse_int(row.data) or 0;
     }
 
@@ -153,7 +153,7 @@ locus Queue {
             tries = tries + 1;
         }
         fail JobError {
-            kind:   "db",
+            kind: "db",
             detail: "dequeue: lost 100 consecutive claim races on " + self.table,
         };
     }
@@ -169,7 +169,7 @@ locus Queue {
         let r = self.db.exec(upd) or self.__db_exec(err);
         if r.rows_affected <= 0 {
             fail JobError {
-                kind:   "not_found",
+                kind: "not_found",
                 detail: "ack: no in_flight row with id " + to_string(job_id),
             };
         }
@@ -200,7 +200,7 @@ locus Queue {
         let r = self.db.exec(upd) or self.__db_exec(err);
         if r.rows_affected <= 0 {
             fail JobError {
-                kind:   "not_found",
+                kind: "not_found",
                 detail: "fail: no in_flight row with id " + to_string(job_id),
             };
         }
@@ -211,7 +211,7 @@ locus Queue {
     fn __guard() -> () fallible(JobError) {
         if self.schema_error != "" {
             fail JobError {
-                kind:   "db",
+                kind: "db",
                 detail: "schema bringup failed at birth: " + self.schema_error,
             };
         }
@@ -268,7 +268,7 @@ locus Queue {
     fn __db_row_or_empty(e: sqlite::DbError) -> sqlite::Row fallible(JobError) {
         if e.kind == "no_row" {
             fail JobError {
-                kind:   "empty",
+                kind: "empty",
                 detail: "no ready jobs in " + self.table,
             };
         }
@@ -300,15 +300,15 @@ fn __parse_job_row(data: String) -> Job {
     let t4 = std::str::index_of(rest3, "\t");
     if t4 < 0 {
         return Job { id: id, attempt: attempt, max_attempts: max_attempts,
-                     kind: rest3 };
+            kind: rest3 };
     }
     let kind = rest3[0..t4];
     let payload = rest3[(t4 + 1)..len(rest3)];
     return Job {
-        id:           id,
-        kind:         kind,
-        payload:      payload,
-        attempt:      attempt,
+        id: id,
+        kind: kind,
+        payload: payload,
+        attempt: attempt,
         max_attempts: max_attempts,
     };
 }

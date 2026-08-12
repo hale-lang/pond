@@ -52,9 +52,9 @@ fn main() {
     let back = emb::to_matrix(e);
     std::test::assert_eq_int(back.rows, 1, "round-trip rows");
     std::test::assert_eq_int(back.cols, 3, "round-trip cols");
-    near_eq(back.get(0) or -999.0, 1.5, "round-trip [0]");
-    near_eq(back.get(1) or -999.0, -2.0, "round-trip [1]");
-    near_eq(back.get(2) or -999.0, 0.25, "round-trip [2]");
+    near_eq(back.get(0) or - 999.0, 1.5, "round-trip [0]");
+    near_eq(back.get(1) or - 999.0, -2.0, "round-trip [1]");
+    near_eq(back.get(2) or - 999.0, 0.25, "round-trip [2]");
 
     // Empty embedding -> 1x0 matrix.
     let e0 = emb::Embedding { id: "x", vector_csv: "", metadata: "" };

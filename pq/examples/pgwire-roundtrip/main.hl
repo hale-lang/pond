@@ -30,20 +30,20 @@ import "../../../db" as db;
 import "../.." as pq;
 
 fn main() {
-    let host     = std::env::arg_or(1, "127.0.0.1");
-    let port     = std::str::parse_int(std::env::arg_or(2, "55433")) or 55433;
-    let user     = std::env::arg_or(3, "postgres");
+    let host = std::env::arg_or(1, "127.0.0.1");
+    let port = std::str::parse_int(std::env::arg_or(2, "55433")) or 55433;
+    let user = std::env::arg_or(3, "postgres");
     let password = std::env::arg_or(4, "testpass");
     let database = std::env::arg_or(5, "postgres");
-    let sql      = std::env::arg_or(6,
+    let sql = std::env::arg_or(6,
         "SELECT 'pgwire-roundtrip-ok' AS msg, current_user AS usr");
-    let sslmode  = std::env::arg_or(7, "prefer");
-    let mode     = std::env::arg_or(8, "conn");
+    let sslmode = std::env::arg_or(7, "prefer");
+    let mode = std::env::arg_or(8, "conn");
 
     let auth = if len(password) > 0 { "SCRAM-SHA-256" } else { "trust" };
     println("connect ", host, ":", to_string(port), " db=", database,
-            " user=", user, " auth=", auth, " sslmode=", sslmode,
-            " mode=", mode);
+        " user=", user, " auth=", auth, " sslmode=", sslmode,
+        " mode=", mode);
 
     if mode == "pool" {
         __run_pool(host, port, user, password, database, sql, sslmode);
@@ -51,8 +51,8 @@ fn main() {
     }
 
     let c = pq::PgConn { host: host, port: port, user: user,
-                         password: password, database: database,
-                         sslmode: sslmode };
+        password: password, database: database,
+        sslmode: sslmode };
 
     let st = c.open();
     if !st.ok {
@@ -82,45 +82,45 @@ fn main() {
 // connection (each of which is a TLS handle when sslmode negotiated TLS)
 // at least once — exercising the pooled-transport threading end to end.
 fn __run_pool(host: String, port: Int, user: String, password: String,
-              database: String, sql: String, sslmode: String) {
-    let pool = pq::PgPool { host: host, port: port, user: user,
-                            password: password, database: database,
-                            sslmode: sslmode, size: 3 };
-    let st = pool.open();
-    if !st.ok {
-        println("POOL OPEN FAILED [", st.err.kind, "]: ", st.err.detail);
-        return;
-    }
-    println("POOL OPEN OK  n=", to_string(pool.n), " pool_tls=", to_string(pool.pool_tls));
-
-    let mut i = 0;
-    while i < 4 {
-        let rows = pool.query_all(sql);
-        if !rows.ok {
-            println("POOL QUERY ", to_string(i), " FAILED [", rows.err.kind,
-                    "]: ", rows.err.detail);
-            pool.close();
+    database: String, sql: String, sslmode: String) {
+        let pool = pq::PgPool { host: host, port: port, user: user,
+            password: password, database: database,
+            sslmode: sslmode, size: 3 };
+        let st = pool.open();
+        if !st.ok {
+            println("POOL OPEN FAILED [", st.err.kind, "]: ", st.err.detail);
             return;
         }
-        println("POOL QUERY ", to_string(i), " OK  ", to_string(rows.n),
+        println("POOL OPEN OK  n=", to_string(pool.n), " pool_tls=", to_string(pool.pool_tls));
+
+        let mut i = 0;
+        while i < 4 {
+            let rows = pool.query_all(sql);
+            if !rows.ok {
+                println("POOL QUERY ", to_string(i), " FAILED [", rows.err.kind,
+                    "]: ", rows.err.detail);
+                pool.close();
+                return;
+            }
+            println("POOL QUERY ", to_string(i), " OK  ", to_string(rows.n),
                 " row(s): ", rows.csv);
-        i = i + 1;
-    }
-    // Capture n (and the transport) before close() — F3 hardening resets
-    // pool.n to 0 as part of close()'s idempotent teardown (pool.hl
-    // __teardown), so reading it after close() would always report 0.
-    let opened_n = pool.n;
-    // B4: gate the transport label on pool.pool_tls. Under sslmode=disable
-    // (or a prefer->plaintext fallback) the pooled conns are plaintext, so
-    // an unconditional "TLS-pooled" would mislead in exactly the runs a
-    // reader uses to CHECK the transport.
-    let was_tls  = pool.pool_tls;
-    let transport = if was_tls { "TLS-pooled" } else { "plaintext-pooled" };
-    pool.close();
-    println("POOL CLOSED — 4 queries over ", to_string(opened_n),
+            i = i + 1;
+        }
+        // Capture n (and the transport) before close() — F3 hardening resets
+        // pool.n to 0 as part of close()'s idempotent teardown (pool.hl
+        // __teardown), so reading it after close() would always report 0.
+        let opened_n = pool.n;
+        // B4: gate the transport label on pool.pool_tls. Under sslmode=disable
+        // (or a prefer->plaintext fallback) the pooled conns are plaintext, so
+        // an unconditional "TLS-pooled" would mislead in exactly the runs a
+        // reader uses to CHECK the transport.
+        let was_tls = pool.pool_tls;
+        let transport = if was_tls { "TLS-pooled" } else { "plaintext-pooled" };
+        pool.close();
+        println("POOL CLOSED — 4 queries over ", to_string(opened_n),
             " ", transport, " conns complete");
-    // F3 regression check: a second close() must be a safe no-op, not a
-    // handle-table double-close/use-after-free on the TLS handles.
-    pool.close();
-    println("POOL double-close() completed without error (F3 idempotency)");
-}
+        // F3 regression check: a second close() must be a safe no-op, not a
+        // handle-table double-close/use-after-free on the TLS handles.
+        pool.close();
+        println("POOL double-close() completed without error (F3 idempotency)");
+    }

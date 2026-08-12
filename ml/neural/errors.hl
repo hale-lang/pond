@@ -26,6 +26,6 @@
 // `detail` is the human-readable explanation suitable for log
 // emission or for printing inside an error-check fn.
 type NnError {
-    kind:   String = "";
+    kind: String = "";
     detail: String = "";
 }

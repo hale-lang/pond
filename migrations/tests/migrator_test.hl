@@ -35,19 +35,19 @@ import "../../db" as db;
 // `fail_rollback` makes rollback() fail (the dirty path).
 locus FakeDriver {
     params {
-        backend_tag:   String = "sqlite";
-        fail_substr:   String = "";
-        fail_rollback: Bool   = false;
-        has_dirty_col: Bool   = true;   // false = v1-era tracking table
+        backend_tag: String = "sqlite";
+        fail_substr: String = "";
+        fail_rollback: Bool = false;
+        has_dirty_col: Bool = true; // false = v1-era tracking table
 
         // --- observable state ---
-        applied:         String = "";   // tab-separated versions
-        dirty_rows:      Int    = 0;
-        begins:          Int    = 0;
-        commits:         Int    = 0;
-        rollbacks:       Int    = 0;
-        locks:           Int    = 0;
-        unlocks:         Int    = 0;
+        applied: String = ""; // tab-separated versions
+        dirty_rows: Int = 0;
+        begins: Int = 0;
+        commits: Int = 0;
+        rollbacks: Int = 0;
+        locks: Int = 0;
+        unlocks: Int = 0;
         last_insert_sql: String = "";
     }
 
@@ -166,13 +166,13 @@ locus FakeDriver {
 // __die_int — a run op failed where success was expected.
 fn __die_int(e: migs::MigrationError) -> Int {
     std::test::assert(false, "unexpected MigrationError kind=" + e.kind
-        + " v" + to_string(e.version) + " detail=" + e.detail);
+            + " v" + to_string(e.version) + " detail=" + e.detail);
     return 0 - 1;
 }
 
 fn __die_unit(e: migs::MigrationError) {
     std::test::assert(false, "unexpected MigrationError kind=" + e.kind
-        + " v" + to_string(e.version) + " detail=" + e.detail);
+            + " v" + to_string(e.version) + " detail=" + e.detail);
 }
 
 // __expect_int — a run op failed as expected: assert the kind.

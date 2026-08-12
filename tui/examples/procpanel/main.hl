@@ -41,14 +41,14 @@
 import "../.." as tui;
 
 type Proc {
-    name: String;          // key — Procfile entry name
+    name: String; // key — Procfile entry name
     cmd: String = "";
     pid: Int = -1;
-    status: String = "starting";   // running|exited|stopped|spawn-failed
+    status: String = "starting"; // running|exited|stopped|spawn-failed
     code: Int = 0;
     restarts: Int = 0;
-    started: Int = 0;      // epoch seconds
-    hold: Int = 0;         // 1 = manually stopped; auto-restart skips
+    started: Int = 0; // epoch seconds
+    hold: Int = 0; // 1 = manually stopped; auto-restart skips
 }
 
 @form(hashmap)
@@ -65,11 +65,11 @@ locus Panel {
     params {
         procfile: String = "";
         procs: ProcMap = ProcMap { };
-        names: NameVec = NameVec { };   // Procfile order
+        names: NameVec = NameVec { }; // Procfile order
         selected: Int = 0;
         auto_restart: Bool = false;
         tick_n: Int = 0;
-        pane: String = "";              // cached log tail (selected)
+        pane: String = ""; // cached log tail (selected)
         pane_for: String = "";
         pane_size: Int = -1;
     }
@@ -121,13 +121,13 @@ locus Panel {
     fn add_entry(line: String) {
         let t = std::str::trim(line);
         if len(t) == 0 { return; }
-        if std::str::byte_at_unchecked(t, 0) == 35 { return; }   // '#'
+        if std::str::byte_at_unchecked(t, 0) == 35 { return; } // '#'
         let colon = std::str::index_of(t, ":");
         if colon <= 0 { return; }
         let name = std::str::trim(std::str::substring(t, 0, colon));
         let cmd = std::str::trim(std::str::substring(t, colon + 1, len(t)));
         if len(name) == 0 || len(cmd) == 0 { return; }
-        if self.procs.has(name) { return; }   // first entry wins
+        if self.procs.has(name) { return; } // first entry wins
         self.names.push(name);
         self.procs.set(Proc { name: name, cmd: cmd });
     }
@@ -140,7 +140,7 @@ locus Panel {
         // The command lives in a script file so arbitrary user
         // quoting never touches the argv blob.
         std::io::fs::write_file(script_path(name), p.cmd + "\n")
-            or discard;
+        or discard;
         std::io::fs::unlink(exit_path(name)) or discard;
         std::io::fs::write_file(log_path(name), "") or discard;
 
@@ -163,9 +163,9 @@ locus Panel {
             + "; echo $? > " + exit_path(name) + "' > "
             + log_path(name) + " 2>&1 < /dev/null & echo $!";
         let out = std::process::run("sh\n-c\n" + wrapper)
-            or run_err(err);
+        or run_err(err);
 
-        let pid = std::str::parse_int(std::str::trim(out.stdout)) or -1;
+        let pid = std::str::parse_int(std::str::trim(out.stdout)) or - 1;
         let mut status = "running";
         if pid <= 0 { status = "spawn-failed"; }
         self.procs.set(Proc {
@@ -184,7 +184,7 @@ locus Panel {
         let p = self.procs.get(name) or Proc { name: name };
         if p.status != "running" { return; }
         std::process::run("kill\n-" + sig + "\n--\n-" + to_string(p.pid))
-            or run_err(err);
+        or run_err(err);
         self.procs.set(Proc {
             name: name, cmd: p.cmd, pid: p.pid, status: p.status,
             code: p.code, restarts: p.restarts, started: p.started,
@@ -196,7 +196,7 @@ locus Panel {
         let p = self.procs.get(name) or Proc { name: name };
         if p.status == "running" {
             std::process::run("kill\n-TERM\n--\n-" + to_string(p.pid))
-                or run_err(err);
+            or run_err(err);
         }
         self.procs.set(Proc {
             name: name, cmd: p.cmd, pid: p.pid, status: p.status,
@@ -225,7 +225,7 @@ locus Panel {
 
     fn mark_exited(p: Proc) {
         let raw = std::io::fs::read_file(exit_path(p.name)) or "";
-        let code = std::str::parse_int(std::str::trim(raw)) or -1;
+        let code = std::str::parse_int(std::str::trim(raw)) or - 1;
         let mut status = "exited";
         if p.hold == 1 { status = "stopped"; }
         self.procs.set(Proc {
@@ -247,7 +247,7 @@ locus Panel {
         }
         if e.kind == "tick" {
             self.tick_n = self.tick_n + 1;
-            if self.tick_n % 15 == 0 { self.poll_procs(); }   // ~2x/s
+            if self.tick_n % 15 == 0 { self.poll_procs(); } // ~2x/s
             if self.tick_n % 5 == 0 { self.refresh_pane(); }
             return false;
         }
@@ -261,22 +261,22 @@ locus Panel {
             return false;
         }
         if e.kind == "key" {
-            if e.key == "char" && e.ch == 113 {                  // q
+            if e.key == "char" && e.ch == 113 { // q
                 self.shutdown_all();
                 return true;
             }
             if e.key == "up" { self.move_sel(-1); }
             if e.key == "down" { self.move_sel(1); }
-            if e.key == "char" && e.ch == 114 {                  // r
+            if e.key == "char" && e.ch == 114 { // r
                 self.restart_proc(self.sel_name());
             }
-            if e.key == "char" && e.ch == 115 {                  // s
+            if e.key == "char" && e.ch == 115 { // s
                 self.stop_proc(self.sel_name(), "TERM");
             }
-            if e.key == "char" && e.ch == 107 {                  // k
+            if e.key == "char" && e.ch == 107 { // k
                 self.stop_proc(self.sel_name(), "KILL");
             }
-            if e.key == "char" && e.ch == 97 {                   // a
+            if e.key == "char" && e.ch == 97 { // a
                 self.auto_restart = !self.auto_restart;
             }
         }
@@ -289,7 +289,7 @@ locus Panel {
         self.selected = self.selected + d;
         if self.selected < 0 { self.selected = 0; }
         if self.selected >= n { self.selected = n - 1; }
-        self.pane_size = -1;   // force pane refresh
+        self.pane_size = -1; // force pane refresh
     }
 
     fn sel_name() -> String {
@@ -318,7 +318,7 @@ locus Panel {
         self.pane_size = sz;
         let content = std::io::fs::read_file(path) or "";
         let n = len(content);
-        let mut lo = n - 8192;          // last ~8KB is plenty for a pane
+        let mut lo = n - 8192; // last ~8KB is plenty for a pane
         if lo < 0 { lo = 0; }
         self.pane = std::str::substring(content, lo, n);
     }
@@ -371,7 +371,7 @@ locus Panel {
         // help
         s.put(0, s.h - 1,
             " q quit-all  r restart  s stop  k kill  a auto-restart  ↑/↓ select",
-            -1, -1, 2);
+                -1, -1, 2);
     }
 
     fn running_count() -> Int {
@@ -399,13 +399,13 @@ locus Panel {
 
         s.put(0, y, marker + name, 14, bg, 0);
         s.put(13, y, std::str::pad_left(to_string(p.pid), 7, " "),
-              -1, bg, 0);
+                -1, bg, 0);
 
         if p.status == "running" {
             s.put(22, y, "running", 10, bg, 0);
             s.put(34, y, std::str::pad_left(
                 fmt_uptime(std::time::now() - p.started), 8, " "),
-                -1, bg, 0);
+                    -1, bg, 0);
         } else if p.status == "exited" {
             let mut fg = 9;
             if p.code == 0 { fg = 250; }
@@ -420,7 +420,7 @@ locus Panel {
         }
 
         s.put(44, y, std::str::pad_left(to_string(p.restarts), 4, " "),
-              -1, bg, 0);
+                -1, bg, 0);
         let mut cmd = p.cmd;
         let room = s.w - 51;
         if len(cmd) > room && room > 1 {
@@ -485,7 +485,7 @@ fn main() {
         return;
     }
     let procfile = std::env::arg(1);
-    let frames = std::str::parse_int(std::env::arg_or(2, "-1")) or -1;
+    let frames = std::str::parse_int(std::env::arg_or(2, "-1")) or - 1;
     tui::Program {
         app: Panel { procfile: procfile },
         fps: 30,

@@ -34,10 +34,10 @@
 // vocabulary. Cross-cutting engine states (busy / constraint /
 // io) win over the per-operation fallback kind.
 fn __sq_kind(rc: Int, fallback: String) -> String {
-    if rc == 5 { return "busy"; }          // SQLITE_BUSY
-    if rc == 6 { return "busy"; }          // SQLITE_LOCKED
-    if rc == 10 { return "io"; }           // SQLITE_IOERR
-    if rc == 19 { return "constraint"; }   // SQLITE_CONSTRAINT
+    if rc == 5 { return "busy"; } // SQLITE_BUSY
+    if rc == 6 { return "busy"; } // SQLITE_LOCKED
+    if rc == 10 { return "io"; } // SQLITE_IOERR
+    if rc == 19 { return "constraint"; } // SQLITE_CONSTRAINT
     return fallback;
 }
 
@@ -67,10 +67,10 @@ locus Db {
         // SQLite path. ":memory:" (the default) is an ephemeral
         // in-memory database; anything else is a filesystem path
         // (created on first write if absent).
-        path:        String = ":memory:";
+        path: String = ":memory:";
 
         // See the sentinel table in the header comment.
-        conn_handle: Int    = -1;
+        conn_handle: Int = -1;
     }
 
     // birth() — open the SQLite connection. Lifecycle methods
@@ -97,17 +97,17 @@ locus Db {
     fn __ensure_open() -> () fallible(DbError) {
         if self.conn_handle == 0 {
             fail DbError {
-                kind:        "open_failed",
+                kind: "open_failed",
                 sqlite_code: lotus_sqlite_open_errcode(),
-                detail:      "open failed for '" + self.path + "': "
-                             + std::str::clone(lotus_sqlite_open_error()),
+                detail: "open failed for '" + self.path + "': "
+                    + std::str::clone(lotus_sqlite_open_error()),
             };
         }
         if self.conn_handle < 0 {
             fail DbError {
-                kind:        "open_failed",
+                kind: "open_failed",
                 sqlite_code: 0,
-                detail:      "connection not open (Db was never birthed)",
+                detail: "connection not open (Db was never birthed)",
             };
         }
     }
@@ -121,13 +121,13 @@ locus Db {
         let rc = lotus_sqlite_exec(self.conn_handle, sql);
         if rc != 0 {
             fail DbError {
-                kind:        __sq_kind(rc, "exec_failed"),
+                kind: __sq_kind(rc, "exec_failed"),
                 sqlite_code: rc,
-                detail:      std::str::clone(lotus_sqlite_errmsg(self.conn_handle)),
+                detail: std::str::clone(lotus_sqlite_errmsg(self.conn_handle)),
             };
         }
         return ExecResult {
-            rows_affected:     lotus_sqlite_changes(self.conn_handle),
+            rows_affected: lotus_sqlite_changes(self.conn_handle),
             last_insert_rowid: lotus_sqlite_last_rowid(self.conn_handle),
         };
     }
@@ -139,21 +139,21 @@ locus Db {
     fn query_one(sql: String) -> Row fallible(DbError) {
         let stmt = self.prepare(sql) or raise;
         let rc = lotus_sqlite_step(stmt);
-        if rc == 101 {                      // SQLITE_DONE — zero rows
+        if rc == 101 { // SQLITE_DONE — zero rows
             lotus_sqlite_finalize(stmt);
             fail DbError {
-                kind:        "no_row",
+                kind: "no_row",
                 sqlite_code: rc,
-                detail:      "query produced zero rows",
+                detail: "query produced zero rows",
             };
         }
-        if rc != 100 {                      // not SQLITE_ROW — engine error
+        if rc != 100 { // not SQLITE_ROW — engine error
             let msg = std::str::clone(lotus_sqlite_errmsg(self.conn_handle));
             lotus_sqlite_finalize(stmt);
             fail DbError {
-                kind:        __sq_kind(rc, "step_failed"),
+                kind: __sq_kind(rc, "step_failed"),
                 sqlite_code: rc,
-                detail:      msg,
+                detail: msg,
             };
         }
         let data = __sq_collect_row(stmt);
@@ -170,19 +170,19 @@ locus Db {
         let mut out = "";
         let mut n = 0;
         let mut rc = lotus_sqlite_step(stmt);
-        while rc == 100 {                   // SQLITE_ROW
+        while rc == 100 { // SQLITE_ROW
             if n > 0 { out = out + "\n"; }
             out = out + __sq_collect_row(stmt);
             n = n + 1;
             rc = lotus_sqlite_step(stmt);
         }
-        if rc != 101 {                      // not SQLITE_DONE — engine error
+        if rc != 101 { // not SQLITE_DONE — engine error
             let msg = std::str::clone(lotus_sqlite_errmsg(self.conn_handle));
             lotus_sqlite_finalize(stmt);
             fail DbError {
-                kind:        __sq_kind(rc, "step_failed"),
+                kind: __sq_kind(rc, "step_failed"),
                 sqlite_code: rc,
-                detail:      msg,
+                detail: msg,
             };
         }
         self.finalize(stmt) or raise;
@@ -199,10 +199,10 @@ locus Db {
         let stmt = lotus_sqlite_prepare(self.conn_handle, sql);
         if stmt == 0 {
             fail DbError {
-                kind:        __sq_kind(lotus_sqlite_errcode(self.conn_handle),
-                                       "prepare_failed"),
+                kind: __sq_kind(lotus_sqlite_errcode(self.conn_handle),
+                    "prepare_failed"),
                 sqlite_code: lotus_sqlite_errcode(self.conn_handle),
-                detail:      std::str::clone(lotus_sqlite_errmsg(self.conn_handle)),
+                detail: std::str::clone(lotus_sqlite_errmsg(self.conn_handle)),
             };
         }
         return stmt;
@@ -215,9 +215,9 @@ locus Db {
         let rc = lotus_sqlite_bind_text(stmt, idx, val);
         if rc != 0 {
             fail DbError {
-                kind:        __sq_kind(rc, "bind_failed"),
+                kind: __sq_kind(rc, "bind_failed"),
                 sqlite_code: rc,
-                detail:      std::str::clone(lotus_sqlite_errmsg(self.conn_handle)),
+                detail: std::str::clone(lotus_sqlite_errmsg(self.conn_handle)),
             };
         }
     }
@@ -226,9 +226,9 @@ locus Db {
         let rc = lotus_sqlite_bind_int(stmt, idx, val);
         if rc != 0 {
             fail DbError {
-                kind:        __sq_kind(rc, "bind_failed"),
+                kind: __sq_kind(rc, "bind_failed"),
                 sqlite_code: rc,
-                detail:      std::str::clone(lotus_sqlite_errmsg(self.conn_handle)),
+                detail: std::str::clone(lotus_sqlite_errmsg(self.conn_handle)),
             };
         }
     }
@@ -241,18 +241,18 @@ locus Db {
     // + raw sqlite_code.
     fn step(stmt: Int) -> Row fallible(DbError) {
         let rc = lotus_sqlite_step(stmt);
-        if rc == 101 {                      // SQLITE_DONE
+        if rc == 101 { // SQLITE_DONE
             fail DbError {
-                kind:        "no_row",
+                kind: "no_row",
                 sqlite_code: rc,
-                detail:      "SQLITE_DONE: statement produced no further rows",
+                detail: "SQLITE_DONE: statement produced no further rows",
             };
         }
-        if rc != 100 {                      // not SQLITE_ROW
+        if rc != 100 { // not SQLITE_ROW
             fail DbError {
-                kind:        __sq_kind(rc, "step_failed"),
+                kind: __sq_kind(rc, "step_failed"),
                 sqlite_code: rc,
-                detail:      std::str::clone(lotus_sqlite_errmsg(self.conn_handle)),
+                detail: std::str::clone(lotus_sqlite_errmsg(self.conn_handle)),
             };
         }
         return Row { data: __sq_collect_row(stmt) };
@@ -266,9 +266,9 @@ locus Db {
         let rc = lotus_sqlite_finalize(stmt);
         if rc != 0 {
             fail DbError {
-                kind:        __sq_kind(rc, "finalize_failed"),
+                kind: __sq_kind(rc, "finalize_failed"),
                 sqlite_code: rc,
-                detail:      std::str::clone(lotus_sqlite_errmsg(self.conn_handle)),
+                detail: std::str::clone(lotus_sqlite_errmsg(self.conn_handle)),
             };
         }
     }

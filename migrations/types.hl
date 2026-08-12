@@ -6,10 +6,10 @@
 // down()/goto() below it fail with kind="irreversible" BEFORE
 // running anything.
 type Migration {
-    version:  Int    = 0;    // strictly ascending, >= 1
-    name:     String = "";   // human label, recorded in the tracking table
-    up_sql:   String = "";
-    down_sql: String = "";   // "" = irreversible
+    version: Int = 0; // strictly ascending, >= 1
+    name: String = ""; // human label, recorded in the tracking table
+    up_sql: String = "";
+    down_sql: String = ""; // "" = irreversible
 }
 
 // MigrationError — the fallible(MigrationError) payload for every
@@ -40,9 +40,9 @@ type Migration {
 // `detail` is the human-readable explanation, prefixed with the
 // failing stage ("up_sql: ...", "record: ...", "commit: ...").
 type MigrationError {
-    kind:        String = "";
-    version:     Int    = 0;
-    name:        String = "";
-    detail:      String = "";
-    engine_code: Int    = 0;
+    kind: String = "";
+    version: Int = 0;
+    name: String = "";
+    detail: String = "";
+    engine_code: Int = 0;
 }

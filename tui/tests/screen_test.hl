@@ -60,7 +60,7 @@ fn main() {
 
     // ----- put: ASCII + right-edge clipping ------------------------------
     s.clear();
-    s.print(2, 0, "abc");   // w=4: 'a'@2, 'b'@3, 'c' clipped
+    s.print(2, 0, "abc"); // w=4: 'a'@2, 'b'@3, 'c' clipped
     let pa = cell_at(s, 2, 0);
     let pb = cell_at(s, 3, 0);
     std::test::assert_eq_int(pa.ch, 97, "put writes first char");
@@ -106,10 +106,10 @@ fn main() {
 
     // ----- append_codepoint emits UTF-8 -----------------------------------------
     let b = std::bytes::BytesBuilder { initial_cap: 16 };
-    tui::append_codepoint(b, 65);      // 1-byte
-    tui::append_codepoint(b, 233);     // 2-byte (é)
-    tui::append_codepoint(b, 20013);   // 3-byte (中)
-    tui::append_codepoint(b, 128512);  // 4-byte (emoji)
+    tui::append_codepoint(b, 65); // 1-byte
+    tui::append_codepoint(b, 233); // 2-byte (é)
+    tui::append_codepoint(b, 20013); // 3-byte (中)
+    tui::append_codepoint(b, 128512); // 4-byte (emoji)
     std::test::assert_eq_str(std::str::clone(b.text_view()), "Aé中😀",
         "append_codepoint round-trips 1/2/3/4-byte UTF-8");
 

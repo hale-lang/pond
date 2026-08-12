@@ -46,8 +46,8 @@ topic TrainStepEvent { payload: TrainStep; subject: "nn.TrainStep"; }
 
 locus Trainer {
     params {
-        lr:         Float       = 0.01;
-        batch_size: Int         = 32;
+        lr: Float = 0.01;
+        batch_size: Int = 32;
     }
     bus {
         // Publish by topic ident; the topic decl above carries the
@@ -71,19 +71,19 @@ locus Trainer {
     {
         if epochs <= 0 {
             fail NnError {
-                kind:   "shape_mismatch",
+                kind: "shape_mismatch",
                 detail: "epochs must be > 0",
             };
         }
         if xs.rows != ys.rows {
             fail NnError {
-                kind:   "shape_mismatch",
+                kind: "shape_mismatch",
                 detail: "xs and ys have different row counts",
             };
         }
         if xs.rows == 0 {
             fail NnError {
-                kind:   "shape_mismatch",
+                kind: "shape_mismatch",
                 detail: "empty training set",
             };
         }
@@ -122,9 +122,9 @@ locus Trainer {
             let n_samples_f = int_to_float(n_samples);
             let mean_loss = epoch_loss / n_samples_f;
             let payload = TrainStep {
-                loss:      mean_loss,
+                loss: mean_loss,
                 epoch_idx: e_idx,
-                step:      step,
+                step: step,
             };
             TrainStepEvent <- payload;
             e_idx = e_idx + 1;

@@ -28,10 +28,10 @@ import "../.." as sqlite;
 
 locus KvDemo {
     params {
-        path:        String = "/tmp/pond-sqlite-kv-demo.db";
+        path: String = "/tmp/pond-sqlite-kv-demo.db";
         // Count of DbErrors seen by the handlers; the deliberate
         // error-path section expects exactly four.
-        errors_seen: Int    = 0;
+        errors_seen: Int = 0;
     }
 
     // Error-check fns (styleguide § 7): one per success type the
@@ -40,36 +40,36 @@ locus KvDemo {
     fn handle_exec(e: sqlite::DbError) -> sqlite::ExecResult {
         self.errors_seen = self.errors_seen + 1;
         println("[kv-demo] DbError: kind=", e.kind,
-                " sqlite_code=", to_string(e.sqlite_code),
-                " detail=", e.detail);
+            " sqlite_code=", to_string(e.sqlite_code),
+            " detail=", e.detail);
         return sqlite::ExecResult { };
     }
     fn handle_row(e: sqlite::DbError) -> sqlite::Row {
         self.errors_seen = self.errors_seen + 1;
         println("[kv-demo] DbError: kind=", e.kind,
-                " sqlite_code=", to_string(e.sqlite_code),
-                " detail=", e.detail);
+            " sqlite_code=", to_string(e.sqlite_code),
+            " detail=", e.detail);
         return sqlite::Row { };
     }
     fn handle_rows(e: sqlite::DbError) -> sqlite::Rows {
         self.errors_seen = self.errors_seen + 1;
         println("[kv-demo] DbError: kind=", e.kind,
-                " sqlite_code=", to_string(e.sqlite_code),
-                " detail=", e.detail);
+            " sqlite_code=", to_string(e.sqlite_code),
+            " detail=", e.detail);
         return sqlite::Rows { };
     }
     fn handle_stmt(e: sqlite::DbError) -> Int {
         self.errors_seen = self.errors_seen + 1;
         println("[kv-demo] DbError: kind=", e.kind,
-                " sqlite_code=", to_string(e.sqlite_code),
-                " detail=", e.detail);
+            " sqlite_code=", to_string(e.sqlite_code),
+            " detail=", e.detail);
         return 0;
     }
     fn handle_unit(e: sqlite::DbError) {
         self.errors_seen = self.errors_seen + 1;
         println("[kv-demo] DbError: kind=", e.kind,
-                " sqlite_code=", to_string(e.sqlite_code),
-                " detail=", e.detail);
+            " sqlite_code=", to_string(e.sqlite_code),
+            " detail=", e.detail);
     }
 
     run() {
@@ -83,25 +83,25 @@ locus KvDemo {
 
         // 1. DDL. Drop first so reruns are idempotent.
         let r0 = conn.exec("DROP TABLE IF EXISTS kv")
-            or self.handle_exec(err);
+        or self.handle_exec(err);
         let r1 = conn.exec("CREATE TABLE kv (k TEXT PRIMARY KEY, v TEXT)")
-            or self.handle_exec(err);
+        or self.handle_exec(err);
         println("[kv-demo] CREATE TABLE: rows_affected=",
-                to_string(r1.rows_affected));
+            to_string(r1.rows_affected));
 
         // 2. Inserts — rows_affected + last_insert_rowid are real.
         let r2 = conn.exec(
             "INSERT INTO kv (k, v) VALUES ('greeting', 'hello, pond')"
         ) or self.handle_exec(err);
         println("[kv-demo] INSERT greeting: rows_affected=",
-                to_string(r2.rows_affected),
-                " last_insert_rowid=", to_string(r2.last_insert_rowid));
+            to_string(r2.rows_affected),
+            " last_insert_rowid=", to_string(r2.last_insert_rowid));
         let r3 = conn.exec(
             "INSERT INTO kv (k, v) VALUES ('farewell', 'goodbye, stub era')"
         ) or self.handle_exec(err);
         println("[kv-demo] INSERT farewell: rows_affected=",
-                to_string(r3.rows_affected),
-                " last_insert_rowid=", to_string(r3.last_insert_rowid));
+            to_string(r3.rows_affected),
+            " last_insert_rowid=", to_string(r3.last_insert_rowid));
 
         // 3. query_one — tab-separated columns in Row.data.
         let row = conn.query_one(
@@ -111,13 +111,13 @@ locus KvDemo {
 
         // 4. query_all — newline-separated rows.
         let rows = conn.query_all("SELECT k, v FROM kv ORDER BY k")
-            or self.handle_rows(err);
+        or self.handle_rows(err);
         println("[kv-demo] SELECT all (newline-separated rows):");
         println(rows.csv);
 
         // 5. prepare / bind / step / finalize — parameterized path.
         let stmt = conn.prepare("SELECT v FROM kv WHERE k = ?1")
-            or self.handle_stmt(err);
+        or self.handle_stmt(err);
         if stmt > 0 {
             conn.bind_text(stmt, 1, "farewell") or self.handle_unit(err);
             let r = conn.step(stmt) or self.handle_row(err);
@@ -138,7 +138,7 @@ locus KvDemo {
 
         // c. Zero-row query_one → kind="no_row".
         let bad3 = conn.query_one("SELECT v FROM kv WHERE k = 'missing'")
-            or self.handle_row(err);
+        or self.handle_row(err);
 
         // d. Unopenable path: birth() can't be fallible, so the
         //    open failure surfaces as kind="open_failed" on the
@@ -147,7 +147,7 @@ locus KvDemo {
         let bad4 = dead.exec("SELECT 1") or self.handle_exec(err);
 
         println("[kv-demo] done: errors_seen=",
-                to_string(self.errors_seen), " (expected 4)");
+            to_string(self.errors_seen), " (expected 4)");
     }
 }
 

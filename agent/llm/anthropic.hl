@@ -39,14 +39,14 @@
 
 locus AnthropicClient {
     params {
-        api_key:       String = "";
-        base_url:      String = "https://api.anthropic.com";
+        api_key: String = "";
+        base_url: String = "https://api.anthropic.com";
         default_model: String = "claude-opus-4-7";
-        max_body:      Int    = 16777216;  // 16 MiB response cap
+        max_body: Int = 16777216; // 16 MiB response cap
     }
     bus {
         publish "agent.llm.chunk" of type LlmChunkMsg;
-        publish "agent.llm.done"  of type LlmDoneMsg;
+        publish "agent.llm.done" of type LlmDoneMsg;
     }
 
     // ===== complete() — non-streaming, one-shot ========================
@@ -126,9 +126,9 @@ locus AnthropicClient {
                 }
             }
             let resp = LlmResponse {
-                text:          std::str::builder_finish(text_buf),
-                stop_reason:   stop_reason,
-                input_tokens:  0,
+                text: std::str::builder_finish(text_buf),
+                stop_reason: stop_reason,
+                input_tokens: 0,
                 output_tokens: 0
             };
             "agent.llm.done" <- LlmDoneMsg { payload: resp };
@@ -179,10 +179,10 @@ fn __anthropic_build_http(
 // Parse out the HTTP status line + body offset from a recv'd
 // response blob. Returns -1 status on parse failure.
 type __HttpSplit {
-    status:     Int    = 0;
-    body_start: Int    = 0;
-    headers:    String = "";
-    body:       String = "";
+    status: Int = 0;
+    body_start: Int = 0;
+    headers: String = "";
+    body: String = "";
 }
 
 fn __split_http(raw: String) -> __HttpSplit {
@@ -225,10 +225,10 @@ fn __split_http(raw: String) -> __HttpSplit {
         body = raw[body_start..total];
     }
     return __HttpSplit {
-        status:     code,
+        status: code,
         body_start: body_start,
-        headers:    headers,
-        body:       body
+        headers: headers,
+        body: body
     };
 }
 
@@ -246,10 +246,10 @@ fn __split_http(raw: String) -> __HttpSplit {
 // rest of the code stays the same shape. Logged as closed in
 // FRICTION.log.
 type __LlmStream {
-    kind:   Int = 0;    // 0 = plain TCP, 1 = TLS (`mode` is a reserved
-                        //    keyword in Hale, so `kind` here)
-    fd:     Int = -1;   // plain-mode connection fd
-    handle: Int = -1;   // TLS-mode handle (from std::io::tls::connect)
+    kind: Int = 0; // 0 = plain TCP, 1 = TLS (`mode` is a reserved
+    //    keyword in Hale, so `kind` here)
+    fd: Int = -1; // plain-mode connection fd
+    handle: Int = -1; // TLS-mode handle (from std::io::tls::connect)
 }
 
 fn __stream_send(s: __LlmStream, wire: String) -> Int {
@@ -270,7 +270,7 @@ fn __stream_recv_bytes(s: __LlmStream, max_bytes: Int) -> Bytes {
         return std::io::tls::recv_bytes(s.handle, max_bytes);
     }
     let tcp = std::io::tcp::Stream { conn_fd: s.fd };
-    return tcp.recv_bytes(max_bytes) or b"";   // hale#210: errors collapse to length-0
+    return tcp.recv_bytes(max_bytes) or b""; // hale#210: errors collapse to length-0
 }
 
 fn __stream_close(s: __LlmStream) -> Int {
@@ -325,20 +325,20 @@ fn __connect_or_llm_err(
     port: Int
 ) -> __LlmStream fallible(LlmError) {
     if scheme == "https" {
-        let h = std::io::tls::connect(host, port) or -1;
+        let h = std::io::tls::connect(host, port) or - 1;
         if h < 0 {
             fail LlmError {
-                kind:   "http",
+                kind: "http",
                 status: 0,
                 detail: "TLS connect failed: " + host + ":" + to_string(port)
             };
         }
         return __LlmStream { kind: 1, fd: -1, handle: h };
     }
-    let fd = std::io::tcp::connect(host, port) or -1;
+    let fd = std::io::tcp::connect(host, port) or - 1;
     if fd < 0 {
         fail LlmError {
-            kind:   "http",
+            kind: "http",
             status: 0,
             detail: "connect failed: " + host + ":" + to_string(port)
         };
@@ -352,9 +352,9 @@ fn __connect_or_llm_err(
 // same algorithm (stdlib has none) — logged.
 type __ParsedUrl {
     scheme: String = "http";
-    host:   String = "";
-    port:   Int    = 80;
-    path:   String = "/";
+    host: String = "";
+    port: Int = 80;
+    path: String = "/";
 }
 
 fn __parse_base_url(s: String) -> __ParsedUrl fallible(LlmError) {
@@ -369,7 +369,7 @@ fn __parse_base_url(s: String) -> __ParsedUrl fallible(LlmError) {
     let scheme = s[0..sep];
     if scheme != "http" && scheme != "https" {
         fail LlmError {
-            kind:   "bad_url",
+            kind: "bad_url",
             status: 0,
             detail: "unsupported scheme: " + scheme + " (need http or https)"
         };
@@ -420,7 +420,7 @@ fn anthropic_complete(
 ) -> LlmResponse fallible(LlmError) {
     if len(api_key) == 0 {
         fail LlmError {
-            kind:   "missing_api_key",
+            kind: "missing_api_key",
             status: 0,
             detail: "AnthropicClient: api_key must be non-empty"
         };
@@ -439,7 +439,7 @@ fn anthropic_complete(
     let split = __split_http(raw);
     if split.status <= 0 {
         fail LlmError {
-            kind:   "http",
+            kind: "http",
             status: 0,
             detail: "unparseable response"
         };
@@ -447,7 +447,7 @@ fn anthropic_complete(
     if split.status >= 400 {
         let detail = __extract_error_detail(split.body);
         fail LlmError {
-            kind:   "vendor_error",
+            kind: "vendor_error",
             status: split.status,
             detail: detail
         };
@@ -477,7 +477,7 @@ fn __anthropic_fetch_sse(
 ) -> String fallible(LlmError) {
     if len(api_key) == 0 {
         fail LlmError {
-            kind:   "missing_api_key",
+            kind: "missing_api_key",
             status: 0,
             detail: "AnthropicClient: api_key must be non-empty"
         };
@@ -496,7 +496,7 @@ fn __anthropic_fetch_sse(
     let split = __split_http(raw);
     if split.status <= 0 {
         fail LlmError {
-            kind:   "http",
+            kind: "http",
             status: 0,
             detail: "unparseable response"
         };
@@ -504,7 +504,7 @@ fn __anthropic_fetch_sse(
     if split.status >= 400 {
         let detail = __extract_error_detail(split.body);
         fail LlmError {
-            kind:   "vendor_error",
+            kind: "vendor_error",
             status: split.status,
             detail: detail
         };

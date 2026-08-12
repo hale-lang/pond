@@ -36,11 +36,11 @@ fn main() {
     // inputs for the error surface.
     let x = mat::from_rows(2, 1, "1.0, 0.0");
     let y = mat::from_rows(1, 1, "1.0");
-    let x3 = mat::from_rows(3, 1, "1.0, 2.0, 3.0");   // wrong input dim
-    let y2 = mat::from_rows(2, 1, "1.0, 0.0");        // wrong target dim
+    let x3 = mat::from_rows(3, 1, "1.0, 2.0, 3.0"); // wrong input dim
+    let y2 = mat::from_rows(2, 1, "1.0, 0.0"); // wrong target dim
 
     // First step: finite, positive loss (untrained net can't be exact).
-    let loss0 = model.train_step(x, y, 0.5) or -1.0;
+    let loss0 = model.train_step(x, y, 0.5) or - 1.0;
     std::test::assert(loss0 >= 0.0, "first train_step loss is not an error/negative");
     std::test::assert(!std::math::is_nan(loss0), "first loss is not NaN");
     std::test::assert(loss0 < 1.0, "MSE of sigmoid output vs 1.0 is < 1.0");
@@ -73,7 +73,7 @@ fn main() {
     let mut last = loss0;
     let mut i = 0;
     while i < 50 {
-        last = model.train_step(x, y, 0.5) or -1.0;
+        last = model.train_step(x, y, 0.5) or - 1.0;
         i = i + 1;
     }
     std::test::assert(last >= 0.0, "loss stays non-negative across steps");
@@ -83,19 +83,19 @@ fn main() {
     // Prediction moved toward the target y = 1.
     let out = nn::forward(model, x) or mat::error_matrix();
     std::test::assert(!mat::is_error(out), "forward after training succeeds");
-    let p = out.get(0) or -999.0;
+    let p = out.get(0) or - 999.0;
     std::test::assert(p > 0.5, "prediction pulled toward target 1.0");
 
     // ---- fallible surface ----
     // Empty model.
-    let e_loss = empty.train_step(x, y, 0.5) or -777.0;
+    let e_loss = empty.train_step(x, y, 0.5) or - 777.0;
     near_eq(e_loss, -777.0, "train_step on empty model fails (empty_model)");
 
     // Wrong input dim.
-    let bad_x = model.train_step(x3, y, 0.5) or -777.0;
+    let bad_x = model.train_step(x3, y, 0.5) or - 777.0;
     near_eq(bad_x, -777.0, "train_step rejects wrong input dim");
 
     // Wrong target dim.
-    let bad_y = model.train_step(x, y2, 0.5) or -777.0;
+    let bad_y = model.train_step(x, y2, 0.5) or - 777.0;
     near_eq(bad_y, -777.0, "train_step rejects wrong target dim");
 }

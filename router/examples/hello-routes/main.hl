@@ -31,7 +31,7 @@ locus Root {
     fn handle(ctx: router::Context) -> router::Response {
         return router::Response {
             status: 200,
-            body:   "hello"
+            body: "hello"
         };
     }
 }
@@ -47,7 +47,7 @@ locus Greet {
         let who = if len(name) > 0 { name } else { "stranger" };
         return router::Response {
             status: 200,
-            body:   "hello, " + who
+            body: "hello, " + who
         };
     }
 }
@@ -83,7 +83,7 @@ fn main() {
         if a == "--max-accepts" {
             if i + 1 < n {
                 let mstr = std::env::arg(i + 1);
-                max_accepts = std::str::parse_int(mstr) or -1;
+                max_accepts = std::str::parse_int(mstr) or - 1;
             }
         }
         i = i + 1;
@@ -100,10 +100,10 @@ fn main() {
     r.use(LogMw { });
 
     std::http::Server {
-        host:          "127.0.0.1",
-        port:          port,
-        max_accepts:   max_accepts,
-        handler:       r,
-        ready_signal:  "READY"
+        host: "127.0.0.1",
+        port: port,
+        max_accepts: max_accepts,
+        handler: r,
+        ready_signal: "READY"
     };
 }

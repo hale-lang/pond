@@ -71,8 +71,8 @@ locus __NoopTool {
     fn spec() -> ToolSpec { return ToolSpec { }; }
     fn invoke(call: ToolCall) -> ToolResult {
         return ToolResult {
-            call_id:  call.call_id,
-            content:  "",
+            call_id: call.call_id,
+            content: "",
             is_error: true
         };
     }
@@ -101,8 +101,8 @@ fn __lookup_invoke(entries: ToolList, call: ToolCall) -> ToolResult {
         i = i + 1;
     }
     return ToolResult {
-        call_id:  call.call_id,
-        content:  "__not_found__",
+        call_id: call.call_id,
+        content: "__not_found__",
         is_error: true
     };
 }
@@ -133,7 +133,7 @@ fn __build_spec_array(entries: ToolList) -> String {
         let t = entries.get(i) or noop;
         let s = t.spec();
         b.begin_object();
-        b.string_field("name",        s.name);
+        b.string_field("name", s.name);
         b.string_field("description", s.description);
         // input_schema is already a JSON value — emit it raw via
         // b.field(name, raw_value) rather than string_field so it
@@ -187,14 +187,14 @@ locus Registry {
     fn dispatch(call: ToolCall) -> ToolResult fallible(ToolError) {
         if len(call.name) == 0 {
             fail ToolError {
-                kind:   "empty_name",
+                kind: "empty_name",
                 detail: "ToolCall.name must be non-empty"
             };
         }
         let r = __lookup_invoke(self.entries, call);
         if r.content == "__not_found__" {
             fail ToolError {
-                kind:   "unknown_tool",
+                kind: "unknown_tool",
                 detail: "no tool registered with name: " + call.name
             };
         }

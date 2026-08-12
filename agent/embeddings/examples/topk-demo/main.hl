@@ -29,17 +29,17 @@ fn main() {
     let store = emb::Store { dim: 4 };
 
     // Load 5 hand-crafted 4-dim vectors.
-    let v_red    = mat::from_rows(1, 4, "1.0, 0.0, 0.0, 0.0");
-    let v_red2   = mat::from_rows(1, 4, "2.0, 1.0, 0.0, 0.0");
-    let v_green  = mat::from_rows(1, 4, "0.0, 1.0, 0.0, 0.0");
-    let v_blue   = mat::from_rows(1, 4, "0.0, 0.0, 1.0, 0.0");
-    let v_opp    = mat::from_rows(1, 4, "-1.0, 0.0, 0.0, 0.0");
+    let v_red = mat::from_rows(1, 4, "1.0, 0.0, 0.0, 0.0");
+    let v_red2 = mat::from_rows(1, 4, "2.0, 1.0, 0.0, 0.0");
+    let v_green = mat::from_rows(1, 4, "0.0, 1.0, 0.0, 0.0");
+    let v_blue = mat::from_rows(1, 4, "0.0, 0.0, 1.0, 0.0");
+    let v_opp = mat::from_rows(1, 4, "-1.0, 0.0, 0.0, 0.0");
 
-    store.add("red",   v_red,   "primary axis") or discard;
-    store.add("red2",  v_red2,  "near red")      or discard;
-    store.add("green", v_green, "orthogonal")    or discard;
-    store.add("blue",  v_blue,  "different axis") or discard;
-    store.add("opp",   v_opp,   "anti-red")       or discard;
+    store.add("red", v_red, "primary axis") or discard;
+    store.add("red2", v_red2, "near red") or discard;
+    store.add("green", v_green, "orthogonal") or discard;
+    store.add("blue", v_blue, "different axis") or discard;
+    store.add("opp", v_opp, "anti-red") or discard;
 
     println("count = ", store.count());
 
@@ -80,7 +80,7 @@ fn main() {
     // Exercise the fallible surface — dim mismatch.
     let bad_q = mat::from_rows(1, 3, "1.0, 2.0, 3.0");
     let _r = store.search(bad_q, 3)
-        or report_dim_mismatch(err);
+    or report_dim_mismatch(err);
 
     // Exercise remove + recount.
     store.remove("blue") or discard;

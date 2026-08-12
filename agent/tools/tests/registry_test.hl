@@ -10,16 +10,16 @@ import ".." as tools;
 locus EchoTool {
     fn spec() -> tools::ToolSpec {
         return tools::ToolSpec {
-            name:         "echo",
-            description:  "echo the msg arg back",
+            name: "echo",
+            description: "echo the msg arg back",
             input_schema: "{\"type\":\"object\"}"
         };
     }
     fn invoke(call: tools::ToolCall) -> tools::ToolResult {
         let msg = std::json::find_string_field(call.args_json, "msg");
         return tools::ToolResult {
-            call_id:  call.call_id,
-            content:  "echo:" + msg,
+            call_id: call.call_id,
+            content: "echo:" + msg,
             is_error: false
         };
     }
@@ -31,14 +31,14 @@ locus EchoTool {
 locus BoomTool {
     fn spec() -> tools::ToolSpec {
         return tools::ToolSpec {
-            name:        "boom",
+            name: "boom",
             description: "always fails internally"
         };
     }
     fn invoke(call: tools::ToolCall) -> tools::ToolResult {
         return tools::ToolResult {
-            call_id:  call.call_id,
-            content:  "kaboom",
+            call_id: call.call_id,
+            content: "kaboom",
             is_error: true
         };
     }
@@ -48,8 +48,8 @@ locus BoomTool {
 // assert on kind|detail uniformly (same shape as the calc-tool demo).
 fn err_to_result(e: tools::ToolError) -> tools::ToolResult {
     return tools::ToolResult {
-        call_id:  "",
-        content:  e.kind + "|" + e.detail,
+        call_id: "",
+        content: e.kind + "|" + e.detail,
         is_error: true
     };
 }
@@ -73,9 +73,9 @@ locus RegistryTest {
 
         // Happy-path dispatch: content + call_id echo, no error.
         let call = tools::ToolCall {
-            name:      "echo",
+            name: "echo",
             args_json: "{\"msg\":\"hi\"}",
-            call_id:   "c-1"
+            call_id: "c-1"
         };
         let r = reg.dispatch(call) or err_to_result(err);
         std::test::assert_eq_str(r.content, "echo:hi",
@@ -86,9 +86,9 @@ locus RegistryTest {
 
         // Tool-internal failure: dispatch succeeds, is_error rides back.
         let bc = tools::ToolCall {
-            name:      "boom",
+            name: "boom",
             args_json: "{}",
-            call_id:   "c-2"
+            call_id: "c-2"
         };
         let rb = reg.dispatch(bc) or err_to_result(err);
         std::test::assert(rb.is_error, "tool-internal failure sets is_error");
@@ -99,9 +99,9 @@ locus RegistryTest {
 
         // Unknown tool name -> ToolError kind "unknown_tool".
         let uc = tools::ToolCall {
-            name:      "nonexistent",
+            name: "nonexistent",
             args_json: "{}",
-            call_id:   "c-3"
+            call_id: "c-3"
         };
         let ru = reg.dispatch(uc) or err_to_result(err);
         std::test::assert(ru.is_error, "unknown tool folds to error result");
@@ -111,9 +111,9 @@ locus RegistryTest {
 
         // Empty name -> ToolError kind "empty_name".
         let ec = tools::ToolCall {
-            name:      "",
+            name: "",
             args_json: "{}",
-            call_id:   "c-4"
+            call_id: "c-4"
         };
         let re2 = reg.dispatch(ec) or err_to_result(err);
         std::test::assert(has(re2.content, "empty_name|"),

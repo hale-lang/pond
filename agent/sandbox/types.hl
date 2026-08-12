@@ -26,9 +26,9 @@
 // to pond/subprocess directly until a Bytes-shaped variant is
 // added).
 type SandboxResult {
-    exit_code: Int    = 0;
-    stdout:    String = "";
-    stderr:    String = "";
+    exit_code: Int = 0;
+    stdout: String = "";
+    stderr: String = "";
 }
 
 // SandboxError — fallible(SandboxError) payload across the surface.
@@ -51,6 +51,6 @@ type SandboxResult {
 // `detail` is a human-readable explanation (typically forwarded
 // from the underlying SpawnError / IoError detail).
 type SandboxError {
-    kind:   String = "";
+    kind: String = "";
     detail: String = "";
 }

@@ -44,11 +44,11 @@ import "../../../http/client" as http;
 // ---- Storage ----
 
 type Series {
-    key: String;          // "name{labels}" — the row identity
+    key: String; // "name{labels}" — the row identity
     value: Float = 0.0;
     prev: Float = 0.0;
     samples: Int = 0;
-    hist: String = "";    // space-separated recent values (<= 24)
+    hist: String = ""; // space-separated recent values (<= 24)
 }
 
 @form(hashmap)
@@ -57,8 +57,8 @@ locus SeriesMap {
 }
 
 type KindEntry {
-    name: String;         // bare metric name (no labels)
-    kind: String;         // counter | gauge | histogram | summary
+    name: String; // bare metric name (no labels)
+    kind: String; // counter | gauge | histogram | summary
 }
 
 @form(hashmap)
@@ -81,7 +81,7 @@ locus Dash {
 
         series: SeriesMap = SeriesMap { };
         kinds: KindMap = KindMap { };
-        keys: KeyVec = KeyVec { };     // sorted row order
+        keys: KeyVec = KeyVec { }; // sorted row order
 
         scrapes: Int = 0;
         last_err: String = "";
@@ -127,17 +127,17 @@ locus Dash {
     fn fetch() -> String {
         if std::str::index_of(self.source, "http://") == 0
             || std::str::index_of(self.source, "https://") == 0 {
-            let resp = http::get(self.source) or self.http_err(err);
-            if resp.status == 0 { return ""; }   // http_err path
-            if resp.status != 200 {
-                self.last_err = "http " + to_string(resp.status);
-                return "";
+                let resp = http::get(self.source) or self.http_err(err);
+                if resp.status == 0 { return ""; } // http_err path
+                if resp.status != 200 {
+                    self.last_err = "http " + to_string(resp.status);
+                    return "";
+                }
+                self.last_err = "";
+                return std::str::from_bytes(resp.body);
             }
-            self.last_err = "";
-            return std::str::from_bytes(resp.body);
-        }
         let content = std::io::fs::read_file(self.source)
-            or self.file_err(err);
+        or self.file_err(err);
         if len(content) > 0 { self.last_err = ""; }
         return content;
     }
@@ -157,7 +157,7 @@ locus Dash {
     fn ingest_line(line: String) {
         let n = len(line);
         if n == 0 { return; }
-        if std::str::byte_at_unchecked(line, 0) == 35 {   // '#'
+        if std::str::byte_at_unchecked(line, 0) == 35 { // '#'
             if std::str::index_of(line, "# TYPE ") == 0 {
                 let rest = std::str::substring(line, 7, n);
                 let sp = std::str::index_of(rest, " ");
@@ -191,7 +191,7 @@ locus Dash {
         let mut tok = valstr;
         let tsp = std::str::index_of(valstr, " ");
         if tsp > 0 { tok = std::str::substring(valstr, 0, tsp); }
-        if !std::str::can_parse_float(tok) { return; }   // NaN/junk
+        if !std::str::can_parse_float(tok) { return; } // NaN/junk
         let v = std::str::parse_float(tok) or 0.0;
         self.upsert(key, v);
     }
@@ -234,7 +234,7 @@ locus Dash {
         let page = s.h - 3;
 
         if e.kind == "key" && e.key == "char" && e.ctrl && e.ch == 99 {
-            return true;                                  // ^C
+            return true; // ^C
         }
         if e.kind == "mouse" {
             if e.btn == "wheel_up" { self.scroll(-3, page); }
@@ -257,13 +257,13 @@ locus Dash {
         }
 
         if e.kind == "key" {
-            if e.key == "char" && e.ch == 113 { return true; }       // q
-            if e.key == "char" && e.ch == 47 { self.set_editing(true); }  // /
-            if e.key == "char" && e.ch == 112 {                      // p
+            if e.key == "char" && e.ch == 113 { return true; } // q
+            if e.key == "char" && e.ch == 47 { self.set_editing(true); } // /
+            if e.key == "char" && e.ch == 112 { // p
                 self.paused = !self.paused;
             }
-            if e.key == "char" && e.ch == 103 { self.offset = 0; }   // g
-            if e.key == "char" && e.ch == 71 {                       // G
+            if e.key == "char" && e.ch == 103 { self.offset = 0; } // g
+            if e.key == "char" && e.ch == 71 { // G
                 self.scroll(1000000000, page);
             }
             if e.key == "up" { self.scroll(-1, page); }
@@ -367,9 +367,9 @@ locus Dash {
         let name_w = self.name_width(s);
         s.put(1, 1, "NAME", -1, -1, 2);
         s.put(1 + name_w + 1, 1, std::str::pad_left("VALUE", 12, " "),
-              -1, -1, 2);
+                -1, -1, 2);
         s.put(1 + name_w + 14, 1, std::str::pad_left("RATE/s", 10, " "),
-              -1, -1, 2);
+                -1, -1, 2);
         s.put(1 + name_w + 26, 1, "TREND", -1, -1, 2);
     }
 
@@ -392,19 +392,19 @@ locus Dash {
 
         // value
         s.put(1 + name_w + 1, y,
-              std::str::pad_left(fmt_num(c.value), 12, " "), -1, -1, 1);
+            std::str::pad_left(fmt_num(c.value), 12, " "), -1, -1, 1);
 
         // rate — counters only, needs two samples
         let kind = self.kind_of(key);
         if kind == "counter" && c.samples >= 2 {
             let mut d = (c.value - c.prev) / int_to_float(self.scrape_secs);
             let mut fg = 10;
-            if d < 0.0 { fg = 9; }       // counter reset
+            if d < 0.0 { fg = 9; } // counter reset
             s.put(1 + name_w + 14, y,
-                  std::str::pad_left(fmt_num(d), 10, " "), fg, -1, 0);
+                std::str::pad_left(fmt_num(d), 10, " "), fg, -1, 0);
         } else {
             s.put(1 + name_w + 14, y,
-                  std::str::pad_left("-", 10, " "), -1, -1, 2);
+                std::str::pad_left("-", 10, " "), -1, -1, 2);
         }
 
         // sparkline
@@ -449,7 +449,7 @@ locus Dash {
 // ---- Helpers (free fns) ----
 
 fn int_to_float(n: Int) -> Float {
-    return n * 1.0;   // F.23 binop promotion widens the Int side
+    return n * 1.0; // F.23 binop promotion widens the Int side
 }
 
 // Append v to the space-separated history, capped at 24 entries.
@@ -575,7 +575,7 @@ fn main() {
         return;
     }
     let source = std::env::arg(1);
-    let frames = std::str::parse_int(std::env::arg_or(2, "-1")) or -1;
+    let frames = std::str::parse_int(std::env::arg_or(2, "-1")) or - 1;
     tui::Program {
         app: Dash { source: source },
         fps: 30,

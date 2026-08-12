@@ -38,9 +38,9 @@
 // (cloned — see db.hl's ownership note), suitable for log
 // emission.
 type DbError {
-    kind:        String = "";
-    sqlite_code: Int    = 0;
-    detail:      String = "";
+    kind: String = "";
+    sqlite_code: Int = 0;
+    detail: String = "";
 }
 
 // Row — a single result row's columns, joined by tab ("\t") in
@@ -72,6 +72,6 @@ type Rows {
 // `last_insert_rowid` is `last_insert_rowid()` (0 if not an INSERT
 // into a rowid table).
 type ExecResult {
-    rows_affected:     Int = 0;
+    rows_affected: Int = 0;
     last_insert_rowid: Int = 0;
 }

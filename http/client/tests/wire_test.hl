@@ -13,10 +13,10 @@ fn main() {
     // ---- request building ------------------------------------
 
     let req = http::Request {
-        method:  "GET",
-        url:     http::Url { scheme: "http", host: "example.com", port: 8080, path: "/things?a=1" },
+        method: "GET",
+        url: http::Url { scheme: "http", host: "example.com", port: 8080, path: "/things?a=1" },
         headers: "X-Token: abc",
-        body:    b""
+        body: b""
     };
     let hdrs = http::__build_request_headers(req, "pond-test/1.0", false);
 
@@ -33,10 +33,10 @@ fn main() {
     // POST with body: Content-Length reflects body byte count;
     // keep-alive flag flips the Connection header.
     let preq = http::Request {
-        method:  "POST",
-        url:     http::Url { scheme: "http", host: "example.com", port: 80, path: "/submit" },
+        method: "POST",
+        url: http::Url { scheme: "http", host: "example.com", port: 80, path: "/submit" },
         headers: "",
-        body:    std::bytes::from_string("hi")
+        body: std::bytes::from_string("hi")
     };
     let phdrs = http::__build_request_headers(preq, "pond-test/1.0", true);
     std::test::assert_eq_int(std::str::index_of(phdrs, "POST /submit HTTP/1.1\r\n"), 0,
@@ -80,7 +80,7 @@ fn main() {
     // header all stripped) — the FRICTION-log raw-framing bug.
     let chunked_raw = std::bytes::from_string(
         "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"
-        + "6\r\nhello,\r\n1;ext=x\r\n \r\n5\r\nworld\r\n0\r\nX-Trailer: ignored\r\n\r\n");
+            + "6\r\nhello,\r\n1;ext=x\r\n \r\n5\r\nworld\r\n0\r\nX-Trailer: ignored\r\n\r\n");
     let rc = http::__parse_response(chunked_raw);
     std::test::assert_eq_int(rc.status, 200, "chunked: status extracted");
     std::test::assert_eq_str(std::str::from_bytes(rc.body), "hello, world",

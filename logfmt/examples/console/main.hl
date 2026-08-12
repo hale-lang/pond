@@ -29,7 +29,7 @@ fn main() {
 
 fn drive() {
     // Sink before any Logger publishes (bus-ordering rule).
-    logfmt::ConsoleSink { };   // auto color (tty-probed)
+    logfmt::ConsoleSink { }; // auto color (tty-probed)
 
     let app = std::log::Logger { name: "app" };
     let db = std::log::Logger { name: "db", parent_path: "app" };

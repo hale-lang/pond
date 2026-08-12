@@ -41,9 +41,9 @@ fn batch_content(tag: String) -> String {
 }
 
 fn write_batch(sink: logfmt::FileSink, tag: String) {
-    sink.line(row(tag, 1));   // size 40  — under cap
-    sink.line(row(tag, 2));   // size 80  — under cap
-    sink.line(row(tag, 3));   // size 120 — over cap: rotate
+    sink.line(row(tag, 1)); // size 40  — under cap
+    sink.line(row(tag, 2)); // size 80  — under cap
+    sink.line(row(tag, 3)); // size 120 — over cap: rotate
 }
 
 fn main() {
@@ -51,9 +51,9 @@ fn main() {
     cleanup_chain(path);
 
     let sink = logfmt::FileSink {
-        path:           path,
+        path: path,
         max_size_bytes: 100,
-        keep_files:     2
+        keep_files: 2
     };
 
     // ----- batch 1: first rotation -----

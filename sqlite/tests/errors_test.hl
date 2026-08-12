@@ -20,7 +20,7 @@ import ".." as sqlite;
 locus Rec {
     params {
         kind: String = "";
-        code: Int    = 0;
+        code: Int = 0;
     }
     fn on_exec(e: sqlite::DbError) -> sqlite::ExecResult {
         self.kind = e.kind;
@@ -53,13 +53,13 @@ fn main() {
     let rec = Rec { };
 
     let _ = conn.exec("CREATE TABLE kv (k TEXT PRIMARY KEY, v TEXT)")
-        or rec.on_exec(err);
+    or rec.on_exec(err);
     std::test::assert_eq_str(rec.take(), "", "CREATE TABLE succeeds");
 
     // query_one on an empty table -> no_row (an empty result is an
     // ERROR for query_one, unlike query_all).
     let r1 = conn.query_one("SELECT v FROM kv WHERE k = 'missing'")
-        or rec.on_row(err);
+    or rec.on_row(err);
     std::test::assert_eq_str(rec.take(), "no_row", "empty query_one fails no_row");
     std::test::assert_eq_str(r1.data, "", "substitute row is empty");
 
@@ -76,10 +76,10 @@ fn main() {
 
     // Duplicate primary key -> constraint, SQLITE_CONSTRAINT (19).
     let _ = conn.exec("INSERT INTO kv (k, v) VALUES ('dup', 'a')")
-        or rec.on_exec(err);
+    or rec.on_exec(err);
     std::test::assert_eq_str(rec.take(), "", "first insert succeeds");
     let _ = conn.exec("INSERT INTO kv (k, v) VALUES ('dup', 'b')")
-        or rec.on_exec(err);
+    or rec.on_exec(err);
     std::test::assert_eq_str(rec.kind, "constraint", "duplicate pk fails constraint");
     std::test::assert_eq_int(rec.code, 19, "constraint carries SQLITE_CONSTRAINT");
     let _ = rec.take();

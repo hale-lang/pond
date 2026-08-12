@@ -41,10 +41,10 @@ fn __parse_payload(payload: Bytes) -> Session {
     if t1 < 0 {
         return Session { id: "", data: "" };
     }
-    let id      = raw[0..t1];
-    let rest1   = raw[(t1 + 1)..total];
+    let id = raw[0..t1];
+    let rest1 = raw[(t1 + 1)..total];
     let rest_len = len(rest1);
-    let t2      = std::str::index_of(rest1, "\t");
+    let t2 = std::str::index_of(rest1, "\t");
     let mut data = "";
     if t2 >= 0 {
         data = rest1[(t2 + 1)..rest_len];
@@ -68,7 +68,7 @@ fn __payload_expires_at(payload: Bytes) -> Int {
     if t2 >= 0 {
         exp_str = rest1[0..t2];
     }
-    return std::str::parse_int(exp_str) or -1;
+    return std::str::parse_int(exp_str) or - 1;
 }
 
 // Wrap the payload + HMAC into the final cookie *value* (the
@@ -87,8 +87,8 @@ fn encode_cookie_value(payload: Bytes, mac: Bytes) -> String {
 // `SessionError { kind: "malformed" }`.
 type CookieParts {
     payload: Bytes;
-    mac:     Bytes;
-    ok:      Bool  = false;
+    mac: Bytes;
+    ok: Bool = false;
 }
 
 fn __decode_cookie_value(value: String) -> CookieParts {
@@ -104,7 +104,7 @@ fn __decode_cookie_value(value: String) -> CookieParts {
     let p64 = value[0..dot];
     let m64 = value[(dot + 1)..total];
     let payload = std::text::base64::decode(p64);
-    let mac     = std::text::base64::decode(m64);
+    let mac = std::text::base64::decode(m64);
     if len(payload) <= 0 || len(mac) <= 0 {
         return CookieParts { payload: empty, mac: empty, ok: false };
     }

@@ -26,7 +26,7 @@
 // freely between fns and through interface vtable calls.
 
 type RouteParams {
-    qs:        String = "";
+    qs: String = "";
     path_keys: bounded[String; 8];
     path_vals: bounded[String; 8];
 }
@@ -44,7 +44,7 @@ type RouteParams {
 // query string; the matcher strips it for route matching and
 // `ctx.params.qs` carries the query half.
 type Context {
-    req:    std::http::Request;
+    req: std::http::Request;
     params: RouteParams;
 }
 
@@ -62,7 +62,7 @@ type Context {
 // field-equal struct-literal copy (see FRICTION.log
 // "response-in-fn-ptr-field" for the refreshed status).
 type Response {
-    status:       Int    = 200;
+    status: Int = 200;
     content_type: String = "text/plain";
     // Additional response header lines (Set-Cookie, CORS,
     // X-Custom-*), CRLF-joined with no trailing CRLF — same
@@ -70,6 +70,6 @@ type Response {
     // shipped upstream; wired through 2026-06-12). The Server
     // still emits the fixed Content-Type / Content-Length /
     // Connection block unconditionally.
-    headers:      String = "";
-    body:         String = "";
+    headers: String = "";
+    body: String = "";
 }

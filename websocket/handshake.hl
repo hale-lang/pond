@@ -71,7 +71,7 @@ fn build_request(host: String, path: String, key: String, extra_headers: String)
 fn parse_response(b: Bytes, expected_accept: String) -> Int fallible(WsError) {
     let total = len(b);
     if total < 12 {
-        return 0;     // need at least "HTTP/1.1 NNN" before deciding
+        return 0; // need at least "HTTP/1.1 NNN" before deciding
     }
 
     // Find the end-of-headers double-CRLF. If absent we're still
@@ -86,7 +86,7 @@ fn parse_response(b: Bytes, expected_accept: String) -> Int fallible(WsError) {
     let head = s[0..12];
     if head != "HTTP/1.1 101" {
         fail WsError {
-            kind:   "handshake",
+            kind: "handshake",
             detail: "server did not return 101 Switching Protocols: " + s[0..end],
         };
     }
@@ -99,18 +99,18 @@ fn parse_response(b: Bytes, expected_accept: String) -> Int fallible(WsError) {
         let got = header_value(s, end, "sec-websocket-accept");
         if got == "" {
             fail WsError {
-                kind:   "handshake",
+                kind: "handshake",
                 detail: "server response lacks Sec-WebSocket-Accept",
             };
         }
         if got != expected_accept {
             fail WsError {
-                kind:   "handshake",
+                kind: "handshake",
                 detail: "Sec-WebSocket-Accept mismatch: " + got,
             };
         }
     }
-    return end + 4;     // consume up to and including \r\n\r\n
+    return end + 4; // consume up to and including \r\n\r\n
 }
 
 // header_value — find one header's value in the raw header block
@@ -130,7 +130,7 @@ fn header_value(s: String, head_end: Int, name_lc: String) -> String {
             line = s[cursor..head_end];
             cursor = head_end;
         } else {
-            line = s[cursor..cursor+line_end];
+            line = s[cursor..cursor + line_end];
             cursor = cursor + line_end + 2;
         }
         let colon = std::str::index_of(line, ":");
@@ -139,7 +139,7 @@ fn header_value(s: String, head_end: Int, name_lc: String) -> String {
                 let line_len = len(line);
                 let mut vs = colon + 1;
                 while vs < line_len {
-                    let ch = line[vs..vs+1];
+                    let ch = line[vs..vs + 1];
                     if ch != " " && ch != "\t" {
                         return line[vs..line_len];
                     }
@@ -158,7 +158,7 @@ fn ends_with_crlf(s: String) -> Bool {
     if n < 2 {
         return false;
     }
-    let tail = s[n-2..n];
+    let tail = s[n - 2..n];
     return tail == "\r\n";
 }
 
@@ -185,10 +185,10 @@ fn ws_magic_guid() -> String {
 // upgrade request. All strings are zero-default; callers check
 // `key != ""` to detect "no key header found, not a real upgrade".
 type WsUpgradeRequest {
-    path:        String = "/";
-    key:         String = "";
-    version:     String = "";    // expect "13"
-    has_upgrade: Bool   = false; // true if Upgrade: websocket present
+    path: String = "/";
+    key: String = "";
+    version: String = ""; // expect "13"
+    has_upgrade: Bool = false; // true if Upgrade: websocket present
 }
 
 // parse_request — pull the upgrade-relevant headers out of an
@@ -212,9 +212,9 @@ fn parse_request(b: Bytes) -> WsUpgradeRequest {
     }
 
     let mut out = WsUpgradeRequest {
-        path:        "/",
-        key:         "",
-        version:     "",
+        path: "/",
+        key: "",
+        version: "",
         has_upgrade: false,
     };
 
@@ -225,7 +225,7 @@ fn parse_request(b: Bytes) -> WsUpgradeRequest {
         // Strip "GET " prefix and " HTTP/x.x" suffix to leave path.
         let after_method = std::str::index_of(request_line, " ");
         if after_method > 0 {
-            let rest = request_line[after_method+1..len(request_line)];
+            let rest = request_line[after_method + 1..len(request_line)];
             let space2 = std::str::index_of(rest, " ");
             if space2 > 0 {
                 out.path = rest[0..space2];
@@ -248,7 +248,7 @@ fn parse_request(b: Bytes) -> WsUpgradeRequest {
             __apply_header(s[cursor..head_end], out);
             cursor = head_end;
         } else {
-            let line = s[cursor..cursor+line_end];
+            let line = s[cursor..cursor + line_end];
             __apply_header(line, out);
             cursor = cursor + line_end + 2;
         }
@@ -270,7 +270,7 @@ fn __apply_header(line: String, out: WsUpgradeRequest) {
     let line_len = len(line);
     let mut vs = colon + 1;
     while vs < line_len {
-        let ch = line[vs..vs+1];
+        let ch = line[vs..vs + 1];
         if ch != " " && ch != "\t" {
             __set_header_field(name_lc, line[vs..line_len], out);
             return;

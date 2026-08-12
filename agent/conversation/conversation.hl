@@ -107,7 +107,7 @@ locus Conversation {
             let mut j = 0;
             while j < n - k {
                 let mv = at(self.history, j + k)
-                    or Message { };
+                or Message { };
                 set(self.history, j, mv) or raise;
                 j = j + 1;
             }

@@ -52,7 +52,7 @@ locus WsUpgradeHandler {
         if key == "" {
             return std::http::Response {
                 status: 400,
-                body:   "not a websocket upgrade",
+                body: "not a websocket upgrade",
             };
         }
         self.upgrades = self.upgrades + 1;
@@ -60,10 +60,10 @@ locus WsUpgradeHandler {
         // takeover: the server writes ONLY the status line + these
         // headers, leaves the socket open, and forgets it.
         return std::http::Response {
-            status:  101,
+            status: 101,
             headers: "Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: "
                 + ws::compute_accept(key),
-            body:     "",
+            body: "",
             takeover: true,
         };
     }
@@ -82,7 +82,7 @@ locus EchoSession {
         // The HTTP layer already performed the handshake — start
         // the conn directly in frame mode.
         let conn = ws::WsServerConn {
-            conn_fd:        c.fd,
+            conn_fd: c.fd,
             handshake_done: true,
         };
         while conn.read_msg() {
@@ -105,27 +105,27 @@ main locus UpgradeDemo {
         // handler's publish can fire.
         session: EchoSession = EchoSession { };
         server: std::http::Server = std::http::Server {
-            port:        9321,
+            port: 9321,
             max_accepts: 1,
-            handler:     WsUpgradeHandler { },
+            handler: WsUpgradeHandler { },
         };
     }
     placement {
         session: pinned;
-        server:  pinned;
+        server: pinned;
     }
     run() {
         println("=== upgrade-server demo ===");
         let conn = ws::WsClient {
-            url:            "ws://127.0.0.1:9321/",
+            url: "ws://127.0.0.1:9321/",
             auto_reconnect: false,
-            ping_interval:  30s,
-            pong_timeout:   10s,
-            recv_chunk:     4096,
+            ping_interval: 30s,
+            pong_timeout: 10s,
+            recv_chunk: 4096,
         };
         if !conn.open() {
             println("FAIL open: kind=", conn.last_error.kind,
-                    " detail=", conn.last_error.detail);
+                " detail=", conn.last_error.detail);
         } else {
             conn.send_text("one") or discard;
             conn.send_text("two") or discard;
@@ -136,10 +136,10 @@ main locus UpgradeDemo {
                 if conn.read_msg() {
                     seen = seen + 1;
                     println("[client] echo #", to_string(seen), ": ",
-                            conn.last_message.text);
+                        conn.last_message.text);
                 } else {
                     println("FAIL read: kind=", conn.last_error.kind,
-                            " detail=", conn.last_error.detail);
+                        " detail=", conn.last_error.detail);
                     ok = false;
                 }
             }

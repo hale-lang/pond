@@ -37,7 +37,7 @@ locus RowBuf {
             return "";
         }
         let mut cursor = 0;
-        let mut idx    = 0;
+        let mut idx = 0;
         while cursor <= row_len {
             let rel = std::str::index_of(row[cursor..row_len], "\t");
             let mut field_end = row_len;
@@ -74,7 +74,7 @@ locus RowBuf {
         let total = len(buf);
         if total <= 0 { return buf; }
 
-        let mut out    = "";
+        let mut out = "";
         let mut cursor = 0;
         while cursor < total {
             let rest = buf[cursor..total];

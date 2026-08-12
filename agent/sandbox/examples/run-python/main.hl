@@ -24,8 +24,8 @@ locus RunPython {
     run() {
         // Construct a Sandbox once; reuse across runs.
         let sb = sandbox::Sandbox {
-            runtime:         "python3",
-            timeout_ms:      5000,
+            runtime: "python3",
+            timeout_ms: 5000,
             memory_limit_mb: 256,
         };
 
@@ -50,8 +50,8 @@ locus RunPython {
         println("run-python: ", e.kind, ": ", e.detail);
         return sandbox::SandboxResult {
             exit_code: -1,
-            stdout:    "",
-            stderr:    "",
+            stdout: "",
+            stderr: "",
         };
     }
 }

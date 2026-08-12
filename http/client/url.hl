@@ -12,7 +12,7 @@
 // Default ports per RFC 7330. TLS landed 2026-05-18 (upstream
 // e9a99df); both schemes are live in the connect path.
 fn __default_port_for_scheme(scheme: String) -> Int {
-    if scheme == "http"  { return 80; }
+    if scheme == "http" { return 80; }
     if scheme == "https" { return 443; }
     return 0;
 }

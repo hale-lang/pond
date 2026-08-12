@@ -24,7 +24,7 @@ locus WsTransport {
     params {
         // -1 = closed. At most one is >= 0 at any time.
         sock: Int = -1;
-        tls:  Int = -1;
+        tls: Int = -1;
 
         // Kernel/user RX timestamps for the TLS fast path (hale
         // #146). `std::io::tls::last_recv_*_ns()` reads thread-locals
@@ -32,7 +32,7 @@ locus WsTransport {
         // them here in the same breath as the recvmsg. The owner
         // copies them out afterwards; nothing else may sit between.
         rx_kernel_ns: Int = 0;
-        rx_user_ns:   Int = 0;
+        rx_user_ns: Int = 0;
     }
 
     fn is_open() -> Bool {
@@ -75,7 +75,7 @@ locus WsTransport {
             // the stamp reads MUST follow with no syscall between.
             let g = std::io::tls::recv_stamped_into(self.tls, buf, n);
             self.rx_kernel_ns = std::io::tls::last_recv_kernel_ns();
-            self.rx_user_ns   = std::io::tls::last_recv_user_ns();
+            self.rx_user_ns = std::io::tls::last_recv_user_ns();
             return g;
         }
         return std::io::tcp::recv_into(self.sock, buf, n);

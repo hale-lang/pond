@@ -42,9 +42,9 @@ locus MetricsEndpoint {
     fn handle(req: std::http::Request) -> std::http::Response {
         let body = self.registry.render();
         return std::http::Response {
-            status:       200,
+            status: 200,
             content_type: "text/plain; version=0.0.4",
-            body:         body
+            body: body
         };
     }
 }

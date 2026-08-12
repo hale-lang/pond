@@ -36,8 +36,8 @@
 
 locus SessionStore {
     params {
-        secret:      Bytes;
-        ttl_seconds: Int   = 86400;
+        secret: Bytes;
+        ttl_seconds: Int = 86400;
     }
 
     // Read + verify a cookie. Returns the recovered Session, or
@@ -50,7 +50,7 @@ locus SessionStore {
     // property.
     fn read(cookie_header: String) -> Session fallible(SessionError) {
         let now = now_seconds();
-        let s   = verify_cookie(self.secret, cookie_header, now) or raise;
+        let s = verify_cookie(self.secret, cookie_header, now) or raise;
         return s;
     }
 
@@ -69,9 +69,9 @@ locus SessionStore {
     // under the origin; consumers that need a tighter scope can
     // call `sign_payload` directly and assemble their own header.
     fn write(s: Session) -> String {
-        let now      = now_seconds();
-        let value    = sign_payload(self.secret, s, now, self.ttl_seconds);
-        let max_age  = to_string(self.ttl_seconds);
+        let now = now_seconds();
+        let value = sign_payload(self.secret, s, now, self.ttl_seconds);
+        let max_age = to_string(self.ttl_seconds);
         return "session=" + value + "; Path=/; HttpOnly; Max-Age=" + max_age;
     }
 

@@ -1,7 +1,7 @@
 // pond/tracing — Tracer locus.
 
 import "../_util/duration_int" as durint;
-import "../_util/rowbuf"       as rb;
+import "../_util/rowbuf" as rb;
 
 //
 // Per CONTRACTS.md:
@@ -70,7 +70,6 @@ import "../_util/rowbuf"       as rb;
 // barrier is about naming, not resolution.)
 // =====================================================================
 
-
 // =====================================================================
 // Bus channel — the SpanCompleted topic decl is CO-LOCATED with
 // its publisher. `hale build` / `hale run` accept a sibling-file
@@ -96,7 +95,7 @@ locus Tracer {
         next_id: Int = 1;
 
         // Packed buffers — see "Storage shape" above.
-        open_buf:      String = "";
+        open_buf: String = "";
         completed_buf: String = "";
     }
 
@@ -118,8 +117,8 @@ locus Tracer {
         let id_str = to_string(self.next_id);
         self.next_id = self.next_id + 1;
 
-        let di       = durint::DurationInt { };
-        let t0       = std::time::monotonic();
+        let di = durint::DurationInt { };
+        let t0 = std::time::monotonic();
         let start_ns = di.to_ns(t0);
 
         // Append one row to open_buf.
@@ -148,18 +147,18 @@ locus Tracer {
             // No matching open span — no-op.
             let _ = id.id;
         } else {
-            let di     = durint::DurationInt { };
-            let rows   = rb::RowBuf { };
-            let t1     = std::time::monotonic();
+            let di = durint::DurationInt { };
+            let rows = rb::RowBuf { };
+            let t1 = std::time::monotonic();
             let end_ns = di.to_ns(t1);
 
             // Parse the row's fields. Order: id, parent, name,
             // start_ns, attrs.
             let parent_id = rows.nth_field(row, 1);
-            let name      = rows.nth_field(row, 2);
+            let name = rows.nth_field(row, 2);
             let start_str = rows.nth_field(row, 3);
-            let attrs     = rows.nth_field(row, 4);
-            let start_ns  = std::str::parse_int(start_str) or 0;
+            let attrs = rows.nth_field(row, 4);
+            let start_ns = std::str::parse_int(start_str) or 0;
 
             // Remove the row from open_buf.
             self.open_buf = rows.remove_row(self.open_buf, id.id);
@@ -176,12 +175,12 @@ locus Tracer {
             // Publish the SpanCompleted topic via its ident
             // (see the bus block above for the A1 note).
             let span = Span {
-                id:       SpanId { id: id.id },
-                parent:   SpanId { id: parent_id },
-                name:     name,
+                id: SpanId { id: id.id },
+                parent: SpanId { id: parent_id },
+                name: name,
                 start_ns: start_ns,
-                end_ns:   end_ns,
-                attrs:    attrs,
+                end_ns: end_ns,
+                attrs: attrs,
             };
             SpanCompleted <- span;
         }
@@ -202,9 +201,9 @@ locus Tracer {
             let rows = rb::RowBuf { };
             // Parse existing attrs, append, rebuild row.
             let parent_id = rows.nth_field(row, 1);
-            let name      = rows.nth_field(row, 2);
+            let name = rows.nth_field(row, 2);
             let start_str = rows.nth_field(row, 3);
-            let attrs     = rows.nth_field(row, 4);
+            let attrs = rows.nth_field(row, 4);
             let new_attrs = attrs + key + "=" + val + "\t";
 
             // Remove old row + append updated row.
@@ -250,7 +249,7 @@ locus Tracer {
             ) or __raise_transport(err, endpoint);
             if resp.status < 200 || resp.status >= 300 {
                 fail TraceError {
-                    kind:   "non_2xx",
+                    kind: "non_2xx",
                     detail: "OTLP collector at " + endpoint
                         + " rejected the batch with status "
                         + to_string(resp.status),
@@ -316,7 +315,7 @@ locus Tracer {
 // uses.
 fn __raise_transport(e: std::http::HttpError, endpoint: String) -> std::http::ClientResponse fallible(TraceError) {
     fail TraceError {
-        kind:   "io",
+        kind: "io",
         detail: "OTLP POST to " + endpoint + " failed: "
             + e.kind + " (" + e.detail + ")",
     };
@@ -337,7 +336,7 @@ fn __raise_transport(e: std::http::HttpError, endpoint: String) -> std::http::Cl
 // right v1.x followup once a workload pulls on it; logged in
 // FRICTION.log.
 fn __build_otlp_json(service_name: String, completed_buf: String) -> String {
-    let b    = std::json::Builder { };
+    let b = std::json::Builder { };
     let rows = rb::RowBuf { };
     b.begin_object();
     b.string_field("service", service_name);
@@ -353,14 +352,14 @@ fn __build_otlp_json(service_name: String, completed_buf: String) -> String {
         }
         let row = completed_buf[cursor..line_end];
         if len(row) > 0 {
-            let id_str    = rows.nth_field(row, 0);
+            let id_str = rows.nth_field(row, 0);
             let parent_id = rows.nth_field(row, 1);
-            let name      = rows.nth_field(row, 2);
+            let name = rows.nth_field(row, 2);
             let start_str = rows.nth_field(row, 3);
-            let end_str   = rows.nth_field(row, 4);
-            let attrs     = rows.nth_field(row, 5);
-            let start_ns  = std::str::parse_int(start_str) or 0;
-            let end_ns    = std::str::parse_int(end_str) or 0;
+            let end_str = rows.nth_field(row, 4);
+            let attrs = rows.nth_field(row, 5);
+            let start_ns = std::str::parse_int(start_str) or 0;
+            let end_ns = std::str::parse_int(end_str) or 0;
 
             // string_field (quoted + escaped), NOT the raw `field`
             // — `field` emits the value as raw wire bytes, which

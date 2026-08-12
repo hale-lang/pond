@@ -33,7 +33,7 @@ fn main() {
 
     // ----- add_child bookkeeping -----
     let a = sup::ChildSpec { name: "alpha", policy: "permanent" };
-    let b = sup::ChildSpec { name: "beta",  policy: "transient" };
+    let b = sup::ChildSpec { name: "beta", policy: "transient" };
     let c = sup::ChildSpec { name: "gamma", policy: "temporary" };
     s.add_child(a, "alpha");
     s.add_child(b, "beta");

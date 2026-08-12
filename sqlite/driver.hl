@@ -59,11 +59,11 @@ locus Driver {
         conn: Db;
 
         // --- private state ---
-        txs:        String = "idle";  // "idle" | "in_tx" | "aborted"
-        err_kind:   String = "";      // DbError stash (see header)
+        txs: String = "idle"; // "idle" | "in_tx" | "aborted"
+        err_kind: String = ""; // DbError stash (see header)
         err_detail: String = "";
-        err_code:   Int    = 0;
-        row_done:   Bool   = false;   // step() hit SQLITE_DONE
+        err_code: Int = 0;
+        row_done: Bool = false; // step() hit SQLITE_DONE
     }
 
     // ---- db::DbDriver surface ----
@@ -96,8 +96,8 @@ locus Driver {
             return db::ExecResult { ok: false, err: self.__err() };
         }
         return db::ExecResult {
-            ok:                true,
-            rows_affected:     r.rows_affected,
+            ok: true,
+            rows_affected: r.rows_affected,
             last_insert_rowid: r.last_insert_rowid,
         };
     }
@@ -140,13 +140,13 @@ locus Driver {
             return db::ExecResult { ok: false, err: self.__err() };
         }
         let counts = self.conn.query_one("SELECT changes(), last_insert_rowid()")
-            or self.__stash_row(err);
+        or self.__stash_row(err);
         if self.err_kind != "" {
             return db::ExecResult { ok: false, err: self.__err() };
         }
         return db::ExecResult {
-            ok:                true,
-            rows_affected:     __tab_int(counts.data, 0),
+            ok: true,
+            rows_affected: __tab_int(counts.data, 0),
             last_insert_rowid: __tab_int(counts.data, 1),
         };
     }
@@ -232,9 +232,9 @@ locus Driver {
 
     fn __err() -> db::DbError {
         return db::DbError {
-            kind:        __map_kind(self.err_kind),
+            kind: __map_kind(self.err_kind),
             engine_code: self.err_code,
-            detail:      self.err_detail,
+            detail: self.err_detail,
         };
     }
 
@@ -279,7 +279,7 @@ locus Driver {
         while i < args.count() {
             if !args.null_at(i) {
                 self.conn.bind_text(stmt, i + 1, args.val_at(i))
-                    or self.__stash_unit(err);
+                or self.__stash_unit(err);
             }
             i = i + 1;
         }

@@ -10,9 +10,9 @@ fn has(hay: String, needle: String) -> Bool {
 fn main() {
     // ----- anthropic body: model / max_tokens / system / messages -----
     let req = llm::LlmRequest {
-        model:       "claude-test-1",
-        system:      "be terse",
-        max_tokens:  64,
+        model: "claude-test-1",
+        system: "be terse",
+        max_tokens: 64,
         temperature: 0.7
     };
     push(req.messages, llm::LlmMsg { role: "user", content: "hello there" }) or discard;
@@ -66,7 +66,7 @@ fn main() {
     std::test::assert(has(o, "{\"role\": \"user\", \"content\": \"hello there\"}"),
         "openai body carries the user message");
     let isys = std::str::index_of(o, "\"role\": \"system\"");
-    let iou  = std::str::index_of(o, "\"role\": \"user\"");
+    let iou = std::str::index_of(o, "\"role\": \"user\"");
     std::test::assert(isys >= 0 && iou > isys,
         "openai system message precedes the user message");
     std::test::assert(has(o, "\"stream\": false"),

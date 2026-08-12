@@ -25,14 +25,14 @@ import "../crypto" as crypto;
 // passed in (rather than read inside) so tests can drive a
 // deterministic clock and so signing is a pure transformation.
 fn sign_payload(
-    secret:        Bytes,
-    s:             Session,
-    now_seconds:   Int,
-    ttl_seconds:   Int
+    secret: Bytes,
+    s: Session,
+    now_seconds: Int,
+    ttl_seconds: Int
 ) -> String {
     let expires_at = now_seconds + ttl_seconds;
-    let payload    = __build_payload(s, expires_at);
-    let mac        = crypto::hmac_sha256(secret, payload);
+    let payload = __build_payload(s, expires_at);
+    let mac = crypto::hmac_sha256(secret, payload);
     return encode_cookie_value(payload, mac);
 }
 
@@ -49,9 +49,9 @@ fn sign_payload(
 // `crypto::constant_time_eq` — a successful forgery attempt
 // can't be distinguished from an unsuccessful one by timing.
 fn verify_cookie(
-    secret:        Bytes,
+    secret: Bytes,
     cookie_header: String,
-    now_seconds:   Int
+    now_seconds: Int
 ) -> Session fallible(SessionError) {
     let value = extract_session_cookie(cookie_header);
     if len(value) <= 0 {
@@ -64,7 +64,7 @@ fn verify_cookie(
     // Recompute HMAC over the received payload and compare in
     // constant time against the received mac.
     let expected = crypto::hmac_sha256(secret, parts.payload);
-    let equal    = crypto::constant_time_eq(expected, parts.mac);
+    let equal = crypto::constant_time_eq(expected, parts.mac);
     if !equal {
         fail SessionError { kind: "tampered" };
     }

@@ -9,14 +9,14 @@
 
 locus OpenAiClient {
     params {
-        api_key:       String = "";
-        base_url:      String = "https://api.openai.com";
+        api_key: String = "";
+        base_url: String = "https://api.openai.com";
         default_model: String = "gpt-4o";
-        max_body:      Int    = 16777216;
+        max_body: Int = 16777216;
     }
     bus {
         publish "agent.llm.chunk" of type LlmChunkMsg;
-        publish "agent.llm.done"  of type LlmDoneMsg;
+        publish "agent.llm.done" of type LlmDoneMsg;
     }
 
     fn complete(req: LlmRequest) -> LlmResponse fallible(LlmError) {
@@ -71,9 +71,9 @@ locus OpenAiClient {
                 }
             }
             let resp = LlmResponse {
-                text:          std::str::builder_finish(text_buf),
-                stop_reason:   stop_reason,
-                input_tokens:  0,
+                text: std::str::builder_finish(text_buf),
+                stop_reason: stop_reason,
+                input_tokens: 0,
                 output_tokens: 0
             };
             "agent.llm.done" <- LlmDoneMsg { payload: resp };
@@ -122,7 +122,7 @@ fn openai_complete(
 ) -> LlmResponse fallible(LlmError) {
     if len(api_key) == 0 {
         fail LlmError {
-            kind:   "missing_api_key",
+            kind: "missing_api_key",
             status: 0,
             detail: "OpenAiClient: api_key must be non-empty"
         };
@@ -141,7 +141,7 @@ fn openai_complete(
     let split = __split_http(raw);
     if split.status <= 0 {
         fail LlmError {
-            kind:   "http",
+            kind: "http",
             status: 0,
             detail: "unparseable response"
         };
@@ -149,7 +149,7 @@ fn openai_complete(
     if split.status >= 400 {
         let detail = __extract_error_detail(split.body);
         fail LlmError {
-            kind:   "vendor_error",
+            kind: "vendor_error",
             status: split.status,
             detail: detail
         };
@@ -169,7 +169,7 @@ fn __openai_fetch_sse(
 ) -> String fallible(LlmError) {
     if len(api_key) == 0 {
         fail LlmError {
-            kind:   "missing_api_key",
+            kind: "missing_api_key",
             status: 0,
             detail: "OpenAiClient: api_key must be non-empty"
         };
@@ -188,7 +188,7 @@ fn __openai_fetch_sse(
     let split = __split_http(raw);
     if split.status <= 0 {
         fail LlmError {
-            kind:   "http",
+            kind: "http",
             status: 0,
             detail: "unparseable response"
         };
@@ -196,7 +196,7 @@ fn __openai_fetch_sse(
     if split.status >= 400 {
         let detail = __extract_error_detail(split.body);
         fail LlmError {
-            kind:   "vendor_error",
+            kind: "vendor_error",
             status: split.status,
             detail: detail
         };

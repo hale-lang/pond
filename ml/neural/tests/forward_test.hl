@@ -63,8 +63,8 @@ fn main() {
     // Xavier init: weights finite; biases start at exactly 0.0.
     assert_finite(w0.get(0) or 0.0, "w0[0] finite");
     assert_finite(w0.get(3) or 0.0, "w0[3] finite");
-    near_eq(b0.get(0) or -999.0, 0.0, "biases init to 0.0");
-    near_eq(b0.get(1) or -999.0, 0.0, "biases init to 0.0 (second)");
+    near_eq(b0.get(0) or - 999.0, 0.0, "biases init to 0.0");
+    near_eq(b0.get(1) or - 999.0, 0.0, "biases init to 0.0 (second)");
 
     // ---- forward: right dims, finite, sigmoid range (0, 1) ----
     let x = mat::from_rows(2, 1, "1.0, 0.0");
@@ -72,7 +72,7 @@ fn main() {
     std::test::assert(!mat::is_error(out), "forward succeeds on matching input");
     std::test::assert_eq_int(out.rows, 1, "forward output rows = last output_dim");
     std::test::assert_eq_int(out.cols, 1, "forward output cols = 1");
-    let p = out.get(0) or -999.0;
+    let p = out.get(0) or - 999.0;
     assert_finite(p, "forward output finite");
     std::test::assert(p > 0.0, "sigmoid output > 0");
     std::test::assert(p < 1.0, "sigmoid output < 1");
@@ -82,7 +82,7 @@ fn main() {
     model_b.add_dense(2, 2, "sigmoid");
     model_b.add_dense(2, 1, "sigmoid");
     let out_b = nn::forward(model_b, x) or mat::error_matrix();
-    near_eq(out_b.get(0) or -999.0, p, "same seed reproduces forward output");
+    near_eq(out_b.get(0) or - 999.0, p, "same seed reproduces forward output");
 
     // ---- exact forward on a hand-loaded linear model ----
     // apply_delta decodes "meta\n<tab-separated params>\n".
@@ -96,13 +96,13 @@ fn main() {
     let xin = mat::from_rows(2, 1, "2.0, 4.0");
     let lout = nn::forward(lin, xin) or mat::error_matrix();
     std::test::assert(!mat::is_error(lout), "linear forward succeeds");
-    near_eq(lout.get(0) or -999.0, 0.1, "exact linear forward value");
+    near_eq(lout.get(0) or - 999.0, 0.1, "exact linear forward value");
 
     // ---- snapshot round-trip: copy predicts identically ----
     let copy = nn::Model { name: "copy" };
     copy.apply_delta(model.snapshot_bytes()) or discard;
     let out_c = nn::forward(copy, x) or mat::error_matrix();
-    near_eq(out_c.get(0) or -999.0, p, "snapshot round-trip preserves forward output");
+    near_eq(out_c.get(0) or - 999.0, p, "snapshot round-trip preserves forward output");
 
     // ---- fallible surface ----
     let empty = nn::Model { name: "empty" };

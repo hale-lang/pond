@@ -22,17 +22,17 @@
 // through the crypto/base64 FFI. Everything here uses .snapshot().
 
 type ScramServerFirst {
-    nonce:    String = "";   // r= : full nonce (client nonce + server nonce)
-    salt_b64: String = "";   // s= : base64 salt
-    iters:    Int    = 0;    // i= : PBKDF2 iteration count (never hardcode)
-    ok:       Bool   = false;
+    nonce: String = ""; // r= : full nonce (client nonce + server nonce)
+    salt_b64: String = ""; // s= : base64 salt
+    iters: Int = 0; // i= : PBKDF2 iteration count (never hardcode)
+    ok: Bool = false;
 }
 
 type ScramClientFinal {
-    client_final:   String = "";   // "c=biws,r=<nonce>,p=<proof>" to send
-    server_sig_b64: String = "";   // expected v= to verify the server with
-    ok:             Bool   = false;
-    err:            String = "";
+    client_final: String = ""; // "c=biws,r=<nonce>,p=<proof>" to send
+    server_sig_b64: String = ""; // expected v= to verify the server with
+    ok: Bool = false;
+    err: String = "";
 }
 
 // salted_password — SaltedPassword = Hi(password, salt, i) =
@@ -44,7 +44,7 @@ fn salted_password(@secret password: String, salt: Bytes, iters: Int) -> Bytes {
     let pw = std::bytes::from_string(password);
     let blk = std::bytes::BytesBuilder { initial_cap: len(salt) + 4 };
     blk.append(salt);
-    blk.append_u8(0); blk.append_u8(0); blk.append_u8(0); blk.append_u8(1);   // INT(1), big-endian
+    blk.append_u8(0); blk.append_u8(0); blk.append_u8(0); blk.append_u8(1); // INT(1), big-endian
     let mut u = std::crypto::hmac_sha256(pw, blk.snapshot());
     let mut acc = u;
     let mut i = 1;
@@ -70,47 +70,47 @@ fn salted_password(@secret password: String, salt: Bytes, iters: Int) -> Bytes {
 // where cfmwp (client-final-without-proof) = "c=biws,r=<full nonce>"
 // and "biws" is the fixed base64 of the gs2 header "n,,".
 fn compute_client_final(@secret password: String, client_first_bare: String,
-                        server_first: String) -> ScramClientFinal {
-    let sf = parse_server_first(server_first);
-    if !sf.ok {
-        return ScramClientFinal { ok: false, err: "malformed server-first-message" };
+    server_first: String) -> ScramClientFinal {
+        let sf = parse_server_first(server_first);
+        if !sf.ok {
+            return ScramClientFinal { ok: false, err: "malformed server-first-message" };
+        }
+        // F1 / RFC 5802 §5.1 MUST: the server's nonce is required to extend
+        // the client nonce we sent in client-first — the server appends its
+        // own contribution. Verify sf.nonce both STARTS WITH the client
+        // nonce (embedded in client_first_bare's "r=" field) AND is
+        // strictly longer than it, rejecting a foreign nonce and an exact
+        // echo (no server contribution) alike. Fail closed: a nonce
+        // downgrade/reflection here is an authentication protocol
+        // violation, not a retryable condition.
+        let want_nonce = scram_field_after(client_first_bare, "r=");
+        if !std::str::starts_with(sf.nonce, want_nonce) || len(sf.nonce) <= len(want_nonce) {
+            return ScramClientFinal { ok: false,
+                err: "nonce mismatch: server r= does not extend the client nonce" };
+        }
+        let salt = std::text::base64::decode(sf.salt_b64);
+        let salted = salted_password(password, salt, sf.iters);
+
+        let client_key = std::crypto::hmac_sha256(salted, std::bytes::from_string("Client Key"));
+        let stored_key = std::crypto::sha256(client_key);
+
+        let cfmwp = "c=biws,r=" + sf.nonce;
+        let auth_msg = client_first_bare + "," + server_first + "," + cfmwp;
+        let auth_b = std::bytes::from_string(auth_msg);
+
+        let client_sig = std::crypto::hmac_sha256(stored_key, auth_b);
+        let client_proof = scram_xor(client_key, client_sig);
+        let client_final = cfmwp + ",p=" + std::text::base64::encode(client_proof);
+
+        let server_key = std::crypto::hmac_sha256(salted, std::bytes::from_string("Server Key"));
+        let server_sig = std::crypto::hmac_sha256(server_key, auth_b);
+
+        return ScramClientFinal {
+            client_final: client_final,
+            server_sig_b64: std::text::base64::encode(server_sig),
+            ok: true,
+        };
     }
-    // F1 / RFC 5802 §5.1 MUST: the server's nonce is required to extend
-    // the client nonce we sent in client-first — the server appends its
-    // own contribution. Verify sf.nonce both STARTS WITH the client
-    // nonce (embedded in client_first_bare's "r=" field) AND is
-    // strictly longer than it, rejecting a foreign nonce and an exact
-    // echo (no server contribution) alike. Fail closed: a nonce
-    // downgrade/reflection here is an authentication protocol
-    // violation, not a retryable condition.
-    let want_nonce = scram_field_after(client_first_bare, "r=");
-    if !std::str::starts_with(sf.nonce, want_nonce) || len(sf.nonce) <= len(want_nonce) {
-        return ScramClientFinal { ok: false,
-            err: "nonce mismatch: server r= does not extend the client nonce" };
-    }
-    let salt   = std::text::base64::decode(sf.salt_b64);
-    let salted = salted_password(password, salt, sf.iters);
-
-    let client_key = std::crypto::hmac_sha256(salted, std::bytes::from_string("Client Key"));
-    let stored_key = std::crypto::sha256(client_key);
-
-    let cfmwp    = "c=biws,r=" + sf.nonce;
-    let auth_msg = client_first_bare + "," + server_first + "," + cfmwp;
-    let auth_b   = std::bytes::from_string(auth_msg);
-
-    let client_sig   = std::crypto::hmac_sha256(stored_key, auth_b);
-    let client_proof = scram_xor(client_key, client_sig);
-    let client_final = cfmwp + ",p=" + std::text::base64::encode(client_proof);
-
-    let server_key = std::crypto::hmac_sha256(salted, std::bytes::from_string("Server Key"));
-    let server_sig = std::crypto::hmac_sha256(server_key, auth_b);
-
-    return ScramClientFinal {
-        client_final:   client_final,
-        server_sig_b64: std::text::base64::encode(server_sig),
-        ok:             true,
-    };
-}
 
 // parse_server_first — pull r= / s= / i= out of the
 // server-first-message "r=<nonce>,s=<salt>,i=<iters>". Each field is
@@ -135,10 +135,10 @@ fn parse_server_first(msg: String) -> ScramServerFirst {
     if !std::str::starts_with(msg, "r=") {
         return ScramServerFirst { ok: false };
     }
-    let r     = scram_field_after(msg, "r=");
-    let s     = scram_field_after(msg, ",s=");
+    let r = scram_field_after(msg, "r=");
+    let s = scram_field_after(msg, ",s=");
     let iters = std::str::parse_int(scram_field_after(msg, ",i=")) or 0;
-    let good  = len(r) > 0 && len(s) > 0 && iters > 0 && iters <= 1000000;
+    let good = len(r) > 0 && len(s) > 0 && iters > 0 && iters <= 1000000;
     return ScramServerFirst { nonce: r, salt_b64: s, iters: iters, ok: good };
 }
 
@@ -229,4 +229,3 @@ fn scram_field_after(msg: String, prefix: String) -> String {
     if c < 0 { return rest; }
     return rest[0..c];
 }
-

@@ -63,7 +63,7 @@ fn drive(reg: metrics::Registry) {
     req_dur.observe(0.04);
     req_dur.observe(0.4);
     req_dur.observe(0.9);
-    req_dur.observe(2.5);   // lands in the +Inf bucket only
+    req_dur.observe(2.5); // lands in the +Inf bucket only
 
     // Render and dump.
     let body = reg.render();
@@ -109,10 +109,10 @@ fn main() {
     // Construct the substrate slots first, then thread them into
     // the Registry (the contract's two-step construction shape).
     let store = metrics::MetricMap { };
-    let hl    = metrics::HistogramList { };
-    let reg   = metrics::Registry {
-        namespace:  "pondapp",
-        store:      store,
+    let hl = metrics::HistogramList { };
+    let reg = metrics::Registry {
+        namespace: "pondapp",
+        store: store,
         histograms: hl
     };
     drive(reg);

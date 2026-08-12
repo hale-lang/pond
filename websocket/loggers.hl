@@ -32,13 +32,13 @@ locus StderrWsLogger {
     fn on_event(e: WsLogEvent) {
         if e.bytes > 0 && e.op >= 0 {
             println("[ws ", e.phase, "] ", e.detail,
-                    " op=", e.op, " bytes=", e.bytes);
+                " op=", e.op, " bytes=", e.bytes);
         } else if e.bytes > 0 {
             println("[ws ", e.phase, "] ", e.detail,
-                    " bytes=", e.bytes);
+                " bytes=", e.bytes);
         } else if e.op >= 0 {
             println("[ws ", e.phase, "] ", e.detail,
-                    " op=", e.op);
+                " op=", e.op);
         } else {
             println("[ws ", e.phase, "] ", e.detail);
         }

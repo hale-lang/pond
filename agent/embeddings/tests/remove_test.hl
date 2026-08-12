@@ -42,10 +42,10 @@ fn main() {
     let v2 = mat::from_rows(1, 2, "0.0, 1.0");
     let v3 = mat::from_rows(1, 2, "-1.0, 0.0");
     let v4 = mat::from_rows(1, 2, "0.0, -1.0");
-    let q_e = mat::from_rows(1, 2, "1.0, 0.0");    // east  -> one
-    let q_n = mat::from_rows(1, 2, "0.0, 1.0");    // north -> two
-    let q_w = mat::from_rows(1, 2, "-1.0, 0.0");   // west  -> three
-    let q_s = mat::from_rows(1, 2, "0.0, -1.0");   // south -> four
+    let q_e = mat::from_rows(1, 2, "1.0, 0.0"); // east  -> one
+    let q_n = mat::from_rows(1, 2, "0.0, 1.0"); // north -> two
+    let q_w = mat::from_rows(1, 2, "-1.0, 0.0"); // west  -> three
+    let q_s = mat::from_rows(1, 2, "0.0, -1.0"); // south -> four
 
     let store = emb::Store { dim: 2 };
     store.add("one", v1, "east") or discard;

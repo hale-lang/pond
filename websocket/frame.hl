@@ -66,16 +66,16 @@
 // "incomplete"; callers gate on `last_error.kind == "framing"`
 // to distinguish.
 type FrameHeader {
-    fin:         Bool = false;
-    opcode:      Int  = 0;
-    total:       Int  = 0;
-    masked:      Bool = false;
-    payload_off: Int  = 0;
-    payload_len: Int  = 0;
-    mk0:         Int  = 0;
-    mk1:         Int  = 0;
-    mk2:         Int  = 0;
-    mk3:         Int  = 0;
+    fin: Bool = false;
+    opcode: Int = 0;
+    total: Int = 0;
+    masked: Bool = false;
+    payload_off: Int = 0;
+    payload_len: Int = 0;
+    mk0: Int = 0;
+    mk1: Int = 0;
+    mk2: Int = 0;
+    mk3: Int = 0;
 }
 
 // peek_header — parse one frame's header without materializing
@@ -93,10 +93,10 @@ fn peek_header(b: Bytes, off: Int) -> FrameHeader fallible(WsError) {
     let b0 = byte_at(b, off);
     let b1 = byte_at(b, off + 1);
 
-    let fin    = (b0 / 128) == 1;
+    let fin = (b0 / 128) == 1;
     let opcode = b0 - (b0 / 16) * 16;
     let masked = (b1 / 128) == 1;
-    let len7   = b1 - (b1 / 128) * 128;
+    let len7 = b1 - (b1 / 128) * 128;
 
     let mut payload_len = len7;
     let mut key_off = off + 2;
@@ -120,7 +120,7 @@ fn peek_header(b: Bytes, off: Int) -> FrameHeader fallible(WsError) {
         let h3 = byte_at(b, off + 5);
         if h0 != 0 || h1 != 0 || h2 != 0 || h3 != 0 {
             fail WsError {
-                kind:   "framing",
+                kind: "framing",
                 detail: "frame larger than 2^31 bytes not supported",
             };
         }
@@ -153,16 +153,16 @@ fn peek_header(b: Bytes, off: Int) -> FrameHeader fallible(WsError) {
     }
 
     return FrameHeader {
-        fin:         fin,
-        opcode:      opcode,
-        total:       (payload_off + payload_len) - off,
-        masked:      masked,
+        fin: fin,
+        opcode: opcode,
+        total: (payload_off + payload_len) - off,
+        masked: masked,
         payload_off: payload_off,
         payload_len: payload_len,
-        mk0:         mk0,
-        mk1:         mk1,
-        mk2:         mk2,
-        mk3:         mk3,
+        mk0: mk0,
+        mk1: mk1,
+        mk2: mk2,
+        mk3: mk3,
     };
 }
 
@@ -182,21 +182,21 @@ fn peek_header(b: Bytes, off: Int) -> FrameHeader fallible(WsError) {
 // xor8 + from_int + append loop). RFC 6455 § 5.3 forbids
 // server-side masking, so this path is cold in practice.
 fn unmask_into(dest: std::bytes::BytesBuilder,
-               b: Bytes,
-               payload_off: Int,
-               payload_len: Int,
-               masked: Bool,
-               mk0: Int, mk1: Int, mk2: Int, mk3: Int) {
-    if payload_len == 0 {
-        return;
+    b: Bytes,
+    payload_off: Int,
+    payload_len: Int,
+    masked: Bool,
+    mk0: Int, mk1: Int, mk2: Int, mk3: Int) {
+        if payload_len == 0 {
+            return;
+        }
+        if !masked {
+            dest.append_slice(b, payload_off, payload_off + payload_len);
+            return;
+        }
+        let key = pack_mask_key(mk0, mk1, mk2, mk3);
+        dest.xor_mask(std::bytes::slice(b, payload_off, payload_off + payload_len), key);
     }
-    if !masked {
-        dest.append_slice(b, payload_off, payload_off + payload_len);
-        return;
-    }
-    let key = pack_mask_key(mk0, mk1, mk2, mk3);
-    dest.xor_mask(std::bytes::slice(b, payload_off, payload_off + payload_len), key);
-}
 
 // emit_frame — serialize one frame for outbound send. Client-
 // side, so the MASK bit is always 1 and a fresh 4-byte mask
@@ -235,8 +235,8 @@ fn emit_frame(fin: Bool, opcode: Int, payload: Bytes, mask_seed: Int) -> Bytes {
             bldr.append(std::bytes::from_int(0));
             bldr.append(std::bytes::from_int(0));
             let a = (n / 16777216) - ((n / 16777216) / 256) * 256;
-            let b1 = (n / 65536)   - ((n / 65536)   / 256) * 256;
-            let c = (n / 256)      - ((n / 256)      / 256) * 256;
+            let b1 = (n / 65536) - ((n / 65536) / 256) * 256;
+            let c = (n / 256) - ((n / 256) / 256) * 256;
             let d = n - (n / 256) * 256;
             bldr.append(std::bytes::from_int(a));
             bldr.append(std::bytes::from_int(b1));
@@ -253,7 +253,7 @@ fn emit_frame(fin: Bool, opcode: Int, payload: Bytes, mask_seed: Int) -> Bytes {
     let mut s = mask_seed;
     if s < 0 { s = 0 - s; }
     let mk0 = s - (s / 256) * 256;
-    let mk1 = (s / 256)   - ((s / 256)   / 256) * 256;
+    let mk1 = (s / 256) - ((s / 256) / 256) * 256;
     let mk2 = (s / 65536) - ((s / 65536) / 256) * 256;
     let mk3 = (s / 16777216) - ((s / 16777216) / 256) * 256;
     bldr.append(std::bytes::from_int(mk0));
@@ -299,8 +299,8 @@ fn emit_server_frame(fin: Bool, opcode: Int, payload: Bytes) -> Bytes {
             bldr.append(std::bytes::from_int(0));
             bldr.append(std::bytes::from_int(0));
             let a = (n / 16777216) - ((n / 16777216) / 256) * 256;
-            let b1 = (n / 65536)   - ((n / 65536)   / 256) * 256;
-            let c = (n / 256)      - ((n / 256)      / 256) * 256;
+            let b1 = (n / 65536) - ((n / 65536) / 256) * 256;
+            let c = (n / 256) - ((n / 256) / 256) * 256;
             let d = n - (n / 256) * 256;
             bldr.append(std::bytes::from_int(a));
             bldr.append(std::bytes::from_int(b1));
@@ -351,4 +351,3 @@ fn kind_to_opcode(kind: String) -> Int {
     if kind == "pong" { return 10; }
     return 0;
 }
-

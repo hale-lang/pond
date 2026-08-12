@@ -22,7 +22,7 @@
 //           from `epoch_idx` and the dataset size.
 
 type TrainStep {
-    loss:      Float = 0.0;
-    epoch_idx: Int   = 0;
-    step:      Int   = 0;
+    loss: Float = 0.0;
+    epoch_idx: Int = 0;
+    step: Int = 0;
 }

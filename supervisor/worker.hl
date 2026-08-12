@@ -38,12 +38,12 @@
 
 locus Worker {
     params {
-        name:          String = "worker";
-        kind:          String = "generic";
-        payload:       String = "";
-        fail_on_birth: Bool   = false;
-        birth_order:   Int    = 0;
-        last_error:    String = "";
+        name: String = "worker";
+        kind: String = "generic";
+        payload: String = "";
+        fail_on_birth: Bool = false;
+        birth_order: Int = 0;
+        last_error: String = "";
     }
 
     // failed — closure-violation tag. Captures the worker's name and
@@ -67,7 +67,7 @@ locus Worker {
     // (spec/semantics.md § "Reading the audit state").
     birth() {
         println("Worker.birth name=", self.name, " kind=", self.kind,
-                " payload=", self.payload);
+            " payload=", self.payload);
         if self.fail_on_birth {
             self.last_error = "deliberate failure-on-birth for name=" + self.name;
             violate failed;

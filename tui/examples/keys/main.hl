@@ -26,19 +26,19 @@ locus KeysDemo {
 
     fn update(e: tui::Event, s: tui::Screen) -> Bool {
         if e.kind == "key" {
-            if e.key == "char" && e.ch == 113 { return true; }   // q
+            if e.key == "char" && e.ch == 113 { return true; } // q
             if e.key == "esc" { return true; }
         }
         if e.kind == "key" || e.kind == "mouse" || e.kind == "paste"
             || e.kind == "resize" {
-            self.n = self.n + 1;
-            let line = to_string(self.n) + "  " + describe(e);
-            if len(self.log) == 0 {
-                self.log = line;
-            } else {
-                self.log = line + "\n" + self.log;   // newest first
+                self.n = self.n + 1;
+                let line = to_string(self.n) + "  " + describe(e);
+                if len(self.log) == 0 {
+                    self.log = line;
+                } else {
+                    self.log = line + "\n" + self.log; // newest first
+                }
             }
-        }
         return false;
     }
 
@@ -51,7 +51,7 @@ locus KeysDemo {
             let line = tui::line_at(self.log, row);
             if len(line) > 0 {
                 let mut attrs = 0;
-                if row > 0 { attrs = 2; }   // dim history
+                if row > 0 { attrs = 2; } // dim history
                 s.put(1, 2 + row, line, -1, -1, attrs);
             }
             row = row + 1;

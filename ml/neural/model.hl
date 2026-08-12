@@ -70,32 +70,32 @@ import "../../math/matrix" as mat;
 // codegen".
 type NnVersion {
     generation: Int = 0;
-    era:        Int = 0;
+    era: Int = 0;
 }
 
 @form(vec)
 locus Model {
     params {
-        name:        String         = "model";
+        name: String = "model";
 
         // Layer metadata table, one record per layer:
         //   "in,out,act;in,out,act;..."
-        meta_csv:    String         = "";
-        layer_count: Int            = 0;
+        meta_csv: String = "";
+        layer_count: Int = 0;
 
         // Total Float slots consumed in the @form(vec) so far.
         // Mirrors `self.len()` but read without an `or 0`
         // addressing site.
-        params_len:  Int            = 0;
+        params_len: Int = 0;
 
         // Owner state for state-mirroring surface surface.
-        gen:         Int            = 0;
-        era:         Int            = 0;
+        gen: Int = 0;
+        era: Int = 0;
 
         // PRNG state for Xavier-init weights. Tiny LCG; not
         // cryptographic — deterministic seeds matter more than
         // statistical fidelity for a toy trainer.
-        rng_state:   Int            = 1;
+        rng_state: Int = 1;
     }
     capacity { heap data of Float; }
 
@@ -147,7 +147,7 @@ locus Model {
         }
         if nl < 0 {
             fail NnError {
-                kind:   "decode_failed",
+                kind: "decode_failed",
                 detail: "missing newline meta delimiter",
             };
         }
@@ -286,7 +286,7 @@ locus Model {
     {
         if self.layer_count == 0 {
             fail NnError {
-                kind:   "empty_model",
+                kind: "empty_model",
                 detail: "train_step() called with no layers",
             };
         }
@@ -294,13 +294,13 @@ locus Model {
         let last = self.layer_at(self.layer_count - 1);
         if x.len() != first.input_dim {
             fail NnError {
-                kind:   "shape_mismatch",
+                kind: "shape_mismatch",
                 detail: "input length doesn't match first layer input_dim",
             };
         }
         if y.len() != last.output_dim {
             fail NnError {
-                kind:   "shape_mismatch",
+                kind: "shape_mismatch",
                 detail: "target length doesn't match last layer output_dim",
             };
         }
@@ -323,7 +323,7 @@ locus Model {
 
         // Seed input as the layer-0 input slot.
         let a0 = column_view(x, first.input_dim);
-        offsets.push(0);                // slot 0 starts at offset 0
+        offsets.push(0); // slot 0 starts at offset 0
         cache.push_vec(a0);
         let mut running = first.input_dim;
 
@@ -459,14 +459,14 @@ locus Model {
 fn forward(model: Model, x: mat::Matrix) -> mat::Matrix fallible(NnError) {
     if model.layer_count == 0 {
         fail NnError {
-            kind:   "empty_model",
+            kind: "empty_model",
             detail: "forward() called with no layers",
         };
     }
     let first = model.layer_at(0);
     if x.len() != first.input_dim {
         fail NnError {
-            kind:   "shape_mismatch",
+            kind: "shape_mismatch",
             detail: "input length doesn't match first layer input_dim",
         };
     }

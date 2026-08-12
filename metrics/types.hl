@@ -50,12 +50,12 @@ type Labels {
 // a user-declared struct and the `indexed_by` field must
 // exist on it. Both hold (`key: String`).
 type MetricEntry {
-    key:      String = "";
-    name:     String = "";
-    labels:   String = "";
-    kind:     Int    = 0;
-    value:    Float  = 0.0;
-    hist_idx: Int    = -1;
+    key: String = "";
+    name: String = "";
+    labels: String = "";
+    kind: Int = 0;
+    value: Float = 0.0;
+    hist_idx: Int = -1;
 }
 
 // `HistogramData` — bucket bounds + cumulative counts + sum
@@ -84,10 +84,10 @@ type MetricEntry {
 // the BUCKET count (a declaration-time choice by the app
 // author); `histogram()` clamps beyond it.
 type HistogramData {
-    name:   String = "";
+    name: String = "";
     labels: String = "";
     bounds: bounded[Float; 32];
     counts: bounded[Int; 33];
-    sum:    Float  = 0.0;
-    count:  Int    = 0;
+    sum: Float = 0.0;
+    count: Int = 0;
 }

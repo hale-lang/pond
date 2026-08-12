@@ -56,8 +56,8 @@
 
 locus Registry {
     params {
-        namespace:  String        = "";
-        store:      MetricMap;
+        namespace: String = "";
+        store: MetricMap;
         histograms: HistogramList;
     }
 

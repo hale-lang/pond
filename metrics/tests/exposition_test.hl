@@ -19,18 +19,18 @@ fn drive(reg: metrics::Registry) {
     let c = metrics::counter(reg, "http_requests_total", lbl_get);
     c.inc();
     c.inc();
-    c.add(3.0);          // 5
+    c.add(3.0); // 5
 
     // Idempotent re-registration: same (name, labels) returns a
     // handle on the SAME series without resetting it.
     let lbl_get2 = metrics::labels_one("method", "GET");
     let c2 = metrics::counter(reg, "http_requests_total", lbl_get2);
-    c2.inc();            // 6 total on the shared series
+    c2.inc(); // 6 total on the shared series
 
     // Same name, different labels — a separate series.
     let lbl_post = metrics::labels_one("method", "POST");
     let cpost = metrics::counter(reg, "http_requests_total", lbl_post);
-    cpost.inc();         // 1
+    cpost.inc(); // 1
 
     // ----- gauge -----
     let lbl_none = metrics::labels_empty();
@@ -38,18 +38,18 @@ fn drive(reg: metrics::Registry) {
     g.set(7.0);
     g.inc();
     g.inc();
-    g.dec();             // 8
+    g.dec(); // 8
 
     // ----- histogram -----
     // Bounds [1, 5]; the +Inf bucket is implicit.
     let buckets = mat::from_rows(1, 2, "1.0, 5.0");
     let lbl_hist = metrics::labels_one("path", "/x");
     let h = metrics::histogram(reg, "req_seconds", buckets, lbl_hist);
-    h.observe(0.5);      // le="1"
-    h.observe(1.0);      // boundary: v <= bound lands in le="1"
-    h.observe(2.0);      // le="5"
-    h.observe(5.0);      // boundary: le="5"
-    h.observe(9.5);      // +Inf only
+    h.observe(0.5); // le="1"
+    h.observe(1.0); // boundary: v <= bound lands in le="1"
+    h.observe(2.0); // le="5"
+    h.observe(5.0); // boundary: le="5"
+    h.observe(9.5); // +Inf only
     // cumulative: le="1" -> 2, le="5" -> 4, +Inf -> 5
     // sum = 0.5+1+2+5+9.5 = 18, count = 5
 
@@ -87,10 +87,10 @@ fn main() {
     // Two-step construction per the CONTRACTS.md shape: the
     // @form(...) substrate slots are default-less and passed in.
     let store = metrics::MetricMap { };
-    let hl    = metrics::HistogramList { };
-    let reg   = metrics::Registry {
-        namespace:  "t",
-        store:      store,
+    let hl = metrics::HistogramList { };
+    let reg = metrics::Registry {
+        namespace: "t",
+        store: store,
         histograms: hl
     };
     drive(reg);

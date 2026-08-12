@@ -56,6 +56,6 @@ type SupStrategy {
 // the FRICTION.log notes the deviation; the type-shape (one String
 // field carrying one of three values) is otherwise contract-faithful.
 type ChildSpec {
-    name:   String = "";
+    name: String = "";
     policy: String = "permanent";
 }

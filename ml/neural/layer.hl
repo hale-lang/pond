@@ -37,18 +37,18 @@
 // on this in forward() and train_step().
 
 type Layer {
-    name:           String = "";
-    input_dim:      Int    = 0;
-    output_dim:     Int    = 0;
-    activation:     String = "linear";
+    name: String = "";
+    input_dim: Int = 0;
+    output_dim: Int = 0;
+    activation: String = "linear";
 
     // Window into Model.params for this layer's W matrix
     // (row-major, output_dim rows x input_dim cols).
-    weights_offset: Int    = 0;
-    weights_count:  Int    = 0;
+    weights_offset: Int = 0;
+    weights_count: Int = 0;
 
     // Window into Model.params for this layer's bias vector
     // (length output_dim).
-    biases_offset:  Int    = 0;
-    biases_count:   Int    = 0;
+    biases_offset: Int = 0;
+    biases_count: Int = 0;
 }

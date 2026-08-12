@@ -17,7 +17,7 @@
 // `import "vendor/pond/tracing" as trace;`. In-tree the example
 // reaches the lib via a relative path.
 
-import "../.."             as trace;
+import "../.." as trace;
 import "../../../_util/rowbuf" as rb;
 
 // SpanSink — bus subscriber pattern 3.
@@ -28,8 +28,8 @@ import "../../../_util/rowbuf" as rb;
 locus SpanSink {
     params {
         // Each row: `<id>\t<parent_id>\t<name>\t<dur_ns>\n`.
-        rows:  String = "";
-        count: Int    = 0;
+        rows: String = "";
+        count: Int = 0;
     }
 
     bus {
@@ -85,8 +85,8 @@ locus SpanSink {
         if len(row) == 0 {
             let _ = depth;
         } else {
-            let rows   = rb::RowBuf { };
-            let name   = rows.nth_field(row, 2);
+            let rows = rb::RowBuf { };
+            let name = rows.nth_field(row, 2);
             let dur_ns = rows.nth_field(row, 3);
             let prefix = std::str::repeat("  ", depth);
             println(prefix, "* ", name, " (", dur_ns, "ns) id=", span_id);

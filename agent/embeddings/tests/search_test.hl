@@ -76,7 +76,7 @@ fn nth_score(csv: String, i: Int) -> Float {
         return -999.0;
     }
     let s = std::str::substring(rest, 0, t2);
-    return std::str::parse_float(s) or -999.0;
+    return std::str::parse_float(s) or - 999.0;
 }
 
 // Number of newline-separated rows ("" = 0).

@@ -32,7 +32,7 @@
 // The default literals (`""` / `b""`) coerce to View at the
 // storage default site (F.30 5b).
 type WsMessage {
-    kind: String     = "text";
+    kind: String = "text";
     text: StringView = "";
     bytes: BytesView = b"";
 }
@@ -58,10 +58,10 @@ type WsMessage {
 // `op` carries the RFC 6455 opcode (0x0..0xA) for send/frame
 // events, -1 elsewhere.
 type WsLogEvent {
-    phase:  String = "";
+    phase: String = "";
     detail: String = "";
-    bytes:  Int    = 0;
-    op:     Int    = -1;
+    bytes: Int = 0;
+    op: Int = -1;
 }
 
 // WsLogger — single-method interface satisfied by any locus

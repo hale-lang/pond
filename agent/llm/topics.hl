@@ -43,8 +43,8 @@
 // conversation) wire `subscribe llm::LlmChunk` against these
 // decls.
 
-type LlmChunkMsg { payload: String;      }
-type LlmDoneMsg  { payload: LlmResponse; }
+type LlmChunkMsg { payload: String; }
+type LlmDoneMsg { payload: LlmResponse; }
 
 topic LlmChunk { payload: LlmChunkMsg; subject: "agent.llm.chunk"; }
-topic LlmDone  { payload: LlmDoneMsg;  subject: "agent.llm.done";  }
+topic LlmDone { payload: LlmDoneMsg; subject: "agent.llm.done"; }

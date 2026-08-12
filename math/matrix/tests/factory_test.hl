@@ -27,14 +27,14 @@ fn main() {
     near_eq(z.at(0, 0), 0.0, "neighbor cell untouched");
 
     // checked variants round-trip too.
-    let wrote = mat::set_at_checked(z, 1, 0, 7.0) or -999.0;
+    let wrote = mat::set_at_checked(z, 1, 0, 7.0) or - 999.0;
     near_eq(wrote, 7.0, "set_at_checked returns written value");
-    let got = mat::at_checked(z, 1, 0) or -999.0;
+    let got = mat::at_checked(z, 1, 0) or - 999.0;
     near_eq(got, 7.0, "at_checked reads back written value");
 
     // OOB: at() substitutes 0.0; at_checked fails (substitute sentinel).
     near_eq(z.at(5, 5), 0.0, "at OOB substitutes 0.0");
-    let oob = mat::at_checked(z, 5, 5) or -999.0;
+    let oob = mat::at_checked(z, 5, 5) or - 999.0;
     near_eq(oob, -999.0, "at_checked OOB routes to fallible channel");
 
     // from_rows: "1,2,3,4,5,6" with rows=2 cols=3 -> [[1,2,3],[4,5,6]].

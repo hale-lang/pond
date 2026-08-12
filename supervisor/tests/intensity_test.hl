@@ -45,8 +45,8 @@ fn main() {
     // to 1 on every call and the gate never trips.
     let stratn = sup::SupStrategy { kind: "one_for_one" };
     let sn = sup::Supervisor {
-        strategy:       stratn,
-        max_restarts:   1,
+        strategy: stratn,
+        max_restarts: 1,
         window_seconds: -1
     };
     std::test::assert(sn.intensity_check(), "expired window: 1st permitted");

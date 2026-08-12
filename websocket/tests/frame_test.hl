@@ -31,7 +31,7 @@ fn main() {
 
     // The wire payload is actually masked: first payload byte must
     // differ from plaintext 'h' (104) since mk0 = 12345678 % 256 != 0.
-    let wire0 = std::bytes::at(frame, 6) or -1;
+    let wire0 = std::bytes::at(frame, 6) or - 1;
     std::test::assert(wire0 != 104, "payload byte is XOR-masked on the wire");
 
     // Unmask restores the exact payload (exercises the xor_mask path).
@@ -56,7 +56,7 @@ fn main() {
     std::test::assert_eq_int(shdr.total, 7, "server total 7");
 
     // Unmasked wire bytes are the plaintext verbatim.
-    std::test::assert_eq_int(std::bytes::at(sframe, 2) or -1, 104, "server payload unmasked ('h')");
+    std::test::assert_eq_int(std::bytes::at(sframe, 2) or - 1, 104, "server payload unmasked ('h')");
 
     let sdest = std::bytes::BytesBuilder { initial_cap: 16 };
     ws::unmask_into(sdest, sframe, shdr.payload_off, shdr.payload_len, shdr.masked,
@@ -77,9 +77,9 @@ fn main() {
     // 2 hdr + 2 extended-length + 4 mask + 200 payload.
     std::test::assert_eq_int(len(big_frame), 208, "extended-length masked frame size");
     // Byte 1 = MASK bit + 126 length code; bytes 2..3 = 0,200 big-endian.
-    std::test::assert_eq_int(std::bytes::at(big_frame, 1) or -1, 254, "len code 128+126");
-    std::test::assert_eq_int(std::bytes::at(big_frame, 2) or -1, 0, "ext len high byte");
-    std::test::assert_eq_int(std::bytes::at(big_frame, 3) or -1, 200, "ext len low byte");
+    std::test::assert_eq_int(std::bytes::at(big_frame, 1) or - 1, 254, "len code 128+126");
+    std::test::assert_eq_int(std::bytes::at(big_frame, 2) or - 1, 0, "ext len high byte");
+    std::test::assert_eq_int(std::bytes::at(big_frame, 3) or - 1, 200, "ext len low byte");
 
     let bhdr = ws::peek_header(big_frame, 0) or hdr_err(err);
     std::test::assert_eq_int(bhdr.payload_len, 200, "extended payload length parsed");
@@ -97,7 +97,7 @@ fn main() {
     // Server-side extended length too (unmasked).
     let sbig = ws::emit_server_frame(true, 2, big_payload);
     std::test::assert_eq_int(len(sbig), 204, "server extended frame 2+2+200");
-    std::test::assert_eq_int(std::bytes::at(sbig, 1) or -1, 126, "server len code 126 (no mask bit)");
+    std::test::assert_eq_int(std::bytes::at(sbig, 1) or - 1, 126, "server len code 126 (no mask bit)");
     let sbhdr = ws::peek_header(sbig, 0) or hdr_err(err);
     std::test::assert_eq_int(sbhdr.payload_len, 200, "server extended payload length");
     std::test::assert_eq_int(sbhdr.payload_off, 4, "server extended payload offset");

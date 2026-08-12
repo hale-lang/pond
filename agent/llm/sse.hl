@@ -40,9 +40,9 @@
 // and would benefit from a shared `std::iter::ChunkBuffer`.
 // Logged in FRICTION.log.
 type SseBuffer {
-    buf:    String = "";   // accumulated bytes (not yet consumed)
-    done:   Bool   = false; // sticky — true once an end-of-stream
-                             // sentinel was observed
+    buf: String = ""; // accumulated bytes (not yet consumed)
+    done: Bool = false; // sticky — true once an end-of-stream
+    // sentinel was observed
 }
 
 // feed_chunk — append `chunk` (the raw bytes pulled off the
@@ -62,7 +62,7 @@ fn feed_chunk(buf: SseBuffer, chunk: Bytes) -> SseBuffer {
         return buf;
     }
     return SseBuffer {
-        buf:  buf.buf + std::str::from_bytes(chunk),
+        buf: buf.buf + std::str::from_bytes(chunk),
         done: buf.done
     };
 }
@@ -71,9 +71,9 @@ fn feed_chunk(buf: SseBuffer, chunk: Bytes) -> SseBuffer {
 // returns one of these so the caller knows how much of `buf` to
 // discard for the next iteration.
 type __NextResult {
-    line:      String;
+    line: String;
     remaining: SseBuffer;
-    has_line:  Bool   = false;
+    has_line: Bool = false;
 }
 
 // next_data_line — pop the first complete SSE frame from `buf`
@@ -96,18 +96,18 @@ type __NextResult {
 fn next_data_line(buf: SseBuffer) -> __NextResult {
     if buf.done {
         return __NextResult {
-            line:      "",
+            line: "",
             remaining: buf,
-            has_line:  false
+            has_line: false
         };
     }
     let total = len(buf.buf);
     let sep = std::str::index_of(buf.buf, "\n\n");
     if sep < 0 {
         return __NextResult {
-            line:      "",
+            line: "",
             remaining: buf,
-            has_line:  false
+            has_line: false
         };
     }
     let frame = buf.buf[0..sep];
@@ -156,16 +156,16 @@ fn next_data_line(buf: SseBuffer) -> __NextResult {
     let mut done = false;
     if data_line == "[DONE]" {
         done = true;
-        has_data = false;   // sentinel itself is not a delta
+        has_data = false; // sentinel itself is not a delta
     }
     if event_kind == "message_stop" {
         done = true;
     }
 
     return __NextResult {
-        line:      data_line,
+        line: data_line,
         remaining: SseBuffer { buf: rest, done: done },
-        has_line:  has_data
+        has_line: has_data
     };
 }
 

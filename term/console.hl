@@ -72,19 +72,19 @@ locus Console {
     // warn/error → stderr, keeping stdout pipeline-clean.
     fn warn(s: String) {
         eprintln("  " + self.paint(Style { fg: 3, bold: true }, "!")
-            + " " + s);
+                + " " + s);
     }
 
     fn error(s: String) {
         eprintln("  " + self.paint(Style { fg: 1, bold: true }, "✗")
-            + " " + s);
+                + " " + s);
     }
 
     // [n/total] step marker, cargo-shaped.
     fn step(n: Int, total: Int, s: String) {
         println("  " + self.paint(Style { fg: 6, bold: true },
             "[" + to_string(n) + "/" + to_string(total) + "]")
-            + " " + s);
+                + " " + s);
     }
 
     // ----- Structure -----

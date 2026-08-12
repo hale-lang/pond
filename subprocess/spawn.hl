@@ -77,9 +77,9 @@ fn spawn(opts: SpawnOpts) -> Output fallible(SpawnError) {
         let po = std::process::run(argv) or wrap_run(err);
         return Output {
             status: ExitStatus {
-                code:     po.code,
+                code: po.code,
                 signaled: po.signal != 0,
-                signal:   po.signal,
+                signal: po.signal,
             },
             stdout: std::bytes::from_string(po.stdout),
             stderr: std::bytes::from_string(po.stderr),
@@ -99,9 +99,9 @@ fn spawn(opts: SpawnOpts) -> Output fallible(SpawnError) {
     let err_s = std::process::read_stderr(c) or wrap_pipe_str(err);
     return Output {
         status: ExitStatus {
-            code:     code,
+            code: code,
             signaled: code < 0,
-            signal:   0,
+            signal: 0,
         },
         stdout: std::bytes::from_string(out_s),
         stderr: std::bytes::from_string(err_s),
@@ -120,11 +120,11 @@ fn spawn(opts: SpawnOpts) -> Output fallible(SpawnError) {
 // localised to one identifier change at the call site.
 fn run_cmd(cmd: String, args: String) -> Output fallible(SpawnError) {
     let opts = SpawnOpts {
-        cmd:        cmd,
-        args:       args,
-        cwd:        "",
-        env:        "",
-        stdin:      std::bytes::from_string(""),
+        cmd: cmd,
+        args: args,
+        cwd: "",
+        env: "",
+        stdin: std::bytes::from_string(""),
         timeout_ms: 0,
     };
     return spawn(opts) or raise;
@@ -140,48 +140,48 @@ fn run_cmd(cmd: String, args: String) -> Output fallible(SpawnError) {
 
 fn wrap_run(e: IoError) -> std::process::ProcessOutput fallible(SpawnError) {
     fail SpawnError {
-        kind:   io_kind_to_spawn(e.kind),
+        kind: io_kind_to_spawn(e.kind),
         detail: e.kind + ": " + e.path,
-        errno:  e.errno,
+        errno: e.errno,
     };
 }
 
 fn wrap_spawn(e: IoError) -> std::process::Child fallible(SpawnError) {
     fail SpawnError {
-        kind:   io_kind_to_spawn(e.kind),
+        kind: io_kind_to_spawn(e.kind),
         detail: e.kind + ": " + e.path,
-        errno:  e.errno,
+        errno: e.errno,
     };
 }
 
 fn wrap_pipe_int(e: IoError) -> Int fallible(SpawnError) {
     fail SpawnError {
-        kind:   "io",
+        kind: "io",
         detail: e.kind + ": " + e.path,
-        errno:  e.errno,
+        errno: e.errno,
     };
 }
 
 fn wrap_pipe_str(e: IoError) -> String fallible(SpawnError) {
     fail SpawnError {
-        kind:   "io",
+        kind: "io",
         detail: e.kind + ": " + e.path,
-        errno:  e.errno,
+        errno: e.errno,
     };
 }
 
 fn wrap_wait(e: IoError) -> Int fallible(SpawnError) {
     fail SpawnError {
-        kind:   "io",
+        kind: "io",
         detail: e.kind + ": " + e.path,
-        errno:  e.errno,
+        errno: e.errno,
     };
 }
 
 fn wrap_kill(e: IoError) -> () fallible(SpawnError) {
     fail SpawnError {
-        kind:   "io",
+        kind: "io",
         detail: e.kind + ": " + e.path,
-        errno:  e.errno,
+        errno: e.errno,
     };
 }

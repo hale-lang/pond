@@ -38,15 +38,15 @@ fn main() {
 
     // Populated shapes carry their fields through.
     let full = db::Row {
-        ok:   true,
+        ok: true,
         data: "a\tb",
-        err:  db::DbError { kind: "", engine_code: 0, detail: "" },
+        err: db::DbError { kind: "", engine_code: 0, detail: "" },
     };
     std::test::assert(full.ok, "constructed Row.ok");
     std::test::assert_eq_str(full.data, "a\tb", "constructed Row.data");
 
     let failed = db::Status {
-        ok:  false,
+        ok: false,
         err: db::DbError { kind: "open_failed", engine_code: 14, detail: "nope" },
     };
     std::test::assert_eq_str(failed.err.kind, "open_failed", "error kind travels");

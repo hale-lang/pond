@@ -6,7 +6,7 @@
 // Bytes via from_int + concat.
 
 type HexError {
-    kind: String;   // "odd_length" | "invalid_char"
+    kind: String; // "odd_length" | "invalid_char"
 }
 
 @deterministic @no_syscall
@@ -60,16 +60,16 @@ fn hex_decode(s: String) -> Bytes fallible(HexError) {
 
 @deterministic @no_syscall
 fn nibble_char(n: Int) -> String {
-    if n == 0  { return "0"; }
-    if n == 1  { return "1"; }
-    if n == 2  { return "2"; }
-    if n == 3  { return "3"; }
-    if n == 4  { return "4"; }
-    if n == 5  { return "5"; }
-    if n == 6  { return "6"; }
-    if n == 7  { return "7"; }
-    if n == 8  { return "8"; }
-    if n == 9  { return "9"; }
+    if n == 0 { return "0"; }
+    if n == 1 { return "1"; }
+    if n == 2 { return "2"; }
+    if n == 3 { return "3"; }
+    if n == 4 { return "4"; }
+    if n == 5 { return "5"; }
+    if n == 6 { return "6"; }
+    if n == 7 { return "7"; }
+    if n == 8 { return "8"; }
+    if n == 9 { return "9"; }
     if n == 10 { return "a"; }
     if n == 11 { return "b"; }
     if n == 12 { return "c"; }
@@ -81,8 +81,8 @@ fn nibble_char(n: Int) -> String {
 // Returns 0..15 for valid hex chars (case-insensitive); -1 otherwise.
 @deterministic @no_syscall
 fn nibble_value(c: Int) -> Int {
-    if c >= 48 && c <= 57  { return c - 48; }       // '0'..'9'
-    if c >= 97 && c <= 102 { return c - 97 + 10; }  // 'a'..'f'
-    if c >= 65 && c <= 70  { return c - 65 + 10; }  // 'A'..'F'
+    if c >= 48 && c <= 57 { return c - 48; } // '0'..'9'
+    if c >= 97 && c <= 102 { return c - 97 + 10; } // 'a'..'f'
+    if c >= 65 && c <= 70 { return c - 65 + 10; } // 'A'..'F'
     return -1;
 }

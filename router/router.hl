@@ -58,9 +58,9 @@
 locus NotFound404 {
     fn handle(ctx: Context) -> Response {
         return Response {
-            status:       404,
+            status: 404,
             content_type: "text/plain",
-            body:         "not found"
+            body: "not found"
         };
     }
 }
@@ -79,9 +79,9 @@ locus NotFound404 {
 // (it returns the Response). Mirrors the Onboard.run / drive
 // split in the styleguide canonical example.
 fn __router_run_chain(
-    entries:   EntryList,
-    mws:       MwList,
-    ctx:       Context,
+    entries: EntryList,
+    mws: MwList,
+    ctx: Context,
     not_found: Handler
 ) -> Response {
     // Forward middleware sweep.
@@ -132,10 +132,10 @@ fn __router_run_chain(
 // the Server consumes std::http::Response on the wire side.
 fn __router_to_http(r: Response) -> std::http::Response {
     return std::http::Response {
-        status:       r.status,
+        status: r.status,
         content_type: r.content_type,
-        headers:      r.headers,
-        body:         r.body
+        headers: r.headers,
+        body: r.body
     };
 }
 
@@ -149,7 +149,7 @@ locus Router {
         // initialized at Router birth; their dissolves fire
         // when the Router's enclosing scope exits.
         entries: EntryList = EntryList { };
-        mws:     MwList    = MwList    { };
+        mws: MwList = MwList { };
     }
 
     // `add(method, pattern, h)` — register a route. Method is
@@ -161,7 +161,7 @@ locus Router {
     // both coerce sites work at HEAD (2026-06-12).
     fn add(method: String, pattern: String, h: Handler) {
         self.entries.push(RouteEntry {
-            method:  std::str::upper(method),
+            method: std::str::upper(method),
             pattern: pattern,
             handler: h
         });
@@ -183,7 +183,7 @@ locus Router {
     // local Response shape).
     fn dispatch(req: std::http::Request) -> std::http::Response {
         let ctx = Context {
-            req:    req,
+            req: req,
             params: RouteParams {
                 qs: __router_query_only(req.path)
             }

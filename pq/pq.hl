@@ -21,13 +21,13 @@ import "../db" as db;
 // __PgResult — internal parse accumulator for one query's
 // backend response (everything up to ReadyForQuery).
 type __PgResult {
-    ok:         Bool   = true;
-    err_kind:   String = "";
-    err_code:   String = "";
+    ok: Bool = true;
+    err_kind: String = "";
+    err_code: String = "";
     err_detail: String = "";
-    csv:        String = "";
-    n:          Int    = 0;
-    cmd_tag:    String = "";   // CommandComplete tag, e.g. "INSERT 0 1"
+    csv: String = "";
+    n: Int = 0;
+    cmd_tag: String = ""; // CommandComplete tag, e.g. "INSERT 0 1"
 }
 
 // __PgMsg — one framed backend message, as returned by
@@ -36,18 +36,18 @@ type __PgResult {
 // (the snapshot is stable across the subsequent shift_front). On a
 // peer close mid-frame, `ok` is false and `err` names the phase.
 type __PgMsg {
-    mtype: Int    = 0;
-    body:  Bytes  = b"";
-    total: Int    = 0;
-    ok:    Bool   = false;
-    err:   String = "";
+    mtype: Int = 0;
+    body: Bytes = b"";
+    total: Int = 0;
+    ok: Bool = false;
+    err: String = "";
 }
 
 // __SaslResult — outcome of __sasl_exchange. On failure, err_kind /
 // err_detail flow straight into the open() db::DbError.
 type __SaslResult {
-    ok:         Bool   = false;
-    err_kind:   String = "auth_failed";
+    ok: Bool = false;
+    err_kind: String = "auth_failed";
     err_detail: String = "";
 }
 
@@ -57,14 +57,14 @@ type __SaslResult {
 // it (they previously duplicated the field walk).
 type __ErrFields {
     message: String = "";
-    code:    String = "";
+    code: String = "";
 }
 
 locus PgConn {
     params {
-        host:     String = "127.0.0.1";
-        port:     Int    = 5432;
-        user:     String = "postgres";
+        host: String = "127.0.0.1";
+        port: Int = 5432;
+        user: String = "postgres";
         // password — used ONLY by the open() handshake when the server
         // requests SCRAM-SHA-256 (AuthenticationSASL). Empty = trust
         // auth (the server sends AuthenticationOk with no challenge).
@@ -79,7 +79,7 @@ locus PgConn {
         // free. Validated at open(); an unknown value is rejected.
         sslmode: String = "prefer";
 
-        sock:      Int  = -1;
+        sock: Int = -1;
         connected: Bool = false;
 
         // tls — DERIVED internal state, NOT a caller knob: set true at
@@ -95,7 +95,7 @@ locus PgConn {
         txn_state: String = "idle";
 
         rx_buf: std::bytes::BytesBuilder
-              = std::bytes::BytesBuilder { initial_cap: 8192 };
+            = std::bytes::BytesBuilder { initial_cap: 8192 };
 
         recv_chunk: Int = 8192;
     }
@@ -128,7 +128,7 @@ locus PgConn {
         }
         let mut attempt = 0;
         let mut last = db::Status {
-            ok:  false,
+            ok: false,
             err: db::DbError { kind: "open_failed", engine_code: 0, detail: "not attempted" },
         };
         while attempt < 8 {
@@ -170,10 +170,10 @@ locus PgConn {
     // retry policy lives in open(); this is the single-attempt body.
     fn __open_once() -> db::Status {
         let fd = std::io::tcp::connect(self.host, self.port)
-            or __on_connect_fail(err);
+        or __on_connect_fail(err);
         if fd < 0 {
             return db::Status {
-                ok:  false,
+                ok: false,
                 err: db::DbError { kind: "open_failed", engine_code: 0,
                     detail: "connect failed to " + self.host },
             };
@@ -216,7 +216,7 @@ locus PgConn {
             return db::Status { ok: false, err: db::DbError { kind: "io",
                 engine_code: 0, detail: "startup: " + auth.err } };
         }
-        if auth.mtype == 69 {                        // 'E' ErrorResponse, pre-auth
+        if auth.mtype == 69 { // 'E' ErrorResponse, pre-auth
             // A rejection before any auth challenge — bad database
             // name, pg_hba reject, connection limit, etc (F4). Without
             // this special case the generic "not 'R'" branch below
@@ -228,14 +228,14 @@ locus PgConn {
             return db::Status { ok: false, err: db::DbError { kind: "startup_rejected",
                 engine_code: 0, detail: "startup: " + __error_message(auth.body, auth.total) } };
         }
-        if auth.mtype != 82 {                       // not 'R'
+        if auth.mtype != 82 { // not 'R'
             self.connected = false;
             return db::Status { ok: false, err: db::DbError { kind: "open_failed",
                 engine_code: 0, detail: "startup: expected Authentication, got type "
                     + to_string(auth.mtype) } };
         }
         let code = sasl_r_code(auth.body);
-        if code == 10 {                             // AuthenticationSASL
+        if code == 10 { // AuthenticationSASL
             // A1: verify the server actually advertised plain SCRAM-SHA-256
             // before starting the exchange. pq speaks only SCRAM-SHA-256 (no
             // channel binding, never -PLUS). A server offering only
@@ -258,7 +258,7 @@ locus PgConn {
                 return db::Status { ok: false, err: db::DbError { kind: se.err_kind,
                     engine_code: 0, detail: se.err_detail } };
             }
-        } else if code != 0 {                       // MD5 (5) etc.
+        } else if code != 0 { // MD5 (5) etc.
             self.connected = false;
             return db::Status { ok: false, err: db::DbError { kind: "unsupported",
                 engine_code: 0, detail: "auth method " + to_string(code)
@@ -270,7 +270,7 @@ locus PgConn {
         if !r.ok {
             self.connected = false;
             return db::Status {
-                ok:  false,
+                ok: false,
                 err: db::DbError { kind: "open_failed", engine_code: 0,
                     detail: "startup: " + r.err_detail },
             };
@@ -334,7 +334,7 @@ locus PgConn {
         if outcome == "upgrade" {
             let verify = sslmode_verify(self.sslmode);
             let handle = std::io::tls::upgrade(self.sock, self.host, verify)
-                or __on_upgrade_fail(err);
+            or __on_upgrade_fail(err);
             if handle < 0 {
                 // Handshake failed. std::io::tls::upgrade owns its own SSL
                 // cleanup on EVERY failure path and never closes our fd (it
@@ -419,7 +419,7 @@ locus PgConn {
             return __SaslResult { ok: false, err_kind: sasl_retryable_kind(),
                 err_detail: "auth: " + m2.err };
         }
-        if m2.mtype == 69 {                          // 'E' ErrorResponse
+        if m2.mtype == 69 { // 'E' ErrorResponse
             return __SaslResult { ok: false, err_kind: "auth_failed",
                 err_detail: "auth: " + __error_message(m2.body, m2.total) };
         }
@@ -444,7 +444,7 @@ locus PgConn {
             return __SaslResult { ok: false, err_kind: sasl_retryable_kind(),
                 err_detail: "auth: " + m3.err };
         }
-        if m3.mtype == 69 {                          // 'E' — wrong password etc.
+        if m3.mtype == 69 { // 'E' — wrong password etc.
             return __SaslResult { ok: false, err_kind: "auth_failed",
                 err_detail: "auth: " + __error_message(m3.body, m3.total) };
         }
@@ -463,7 +463,7 @@ locus PgConn {
             return __SaslResult { ok: false, err_kind: sasl_retryable_kind(),
                 err_detail: "auth: " + m4.err };
         }
-        if m4.mtype == 69 {                          // 'E' — surface it like m2/m3
+        if m4.mtype == 69 { // 'E' — surface it like m2/m3
             // A3: a server ErrorResponse can arrive here too (e.g. a
             // post-verification failure the server only reports after the
             // client proof). Surface its actual message the way the m2/m3
@@ -497,7 +497,7 @@ locus PgConn {
         return db::ExecResult {
             ok: true,
             rows_affected: __tag_rows(r.cmd_tag),
-            last_insert_rowid: 0,           // postgres: use RETURNING + query_one
+            last_insert_rowid: 0, // postgres: use RETURNING + query_one
         };
     }
 
@@ -556,10 +556,10 @@ locus PgConn {
 
     // ===== transactions =====
 
-    fn begin()    -> db::Status { return self.__tx_cmd("BEGIN"); }
-    fn commit()   -> db::Status { return self.__tx_cmd("COMMIT"); }
+    fn begin() -> db::Status { return self.__tx_cmd("BEGIN"); }
+    fn commit() -> db::Status { return self.__tx_cmd("COMMIT"); }
     fn rollback() -> db::Status { return self.__tx_cmd("ROLLBACK"); }
-    fn tx_status() -> String    { return self.txn_state; }
+    fn tx_status() -> String { return self.txn_state; }
 
     fn __tx_cmd(cmd: String) -> db::Status {
         let r = self.__run(cmd);
@@ -596,8 +596,8 @@ locus PgConn {
         }
         let hdr = self.rx_buf.snapshot();
         let mtype = byte_at(hdr, 0);
-        let mlen  = read_be32(hdr, 1);     // length includes itself, excludes type byte
-        let total = mlen + 1;              // + type byte
+        let mlen = read_be32(hdr, 1); // length includes itself, excludes type byte
+        let total = mlen + 1; // + type byte
 
         while self.rx_buf.len() < total {
             let chunk = __recv_raw(self.sock, self.tls, self.recv_chunk);
@@ -625,7 +625,7 @@ locus PgConn {
                 return res;
             }
             __handle_msg(m.mtype, m.body, m.total, res);
-            if m.mtype == 90 {                 // 'Z' ReadyForQuery
+            if m.mtype == 90 { // 'Z' ReadyForQuery
                 done = true;
                 self.txn_state = __zstatus(byte_at(m.body, 5));
             }
@@ -665,20 +665,20 @@ fn build_extended(sql: String, args: db::Args) -> Bytes {
 
     // Parse 'P': dest"" query num_param_oids(0=infer)
     let pb = std::bytes::BytesBuilder { initial_cap: 128 };
-    pb.append(std::bytes::from_int(0));               // unnamed dest
+    pb.append(std::bytes::from_int(0)); // unnamed dest
     pb.append(std::bytes::from_string(sql));
-    pb.append(std::bytes::from_int(0));               // query NUL
-    be16_append(pb, 0);                               // 0 param-type oids
+    pb.append(std::bytes::from_int(0)); // query NUL
+    be16_append(pb, 0); // 0 param-type oids
     let pp = pb.snapshot();
-    out.append(std::bytes::from_int(80));             // 'P'
+    out.append(std::bytes::from_int(80)); // 'P'
     be32_append(out, len(pp) + 4);
     out.append(pp);
 
     // Bind 'B': portal"" stmt"" fmtcodes(0=text) nparams params... rfmt(0=text)
     let bb = std::bytes::BytesBuilder { initial_cap: 128 };
-    bb.append(std::bytes::from_int(0));               // unnamed portal
-    bb.append(std::bytes::from_int(0));               // unnamed stmt
-    be16_append(bb, 0);                               // 0 param format codes -> all text
+    bb.append(std::bytes::from_int(0)); // unnamed portal
+    bb.append(std::bytes::from_int(0)); // unnamed stmt
+    be16_append(bb, 0); // 0 param format codes -> all text
     let nargs = args.count();
     be16_append(bb, nargs);
     let mut i = 0;
@@ -696,23 +696,23 @@ fn build_extended(sql: String, args: db::Args) -> Bytes {
         }
         i = i + 1;
     }
-    be16_append(bb, 0);                               // 0 result format codes -> all text
+    be16_append(bb, 0); // 0 result format codes -> all text
     let bbs = bb.snapshot();
-    out.append(std::bytes::from_int(66));             // 'B'
+    out.append(std::bytes::from_int(66)); // 'B'
     be32_append(out, len(bbs) + 4);
     out.append(bbs);
 
     // Execute 'E': portal"" maxrows(0=all)
     let eb = std::bytes::BytesBuilder { initial_cap: 8 };
-    eb.append(std::bytes::from_int(0));               // unnamed portal
-    be32_append(eb, 0);                               // all rows
+    eb.append(std::bytes::from_int(0)); // unnamed portal
+    be32_append(eb, 0); // all rows
     let ebs = eb.snapshot();
-    out.append(std::bytes::from_int(69));             // 'E'
+    out.append(std::bytes::from_int(69)); // 'E'
     be32_append(out, len(ebs) + 4);
     out.append(ebs);
 
     // Sync 'S'
-    out.append(std::bytes::from_int(83));             // 'S'
+    out.append(std::bytes::from_int(83)); // 'S'
     be32_append(out, 4);
 
     return out.finish();
@@ -736,7 +736,7 @@ fn __handle_msg(mtype: Int, msg: Bytes, total: Int, res: __PgResult) {
             off = off + 4;
             if c > 0 { row = row + "\t"; }
             if collen == 4294967295 {
-                row = row + "";                // NULL
+                row = row + ""; // NULL
             } else {
                 let cell = std::bytes::slice(msg, off, off + collen);
                 row = row + std::str::from_bytes(cell);
@@ -805,9 +805,9 @@ fn __parse_error_fields(msg: Bytes, total: Int) -> __ErrFields {
         if ftype == 0 { off = total; }
         else {
             let vend = cstr_end(msg, off + 1, total);
-            let val  = std::str::from_bytes(std::bytes::slice(msg, off + 1, vend));
-            if ftype == 77 { fields.message = val; }   // 'M' human message
-            if ftype == 67 { fields.code = val; }      // 'C' SQLSTATE
+            let val = std::str::from_bytes(std::bytes::slice(msg, off + 1, vend));
+            if ftype == 77 { fields.message = val; } // 'M' human message
+            if ftype == 67 { fields.code = val; } // 'C' SQLSTATE
             off = vend + 1;
         }
     }
@@ -829,7 +829,7 @@ fn __cstr_at(buf: Bytes, off: Int) -> String {
     let total = len(buf);
     let mut end = off;
     while end < total {
-        if byte_at(buf, end) == 0 { end = total + 1000000; }   // sentinel break
+        if byte_at(buf, end) == 0 { end = total + 1000000; } // sentinel break
         else { end = end + 1; }
     }
     // recover the real end (we jumped by a big sentinel to break)
@@ -850,7 +850,7 @@ fn __cstr_at(buf: Bytes, off: Int) -> String {
 fn __tag_rows(tag: String) -> Int {
     let sp = __last_space(tag);
     if sp < 0 { return 0; }
-    let num = tag[sp+1..len(tag)];
+    let num = tag[sp + 1..len(tag)];
     return std::str::parse_int(num) or 0;
 }
 
@@ -859,7 +859,7 @@ fn __last_space(s: String) -> Int {
     let mut i = n - 1;
     let mut found = -1;
     while i >= 0 {
-        if s[i..i+1] == " " { found = i; i = -1; } else { i = i - 1; }
+        if s[i..i + 1] == " " { found = i; i = -1; } else { i = i - 1; }
     }
     return found;
 }

@@ -34,12 +34,12 @@ fn __close_handle(handle: Int, is_tls: Bool) {
 // the handle, or -1 on connect failure (the pooled path retries).
 fn __dial_nd(host: String, port: Int, is_tls: Bool) -> Int {
     if is_tls {
-        let h = std::io::tls::connect(host, port) or -1;
+        let h = std::io::tls::connect(host, port) or - 1;
         if h < 0 { return -1; }
         std::io::tls::set_nodelay(h, true) or discard;
         return h;
     }
-    let fd = std::io::tcp::connect(host, port) or -1;
+    let fd = std::io::tcp::connect(host, port) or - 1;
     if fd < 0 { return -1; }
     std::io::tcp::set_nodelay(fd, true) or discard;
     return fd;
@@ -52,11 +52,11 @@ fn __find_hdr_end(raw: Bytes) -> Int {
     let n = len(raw);
     let mut i = 0;
     while i + 3 < n {
-        let a = std::bytes::at(raw, i) or -1;
+        let a = std::bytes::at(raw, i) or - 1;
         if a == 13 {
-            let b = std::bytes::at(raw, i + 1) or -1;
-            let c = std::bytes::at(raw, i + 2) or -1;
-            let d = std::bytes::at(raw, i + 3) or -1;
+            let b = std::bytes::at(raw, i + 1) or - 1;
+            let c = std::bytes::at(raw, i + 2) or - 1;
+            let d = std::bytes::at(raw, i + 3) or - 1;
             if b == 10 && c == 13 && d == 10 { return i; }
         }
         i = i + 1;
@@ -68,8 +68,8 @@ fn __find_hdr_end(raw: Bytes) -> Int {
 fn __crlf_at(raw: Bytes, from: Int, end: Int) -> Int {
     let mut i = from;
     while i + 1 < end {
-        let a = std::bytes::at(raw, i) or -1;
-        let b = std::bytes::at(raw, i + 1) or -1;
+        let a = std::bytes::at(raw, i) or - 1;
+        let b = std::bytes::at(raw, i + 1) or - 1;
         if a == 13 && b == 10 { return i; }
         i = i + 1;
     }
@@ -83,12 +83,12 @@ fn __hex_size(raw: Bytes, lo: Int, hi: Int) -> Int {
     let mut i = lo;
     let mut any = false;
     while i < hi {
-        let ch = std::bytes::at(raw, i) or -1;
-        if ch == 59 || ch == 32 { break; }                  // ';' or ' '
+        let ch = std::bytes::at(raw, i) or - 1;
+        if ch == 59 || ch == 32 { break; } // ';' or ' '
         let mut dgt = -1;
-        if ch >= 48 && ch <= 57 { dgt = ch - 48; }          // 0-9
-        else if ch >= 97 && ch <= 102 { dgt = ch - 87; }    // a-f
-        else if ch >= 65 && ch <= 70 { dgt = ch - 55; }     // A-F
+        if ch >= 48 && ch <= 57 { dgt = ch - 48; } // 0-9
+        else if ch >= 97 && ch <= 102 { dgt = ch - 87; } // a-f
+        else if ch >= 65 && ch <= 70 { dgt = ch - 55; } // A-F
         if dgt < 0 { break; }
         v = v * 16 + dgt;
         any = true;
@@ -109,7 +109,7 @@ fn __scan_chunks(raw: Bytes, start: Int, end: Int) -> __ChunkScan {
     let mut pos = start;
     while pos < end {
         let nl = __crlf_at(raw, pos, end);
-        if nl < 0 { return __ChunkScan { body: b"", complete: false, bad: false }; }   // size line incomplete
+        if nl < 0 { return __ChunkScan { body: b"", complete: false, bad: false }; } // size line incomplete
         let size = __hex_size(raw, pos, nl);
         if size < 0 { return __ChunkScan { body: b"", complete: false, bad: true }; }
         if size == 0 {
@@ -126,12 +126,12 @@ fn __scan_chunks(raw: Bytes, start: Int, end: Int) -> __ChunkScan {
         }
         let data_start = nl + 2;
         let data_end = data_start + size;
-        if data_end + 2 > end { return __ChunkScan { body: b"", complete: false, bad: false }; }    // data incomplete
-        let ca = std::bytes::at(raw, data_end) or -1;
-        let cb = std::bytes::at(raw, data_end + 1) or -1;
+        if data_end + 2 > end { return __ChunkScan { body: b"", complete: false, bad: false }; } // data incomplete
+        let ca = std::bytes::at(raw, data_end) or - 1;
+        let cb = std::bytes::at(raw, data_end + 1) or - 1;
         if ca != 13 || cb != 10 { return __ChunkScan { body: b"", complete: false, bad: true }; }
         out.append(std::bytes::slice(raw, data_start, data_end));
-        pos = data_end + 2;                                                    // skip trailing CRLF
+        pos = data_end + 2; // skip trailing CRLF
     }
     return __ChunkScan { body: b"", complete: false, bad: false };
 }
@@ -226,7 +226,7 @@ type __ExchangeResult { resp: Response; ok: Bool; reusable: Bool; }
 // response + whether the handle is reusable (cleanly framed AND the peer didn't
 // say `Connection: close`).
 fn __exchange_on_handle(handle: Int, is_tls: Bool, req: Request, ua: String, max_body: Int) -> __ExchangeResult {
-    let header_block = __build_request_headers(req, ua, true);   // keep-alive
+    let header_block = __build_request_headers(req, ua, true); // keep-alive
     let sent = __send_raw(handle, is_tls, std::bytes::from_string(header_block));
     if sent < 0 { return __ExchangeResult { resp: __empty_response(), ok: false, reusable: false }; }
     if len(req.body) > 0 {

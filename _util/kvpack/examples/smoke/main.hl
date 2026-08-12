@@ -6,8 +6,8 @@ fn main() {
     let k = kv::KvPack { };
     let data0 = "";
     let data1 = k.set(data0, "user_id", "42");
-    let data2 = k.set(data1, "role",    "admin");
-    let data3 = k.set(data2, "role",    "user");
+    let data2 = k.set(data1, "role", "admin");
+    let data3 = k.set(data2, "role", "user");
 
     println("kvpack: data1 = ", data1);
     println("kvpack: data2 = ", data2);

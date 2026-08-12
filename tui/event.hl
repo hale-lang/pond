@@ -22,8 +22,8 @@ type Event {
     // down, left, right, home, end, pgup, pgdn, insert,
     // delete, f1..f12
     key: String = "";
-    ch: Int = 0;          // codepoint when key == "char"
-    text: String = "";    // UTF-8 bytes of the char / paste payload
+    ch: Int = 0; // codepoint when key == "char"
+    text: String = ""; // UTF-8 bytes of the char / paste payload
     ctrl: Bool = false;
     alt: Bool = false;
     shift: Bool = false;
@@ -63,18 +63,18 @@ fn __key_from_byte(b: Int, alt: Bool) -> Event {
     if b == 27 { return Event { kind: "key", key: "esc", alt: alt }; }
     if b == 0 {
         return Event { kind: "key", key: "char", ch: 32, text: " ",
-                       ctrl: true, alt: alt };
+            ctrl: true, alt: alt };
     }
     if b <= 26 {
         // Ctrl+letter arrives as 1..26.
         let cp = 96 + b;
         return Event { kind: "key", key: "char", ch: cp,
-                       text: __one_byte_text(cp), ctrl: true, alt: alt };
+            text: __one_byte_text(cp), ctrl: true, alt: alt };
     }
     if b < 32 { return Event { kind: "none" }; }
     if b < 128 {
         return Event { kind: "key", key: "char", ch: b,
-                       text: __one_byte_text(b), alt: alt };
+            text: __one_byte_text(b), alt: alt };
     }
     return __utf8_char(b, alt);
 }
@@ -109,7 +109,7 @@ fn __utf8_char(lead: Int, alt: Bool) -> Event {
         i = i + 1;
     }
     return Event { kind: "key", key: "char", ch: cp,
-                   text: std::str::clone(buf.text_view()), alt: alt };
+        text: std::str::clone(buf.text_view()), alt: alt };
 }
 
 fn __one_byte_text(b: Int) -> String {
@@ -125,8 +125,8 @@ fn __one_byte_text(b: Int) -> String {
 fn __parse_escape() -> Event {
     let b = std::io::stdin::read_byte(20);
     if b == -1 || b == -2 { return Event { kind: "key", key: "esc" }; }
-    if b == 91 { return __parse_csi(); }   // '['
-    if b == 79 { return __parse_ss3(); }   // 'O'
+    if b == 91 { return __parse_csi(); } // '['
+    if b == 79 { return __parse_ss3(); } // 'O'
     if b == 27 { return Event { kind: "key", key: "esc" }; }
     // ESC-prefixed plain byte = Alt+key.
     return __key_from_byte(b, true);
@@ -164,13 +164,13 @@ fn __parse_csi() -> Event {
         let b = std::io::stdin::read_byte(20);
         if b == -1 || b == -2 { return Event { kind: "none" }; }
         if b == 60 {
-            mouse = true;                 // '<'
+            mouse = true; // '<'
         } else if b >= 48 && b <= 57 {
             if idx == 0 { p1 = p1 * 10 + (b - 48); }
             if idx == 1 { p2 = p2 * 10 + (b - 48); }
             if idx == 2 { p3 = p3 * 10 + (b - 48); }
         } else if b == 59 {
-            idx = idx + 1;                // ';'
+            idx = idx + 1; // ';'
         } else if b >= 64 && b <= 126 {
             return __finish_csi(b, p1, p2, p3, idx + 1, mouse);
         }
@@ -182,38 +182,38 @@ fn __parse_csi() -> Event {
 // @unbounded: one Event per decoded input sequence, handed to the caller.
 @unbounded
 fn __finish_csi(fin: Int, p1: Int, p2: Int, p3: Int,
-                nparams: Int, mouse: Bool) -> Event {
-    if mouse && (fin == 77 || fin == 109) {
-        return __mouse_event(fin, p1, p2, p3);
-    }
+    nparams: Int, mouse: Bool) -> Event {
+        if mouse && (fin == 77 || fin == 109) {
+            return __mouse_event(fin, p1, p2, p3);
+        }
 
-    // "1;5A"-style modifier param: shift=1, alt=2, ctrl=4 on
-    // (param - 1).
-    let mut shift = false;
-    let mut alt = false;
-    let mut ctrl = false;
-    if nparams >= 2 && p2 > 0 {
-        let m = p2 - 1;
-        if (m & 1) != 0 { shift = true; }
-        if (m & 2) != 0 { alt = true; }
-        if (m & 4) != 0 { ctrl = true; }
-    }
+        // "1;5A"-style modifier param: shift=1, alt=2, ctrl=4 on
+        // (param - 1).
+        let mut shift = false;
+        let mut alt = false;
+        let mut ctrl = false;
+        if nparams >= 2 && p2 > 0 {
+            let m = p2 - 1;
+            if (m & 1) != 0 { shift = true; }
+            if (m & 2) != 0 { alt = true; }
+            if (m & 4) != 0 { ctrl = true; }
+        }
 
-    if fin == 65 { return Event { kind: "key", key: "up", shift: shift, alt: alt, ctrl: ctrl }; }
-    if fin == 66 { return Event { kind: "key", key: "down", shift: shift, alt: alt, ctrl: ctrl }; }
-    if fin == 67 { return Event { kind: "key", key: "right", shift: shift, alt: alt, ctrl: ctrl }; }
-    if fin == 68 { return Event { kind: "key", key: "left", shift: shift, alt: alt, ctrl: ctrl }; }
-    if fin == 72 { return Event { kind: "key", key: "home", shift: shift, alt: alt, ctrl: ctrl }; }
-    if fin == 70 { return Event { kind: "key", key: "end", shift: shift, alt: alt, ctrl: ctrl }; }
-    if fin == 90 { return Event { kind: "key", key: "tab", shift: true }; }   // CSI Z
+        if fin == 65 { return Event { kind: "key", key: "up", shift: shift, alt: alt, ctrl: ctrl }; }
+        if fin == 66 { return Event { kind: "key", key: "down", shift: shift, alt: alt, ctrl: ctrl }; }
+        if fin == 67 { return Event { kind: "key", key: "right", shift: shift, alt: alt, ctrl: ctrl }; }
+        if fin == 68 { return Event { kind: "key", key: "left", shift: shift, alt: alt, ctrl: ctrl }; }
+        if fin == 72 { return Event { kind: "key", key: "home", shift: shift, alt: alt, ctrl: ctrl }; }
+        if fin == 70 { return Event { kind: "key", key: "end", shift: shift, alt: alt, ctrl: ctrl }; }
+        if fin == 90 { return Event { kind: "key", key: "tab", shift: true }; } // CSI Z
 
-    if fin == 126 {                       // '~'
-        if p1 == 200 { return __parse_paste(); }
-        return Event { kind: "key", key: __tilde_key(p1),
-                       shift: shift, alt: alt, ctrl: ctrl };
+        if fin == 126 { // '~'
+            if p1 == 200 { return __parse_paste(); }
+            return Event { kind: "key", key: __tilde_key(p1),
+                shift: shift, alt: alt, ctrl: ctrl };
+        }
+        return Event { kind: "none" };
     }
-    return Event { kind: "none" };
-}
 
 fn __tilde_key(code: Int) -> String {
     if code == 1 || code == 7 { return "home"; }
@@ -263,7 +263,7 @@ fn __mouse_event(fin: Int, b: Int, x: Int, y: Int) -> Event {
     if (b & 8) != 0 { alt = true; }
     if (b & 16) != 0 { ctrl = true; }
     return Event { kind: "mouse", btn: btn, x: x, y: y,
-                   shift: shift, alt: alt, ctrl: ctrl };
+        shift: shift, alt: alt, ctrl: ctrl };
 }
 
 // Bracketed paste: everything until ESC [ 2 0 1 ~ is payload.
@@ -285,7 +285,7 @@ fn __parse_paste() -> Event {
         }
     }
     return Event { kind: "paste",
-                   text: std::str::clone(buf.text_view()) };
+        text: std::str::clone(buf.text_view()) };
 }
 
 // After an ESC inside a paste: true iff the next bytes complete

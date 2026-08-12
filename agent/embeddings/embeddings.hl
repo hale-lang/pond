@@ -58,9 +58,9 @@ import "../../math/matrix" as mat;
 locus Store {
     params {
         dim: Int;
-        ids:   IdBuf    = IdBuf    { };
-        metas: MetaBuf  = MetaBuf  { };
-        flat:  FloatBuf = FloatBuf { };
+        ids: IdBuf = IdBuf { };
+        metas: MetaBuf = MetaBuf { };
+        flat: FloatBuf = FloatBuf { };
     }
 
     // Number of stored embeddings.

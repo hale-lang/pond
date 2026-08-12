@@ -81,7 +81,7 @@ locus SupervisedApp {
         // Both are "permanent" — restart on every failure
         // (subject to the strategy and the intensity gate).
         s.add_child(sup::ChildSpec { name: "good", policy: "permanent" }, "good");
-        s.add_child(sup::ChildSpec { name: "bad",  policy: "permanent" }, "bad");
+        s.add_child(sup::ChildSpec { name: "bad", policy: "permanent" }, "bad");
 
         // Spawn the good worker — fail_on_birth=false, lives.
         s.spawn_worker("good", "echo", "hello", false);

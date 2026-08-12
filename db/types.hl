@@ -32,14 +32,14 @@
 // for callers who branch on engine state. `detail` is the
 // human-readable explanation for logs.
 type DbError {
-    kind:        String = "";
-    engine_code: Int    = 0;
-    detail:      String = "";
+    kind: String = "";
+    engine_code: Int = 0;
+    detail: String = "";
 }
 
 // Status — open()/close()-style result: did it work + why not.
 type Status {
-    ok:  Bool    = false;
+    ok: Bool = false;
     err: DbError = DbError { };
 }
 
@@ -47,26 +47,26 @@ type Status {
 // `last_insert_rowid` is sqlite-ish; postgres leaves it 0 (use
 // RETURNING + query_one for generated keys there).
 type ExecResult {
-    ok:                Bool    = false;
-    err:               DbError = DbError { };
-    rows_affected:     Int     = 0;
-    last_insert_rowid: Int     = 0;
+    ok: Bool = false;
+    err: DbError = DbError { };
+    rows_affected: Int = 0;
+    last_insert_rowid: Int = 0;
 }
 
 // Row — single-row SELECT result. `data` is tab-separated
 // columns. `ok=false` with `err.kind="no_row"` when the query
 // returned zero rows (callers don't get a silent empty string).
 type Row {
-    ok:   Bool    = false;
-    err:  DbError = DbError { };
-    data: String  = "";
+    ok: Bool = false;
+    err: DbError = DbError { };
+    data: String = "";
 }
 
 // Rows — multi-row SELECT result. `csv` is newline-separated
 // rows, each tab-separated columns; `n` is the row count.
 type Rows {
-    ok:   Bool    = false;
-    err:  DbError = DbError { };
-    csv:  String  = "";
-    n:    Int     = 0;
+    ok: Bool = false;
+    err: DbError = DbError { };
+    csv: String = "";
+    n: Int = 0;
 }

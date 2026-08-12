@@ -12,10 +12,10 @@ import ".." as metrics;
 // (same shape the histogram() factory uses).
 fn build_hist(name: String, labels: String) -> metrics::HistogramData {
     let h = metrics::HistogramData {
-        name:   name,
+        name: name,
         labels: labels,
-        sum:    18.0,
-        count:  5
+        sum: 18.0,
+        count: 5
     };
     push(h.bounds, 1.0) or discard;
     push(h.bounds, 5.0) or discard;
@@ -29,16 +29,16 @@ fn build_hist(name: String, labels: String) -> metrics::HistogramData {
 // (one out-of-order pair) for the invariant-counter check.
 fn build_broken_hist() -> metrics::HistogramData {
     let h = metrics::HistogramData {
-        name:   "broken",
+        name: "broken",
         labels: "",
-        sum:    0.0,
-        count:  0
+        sum: 0.0,
+        count: 0
     };
     push(h.bounds, 1.0) or discard;
     push(h.bounds, 5.0) or discard;
     push(h.counts, 1) or discard;
     push(h.counts, 3) or discard;
-    push(h.counts, 2) or discard;   // 2 < 3 — one violation
+    push(h.counts, 2) or discard; // 2 < 3 — one violation
     return h;
 }
 

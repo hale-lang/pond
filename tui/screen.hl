@@ -20,7 +20,7 @@
 // 1 bold, 2 dim, 4 italic, 8 underline, 16 reverse, 32 strike.
 
 type Cell {
-    ch: Int = 32;     // codepoint; 0 = wide-char continuation
+    ch: Int = 32; // codepoint; 0 = wide-char continuation
     fg: Int = -1;
     bg: Int = -1;
     attrs: Int = 0;
@@ -40,7 +40,7 @@ locus Screen {
         frame: std::bytes::BytesBuilder
             = std::bytes::BytesBuilder { initial_cap: 16384 };
         full_redraw: Bool = true;
-        cursor_x: Int = -1;     // -1 = hidden
+        cursor_x: Int = -1; // -1 = hidden
         cursor_y: Int = -1;
         // SGR emit state, valid during one flush().
         cur_fg: Int = -999;
@@ -78,7 +78,7 @@ locus Screen {
     fn set_cell(x: Int, y: Int, ch: Int, fg: Int, bg: Int, attrs: Int) {
         if x < 0 || y < 0 || x >= self.w || y >= self.h { return; }
         let mut cp = ch;
-        if cp < 32 && cp != 0 { cp = 32; }   // control chars would tear the frame
+        if cp < 32 && cp != 0 { cp = 32; } // control chars would tear the frame
         self.cells.set(y * self.w + x,
             Cell { ch: cp, fg: fg, bg: bg, attrs: attrs }) or discard;
     }
@@ -102,20 +102,20 @@ locus Screen {
             } else if b >= 192 {
                 sz = 2;
             }
-            if i + sz > n { return; }   // truncated tail — stop
+            if i + sz > n { return; } // truncated tail — stop
             if sz == 2 {
                 cp = (b - 192) * 64
                     + (std::str::byte_at_unchecked(s, i + 1) - 128);
             }
             if sz == 3 {
                 cp = ((b - 224) * 64
-                    + (std::str::byte_at_unchecked(s, i + 1) - 128)) * 64
+                        + (std::str::byte_at_unchecked(s, i + 1) - 128)) * 64
                     + (std::str::byte_at_unchecked(s, i + 2) - 128);
             }
             if sz == 4 {
                 cp = (((b - 240) * 64
-                    + (std::str::byte_at_unchecked(s, i + 1) - 128)) * 64
-                    + (std::str::byte_at_unchecked(s, i + 2) - 128)) * 64
+                        + (std::str::byte_at_unchecked(s, i + 1) - 128)) * 64
+                        + (std::str::byte_at_unchecked(s, i + 2) - 128)) * 64
                     + (std::str::byte_at_unchecked(s, i + 3) - 128);
             }
             let wdt = char_width(cp);
@@ -172,7 +172,7 @@ locus Screen {
             self.frame.append_str("\x1b[0m\x1b[2J");
         }
 
-        let mut pend_x = -2;   // terminal cursor after last emit
+        let mut pend_x = -2; // terminal cursor after last emit
         let mut pend_y = -2;
         let mut y = 0;
         while y < self.h {
@@ -185,14 +185,14 @@ locus Screen {
                 if !dirty {
                     if c.ch != p.ch || c.fg != p.fg
                         || c.bg != p.bg || c.attrs != p.attrs {
-                        dirty = true;
-                    }
+                            dirty = true;
+                        }
                 }
                 if dirty && c.ch != 0 {
                     if pend_x != x || pend_y != y {
                         self.frame.append_str("\x1b["
-                            + to_string(y + 1) + ";"
-                            + to_string(x + 1) + "H");
+                                + to_string(y + 1) + ";"
+                                + to_string(x + 1) + "H");
                     }
                     self.emit_sgr(c.fg, c.bg, c.attrs);
                     append_codepoint(self.frame, c.ch);
@@ -208,8 +208,8 @@ locus Screen {
         self.frame.append_str("\x1b[0m");
         if self.cursor_x >= 0 {
             self.frame.append_str("\x1b["
-                + to_string(self.cursor_y + 1) + ";"
-                + to_string(self.cursor_x + 1) + "H\x1b[?25h");
+                    + to_string(self.cursor_y + 1) + ";"
+                    + to_string(self.cursor_x + 1) + "H\x1b[?25h");
         }
         self.frame.append_str("\x1b[?2026l");
         self.full_redraw = false;
@@ -229,8 +229,8 @@ locus Screen {
     fn emit_sgr(fg: Int, bg: Int, attrs: Int) {
         if fg == self.cur_fg && bg == self.cur_bg
             && attrs == self.cur_attrs {
-            return;
-        }
+                return;
+            }
         self.frame.append_str("\x1b[0m");
         if (attrs & 1) != 0 { self.frame.append_str("\x1b[1m"); }
         if (attrs & 2) != 0 { self.frame.append_str("\x1b[2m"); }
@@ -294,8 +294,8 @@ fn append_codepoint(b: std::bytes::BytesBuilder, cp: Int) {
 // consults the generated full-Unicode table (width.hl —
 // regenerate via tools/gen_width_table.py).
 fn char_width(cp: Int) -> Int {
-    if cp == 0 { return 0; }       // wide-cell continuation marker
-    if cp < 32 { return 1; }       // controls (set_cell clamps these)
-    if cp < 127 { return 1; }      // ASCII fast path
+    if cp == 0 { return 0; } // wide-cell continuation marker
+    if cp < 32 { return 1; } // controls (set_cell clamps these)
+    if cp < 127 { return 1; } // ASCII fast path
     return width_lookup(cp);
 }

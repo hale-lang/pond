@@ -50,10 +50,10 @@ locus TrainLogger {
         let e = s.epoch_idx;
         if e == 1 || e == 1000 || e == 2000 || e == 3000
             || e == 4000 || e == 5000 {
-            println("[xor]   epoch=", to_string(e),
+                println("[xor]   epoch=", to_string(e),
                     " loss=", to_string(s.loss));
-            self.printed_any = true;
-        }
+                self.printed_any = true;
+            }
     }
 }
 
@@ -68,10 +68,10 @@ fn report_delta_err(e: nn::NnError) {
 fn assert_lt_float(label: String, value: Float, threshold: Float) {
     if value < threshold {
         println("ok   ", label, " ", to_string(value), " < ",
-                to_string(threshold));
+            to_string(threshold));
     } else {
         println("FAIL ", label, " ", to_string(value), " >= ",
-                to_string(threshold));
+            to_string(threshold));
     }
 }
 
@@ -80,7 +80,7 @@ fn assert_eq_int(label: String, got: Int, want: Int) {
         println("ok   ", label, " = ", to_string(got));
     } else {
         println("FAIL ", label, " got=", to_string(got),
-                " want=", to_string(want));
+            " want=", to_string(want));
     }
 }
 
@@ -123,14 +123,14 @@ fn main() {
     // across runs. (2-2-1 — the smallest valid XOR net — is
     // init-sensitive; see FRICTION.log "xor-2-2-1-init-sensitive".)
     let model = nn::Model {
-        name:       "xor",
-        rng_state:  42,
+        name: "xor",
+        rng_state: 42,
     };
     model.add_dense(2, 3, "sigmoid");
     model.add_dense(3, 1, "sigmoid");
 
     let trainer = nn::Trainer {
-        lr:         0.5,
+        lr: 0.5,
         batch_size: 4,
     };
 
@@ -144,10 +144,10 @@ fn main() {
     // Verify the truth table on the four corners. predict_label
     // is fallible; `or -1` substitutes a sentinel label so the
     // assert reports FAIL.
-    assert_eq_int("XOR(0,0)", predict_label(model, x00) or -1, 0);
-    assert_eq_int("XOR(0,1)", predict_label(model, x01) or -1, 1);
-    assert_eq_int("XOR(1,0)", predict_label(model, x10) or -1, 1);
-    assert_eq_int("XOR(1,1)", predict_label(model, x11) or -1, 0);
+    assert_eq_int("XOR(0,0)", predict_label(model, x00) or - 1, 0);
+    assert_eq_int("XOR(0,1)", predict_label(model, x01) or - 1, 1);
+    assert_eq_int("XOR(1,0)", predict_label(model, x10) or - 1, 1);
+    assert_eq_int("XOR(1,1)", predict_label(model, x11) or - 1, 0);
 
     // Dump raw outputs so the demo body shows the
     // continuous-valued sigmoid responses for the visual reader.
@@ -168,11 +168,11 @@ fn main() {
     // identically.
     let snap = model.snapshot_bytes();
     let copy = nn::Model {
-        name:       "xor_copy",
+        name: "xor_copy",
     };
     copy.apply_delta(snap) or report_delta_err(err);
-    assert_eq_int("copy XOR(0,1)", predict_label(copy, x01) or -1, 1);
-    assert_eq_int("copy XOR(1,1)", predict_label(copy, x11) or -1, 0);
+    assert_eq_int("copy XOR(0,1)", predict_label(copy, x01) or - 1, 1);
+    assert_eq_int("copy XOR(1,1)", predict_label(copy, x11) or - 1, 0);
 
     println("[xor] xor-trainer demo complete");
 }

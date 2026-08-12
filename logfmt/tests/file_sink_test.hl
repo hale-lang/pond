@@ -21,9 +21,9 @@ fn main() {
     // Cap far above anything this test writes — no rotation here
     // (rotation has its own test).
     let sink = logfmt::FileSink {
-        path:           path,
+        path: path,
         max_size_bytes: 1000000,
-        keep_files:     2
+        keep_files: 2
     };
 
     // ----- std::text::Sink-shape surface -----
@@ -36,12 +36,12 @@ fn main() {
 
     // ----- log-event formatting: level names -----
     cleanup(path);
-    let e1 = std::log::LogEvent { level: 1, msg: "hello",  path: "app" };
+    let e1 = std::log::LogEvent { level: 1, msg: "hello", path: "app" };
     let e2 = std::log::LogEvent { level: 2, msg: "careful", path: "app.db" };
-    let e3 = std::log::LogEvent { level: 3, msg: "boom",   path: "app" };
-    let e4 = std::log::LogEvent { level: 4, msg: "dbg",    path: "app" };
-    let e5 = std::log::LogEvent { level: 5, msg: "trc",    path: "app" };
-    let e9 = std::log::LogEvent { level: 9, msg: "odd",    path: "app" };
+    let e3 = std::log::LogEvent { level: 3, msg: "boom", path: "app" };
+    let e4 = std::log::LogEvent { level: 4, msg: "dbg", path: "app" };
+    let e5 = std::log::LogEvent { level: 5, msg: "trc", path: "app" };
+    let e9 = std::log::LogEvent { level: 9, msg: "odd", path: "app" };
     sink.on_event(e1);
     sink.on_event(e2);
     sink.on_event(e3);

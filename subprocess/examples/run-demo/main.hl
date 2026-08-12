@@ -21,9 +21,9 @@ import "../.." as sub;
 
 locus RunDemo {
     params {
-        cmd:        String     = "/bin/echo";
-        args:       String     = "hello-from-hale";
-        last_kind:  String     = "";
+        cmd: String = "/bin/echo";
+        args: String = "hello-from-hale";
+        last_kind: String = "";
     }
 
     run() {
@@ -41,11 +41,11 @@ locus RunDemo {
         // type's field shape so the example still type-checks
         // against the stubbed surface.
         let opts = sub::SpawnOpts {
-            cmd:        self.cmd,
-            args:       self.args,
-            cwd:        "",
-            env:        "",
-            stdin:      std::bytes::from_string(""),
+            cmd: self.cmd,
+            args: self.args,
+            cwd: "",
+            env: "",
+            stdin: std::bytes::from_string(""),
             timeout_ms: 5000,
         };
         let _ = sub::spawn(opts) or self.report(err);
@@ -61,7 +61,7 @@ locus RunDemo {
         // so e.g. `/bin/cat` would block forever on wait().
         let p = sub::Process { cmd: self.cmd, args: self.args };
         let st = p.wait()
-            or sub::ExitStatus { code: -99, signaled: false, signal: 0 };
+        or sub::ExitStatus { code: -99, signaled: false, signal: 0 };
         println("run-demo: streaming wait code = ", st.code);
     }
 

@@ -119,13 +119,13 @@ fn main() {
     // pad header, mixed-case names (RFC 7230 case-insensitive match).
     let crafted = std::bytes::from_string(
         "GET /room/7 HTTP/1.1\r\n"
-        + "Host: example.com\r\n"
-        + "UPGRADE: WebSocket\r\n"
-        + "Sec-WebSocket-Version: 13\r\n"
-        + "sec-websocket-key: " + rfc_key() + "\r\n"
-        + "Connection: Upgrade\r\n"
-        + "X-Trailer: pad\r\n"
-        + "\r\n");
+            + "Host: example.com\r\n"
+            + "UPGRADE: WebSocket\r\n"
+            + "Sec-WebSocket-Version: 13\r\n"
+            + "sec-websocket-key: " + rfc_key() + "\r\n"
+            + "Connection: Upgrade\r\n"
+            + "X-Trailer: pad\r\n"
+            + "\r\n");
     let cup = ws::parse_request(crafted);
     std::test::assert_eq_str(cup.path, "/room/7", "crafted upgrade path");
     std::test::assert_eq_str(cup.key, rfc_key(), "crafted key (lowercase header name)");

@@ -56,7 +56,7 @@ locus WsClient {
         // If true, read_msg / open transparently reconnect on
         // transient failures with the configured backoff schedule.
         auto_reconnect: Bool = true;
-        max_retries: Int = -1;        // -1 = unlimited
+        max_retries: Int = -1; // -1 = unlimited
         reconnect_initial: Duration = 1s;
         reconnect_max: Duration = 30s;
 
@@ -125,19 +125,19 @@ locus WsClient {
         // reads `self.last_message.bytes` (a view) until the
         // next data frame arrives, at which point frag_buf is
         // cleared and re-filled in place.
-        rx_buf:   std::bytes::BytesBuilder
-                = std::bytes::BytesBuilder { initial_cap: 8192 };
+        rx_buf: std::bytes::BytesBuilder
+            = std::bytes::BytesBuilder { initial_cap: 8192 };
 
         frag_kind: String = "";
         frag_buf: std::bytes::BytesBuilder
-                = std::bytes::BytesBuilder { initial_cap: 1024 };
+            = std::bytes::BytesBuilder { initial_cap: 1024 };
 
         // Scratch buffer for control-frame payloads (ping replies,
         // close-frame echo). Held as a child so its allocation
         // recycles across pings — no per-ping allocation churn.
         // Capped small per RFC 6455 § 5.5 (control frames ≤ 125 B).
         scratch_buf: std::bytes::BytesBuilder
-                   = std::bytes::BytesBuilder { initial_cap: 128 };
+            = std::bytes::BytesBuilder { initial_cap: 128 };
 
         // Outbound mask fallback seed. Per-frame mask keys come
         // from std::os::getrandom(4) (RFC 6455 § 5.3 unpredictable
@@ -174,7 +174,7 @@ locus WsClient {
         // The tcp path leaves these untouched (the reference deployment is all-TLS; if a
         // tcp consumer needs them, mirror with tcp::recv_stamped_into).
         rx_kernel_ns: Int = 0;
-        rx_user_ns:   Int = 0;
+        rx_user_ns: Int = 0;
 
         // ---- diagnostic logger (injectable) ----
         //
@@ -426,7 +426,7 @@ locus WsClient {
         // branch.
         let view = self.rx_buf.view();
         let hdr = peek_header(view, 0)
-            or self.framing_fail_hdr(err);
+        or self.framing_fail_hdr(err);
         if self.last_error.kind == "framing" {
             return 5;
         }
@@ -451,8 +451,8 @@ locus WsClient {
         if hdr.opcode == 9 {
             // Ping — unmask into scratch_buf, echo as pong, clear.
             unmask_into(self.scratch_buf, view,
-                        hdr.payload_off, hdr.payload_len,
-                        hdr.masked, hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
+                hdr.payload_off, hdr.payload_len,
+                hdr.masked, hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
             self.rx_buf.shift_front(hdr.total);
             // F.30 5a wired method-call arg-site coercion too.
             // Ping reply is best-effort on the inbound control path:
@@ -480,14 +480,14 @@ locus WsClient {
         // had a full read_msg return to consume).
         if hdr.opcode == 0 {
             unmask_into(self.frag_buf, view,
-                        hdr.payload_off, hdr.payload_len,
-                        hdr.masked, hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
+                hdr.payload_off, hdr.payload_len,
+                hdr.masked, hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
         } else {
             self.frag_kind = opcode_to_kind(hdr.opcode);
             self.frag_buf.clear();
             unmask_into(self.frag_buf, view,
-                        hdr.payload_off, hdr.payload_len,
-                        hdr.masked, hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
+                hdr.payload_off, hdr.payload_len,
+                hdr.masked, hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
         }
         self.rx_buf.shift_front(hdr.total);
 
@@ -509,7 +509,7 @@ locus WsClient {
             if self.last_message.kind != self.frag_kind {
                 self.last_message.kind = self.frag_kind;
             }
-            self.last_message.text  = self.frag_buf.text_view();
+            self.last_message.text = self.frag_buf.text_view();
             self.last_message.bytes = self.frag_buf.view();
             self.frag_kind = "";
             return 3;
@@ -624,7 +624,7 @@ locus WsClient {
         // clobbers them. Copy them onto the exposed fields here.
         let got = self.io.recv_into(self.rx_buf, self.recv_chunk);
         self.rx_kernel_ns = self.io.rx_kernel_ns;
-        self.rx_user_ns   = self.io.rx_user_ns;
+        self.rx_user_ns = self.io.rx_user_ns;
         if got > 0 {
             self.logger.on_event(WsLogEvent {
                 phase: "recv", detail: "bytes from socket", bytes: got });
@@ -659,7 +659,7 @@ locus WsClient {
             phase: "dial", detail: self.host });
         if self.scheme == "wss" {
             let h = std::io::tls::connect(self.host, self.port)
-                or self.io_substitute_int(err);
+            or self.io_substitute_int(err);
             if h < 0 {
                 self.logger.on_event(WsLogEvent {
                     phase: "error", detail: "tls connect failed" });
@@ -677,7 +677,7 @@ locus WsClient {
                 phase: "tls", detail: "handshake ok" });
         } else {
             let h = std::io::tcp::connect(self.host, self.port)
-                or self.io_substitute_int(err);
+            or self.io_substitute_int(err);
             if h < 0 {
                 self.logger.on_event(WsLogEvent {
                     phase: "error", detail: "tcp connect failed" });
@@ -747,7 +747,7 @@ locus WsClient {
             } else {
                 let view = self.rx_buf.view();
                 let consumed = parse_response(view, expected_accept)
-                    or self.handshake_fail(err);
+                or self.handshake_fail(err);
                 if self.last_error.kind == "handshake" {
                     self.logger.on_event(WsLogEvent {
                         phase: "error", detail: self.last_error.detail });
@@ -870,7 +870,7 @@ fn parse_url(u: String) -> UrlParts {
     let colon = std::str::index_of(hostport, ":");
     if colon >= 0 {
         host = hostport[0..colon];
-        let portstr = hostport[colon+1..len(hostport)];
+        let portstr = hostport[colon + 1..len(hostport)];
         let p = std::str::parse_int(portstr) or 0;
         if p > 0 {
             port = p;

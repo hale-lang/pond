@@ -43,11 +43,11 @@
 // the row remainder so embedded TABS are safe, but a NEWLINE in
 // the payload is not.
 type Job {
-    id:           Int    = 0;
-    kind:         String = "";
-    payload:      String = "";
-    attempt:      Int    = 0;
-    max_attempts: Int    = 3;
+    id: Int = 0;
+    kind: String = "";
+    payload: String = "";
+    attempt: Int = 0;
+    max_attempts: Int = 3;
 }
 
 // JobResult — what a JobHandler returns per invocation.
@@ -57,7 +57,7 @@ type Job {
 // where `retry` is `attempt + 1 < max_attempts`. `detail` is a
 // short human-readable diagnostic.
 type JobResult {
-    ok:     Bool   = false;
+    ok: Bool = false;
     detail: String = "";
 }
 
@@ -73,6 +73,6 @@ type JobResult {
 // `detail` is the human-readable explanation suitable for log
 // emission.
 type JobError {
-    kind:   String = "";
+    kind: String = "";
     detail: String = "";
 }

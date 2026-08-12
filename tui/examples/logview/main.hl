@@ -53,15 +53,15 @@ locus LineVec {
 locus Logview {
     params {
         path: String = "";
-        cmd: String = "";        // --cmd mode: spawned pipeline
-        cmd_pid: Int = -1;       // its process-group leader
+        cmd: String = ""; // --cmd mode: spawned pipeline
+        cmd_pid: Int = -1; // its process-group leader
         cmd_live: Bool = true;
         lines: LineVec = LineVec { };
-        pending: String = "";     // partial line awaiting its \n
-        last_size: Int = 0;       // file bytes consumed
-        offset: Int = 0;          // top visible row (filtered space)
+        pending: String = ""; // partial line awaiting its \n
+        last_size: Int = 0; // file bytes consumed
+        offset: Int = 0; // top visible row (filtered space)
         follow: Bool = true;
-        filtering: Bool = false;  // '/' edit mode
+        filtering: Bool = false; // '/' edit mode
         filter: tui::TextInput = tui::TextInput {
             focus: false,
             placeholder: "type to filter…"
@@ -87,9 +87,9 @@ locus Logview {
         let wrapper = "setsid sh -c 'sh " + script + "' > "
             + self.path + " 2>&1 < /dev/null & echo $!";
         let out = std::process::run("sh\n-c\n" + wrapper)
-            or run_err(err);
+        or run_err(err);
         self.cmd_pid = std::str::parse_int(std::str::trim(out.stdout))
-            or -1;
+        or - 1;
     }
 
     // ---- File ingestion ----
@@ -121,7 +121,7 @@ locus Logview {
                 let mut end = i;
                 if end > start {
                     if std::str::byte_at_unchecked(data, end - 1) == 13 {
-                        end = end - 1;   // strip \r of \r\n
+                        end = end - 1; // strip \r of \r\n
                     }
                 }
                 self.lines.push(
@@ -141,7 +141,7 @@ locus Logview {
             // tear the spawned pipeline's process group down.
             if self.cmd_pid > 0 {
                 std::process::run("kill\n-TERM\n--\n-"
-                    + to_string(self.cmd_pid)) or run_err(err);
+                        + to_string(self.cmd_pid)) or run_err(err);
             }
             return true;
         }
@@ -152,8 +152,8 @@ locus Logview {
                 if self.cmd_pid > 0 && self.cmd_live {
                     if !std::io::fs::file_exists(
                         "/proc/" + to_string(self.cmd_pid)) {
-                        self.cmd_live = false;
-                    }
+                            self.cmd_live = false;
+                        }
                 }
             }
             return false;
@@ -183,23 +183,23 @@ locus Logview {
                 self.set_editing(false);
                 return false;
             }
-            self.filter.handle(e);   // chars / backspace / paste
+            self.filter.handle(e); // chars / backspace / paste
             return false;
         }
 
         if e.kind == "key" {
-            if e.key == "char" && e.ch == 113 { return true; }   // q
-            if e.key == "char" && e.ch == 47 {                   // /
+            if e.key == "char" && e.ch == 113 { return true; } // q
+            if e.key == "char" && e.ch == 47 { // /
                 self.set_editing(true);
             }
-            if e.key == "char" && e.ch == 102 {                  // f
+            if e.key == "char" && e.ch == 102 { // f
                 self.follow = !self.follow;
             }
-            if e.key == "char" && e.ch == 103 {                  // g
+            if e.key == "char" && e.ch == 103 { // g
                 self.offset = 0;
                 self.follow = false;
             }
-            if e.key == "char" && e.ch == 71 {                   // G
+            if e.key == "char" && e.ch == 71 { // G
                 self.follow = true;
             }
             if e.key == "up" { self.scroll(-1, page); }
@@ -320,7 +320,7 @@ locus Logview {
                     len(line));
                 s.put(0, y, pre, fg, -1, attrs);
                 let x1 = tui::str_width(pre);
-                s.put(x1, y, mid, 0, 11, 0);   // black on bright yellow
+                s.put(x1, y, mid, 0, 11, 0); // black on bright yellow
                 s.put(x1 + tui::str_width(mid), y, post, fg, -1, attrs);
                 return;
             }
@@ -371,14 +371,14 @@ fn strip_ansi(s: String) -> String {
         if c == 27 {
             let mut c2 = 0;
             if i + 1 < n { c2 = std::str::byte_at_unchecked(s, i + 1); }
-            if c2 == 91 {                  // CSI … final 0x40..0x7E
+            if c2 == 91 { // CSI … final 0x40..0x7E
                 i = i + 2;
                 while i < n {
                     let f = std::str::byte_at_unchecked(s, i);
                     i = i + 1;
                     if f >= 64 && f <= 126 { break; }
                 }
-            } else if c2 == 93 {           // OSC … BEL
+            } else if c2 == 93 { // OSC … BEL
                 i = i + 2;
                 while i < n {
                     let f = std::str::byte_at_unchecked(s, i);
@@ -386,7 +386,7 @@ fn strip_ansi(s: String) -> String {
                     if f == 7 { break; }
                 }
             } else {
-                i = i + 1;                 // lone ESC: drop
+                i = i + 1; // lone ESC: drop
             }
         } else {
             b.append_u8(c);
@@ -424,7 +424,7 @@ fn main() {
             return;
         }
         let cmd = std::env::arg(2);
-        let frames = std::str::parse_int(std::env::arg_or(3, "-1")) or -1;
+        let frames = std::str::parse_int(std::env::arg_or(3, "-1")) or - 1;
         let tag = to_string(std::process::pid());
         tui::Program {
             app: Logview {
@@ -437,7 +437,7 @@ fn main() {
         };
         return;
     }
-    let frames = std::str::parse_int(std::env::arg_or(2, "-1")) or -1;
+    let frames = std::str::parse_int(std::env::arg_or(2, "-1")) or - 1;
     tui::Program {
         app: Logview { path: a1 },
         fps: 30,

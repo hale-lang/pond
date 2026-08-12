@@ -83,11 +83,11 @@ locus Pool {
         let mut i = 0;
         while i < self.workers {
             Worker {
-                worker_id:     i,
-                queue:         self.queue,
-                max_jobs:      self.max_jobs_per_worker,
+                worker_id: i,
+                queue: self.queue,
+                max_jobs: self.max_jobs_per_worker,
                 exit_on_empty: self.exit_on_empty,
-                pool:          self,
+                pool: self,
             };
             i = i + 1;
         }
@@ -114,8 +114,8 @@ locus Pool {
     // pond/supervisor's one_for_one strategy, open-coded.
     on_failure(w: Worker, err: ClosureViolation) {
         println("[jobs::Pool] worker ", err.locus,
-                " failed (", err.closure, "); restarting");
-        restart(w);
+            " failed (", err.closure, "); restarting");
+        restart (w);
     }
 }
 
@@ -142,7 +142,7 @@ locus Worker {
         pool: Pool;
 
         // --- private accounting ---
-        jobs_done: Int  = 0;
+        jobs_done: Int = 0;
         saw_empty: Bool = false;
     }
 
@@ -191,7 +191,7 @@ locus Worker {
             self.saw_empty = true;
         } else {
             println("[jobs::Worker ", to_string(self.worker_id),
-                    "] dequeue error: ", e.kind, " — ", e.detail);
+                "] dequeue error: ", e.kind, " — ", e.detail);
         }
         return Job { };
     }
@@ -201,6 +201,6 @@ locus Worker {
     // no automatic reclaim).
     fn __note(e: JobError) {
         println("[jobs::Worker ", to_string(self.worker_id),
-                "] ack/fail error: ", e.kind, " — ", e.detail);
+            "] ack/fail error: ", e.kind, " — ", e.detail);
     }
 }

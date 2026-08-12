@@ -38,17 +38,17 @@ locus EchoCompletion {
         // (TLS-terminated) proxy upstream can be wired without
         // changing source. Defaults fall back to the local-
         // proxy shape documented in the README.
-        api_key:   String = "";
-        base_url:  String = "http://localhost:1234";
-        model:     String = "claude-opus-4-7";
-        prompt:    String = "Say hello in 3 words.";
+        api_key: String = "";
+        base_url: String = "http://localhost:1234";
+        model: String = "claude-opus-4-7";
+        prompt: String = "Say hello in 3 words.";
 
         // Error sink for the fallible complete() call. `run()`
         // is a lifecycle method (can't be fallible), so we
         // disposition complete()'s value channel with `or
         // self.__on_err(err)` and read the diagnosis back here.
-        err_kind:   String = "";
-        err_status: Int    = 0;
+        err_kind: String = "";
+        err_status: Int = 0;
         err_detail: String = "";
     }
 
@@ -56,7 +56,7 @@ locus EchoCompletion {
     // LlmError into the sink params and returns an empty-defaults
     // LlmResponse as the substitute value for the value channel.
     fn __on_err(e: llm::LlmError) -> llm::LlmResponse {
-        self.err_kind   = e.kind;
+        self.err_kind = e.kind;
         self.err_status = e.status;
         self.err_detail = e.detail;
         return llm::LlmResponse { };
@@ -65,8 +65,8 @@ locus EchoCompletion {
     run() {
         // Resolve overrides from env. Empty env values keep
         // the param defaults.
-        let mut key   = self.api_key;
-        let mut url   = self.base_url;
+        let mut key = self.api_key;
+        let mut url = self.base_url;
         let mut model = self.model;
         if std::env::var_exists("ANTHROPIC_API_KEY") {
             key = std::env::var("ANTHROPIC_API_KEY");
@@ -88,21 +88,21 @@ locus EchoCompletion {
         println("echo-completion: prompt   ", self.prompt);
 
         let client = llm::AnthropicClient {
-            api_key:       key,
-            base_url:      url,
+            api_key: key,
+            base_url: url,
             default_model: model
         };
 
         // Build the LlmRequest. `messages` is a bounded list of
         // LlmMsg (2026-07-02 — was tab-separated pairs).
         let req = llm::LlmRequest {
-            model:       model,
-            system:      "You are terse.",
-            max_tokens:  64,
+            model: model,
+            system: "You are terse.",
+            max_tokens: 64,
             temperature: 0.7
         };
         push(req.messages, llm::LlmMsg {
-            role:    "user",
+            role: "user",
             content: self.prompt
         }) or raise;
 

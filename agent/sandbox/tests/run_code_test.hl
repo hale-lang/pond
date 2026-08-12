@@ -20,15 +20,15 @@ import ".." as sandbox;
 fn err_result(e: sandbox::SandboxError) -> sandbox::SandboxResult {
     return sandbox::SandboxResult {
         exit_code: -1,
-        stdout:    "",
-        stderr:    "ERR:" + e.kind,
+        stdout: "",
+        stderr: "ERR:" + e.kind,
     };
 }
 
 fn main() {
     let sb = sandbox::Sandbox {
-        runtime:         "/usr/bin/python3",
-        timeout_ms:      5000,
+        runtime: "/usr/bin/python3",
+        timeout_ms: 5000,
         memory_limit_mb: 256,
     };
 
@@ -49,8 +49,8 @@ fn main() {
 
     // ---- error path: nonexistent runtime binary ----
     let dead = sandbox::Sandbox {
-        runtime:         "/nonexistent/pond_test_runtime",
-        timeout_ms:      1000,
+        runtime: "/nonexistent/pond_test_runtime",
+        timeout_ms: 1000,
         memory_limit_mb: 64,
     };
     let bad = dead.run_code("print(1)") or err_result(err);

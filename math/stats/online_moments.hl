@@ -15,9 +15,9 @@
 
 locus OnlineMoments {
     params {
-        n:    Int   = 0;     // observation count
-        mean: Float = 0.0;   // running mean
-        m2:   Float = 0.0;   // running sum of squared deviations
+        n: Int = 0; // observation count
+        mean: Float = 0.0; // running mean
+        m2: Float = 0.0; // running sum of squared deviations
     }
 
     // `observe(x)` — fold one new sample into the running stats.
