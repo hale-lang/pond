@@ -5,20 +5,31 @@ current compiler, with a self-contained program, an expected result,
 and an observed result. Nothing here is a design note, a triage
 record, or a workaround log; that material lives in `FRICTION.log`.
 
-**Compiler under test:** `hale 0.16.0`, `hale-lang/hale` @ `3c05dad`
-(2026-08-11, *"fix: six defects from a downstream compiler-bugs
-pass"*), release build.
+**Compiler under test:** `hale 0.16.0`, `hale-lang/hale` @ `37914e5`
+(2026-08-12), release build.
 **Last-known-good reference:** `hale 0.13.0` @ `16b227e`.
-**Date of this pass:** 2026-08-11 (second pass, after `3c05dad`).
+**Date of this pass:** 2026-08-12 (third pass — both entries below
+re-run verbatim against `37914e5` and **both still reproduce**).
 
 Every repro is a complete seed: drop `main.hl` into a directory and
 run `hale build <dir>/ && <dir>/<dir>`. No imports, no stdlib beyond
 `println` / `to_string`.
 
-**Two open bugs.** The six reported in the first pass are fixed and
-re-verified; see the tail of this file. What remains is one surviving
-shape of the same GH #402 regression `3c05dad` targeted, plus a lint
-escape hatch that does not work.
+**Two open bugs**, unchanged since they were filed at `3c05dad`. The
+six reported in the first pass are fixed and re-verified; see the tail
+of this file. What remains is one surviving shape of the same GH #402
+regression `3c05dad` targeted, plus a lint escape hatch that does not
+work.
+
+> **Note for whoever picks these up.** The 20-commit batch between
+> `3c05dad` and `37914e5` did not touch either one, and neither is
+> mentioned in `CHANGELOG.md` — so this is a re-report, not a
+> regression. Pond is otherwise fully green on `37914e5` with no
+> source changes: 30/30 seeds check clean, 49/49 tests, 38/38 examples
+> build and run. That batch's own handler-signature soundness fix
+> records being "verified against the full downstream corpus (pond,
+> native suites) with zero false positives" — confirmed here
+> independently.
 
 | # | Bug | Severity | Kind |
 |---|-----|----------|------|
@@ -87,7 +98,7 @@ via_temp len=3 [0]=1
 via_let  len=3 [0]=2
 ```
 
-**Observed at `3c05dad`:**
+**Observed at `3c05dad` and again at `37914e5`:**
 
 ```
 via_temp len=3 [0]=1
@@ -208,7 +219,7 @@ fn main() {
 
 **Expected:** both fns silent — each carries the acknowledgment its
 own advisory names.
-**Observed at `3c05dad`:** `fill` is silent; `loops` still emits
+**Observed at `3c05dad` and again at `37914e5`:** `fill` is silent; `loops` still emits
 `warning: hot-path allocation: `make` returns the locus `Buf` …`.
 
 ### Where it is
