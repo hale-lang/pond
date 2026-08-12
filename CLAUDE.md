@@ -31,7 +31,7 @@ These come from the upstream compiler repo's AGENTS.md and apply here:
 
 ## Compiler-shape rules and gotchas
 
-These shape non-obvious code in this repo. The first is a permanent language rule; the rest are current-compiler behaviors with the live workaround:
+These shape non-obvious code in this repo. The first is a permanent language rule; the rest are current-compiler behaviors with the live workaround. **Baseline: hale 0.16.0 @ `37914e5` (2026-08-12)** — re-probed that day, everything below still holds and pond needs no source change against it (30/30 seeds check clean, 49/49 tests, 38/38 examples build and run):
 
 - **Methods may not return locus values (m90 / #18.6 CQRS rejection — permanent).** Factories that return loci are **free fns** (`mat::zeros(...)`, `metrics::counter(reg, ...)`, `nn::forward(...)`). This is the *inverse* of the old G3/G4 note ("free fns can't return LocusRef") — that gotcha is retired.
 - **G34 is CLOSED (upstream WS3.4, 2026-06-11).** Pond libs can import other pond libs — including `_util/*` from tier libs — and instantiate their types/loci by qualified literal (`util::KvPack { }` in expression position works). The **re-export barrier still holds by design**: an end app must import a lib itself to name that lib's types. Existing local-copy duplication may be collapsed opportunistically, but it isn't mandatory — `tui` evaluated importing `term` and declined (per-cell hot-path cost + consumer vendoring weight beat ~25 lines of frozen ANSI fragments; see `FRICTION.log § pond/tui`).
