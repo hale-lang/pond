@@ -24,6 +24,14 @@
 !**/tests/**/
 !**/tests/**/*.*
 
+# Emitted intermediates. The examples/ rule above un-ignores anything
+# with an extension so real sources stay tracked, which also lets
+# compiler output (`--emit-llvm` and friends) slip through. These are
+# build artifacts everywhere in the tree.
+*.ll
+*.o
+*.s
+
 # Library-root binaries (a CLI shape, e.g. migrations/migrations)
 /migrations/migrations
 
