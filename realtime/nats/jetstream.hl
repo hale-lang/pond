@@ -79,7 +79,16 @@ fn js_consumer_create(c: NatsClient, stream: String, spec: ConsumerSpec) fallibl
 /// Publish `data` on `subject` and wait for the stream to store it.
 /// Fails with kind "jetstream" when no stream takes the subject.
 fn js_publish(c: NatsClient, subject: String, data: Bytes) -> PubAck fallible(NatsError) {
-    let reply = c.request(subject, data, c.timeout) or fail no_responder_is(c, err, "no stream takes " + subject);
+    return js_publish_id(c, subject, "", data) or raise;
+}
+
+/// `js_publish` with a message id: within the stream's duplicate window
+/// a second publish of the same id is not stored again, and its PubAck
+/// says `duplicate` (with the first one's sequence). "" publishes
+/// without one.
+fn js_publish_id(c: NatsClient, subject: String, id: String, data: Bytes) -> PubAck fallible(NatsError) {
+    let headers = if len(id) > 0 { msg_id_headers(id) } else { "" };
+    let reply = c.request_with(subject, headers, data, c.timeout) or fail no_responder_is(c, err, "no stream takes " + subject);
     let text = std::str::from_bytes(reply.data);
     let refused = js_error_of(text);
     if len(refused) > 0 { fail c.fail_with("jetstream", refused); }

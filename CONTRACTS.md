@@ -28,6 +28,9 @@ choose their own aliases per F.25.
   in place of `NatsAdapter`, since a binding cannot name one through an
   import alias (hale#1034). Both fold away when those close
   (`realtime/nats/README.md` § When this unblocks).
+- **Additions the same day, for DNA's nerves (hale-lang/hale#986):**
+  `NatsConn.subject_prefix`, `NatsClient.pub_headers` (HPUB), and
+  `js_publish_id` (dedup by `Nats-Msg-Id`).
 - **Credentials: user/pass and token.** NKey/JWT is not offered:
   there is no ed25519 in hale's stdlib or `pond/crypto`
   (`FRICTION.log § pond/realtime/nats`).
@@ -1342,6 +1345,7 @@ locus NatsClient {
              echo = true; timeout = 5s; }                // nats:// or tls:// (INFO, then TLS upgrade)
     fn open() -> Bool;                                     // INFO, CONNECT, PING/PONG; last_error on fail
     fn pub_msg(subject: String, reply: String, data: Bytes) -> () fallible(NatsError);
+    fn pub_headers(subject: String, reply: String, headers: String, data: Bytes) -> () fallible(NatsError);   // HPUB; see msg_id_headers
     fn sub_to(subject: String, queue: String) -> Int fallible(NatsError);   // sid
     fn unsub(sid: Int) -> () fallible(NatsError);
     fn flush() -> () fallible(NatsError);                  // PING/PONG barrier
@@ -1355,6 +1359,7 @@ fn js_stream_create(c: NatsClient, name: String, subjects: String) -> () fallibl
 fn js_stream_delete(c: NatsClient, name: String) -> () fallible(NatsError);
 fn js_consumer_create(c: NatsClient, stream: String, spec: ConsumerSpec) -> () fallible(NatsError);
 fn js_publish(c: NatsClient, subject: String, data: Bytes) -> PubAck fallible(NatsError);
+fn js_publish_id(c: NatsClient, subject: String, id: String, data: Bytes) -> PubAck fallible(NatsError);   // Nats-Msg-Id dedup (2026-09-24)
 fn js_next(c: NatsClient, stream: String, consumer: String, wait_ms: Int) -> NatsMsg fallible(NatsError);
 fn js_ack(c: NatsClient, m: NatsMsg) -> () fallible(NatsError);
 
@@ -1363,6 +1368,7 @@ locus NatsAdapter { fn send(subject: String, bytes: Bytes); }   // std::bus adap
 locus NatsConn {                                          // the program places it `pinned`
     params { url; user; pass; token; name;
              subjects = "";  queue = "";                  // core inbound, comma-separated
+             subject_prefix = "";                         // on every wire subject, off every inbound one
              jetstream = false;                           // outbound acked by PubAck, else PING barrier
              stream = ""; consumer: ConsumerSpec;         // JetStream inbound (durable pull)
              pull_batch = 64; ack_window_ms = 10000; run_for_ms = 0; reconnect_max_ms = 2000; }

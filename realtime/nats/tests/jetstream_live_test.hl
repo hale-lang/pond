@@ -25,6 +25,18 @@ fn main() {
     let a2 = nats::js_publish(c, subj + ".two", std::bytes::from_string("second")) or nats::PubAck { };
     std::test::assert(a1.stream == stream && a1.seq == 1 && a2.seq == 2, "PubAcks: " + a1.stream + " " + to_string(a1.seq) + " " + to_string(a2.seq));
 
+    // a message id is stored once: the second publish is a duplicate
+    // (a stream of its own, so the rest below is undisturbed)
+    let dup_stream = "POND_TEST_DUP_" + tag;
+    nats::js_stream_create(c, dup_stream, "pond.jsdup." + tag) or discard;
+    let d1 = nats::js_publish_id(c, "pond.jsdup." + tag, "fact-1", std::bytes::from_string("once")) or nats::PubAck { };
+    let d2 = nats::js_publish_id(c, "pond.jsdup." + tag, "fact-1", std::bytes::from_string("once")) or nats::PubAck { };
+    let d3 = nats::js_publish_id(c, "pond.jsdup." + tag, "fact-2", std::bytes::from_string("twice")) or nats::PubAck { };
+    std::test::assert(d1.seq == 1 && !d1.duplicate, "the first is stored: " + to_string(d1.seq) + " " + c.last_error);
+    std::test::assert(d2.duplicate && d2.seq == 1, "the second is a duplicate of it: " + to_string(d2.seq));
+    std::test::assert(d3.seq == 2 && !d3.duplicate, "another id is stored: " + to_string(d3.seq));
+    nats::js_stream_delete(c, dup_stream) or discard;
+
     // a subject no stream takes is refused, not lost
     let none = nats::js_publish(c, "pond.nostream." + tag, b"x") or nats::PubAck { seq: -1 };
     std::test::assert(none.seq == -1 && std::str::contains(c.last_error, "no stream takes"), "no stream: " + c.last_error);

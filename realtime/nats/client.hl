@@ -243,9 +243,16 @@ locus NatsClient {
     fn set_read_timeout(d: Duration) { self.io.set_recv_deadline(d); }
 
     fn pub_msg(subject: String, reply: String, data: Bytes) fallible(NatsError) {
+        self.pub_headers(subject, reply, "", data) or raise;
+    }
+
+    /// A publish with a header block (HPUB), or a plain PUB when
+    /// `headers` is "".
+    fn pub_headers(subject: String, reply: String, headers: String, data: Bytes) fallible(NatsError) {
         if !self.connected { fail self.fail_with("closed", "not connected"); }
-        if len(data) > self.max_payload { fail self.fail_with("io", "payload of " + to_string(len(data)) + " bytes over the server's max_payload " + to_string(self.max_payload)); }
-        if !self.write(pub_frame(subject, reply, data)) { fail self.fail_with("io", "the write failed"); }
+        if len(headers) + len(data) > self.max_payload { fail self.fail_with("io", "payload of " + to_string(len(headers) + len(data)) + " bytes over the server's max_payload " + to_string(self.max_payload)); }
+        let frame = if len(headers) > 0 { hpub_frame(subject, reply, headers, data) } else { pub_frame(subject, reply, data) };
+        if !self.write(frame) { fail self.fail_with("io", "the write failed"); }
     }
 
     fn sub_to(subject: String, queue: String) -> Int fallible(NatsError) {
@@ -341,10 +348,15 @@ locus NatsClient {
     /// for the one answer. Messages for other subscriptions that arrive
     /// meanwhile are kept for `read_msg`.
     fn request(subject: String, data: Bytes, wait: Duration) -> NatsMsg fallible(NatsError) {
+        return self.request_with(subject, "", data, wait) or raise;
+    }
+
+    /// `request` with a header block on the publish (see `pub_headers`).
+    fn request_with(subject: String, headers: String, data: Bytes, wait: Duration) -> NatsMsg fallible(NatsError) {
         let inbox = new_inbox();
         let sid = self.sub_to(inbox, "") or raise;
         if !self.write_str(unsub_line(sid, 1)) { fail self.fail_with("io", "the write failed"); }
-        self.pub_msg(subject, inbox, data) or raise;
+        self.pub_headers(subject, inbox, headers, data) or raise;
         self.io.set_recv_deadline(wait);
         let deadline = std::time::monotonic() + wait;
         while std::time::monotonic() < deadline {
