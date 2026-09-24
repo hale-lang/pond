@@ -1,0 +1,50 @@
+// NatsFake in NatsConn's place, no broker: what the program publishes
+// through its adapter is kept and acknowledged, and replay brings it
+// back in as another topic.
+import ".." as nats;
+
+type Note { n: Int = 0; text: String = ""; }
+topic Out { payload: Note; subject: "pond.nats.fake_test.out"; }
+topic In { payload: Note; subject: "pond.nats.fake_test.in"; }
+
+// hale#1034: the program declares the adapter it binds.
+locus Nats {
+    bus { publish nats::NatsOutbound; }
+    fn send(subject: String, bytes: Bytes) { nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes }; }
+}
+
+main locus App {
+    params {
+        fake: nats::NatsFake = nats::NatsFake { keep: 4 };
+        got: Int = 0;
+        sum: Int = 0;
+        last_text: String = "";
+    }
+    bindings { Out: Nats { }; }
+    bus { publish Out; subscribe In as on_in; }
+
+    fn on_in(m: Note) {
+        self.got = self.got + 1;
+        self.sum = self.sum + m.n;
+        self.last_text = m.text;
+    }
+
+    run() {
+        let mut i = 1;
+        while i <= 6 {
+            Out <- Note { n: i, text: "note " + to_string(i) };
+            i = i + 1;
+        }
+        std::time::sleep(20ms);
+        std::test::assert(self.fake.sent == 6 && self.fake.acked == 6, "sent and acknowledged: " + to_string(self.fake.sent) + " " + to_string(self.fake.acked));
+        std::test::assert(self.fake.count("pond.nats.fake_test.out") == 4, "the log keeps the last `keep`");
+        let n = self.fake.replay("pond.nats.fake_test.out", "pond.nats.fake_test.in");
+        std::time::sleep(20ms);
+        std::test::assert(n == 4 && self.got == 4, "replayed in as In: " + to_string(self.got));
+        std::test::assert(self.sum == 3 + 4 + 5 + 6 && self.last_text == "note 6", "whole and in order: " + to_string(self.sum) + " " + self.last_text);
+    }
+}
+
+fn main() {
+    App { };
+}

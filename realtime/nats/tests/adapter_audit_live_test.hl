@@ -1,0 +1,53 @@
+// Silence is a violation, not a stall. In JetStream mode a publish on
+// a subject no stream takes is never acknowledged; once it is older
+// than the ack window, NatsConn violates `delivery` and collapses to
+// its owner, with `last_error` saying which message and why.
+// Opt-in: set NATS_URL to a server started with `-js`; unset, it says
+// so on stderr and passes.
+import ".." as nats;
+
+type Note { n: Int = 0; }
+topic Lost { payload: Note; subject: "pond.nats.adapter_audit.nowhere"; }
+
+// hale#1034: the program declares the adapter it binds.
+locus Nats {
+    bus { publish nats::NatsOutbound; }
+    fn send(subject: String, bytes: Bytes) { nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes }; }
+}
+
+main locus App {
+    params {
+        // built here, not passed in from main(): a child passed in has
+        // no parent handler for its violation (COMPILER-BUGS.md #4)
+        conn: nats::NatsConn = nats::NatsConn { url: std::env::var("NATS_URL"), jetstream: true, ack_window_ms: 500, run_for_ms: 5000 };
+        failed: Bool = false;
+        why: String = "";
+    }
+    placement { conn: pinned; }
+    bindings { Lost: Nats { }; }
+    bus { publish Lost; }
+
+    on_failure(c: nats::NatsConn, err: ClosureViolation) {
+        self.failed = true;
+        self.why = err.closure +": " + c.last_error;
+    }
+
+    run() {
+        std::time::sleep(300ms);
+        Lost <- Note { n: 1 };
+        let mut waited = 0;
+        while !self.failed && waited < 300 {
+            std::time::sleep(10ms);
+            waited = waited + 1;
+        }
+        std::test::assert(self.failed, "the conn collapsed to its owner");
+        std::test::assert(std::str::starts_with(self.why, "delivery: message 1 on pond.nats.adapter_audit.nowhere unacknowledged"), "which message: " + self.why);
+        std::test::assert(std::str::contains(self.why, "no stream takes it"), "and why: " + self.why);
+    }
+}
+
+fn main() {
+    let url = std::env::var("NATS_URL");
+    if len(url) == 0 { eprintln("adapter_audit_live_test: NATS_URL unset, skipped"); return; }
+    App { };
+}

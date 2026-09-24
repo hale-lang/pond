@@ -15,7 +15,9 @@ Every repro is a complete seed: drop `main.hl` into a directory and
 run `hale build <dir>/ && <dir>/<dir>`. No imports, no stdlib beyond
 `println` / `to_string`.
 
-**Two open bugs**, unchanged since they were filed at `3c05dad`. The
+**Nine open bugs.** Entries 3–9 were found on 2026-09-24 while building
+`realtime/nats`, against `hale 0.21.0`, and each carries its own
+commit. Entries 1–2 are unchanged since they were filed at `3c05dad`. The
 six reported in the first pass are fixed and re-verified; see the tail
 of this file. What remains is one surviving shape of the same GH #402
 regression `3c05dad` targeted, plus a lint escape hatch that does not
@@ -35,6 +37,13 @@ work.
 |---|-----|----------|------|
 | 1 | A `let`-bound locus forwarded through a call and returned is reclaimed early | **high** | regression (v0.16.0), partially fixed by `3c05dad` |
 | 2 | The hot-path allocation advisory ignores the `@unbounded` it tells you to use | medium | lint / diagnostic |
+| 3 | SIGTERM does not drain: a pinned `while !self.draining` loop never sees it, and the process dies with 143 | medium | runtime vs spec |
+| 4 | A child passed into its parent's literal from `fn main` is not routed to the parent's `on_failure` (hale#1035) | medium | runtime |
+| 5 | A self field alternating between a heap value and an empty one never retires the heap value (hale#1033) | medium | memory |
+| 6 | A bound bus adapter's subscriptions run on the publishing thread, not the adapter's own (hale#1032) | medium | runtime |
+| 7 | `@form(vec)` `pop` never frees a String/Bytes cell, and `set` never frees replaced Bytes (hale#1037) | medium | memory |
+| 8 | Use-after-free at exit: a collapsed child with a `@form(vec)` is reclaimed twice after violating in an adapter-relayed handler (hale#1036) | **high** | memory safety |
+| 9 | Publishing a topic bound to an adapter leaks the encoded payload in the publisher's region (hale#1038) | medium | memory |
 
 ---
 
@@ -245,6 +254,254 @@ pending. Until then `hale verify` (any-finding-fails) cannot be
 adopted as a CI gate.
 
 ---
+
+## 3. SIGTERM does not drain: a pinned loop never sees `self.draining` — medium
+
+Found 2026-09-24 against `hale 0.21.0`, `hale-lang/hale` @ `bb0a2c55`,
+release build.
+
+`spec/semantics.md` § "Drain cascade (whole-process)": on SIGINT or
+SIGTERM the root drains, depth-first, leaves first, and the process
+exits 0; a draining locus reads `self.draining` as true. A pinned child
+whose `run()` loops on `!self.draining` is the canonical shape that
+relies on it.
+
+### Repro
+
+```hale
+locus Loop {
+    run() {
+        let mut i = 0;
+        while !self.draining { if i % 10 == 0 { println("child tick " + to_string(i)); } std::time::sleep(100ms); i = i + 1; }
+        println("child run sees drain");
+    }
+    dissolve() { println("child dissolve"); }
+}
+
+main locus App {
+    params { l: Loop = Loop { }; }
+    placement { l: pinned; }
+    run() { std::time::sleep(1200ms); println("app run ends"); }
+}
+
+fn main() { App { }; }
+```
+
+Run it, and send SIGTERM after a second:
+`./pin & p=$!; sleep 1.5; kill -TERM $p; wait $p; echo $?`
+
+- **Expected:** `child run sees drain`, `child dissolve`, exit 0.
+- **Observed:** the ticks stop, neither line prints, exit 143 (killed
+  by the signal). Without a signal the program never exits: the main
+  locus's `run()` ends and the process waits on the pinned loop.
+
+### Impact in this repo
+
+`realtime/nats`'s receive loop is `NatsConn.run()`, a pinned child with
+this shape: it cannot be ended gracefully, so publishes the server has
+not yet acknowledged are lost at SIGTERM. Its `run_for_ms` bound is how
+tests and the example end it (`FRICTION.log § pond/realtime/nats`).
+
+## 4. A child passed into its parent's literal from `fn main` is not routed to the parent's `on_failure` — medium
+
+Found 2026-09-24 against `hale 0.21.0` @ `6a866b9a`; filed as
+hale-lang/hale#1035.
+
+### Repro
+
+```hale
+locus Boom {
+    params { why: String = ""; }
+    closure fuse { captures: why; epoch inline; }
+    fn check() { self.why = "lit"; violate fuse; }
+    @unbounded
+    run() { let mut i = 0; while i < 50 { std::time::sleep(10ms); if i == 10 { self.check(); } i = i + 1; } }
+}
+main locus App {
+    params { b: Boom = Boom { }; seen: String = ""; }
+    placement { b: pinned; }
+    on_failure(c: Boom, err: ClosureViolation) { self.seen = err.closure + " " + c.why; }
+    run() { std::time::sleep(400ms); println("seen=[" + self.seen + "]"); }
+}
+fn main() { App { b: Boom { why: "x" } }; }
+```
+
+- **Expected:** `seen=[fuse lit]`, which is what `fn main() { App { }; }` prints.
+- **Observed:** `runtime error: ClosureViolation: locus `Boom` closure
+  `fuse` (inline, no parent handler)`.
+
+### Impact in this repo
+
+`realtime/nats`'s delivery audit collapses `NatsConn` to its owner. A
+program that builds the conn in `main()` (to hand it a URL from the
+environment) loses that supervision; build it in the owner's param
+default instead (`tests/adapter_audit_live_test.hl`).
+
+## 5. A self field alternating between a heap value and an empty one never retires the heap value — medium
+
+Found 2026-09-24 against `hale 0.21.0` @ `6a866b9a`; filed as
+hale-lang/hale#1033.
+
+### Repro
+
+```hale
+locus H {
+    params { s: String = ""; }
+    fn heap() { self.s = std::str::upper("hello"); }
+    fn empty() { self.s = ""; }
+}
+fn main() {
+    let h = H { };
+    let mut i = 0;
+    while i < 1000000 { h.heap(); h.empty(); i = i + 1; }
+}
+```
+
+- **Expected:** flat memory, as with `h.heap(); h.heap();` (4.5 MB).
+- **Observed:** 35.7 MB VmRSS at the end, about 32 bytes kept per cycle.
+  "Empty" includes any literal and a zero-length heap slice; `Bytes`
+  fields and fields of a struct-typed field behave the same.
+
+### Impact in this repo
+
+`realtime/nats`'s framer writes only the fields each frame's op
+defines, so a PING does not blank the subject a MSG left. What remains
+is a message whose reply subject or payload is empty between ones where
+it is not: each such alternation keeps one value until the connection
+ends.
+
+## 6. A bound bus adapter's subscriptions run on the publishing thread, not the adapter's own — medium
+
+Found 2026-09-24 against `hale 0.21.0` @ `bb0a2c55`; filed, with its
+repro, as hale-lang/hale#1032. A bound adapter's `run()` runs on a
+thread of its own, but a handler it subscribes runs synchronously on
+whichever thread published, while an ordinary pinned child's handlers
+run on the child's thread.
+
+### Impact in this repo
+
+`realtime/nats` cannot keep the socket inside the adapter: every
+publisher's thread would write it. The adapter is split in two, with
+`NatsAdapter` (bound) handing messages to `NatsConn` (pinned) over an
+internal topic. They fold back into one when this closes.
+
+## 7. `@form(vec)` `pop` never frees a String/Bytes cell, and `set` never frees replaced Bytes — medium
+
+Found 2026-09-24 against `hale 0.21.0` @ `6a866b9a`; filed as
+hale-lang/hale#1037.
+
+### Repro
+
+```hale
+type B1 { b: Bytes = b""; }
+@form(vec) locus VB { capacity { heap items of B1; } }
+@form(vec) locus VStr { capacity { heap items of String; } }
+locus H {
+    params { vb: VB = VB { }; vstr: VStr = VStr { }; }
+    fn set_b(x: Bytes) { if self.vb.len() == 0 { self.vb.push(B1 { b: x }); } self.vb.set(0, B1 { b: x }) or discard; }
+    fn pp_str(x: String) { self.vstr.push(x); let g = self.vstr.pop() or ""; }
+}
+fn main() {
+    let h = H { };
+    let x = std::str::upper("some string of forty characters or so...");
+    let b = std::bytes::from_string(x);
+    let mut i = 0;
+    while i < 300000 { h.set_b(b); h.pp_str(x); i = i + 1; }
+}
+```
+
+- **Expected:** flat memory, as with an `Int` vec or a String-only
+  struct under `set`.
+- **Observed:** about 47 bytes kept per Bytes `set`, and about 40 per
+  String push+pop (62 for a struct with a String field).
+
+### Impact in this repo
+
+`realtime/nats` keeps queued messages in `NatsMsgLog` (`log.hl`), one
+reused BytesBuilder with Int vecs beside it, because a vec of
+`Outbound` used as a queue grew by one payload per message.
+
+## 8. Use-after-free at exit: a collapsed child with a `@form(vec)` is reclaimed twice — **high**
+
+Found 2026-09-24 against `hale 0.21.0` @ `6a866b9a`; filed as
+hale-lang/hale#1036.
+
+### Repro
+
+```hale
+type Note { n: Int = 0; }
+type Wire { subject: String = ""; data: Bytes = b""; }
+topic Lost { payload: Note; subject: "lost"; }
+topic Q { payload: Wire; subject: "q"; }
+locus Fwd {
+    bus { publish Q; }
+    fn send(subject: String, bytes: Bytes) { Q <- Wire { subject: subject, data: bytes }; }
+}
+@form(vec)
+locus Ints { capacity { heap items of Int; } }
+locus Child {
+    params { why: String = ""; v: Ints = Ints { }; }
+    bus { subscribe Q as on_q; }
+    closure fuse { captures: why; epoch inline; }
+    fn on_q(w: Wire) { self.why = "got " + w.subject; violate fuse; }
+}
+main locus App {
+    params { c: Child = Child { }; seen: String = ""; }
+    bindings { Lost: Fwd { }; }
+    bus { publish Lost; }
+    on_failure(c: Child, err: ClosureViolation) { self.seen = err.closure + " " + c.why; }
+    run() { Lost <- Note { n: 1 }; std::time::sleep(20ms); println("seen=[" + self.seen + "]"); }
+}
+fn main() { App { }; }
+```
+
+`LOTUS_ASAN=1 hale build` it and run.
+
+- **Expected:** `seen=[fuse got lost]`, clean exit.
+- **Observed:** `seen=[fuse got lost]`, then AddressSanitizer
+  heap-use-after-free in `lotus_vec_destroy` at exit (freed earlier by
+  `__reclaim_Child`'s `lotus_arena_destroy`). Without ASan the pond
+  version crashes with SIGSEGV. Clean without the vec child, without
+  the adapter hop, or with `placement { c: pinned; }`.
+
+### Impact in this repo
+
+`NatsFake` collapses to its owner when its audit fails.
+`tests/fake_audit_test.hl` places it `pinned`, and `fake.hl` says so.
+
+## 9. Publishing a topic bound to an adapter leaks the encoded payload — medium
+
+Found 2026-09-24 against `hale 0.21.0` @ `6a866b9a`; filed as
+hale-lang/hale#1038.
+
+### Repro
+
+```hale
+type Note { n: Int = 0; text: String = ""; }
+topic Out { payload: Note; subject: "out"; }
+locus Sink { fn send(subject: String, bytes: Bytes) { } }
+main locus App {
+    bindings { Out: Sink { }; }
+    bus { publish Out; }
+    @unbounded
+    run() {
+        let mut i = 0;
+        while i < 500000 { Out <- Note { n: i, text: "fixed payload text" }; i = i + 1; }
+    }
+}
+fn main() { App { }; }
+```
+
+- **Expected:** flat memory, as with the `bindings` line removed
+  (4.7 MB).
+- **Observed:** 28.5 MB, about 47 bytes kept per publish.
+
+### Impact in this repo
+
+A program publishing through `realtime/nats` grows by this much per
+message on the publisher's side. Once it is subtracted, the NATS
+connection itself stays flat over 100k messages each way (the soak is
+described in `realtime/nats/README.md`).
 
 ## Verified fixed by `3c05dad` — do not re-report
 

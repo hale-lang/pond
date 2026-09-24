@@ -92,6 +92,7 @@ apps, other `_util` libs, and tier libs — since upstream WS3.4
 | Path | What it is | Suggested alias |
 |------|------------|------|
 | `websocket/` | RFC 6455 WebSocket client + server-side upgrade, ping/pong liveness deadlines | `ws` |
+| `realtime/nats/` | NATS core + JetStream client, and a `std::bus` adapter carrying a program's topics over NATS with at-least-once delivery and an ack audit; in-memory fake | `nats` |
 
 ### Tier 5 — AI / agent orchestration
 
@@ -113,7 +114,7 @@ apps, other `_util` libs, and tier libs — since upstream WS3.4
 ### Backlog — not yet built
 
 The rest of tiers 6–8: messaging (`realtime/pubsub`,
-`realtime/nats`, `realtime/cron`); game/sim (`game/ecs`,
+`realtime/cron`); game/sim (`game/ecs`,
 `game/tick`, `game/spatial`); data formats (`data/csv`,
 `data/timeseries`, `data/pipeline`); more DevX (`dev/docgen`,
 `dev/asserts`, `dev/bench`). Picked up when a workload demands.

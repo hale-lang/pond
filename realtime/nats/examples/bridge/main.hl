@@ -1,0 +1,108 @@
+// bridge — a program's bus, carried over NATS and back.
+//
+// `Tick` is bound to NATS: every publish goes out through the adapter
+// and NatsConn to the server. A mirror (a separate NATS client, standing
+// in for another process) takes each tick off NATS and publishes the
+// same bytes on the subject of `Echo`, which NatsConn subscribes to and
+// dispatches on the bus. So each tick crosses the wire twice, and the
+// program prints the round trip.
+//
+//     docker run --rm -p 4222:4222 nats:2 -js
+//     hale build realtime/nats/examples/bridge/
+//     ./realtime/nats/examples/bridge/bridge
+//
+// NATS_URL overrides nats://127.0.0.1:4222. With no server there, the
+// demo says so and exits.
+import "../.." as nats;
+
+type Stamp { n: Int = 0; sent_ns: Int = 0; }
+topic Tick { payload: Stamp; subject: "demo.bridge.tick"; }
+topic Echo { payload: Stamp; subject: "demo.bridge.echo"; }
+
+// The adapter `bindings` names. It is declared here rather than taken
+// from the library because a binding cannot name an adapter through
+// an import alias yet (hale#1034); it only hands the message to the
+// library's queue, which NatsConn drains.
+locus Nats {
+    bus { publish nats::NatsOutbound; }
+    fn send(subject: String, bytes: Bytes) { nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes }; }
+}
+
+// Another NATS client, as another process would be: it copies what
+// arrives on the tick subject to the echo subject.
+locus Mirror {
+    params {
+        c: nats::NatsClient = nats::NatsClient { url: url_from_env(), name: "bridge-mirror" };
+        run_for_ms: Int = 3000;
+    }
+    // @unbounded: a demo loop, ended by run_for_ms.
+    @unbounded
+    run() {
+        if !self.c.open() { return; }
+        let sid = self.c.sub_to("demo.bridge.tick", "") or 0;
+        self.c.flush() or discard;
+        let started = std::time::monotonic_ns();
+        while std::time::monotonic_ns() - started < self.run_for_ms * 1000000 {
+            if self.c.read_msg(20ms) { self.c.pub_msg("demo.bridge.echo", "", self.c.last.data) or discard; }
+        }
+        self.c.close();
+    }
+}
+
+fn url_from_env() -> String {
+    let u = std::env::var("NATS_URL");
+    return if len(u) > 0 { u } else { "nats://127.0.0.1:4222" };
+}
+
+main locus Bridge {
+    params {
+        conn: nats::NatsConn = nats::NatsConn { url: url_from_env(), name: "bridge", subjects: "demo.bridge.echo", run_for_ms: 3000 };
+        mirror: Mirror = Mirror { };
+        back: Int = 0;
+    }
+    placement { conn: pinned; mirror: pinned; }
+    bindings { Tick: Nats { }; }
+    bus { publish Tick; subscribe Echo as on_echo; }
+
+    fn on_echo(s: Stamp) {
+        self.back = self.back + 1;
+        let us = (std::time::monotonic_ns() - s.sent_ns) / 1000;
+        println(f"tick {s.n} came back over NATS in {us} us");
+    }
+
+    on_failure(c: nats::NatsConn, err: ClosureViolation) {
+        println("the NATS connection gave up: " + c.last_error);
+    }
+
+    run() {
+        // both connections up before the first tick
+        std::time::sleep(300ms);
+        let mut i = 1;
+        while i <= 5 {
+            Tick <- Stamp { n: i, sent_ns: std::time::monotonic_ns() };
+            // yield often: this locus takes its handlers when it sleeps,
+            // so a long sleep would be measured as the round trip
+            let mut y = 0;
+            while y < 100 { std::time::sleep(1ms); y = y + 1; }
+            i = i + 1;
+        }
+        let mut waited = 0;
+        while self.back < 5 && waited < 1000 {
+            std::time::sleep(1ms);
+            waited = waited + 1;
+        }
+        println(f"{self.back} of 5 ticks made the round trip");
+    }
+}
+
+fn main() {
+    let probe = nats::NatsClient { url: url_from_env(), timeout: 1s };
+    if !probe.open() {
+        println("no NATS server at " + url_from_env() + " (" + probe.last_error + ")");
+        println("start one with: docker run --rm -p 4222:4222 nats:2 -js");
+        return;
+    }
+    println("connected to " + url_from_env() + " (server " + probe.server_id + ")");
+    probe.close();
+    Bridge { };
+}

@@ -1,0 +1,93 @@
+// JetStream against a real server: a stream, an acknowledged publish,
+// a durable pull consumer, and redelivery of what was never acked.
+// Opt-in: set NATS_URL to a server started with `-js`; unset, it says
+// so on stderr and passes.
+import ".." as nats;
+
+fn main() {
+    let url = std::env::var("NATS_URL");
+    if len(url) == 0 { eprintln("jetstream_live_test: NATS_URL unset, skipped"); return; }
+
+    let c = nats::NatsClient { url: url, name: "pond-js-test" };
+    std::test::assert(c.open(), "open: " + c.last_error);
+    std::test::assert(c.jetstream, "the server runs JetStream (start it with -js)");
+
+    let tag = std::str::replace(nats::new_inbox(), "_INBOX.", "");
+    let stream = "POND_TEST_" + tag;
+    let subj = "pond.js." + tag;
+    nats::js_stream_create(c, stream, subj + ".>") or discard;
+    std::test::assert(len(c.last_error) == 0, "stream created: " + c.last_error);
+    nats::js_stream_create(c, stream, subj + ".>") or discard;
+    std::test::assert(len(c.last_error) == 0, "created again unchanged: " + c.last_error);
+
+    // publishes are stored, in order
+    let a1 = nats::js_publish(c, subj + ".one", std::bytes::from_string("first")) or nats::PubAck { };
+    let a2 = nats::js_publish(c, subj + ".two", std::bytes::from_string("second")) or nats::PubAck { };
+    std::test::assert(a1.stream == stream && a1.seq == 1 && a2.seq == 2, "PubAcks: " + a1.stream + " " + to_string(a1.seq) + " " + to_string(a2.seq));
+
+    // a subject no stream takes is refused, not lost
+    let none = nats::js_publish(c, "pond.nostream." + tag, b"x") or nats::PubAck { seq: -1 };
+    std::test::assert(none.seq == -1 && std::str::contains(c.last_error, "no stream takes"), "no stream: " + c.last_error);
+
+    // a durable consumer reads them in order and acks
+    nats::js_consumer_create(c, stream, nats::ConsumerSpec { durable: "worker" }) or discard;
+    let m1 = nats::js_next(c, stream, "worker", 2000) or nats::NatsMsg { };
+    std::test::assert(std::str::from_bytes(m1.data) == "first" && m1.subject == subj + ".one", "first message: " + c.last_error);
+    nats::js_ack(c, m1) or discard;
+    let m2 = nats::js_next(c, stream, "worker", 2000) or nats::NatsMsg { };
+    std::test::assert(std::str::from_bytes(m2.data) == "second", "second message: " + c.last_error);
+    nats::js_ack(c, m2) or discard;
+    c.flush() or discard;
+
+    // drained: the next pull says there is nothing, it does not hang
+    let empty = nats::js_next(c, stream, "worker", 300) or nats::NatsMsg { subject: "none" };
+    std::test::assert(empty.subject == "none" && std::str::starts_with(c.last_error, "no_messages"), "nothing left: " + c.last_error);
+
+    // a second durable starting over sees both again: what the stream
+    // stored does not depend on any consumer
+    nats::js_consumer_create(c, stream, nats::ConsumerSpec { durable: "audit", filter: subj + ".two" }) or discard;
+    let t = nats::js_next(c, stream, "audit", 2000) or nats::NatsMsg { };
+    std::test::assert(std::str::from_bytes(t.data) == "second", "a filtered consumer sees only its subject: " + std::str::from_bytes(t.data));
+
+    // replay position: from a sequence, and only what is new
+    nats::js_consumer_create(c, stream, nats::ConsumerSpec { durable: "from2", deliver: "by_start_sequence", start_seq: 2 }) or discard;
+    let s2 = nats::js_next(c, stream, "from2", 2000) or nats::NatsMsg { };
+    std::test::assert(std::str::from_bytes(s2.data) == "second", "by_start_sequence starts at 2: " + c.last_error);
+    nats::js_consumer_create(c, stream, nats::ConsumerSpec { durable: "fresh", deliver: "new" }) or discard;
+    let n0 = nats::js_next(c, stream, "fresh", 300) or nats::NatsMsg { subject: "none" };
+    std::test::assert(n0.subject == "none", "a new-only consumer skips what is stored");
+    let a3 = nats::js_publish(c, subj + ".three", std::bytes::from_string("third")) or nats::PubAck { };
+    let n1 = nats::js_next(c, stream, "fresh", 2000) or nats::NatsMsg { };
+    std::test::assert(std::str::from_bytes(n1.data) == "third", "and sees what arrives after: " + c.last_error);
+
+    // creating a durable again unchanged re-attaches it (a reconnect
+    // does exactly this): its place is kept
+    c.last_error = "";
+    nats::js_consumer_create(c, stream, nats::ConsumerSpec { durable: "worker" }) or discard;
+    std::test::assert(len(c.last_error) == 0, "re-created unchanged: " + c.last_error);
+    let still = nats::js_next(c, stream, "worker", 300) or nats::NatsMsg { subject: "none" };
+    std::test::assert(std::str::from_bytes(still.data) == "third", "and keeps its place: " + std::str::from_bytes(still.data));
+
+    // the last message, and from a time before the stream began
+    nats::js_consumer_create(c, stream, nats::ConsumerSpec { durable: "last", deliver: "last" }) or discard;
+    let l = nats::js_next(c, stream, "last", 2000) or nats::NatsMsg { };
+    std::test::assert(std::str::from_bytes(l.data) == "third", "last: " + std::str::from_bytes(l.data) + " " + c.last_error);
+    nats::js_consumer_create(c, stream, nats::ConsumerSpec { durable: "since", deliver: "by_start_time", start_time: "2020-01-01T00:00:00Z" }) or discard;
+    let t0 = nats::js_next(c, stream, "since", 2000) or nats::NatsMsg { };
+    std::test::assert(std::str::from_bytes(t0.data) == "first", "by_start_time from before the stream: " + std::str::from_bytes(t0.data) + " " + c.last_error);
+
+    // a message never acked comes again after the ack wait
+    nats::js_consumer_create(c, stream, nats::ConsumerSpec { durable: "slow", ack_wait_ms: 500 }) or discard;
+    let r1 = nats::js_next(c, stream, "slow", 2000) or nats::NatsMsg { };
+    std::test::assert(std::str::from_bytes(r1.data) == "first", "slow consumer first: " + std::str::from_bytes(r1.data));
+    let r2 = nats::js_next(c, stream, "slow", 2000) or nats::NatsMsg { };
+    nats::js_ack(c, r2) or discard;
+    let r3 = nats::js_next(c, stream, "slow", 2000) or nats::NatsMsg { };
+    nats::js_ack(c, r3) or discard;
+    std::test::assert(std::str::from_bytes(r2.data) == "second" && std::str::from_bytes(r3.data) == "third", "then the rest, acked");
+    let again = nats::js_next(c, stream, "slow", 3000) or nats::NatsMsg { };
+    std::test::assert(std::str::from_bytes(again.data) == "first", "the unacked one comes again: " + std::str::from_bytes(again.data) + " " + c.last_error);
+
+    nats::js_stream_delete(c, stream) or discard;
+    c.close();
+}
