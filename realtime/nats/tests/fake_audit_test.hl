@@ -1,0 +1,33 @@
+// NatsFake with `ack: false`: nothing is acknowledged, and the
+// delivery audit collapses the fake to its owner exactly as it would
+// the conn — same closure, same captures, same `last_error`.
+import ".." as nats;
+
+type Note { n: Int = 0; }
+topic Lost { payload: Note; subject: "pond.nats.fake_audit_test.lost"; }
+
+// hale#1034: the program declares the adapter it binds.
+locus Nats {
+    bus { publish nats::NatsOutbound; }
+    fn send(subject: String, bytes: Bytes) { nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes }; }
+}
+
+main locus Silent {
+    params {
+        fake: nats::NatsFake = nats::NatsFake { ack: false, ack_window_ms: 0 };
+        why: String = "";
+    }
+    // pinned: an unpinned fake collapsed by its audit is freed twice
+    // at exit (hale#1036)
+    placement { fake: pinned; }
+    bindings { Lost: Nats { }; }
+    bus { publish Lost; }
+    on_failure(c: nats::NatsFake, err: ClosureViolation) { self.why = err.closure +": " + c.last_error; }
+    run() {
+        Lost <- Note { n: 1 };
+        std::time::sleep(20ms);
+        std::test::assert(std::str::starts_with(self.why, "delivery: message 1 on pond.nats.fake_audit_test.lost unacknowledged"), "collapsed to its owner: " + self.why);
+    }
+}
+
+fn main() { Silent { }; }

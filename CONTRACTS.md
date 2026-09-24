@@ -14,6 +14,24 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-09-24 status note — `realtime/nats` added (hale 0.21.0)
+
+- **New lib `pond/realtime/nats`** (pond#23), surface in § Tier 3.
+  It was listed in the backlog; this is its first contract, so there
+  is no deviation to record.
+- **The bus adapter is two loci, not one.** The issue asked for the
+  adapter's own `run()` to be the receive loop. It is `NatsConn`'s
+  instead, a child the program places `pinned`, because a bound
+  adapter's subscriptions run on the publishing thread (hale#1032).
+  `NatsAdapter` only hands messages to `NatsConn` over the internal
+  `NatsOutbound` topic. Programs also declare a four-line local adapter
+  in place of `NatsAdapter`, since a binding cannot name one through an
+  import alias (hale#1034). Both fold away when those close
+  (`realtime/nats/README.md` § When this unblocks).
+- **Credentials: user/pass and token.** NKey/JWT is not offered:
+  there is no ed25519 in hale's stdlib or `pond/crypto`
+  (`FRICTION.log § pond/realtime/nats`).
+
 ## 2026-08-11 status note — hale v0.16.0 (`3c05dad`) hygiene pass
 
 - **Three vestigial empty namespace loci REMOVED from the surface:**
@@ -1300,6 +1318,67 @@ locus WsServerConn {                           // per-connection server side
 // parse_response validates Sec-WebSocket-Accept (RFC 6455 § 4.1).
 ```
 
+
+### `pond/realtime/nats/` — alias `nats`
+
+NATS client (core protocol + JetStream) and a `std::bus` adapter
+(added 2026-09-24, pond#23). The client is owner-driven like
+`WsClient`: pumps return `Bool` and leave the reason on `last_error`;
+writes are `fallible(NatsError)`. The adapter delivers at least once
+and audits acknowledgement with an inline closure.
+
+```hale
+type NatsError  { kind: String; detail: String; }   // url|connect|handshake|closed|io|timeout|server|protocol|jetstream|no_messages|no_responders
+type NatsMsg    { subject: String; sid: Int; reply: String; headers: String; data: Bytes; }
+type NatsFrame  { op: String; subject; sid; reply; headers; data; text; }   // op: INFO|MSG|HMSG|PING|PONG|OK|ERR
+type PubAck     { stream: String; seq: Int; duplicate: Bool; }
+type ConsumerSpec { durable: String; filter = ""; deliver = "all";   // all|new|last|by_start_sequence|by_start_time
+                    start_seq: Int = 0; start_time: String = ""; ack_wait_ms: Int = 0; }
+type Outbound   { subject: String; data: Bytes; }
+topic NatsOutbound { payload: Outbound; subject: "pond.nats.outbound"; }   // adapter -> conn queue
+
+locus NatsClient {
+    params { url = "nats://127.0.0.1:4222"; user = ""; pass = ""; token = ""; name = "";
+             echo = true; timeout = 5s; }                // nats:// or tls:// (INFO, then TLS upgrade)
+    fn open() -> Bool;                                     // INFO, CONNECT, PING/PONG; last_error on fail
+    fn pub_msg(subject: String, reply: String, data: Bytes) -> () fallible(NatsError);
+    fn sub_to(subject: String, queue: String) -> Int fallible(NatsError);   // sid
+    fn unsub(sid: Int) -> () fallible(NatsError);
+    fn flush() -> () fallible(NatsError);                  // PING/PONG barrier
+    fn read_msg(wait: Duration) -> Bool;                   // into self.last
+    fn request(subject: String, data: Bytes, wait: Duration) -> NatsMsg fallible(NatsError);
+    fn next_frame() -> Bool;                               // into self.framer.frame, PINGs answered
+    fn close();
+}
+
+fn js_stream_create(c: NatsClient, name: String, subjects: String) -> () fallible(NatsError);
+fn js_stream_delete(c: NatsClient, name: String) -> () fallible(NatsError);
+fn js_consumer_create(c: NatsClient, stream: String, spec: ConsumerSpec) -> () fallible(NatsError);
+fn js_publish(c: NatsClient, subject: String, data: Bytes) -> PubAck fallible(NatsError);
+fn js_next(c: NatsClient, stream: String, consumer: String, wait_ms: Int) -> NatsMsg fallible(NatsError);
+fn js_ack(c: NatsClient, m: NatsMsg) -> () fallible(NatsError);
+
+locus NatsAdapter { fn send(subject: String, bytes: Bytes); }   // std::bus adapter: publishes NatsOutbound
+
+locus NatsConn {                                          // the program places it `pinned`
+    params { url; user; pass; token; name;
+             subjects = "";  queue = "";                  // core inbound, comma-separated
+             jetstream = false;                           // outbound acked by PubAck, else PING barrier
+             stream = ""; consumer: ConsumerSpec;         // JetStream inbound (durable pull)
+             pull_batch = 64; ack_window_ms = 10000; run_for_ms = 0; reconnect_max_ms = 2000; }
+    closure delivery { captures: sent, acked, last_error; epoch inline; }   // violated past ack_window_ms
+}
+
+locus NatsFake {                                          // NatsConn's broker-less stand-in
+    params { ack = true; ack_window_ms = 10000; keep = 1000; }
+    closure delivery { captures: sent, acked, last_error; epoch inline; }
+    fn inject(subject: String, data: Bytes);              // as though the server sent it
+    fn replay(from: String, to: String) -> Int;           // re-deliver what was sent on `from`
+    fn count(subject: String) -> Int;
+}
+
+locus NatsFramer { fn feed(b: Bytes); fn next() -> Bool; fn clear(); }   // bytes in, frames out
+```
 
 ## Tier 5 — AI agent orchestration
 

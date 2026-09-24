@@ -1,0 +1,76 @@
+// The bus adapter in JetStream mode against a real server. Each `Out`
+// publish is stored by the stream (its PubAck is the acknowledgement)
+// and comes back through the durable consumer, so the program's own
+// subscription sees every message twice: once from the local publish,
+// once from the stream. Opt-in: set NATS_URL to a server started with
+// `-js`; unset, it says so on stderr and passes.
+import ".." as nats;
+
+type Note { n: Int = 0; }
+topic Out { payload: Note; subject: "pond.nats.adapter_js.out"; }
+
+// hale#1034: the program declares the adapter it binds.
+locus Nats {
+    bus { publish nats::NatsOutbound; }
+    fn send(subject: String, bytes: Bytes) { nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes }; }
+}
+
+main locus App {
+    params {
+        conn: nats::NatsConn = nats::NatsConn { };
+        got: Int = 0;
+        sum: Int = 0;
+    }
+    placement { conn: pinned; }
+    bindings { Out: Nats { }; }
+    bus { publish Out; subscribe Out as on_out; }
+
+    fn on_out(m: Note) {
+        self.got = self.got + 1;
+        self.sum = self.sum + m.n;
+    }
+
+    run() {
+        std::time::sleep(500ms);
+        let mut i = 1;
+        while i <= 30 {
+            Out <- Note { n: i };
+            i = i + 1;
+        }
+        let mut waited = 0;
+        while self.got < 60 && waited < 250 {
+            std::time::sleep(10ms);
+            waited = waited + 1;
+        }
+        std::test::assert(self.got == 60 && self.sum == 930, "each message locally and again from the stream: " + to_string(self.got));
+    }
+}
+
+fn main() {
+    let url = std::env::var("NATS_URL");
+    if len(url) == 0 { eprintln("adapter_js_live_test: NATS_URL unset, skipped"); return; }
+    let stream = "POND_ADAPTER_JS";
+    let c = nats::NatsClient { url: url };
+    std::test::assert(c.open(), "open: " + c.last_error);
+    nats::js_stream_delete(c, stream) or discard;
+    c.last_error = "";
+    nats::js_stream_create(c, stream, "pond.nats.adapter_js.>") or discard;
+    std::test::assert(len(c.last_error) == 0, "stream: " + c.last_error);
+
+    App { conn: nats::NatsConn {
+        url: url, jetstream: true, stream: stream,
+        consumer: nats::ConsumerSpec { durable: "e2e" }, run_for_ms: 3500
+    } };
+
+    // the stream holds each message once
+    nats::js_consumer_create(c, stream, nats::ConsumerSpec { durable: "count" }) or discard;
+    let mut stored = 0;
+    while stored < 40 {
+        let m = nats::js_next(c, stream, "count", 300) or nats::NatsMsg { subject: "none" };
+        if m.subject == "none" { break; }
+        stored = stored + 1;
+    }
+    std::test::assert(stored == 30, "stored once each: " + to_string(stored));
+    nats::js_stream_delete(c, stream) or discard;
+    c.close();
+}

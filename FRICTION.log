@@ -4016,6 +4016,90 @@ redialing — logged for hale (cf. `recv_into`'s `-2` contract, which
  pond/router
 ======================================================================
 
+# pond/realtime/nats — FRICTION
+
+## The adapter is two loci — [OPEN, not blocking] (2026-09-24)
+
+pond #23 asked for the adapter's own `run()` to be the receive loop,
+with the socket inside the adapter. A bound adapter's `run()` does run
+on a thread of its own, but its bus subscriptions run synchronously on
+whichever thread published (hale#1032, `COMPILER-BUGS.md` § 6). So an
+adapter that queued outbound messages to itself over the bus, as
+planned, would still write the socket from every publisher's thread.
+
+The shape instead: `NatsAdapter.send` publishes the message on the
+internal `NatsOutbound` topic, and `NatsConn`, a child the program
+places `pinned`, subscribes to it. An ordinary pinned child's handlers
+do run on its own thread, at its yield points (probe: delivered in
+1–3 ms while its `run()` loops on a 10 ms receive timeout and
+`std::time::sleep(0ms)`). A socket receive with a timeout is not a
+yield point; the explicit `sleep(0ms)` is. Every socket write and the
+receive loop are on the conn's thread. The bus is the cross-thread
+queue: Bytes are carried by the bus, with per-publisher order, and the
+socket has one writer. Folds into one locus when hale#1032 closes.
+
+## A binding cannot name the library's adapter — [OPEN, not blocking] (2026-09-24)
+
+`bindings { Out: nats::NatsAdapter { }; }` is a parse error: the
+transport side of a binding takes a bare locus name (hale#1034, filed).
+Each program declares a four-line adapter that publishes the library's
+`nats::NatsOutbound` (README, tests, example). The library's own
+`NatsAdapter` is the same four lines, kept for the day it can be named.
+
+## The receive loop is never drained — [OPEN, not blocking] (2026-09-24)
+
+`NatsConn.run()` loops `while !self.draining`, but nothing drains it.
+When the main locus's `run()` ends, the process waits on the loop, and
+SIGTERM kills it (exit 143) without the loop reading `self.draining`
+(`COMPILER-BUGS.md` § 3). Messages still unacknowledged at that moment
+are lost without the audit running. `run_for_ms` bounds the loop for
+tests and the example. When the runtime drains as specified, nothing
+here changes.
+
+## No NKey / JWT credentials — [OPEN] (2026-09-24)
+
+NATS NKey authentication signs the server's nonce with an ed25519
+seed. Neither hale's stdlib nor `pond/crypto` has ed25519 (pond/crypto
+has SHA-2, HMAC and random bytes). user/pass and token are supported. NKey
+becomes a CONNECT field (`nkey`, `sig`) plus the signature, once
+ed25519 exists.
+
+## Memory shapes the connection avoids — [OPEN, worked around] (2026-09-24)
+
+A connection lives as long as the program, so every per-message
+allocation that is not reclaimed is a leak. A 100k-message soak found
+four, all runtime, each filed with a repro:
+
+- Rebuilding a struct into a self field keeps the old one. `NatsFramer`
+  writes `frame` field by field, as the checker suggests.
+- A field alternating between a heap value and an empty one keeps the
+  heap value (hale#1033, `COMPILER-BUGS.md` § 5). The framer writes
+  only the fields each op defines. The residue is messages whose reply
+  or payload is empty between ones where it is not.
+- `@form(vec)` `pop` frees no String/Bytes, and `set` frees no Bytes
+  (hale#1037, § 7). Queued messages live in `NatsMsgLog`: one reused
+  BytesBuilder, with Int vecs beside it.
+- A bound publish leaks its encoded payload in the publisher's region
+  (hale#1038, § 9). This is the publisher's, not the library's; the
+  README's soak subtracts it.
+
+With those, the conn stays flat over 100k messages each way.
+
+## Warnings triage — [CLOSED] (2026-09-24)
+
+`hale check realtime/nats` is clean. The acknowledged `@unbounded`
+sites each carry their reason:
+
+- the error text in `note()` (once per failure);
+- the Int-vec pushes in `on_out`, `set_aside` and `NatsMsgLog.push`
+  (bounded by clear and drop_front, soak-measured flat);
+- the receive loop.
+
+`hale build` of a program that receives a topic only through the conn
+warns "subscribed but never published": its messages arrive through
+`__local_dispatch`, which the checker cannot see. That is true by
+design.
+
 # pond/router — friction log
 
 Format borrows from `notes/hale-friction.md` upstream: one

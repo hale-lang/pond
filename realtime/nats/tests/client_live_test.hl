@@ -1,0 +1,50 @@
+// NatsClient against a real server. Opt-in: set NATS_URL (a local
+// `docker run -p 4222:4222 nats:2 -js` is enough); unset, it says so
+// on stderr and passes.
+import ".." as nats;
+
+fn main() {
+    let url = std::env::var("NATS_URL");
+    if len(url) == 0 { eprintln("client_live_test: NATS_URL unset, skipped"); return; }
+
+    let c = nats::NatsClient { url: url, name: "pond-client-test" };
+    std::test::assert(c.open(), "open: " + c.last_error);
+    std::test::assert(len(c.server_id) > 0 && c.max_payload > 0, "INFO read: " + c.server_id);
+
+    // a subscription sees a publish, payload whole, reply carried
+    let subject = "pond.test." + nats::new_inbox();
+    let sid = c.sub_to(subject, "") or - 1;
+    std::test::assert(sid > 0, "sub_to: " + c.last_error);
+    c.flush() or discard;
+    let payload = std::bytes::BytesBuilder { };
+    payload.append_str("a\r\nb");
+    payload.append(std::bytes::from_int(0));
+    let sent = payload.finish();
+    c.pub_msg(subject, "re.ply", sent) or discard;
+    std::test::assert(c.read_msg(2s), "the message arrives: " + c.last_error);
+    std::test::assert(c.last.subject == subject && c.last.sid == sid && c.last.reply == "re.ply", "its subject, sid and reply");
+    std::test::assert(len(c.last.data) == len(sent) && std::bytes::at(c.last.data, 4) == 0, "and its payload, whole");
+
+    // after unsub, nothing
+    c.unsub(sid) or discard;
+    c.pub_msg(subject, "", std::bytes::from_string("late")) or discard;
+    c.flush() or discard;
+    std::test::assert(!c.read_msg(200ms), "no delivery after unsub");
+
+    // request / reply: the server itself answers the JetStream API
+    let info = c.request("$JS.API.INFO", b"", 2s) or nats::NatsMsg { };
+    std::test::assert(std::str::contains(std::str::from_bytes(info.data), "\"type\""), "a reply from $JS.API.INFO: " + c.last_error);
+
+    // nobody answering is its own error, not a timeout
+    let none = c.request("pond.nobody." + nats::new_inbox(), b"", 2s) or nats::NatsMsg { };
+    std::test::assert(std::str::starts_with(c.last_error, "no_responders"), "no responders: " + c.last_error);
+
+    c.close();
+    std::test::assert(!c.connected, "closed");
+
+    // an unreachable server fails open() with a reason
+    let d = nats::NatsClient { url: "nats://127.0.0.1:1", timeout: 500ms };
+    std::test::assert(!d.open() && std::str::starts_with(d.last_error, "connect"), "unreachable: " + d.last_error);
+    let bad = nats::NatsClient { url: "http://127.0.0.1:4222" };
+    std::test::assert(!bad.open() && std::str::starts_with(bad.last_error, "url"), "bad scheme: " + bad.last_error);
+}
