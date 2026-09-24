@@ -52,6 +52,26 @@ fn pub_frame(subject: String, reply: String, data: Bytes) -> Bytes {
     return out.finish();
 }
 
+/// `HPUB <subject> [reply] <header size> <total size>\r\n<headers><payload>\r\n`:
+/// a publish carrying a header block (`headers` is the whole block,
+/// status line to the blank line, as `msg_id_headers` builds it).
+fn hpub_frame(subject: String, reply: String, headers: String, data: Bytes) -> Bytes {
+    let out = std::bytes::BytesBuilder { };
+    out.append_str("HPUB " + subject + " ");
+    if len(reply) > 0 { out.append_str(reply + " "); }
+    out.append_str(to_string(len(headers)) + " " + to_string(len(headers) + len(data)) + crlf());
+    out.append_str(headers);
+    out.append(data);
+    out.append_str(crlf());
+    return out.finish();
+}
+
+/// The header block that gives a publish its JetStream message id: a
+/// stream stores a message once per id within its duplicate window.
+fn msg_id_headers(id: String) -> String {
+    return "NATS/1.0" + crlf() + "Nats-Msg-Id: " + id + crlf() + crlf();
+}
+
 /// `SUB <subject> [queue] <sid>\r\n`.
 fn sub_line(subject: String, queue: String, sid: Int) -> String {
     if len(queue) > 0 { return "SUB " + subject + " " + queue + " " + to_string(sid) + crlf(); }

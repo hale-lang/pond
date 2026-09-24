@@ -3,12 +3,14 @@
 // connection takes each message off NATS and publishes its bytes, as
 // they are, on the subject of `In`; NatsConn receives them and
 // dispatches `In` on the bus. Every message crosses the wire twice.
+// The conn's `subject_prefix` puts both topics under `pond.nats.` on the
+// wire — the relay only sees them there — and takes it off again.
 // Opt-in: set NATS_URL; unset, it says so on stderr and passes.
 import ".." as nats;
 
 type Note { n: Int = 0; text: String = ""; }
-topic Out { payload: Note; subject: "pond.nats.adapter_test.out"; }
-topic In { payload: Note; subject: "pond.nats.adapter_test.in"; }
+topic Out { payload: Note; subject: "adapter_test.out"; }
+topic In { payload: Note; subject: "adapter_test.in"; }
 
 // The adapter this program binds. `bindings` takes only a locus
 // declared in the program itself (hale#1034), so the library's
@@ -44,7 +46,7 @@ locus Relay {
 main locus App {
     params {
         url: String = "";
-        conn: nats::NatsConn = nats::NatsConn { subjects: "pond.nats.adapter_test.in", run_for_ms: 3000 };
+        conn: nats::NatsConn = nats::NatsConn { subjects: "adapter_test.in", subject_prefix: "pond.nats.", run_for_ms: 3000 };
         relay: Relay = Relay { run_for_ms: 3000 };
         got: Int = 0;
         sum: Int = 0;
@@ -81,5 +83,5 @@ main locus App {
 fn main() {
     let url = std::env::var("NATS_URL");
     if len(url) == 0 { eprintln("adapter_live_test: NATS_URL unset, skipped"); return; }
-    App { url: url, conn: nats::NatsConn { url: url, subjects: "pond.nats.adapter_test.in", run_for_ms: 3000 }, relay: Relay { url: url, run_for_ms: 3000 } };
+    App { url: url, conn: nats::NatsConn { url: url, subjects: "adapter_test.in", subject_prefix: "pond.nats.", run_for_ms: 3000 }, relay: Relay { url: url, run_for_ms: 3000 } };
 }

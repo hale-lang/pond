@@ -50,6 +50,12 @@ locus NatsConn {
         // subject. `queue` puts them in a queue group.
         subjects: String = "";
         queue: String = "";
+        // Prepended to every subject on the wire and taken off what
+        // arrives, so the program's topics keep their declared subjects
+        // while NATS sees them under a namespace (`acme.` makes
+        // `orders.new` travel as `acme.orders.new`). `subjects` are
+        // given without it; a `consumer.filter` is a NATS subject, with it.
+        subject_prefix: String = "";
         // JetStream. `jetstream`: outbound messages are acknowledged by
         // the stream that takes their subject (a PubAck) instead of a
         // PING barrier. `stream` + `consumer.durable`: receive from that
@@ -140,7 +146,7 @@ locus NatsConn {
             let i = self.written_to;
             if (self.acks.get(i) or 1) == 0 {
                 let reply = if self.jetstream { self.inbox + ".ack." + to_string(self.base_id + i) } else { "" };
-                self.client.pub_msg(self.pending.subject_at(i), reply, self.pending.data_at(i)) or discard;
+                self.client.pub_msg(self.subject_prefix + self.pending.subject_at(i), reply, self.pending.data_at(i)) or discard;
                 if !self.client.connected { return; }
                 self.sent = self.sent + 1;
             }
@@ -231,11 +237,18 @@ locus NatsConn {
                 return;
             }
         }
-        std::bus::__local_dispatch(f.subject, f.data);
+        std::bus::__local_dispatch(self.local_subject(f.subject), f.data);
         self.received = self.received + 1;
         if len(f.reply) > 0 { self.client.pub_msg(f.reply, "", std::bytes::from_string("+ACK")) or discard; }
         self.pull_left = self.pull_left - 1;
         if self.pull_left <= 0 { self.pull_open = false; }
+    }
+
+    // A subject as the program's topics know it: without the prefix.
+    fn local_subject(s: String) -> String {
+        let n = len(self.subject_prefix);
+        if n > 0 && std::str::starts_with(s, self.subject_prefix) { return s[n..len(s)]; }
+        return s;
     }
 
     fn on_frame() {
@@ -243,7 +256,7 @@ locus NatsConn {
         if f.op == "MSG" || f.op == "HMSG" {
             if f.sid == self.ack_sid && self.ack_sid > 0 { self.on_pub_ack(f); return; }
             if f.sid == self.pull_sid && self.pull_sid > 0 { self.on_pulled(f); return; }
-            std::bus::__local_dispatch(f.subject, f.data);
+            std::bus::__local_dispatch(self.local_subject(f.subject), f.data);
             self.received = self.received + 1;
             return;
         }
@@ -271,7 +284,7 @@ locus NatsConn {
             let comma = std::str::index_of(rest, ",");
             let one = std::str::trim(if comma < 0 { rest } else { rest[0..comma] });
             rest = if comma < 0 { "" } else { rest[(comma + 1)..len(rest)] };
-            if len(one) > 0 { let sid = self.client.sub_to(one, self.queue) or 0; }
+            if len(one) > 0 { let sid = self.client.sub_to(self.subject_prefix + one, self.queue) or 0; }
         }
         self.client.set_read_timeout(10ms);
         self.barrier = -1;

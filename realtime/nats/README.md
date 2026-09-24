@@ -40,6 +40,11 @@ main locus App {
   one of `subjects` (comma-separated, wildcards allowed) is handed to
   `std::bus::__local_dispatch` under its NATS subject, so the local
   subscribers of the topic with that subject receive it.
+- `subject_prefix` namespaces a program on a shared server. With
+  `subject_prefix: "acme."`, the topic `orders.new` travels as
+  `acme.orders.new`, `subjects` are subscribed with the prefix, and
+  inbound messages lose it before dispatch. So the declared subjects
+  never change.
 - The connection sends `echo: false`, so what a program publishes
   reaches its own subscribers once, locally, and is not sent back.
 - The payload bytes are the bus's own encoding, so the other end of a
@@ -121,6 +126,7 @@ c.pub_msg("orders.new", "", payload) or raise;
 c.flush() or raise;                          // PING/PONG: the server has it all
 if c.read_msg(2s) { ... c.last.subject, c.last.data ... }
 let reply = c.request("svc.echo", payload, 2s) or raise;   // kind "no_responders" if nobody answers
+c.pub_headers("orders.new", "", nats::msg_id_headers("o-17"), payload) or raise;   // HPUB
 c.close();
 ```
 
@@ -155,6 +161,7 @@ Free fns over a client you own:
 | `js_stream_delete(c, name)` | |
 | `js_consumer_create(c, stream, spec: ConsumerSpec)` | a durable pull consumer, explicit acks, `deliver` as above, optional `filter` and `ack_wait_ms` (again unchanged: re-attaches, keeping its place) |
 | `js_publish(c, subject, data) -> PubAck` | publish and wait for the stream to store it (`kind: "jetstream"` if no stream takes the subject) |
+| `js_publish_id(c, subject, id, data) -> PubAck` | the same, with a `Nats-Msg-Id` header: inside the stream's duplicate window a second publish of `id` is not stored again (`duplicate: true`, the first one's `seq`) |
 | `js_next(c, stream, consumer, wait_ms) -> NatsMsg` | the next message, or `kind: "no_messages"` |
 | `js_ack(c, msg)` | acknowledge it; unacknowledged, it comes again after the ack wait |
 
@@ -192,7 +199,7 @@ NATS_URL=nats://127.0.0.1:4222 hale test realtime/nats/
 |---|---|
 | `client_live_test` | pub/sub, a binary payload intact, unsub, request/reply, no-responders |
 | `jetstream_live_test` | streams, PubAcks, durable consumers under all five deliver policies, a filter, re-creating a durable without losing its place, redelivery of what was never acked |
-| `adapter_live_test` | the bus both ways: 50 messages out through the adapter, back in through a relay, whole and in order |
+| `adapter_live_test` | the bus both ways under a `subject_prefix`: 50 messages out through the adapter, back in through a relay, whole and in order |
 | `adapter_js_live_test` | JetStream mode: each message stored once and delivered back through the durable consumer |
 | `adapter_audit_live_test` | a publish no stream takes collapses the conn to its owner, naming the message and the reason |
 

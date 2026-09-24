@@ -8,6 +8,9 @@ fn main() {
     // ---- encoders
     std::test::assert_eq_str(std::str::from_bytes(nats::pub_frame("orders.new", "", std::bytes::from_string("hello"))), "PUB orders.new 5\r\nhello\r\n", "PUB without a reply");
     std::test::assert_eq_str(std::str::from_bytes(nats::pub_frame("orders.new", "_INBOX.a.1", std::bytes::from_string(""))), "PUB orders.new _INBOX.a.1 0\r\n\r\n", "PUB with a reply and an empty payload");
+    let h = nats::msg_id_headers("fact-7");
+    std::test::assert_eq_str(h, "NATS/1.0\r\nNats-Msg-Id: fact-7\r\n\r\n", "a message-id header block");
+    std::test::assert_eq_str(std::str::from_bytes(nats::hpub_frame("orders.new", "_INBOX.r", h, std::bytes::from_string("hi"))), "HPUB orders.new _INBOX.r 33 35\r\n" + h + "hi\r\n", "HPUB sizes: the header block, then header block plus payload");
     std::test::assert_eq_str(nats::sub_line("orders.>", "", 3), "SUB orders.> 3\r\n", "SUB");
     std::test::assert_eq_str(nats::sub_line("orders.>", "workers", 4), "SUB orders.> workers 4\r\n", "SUB with a queue group");
     std::test::assert_eq_str(nats::unsub_line(3, 0), "UNSUB 3\r\n", "UNSUB at once");
