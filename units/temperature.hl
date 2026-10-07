@@ -3,11 +3,11 @@
 
 // degC/degF are INTERVALS, never temperature points.
 // Optional Kelvin/Celsius/Fahrenheit/Rankine points live in quantities/.
-unit degC = 1 K;
-unit degF = 5 / 9 K;
-unit degR = 1 degF;
-unit mdegC = 1 / 1000 degC;
-unit udegC = 1 / 1000 mdegC;
-unit mdegF = 1 / 1000 degF;
-unit udegF = 1 / 1000 mdegF;
-unit temperature_quantum = 1 / 9000000 K;
+unit degC = 1 K; // degree Celsius (temperature interval).
+unit degF = 5 / 9 K; // degree Fahrenheit (temperature interval).
+unit degR = 1 degF; // degree Rankine (temperature interval).
+unit mdegC = 1 / 1000 degC; // millidegree Celsius (temperature interval).
+unit udegC = 1 / 1000 mdegC; // microdegree Celsius (temperature interval).
+unit mdegF = 1 / 1000 degF; // millidegree Fahrenheit (temperature interval).
+unit udegF = 1 / 1000 mdegF; // microdegree Fahrenheit (temperature interval).
+unit temperature_quantum = 1 / 9000000 K; // shared counting unit, one nine-millionth of a kelvin (temperature interval).

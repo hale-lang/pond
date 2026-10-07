@@ -4,61 +4,61 @@
 // Compound spellings name independent components; no dimensional products.
 // Density is mass / mixture volume. Molality is amount / solvent mass.
 // No composition-dependent or empirical conversion is asserted.
-unit mol_per_m3;
-unit mol_per_L = 1000 mol_per_m3;
-unit mmol_per_L = 1 / 1000 mol_per_L;
-unit umol_per_L = 1 / 1000 mmol_per_L;
-unit nmol_per_L = 1 / 1000 umol_per_L;
-unit mmol_per_m3 = 1 / 1000 mol_per_m3;
-unit mol_per_mL = 1000 mol_per_L;
-unit mmol_per_mL = 1 / 1000 mol_per_mL;
-unit umol_per_mL = 1 / 1000 mmol_per_mL;
-unit kg_per_m3;
-unit g_per_L = 1 kg_per_m3;
-unit mg_per_mL = 1 g_per_L;
-unit g_per_cm3 = 1000 kg_per_m3;
-unit g_per_m3 = 1 / 1000 kg_per_m3;
-unit mg_per_L = 1 g_per_m3;
-unit ug_per_L = 1 / 1000 mg_per_L;
-unit lb_per_ft3 = 28349523125 / 1769802912 kg_per_m3;
-unit mol_per_kg;
-unit mmol_per_kg = 1 / 1000 mol_per_kg;
-unit umol_per_kg = 1 / 1000 mmol_per_kg;
-unit mol_per_g = 1000 mol_per_kg;
-unit mmol_per_g = 1 mol_per_kg;
-unit umol_per_g = 1 mmol_per_kg;
-unit kg_per_mol;
-unit g_per_mol = 1 / 1000 kg_per_mol;
-unit mg_per_mol = 1 / 1000 g_per_mol;
-unit kg_per_kmol = 1 g_per_mol;
-unit m3_per_mol;
-unit L_per_mol = 1 / 1000 m3_per_mol;
-unit mL_per_mol = 1 / 1000 L_per_mol;
-unit m3_per_kmol = 1 L_per_mol;
-unit enzyme_unit = 50 / 3 nkat;
-unit entity = 250000000 / 150553519 ymol;
-unit e_charge = 801088317 / 5000000000 aC;
-unit Da;
-unit kDa = 1000 Da;
-unit MDa = 1000 kDa;
-unit GDa = 1000 MDa;
-unit J_per_mol;
-unit kJ_per_mol = 1000 J_per_mol;
-unit cal_th_per_mol = 523 / 125 J_per_mol;
-unit J_per_K;
-unit kJ_per_K = 1000 J_per_K;
-unit J_per_kg_K;
-unit kJ_per_kg_K = 1000 J_per_kg_K;
-unit J_per_g_K = 1000 J_per_kg_K;
-unit cal_th_per_g_K = 4184 J_per_kg_K;
-unit J_per_mol_K;
-unit kJ_per_mol_K = 1000 J_per_mol_K;
-unit cal_th_per_mol_K = 523 / 125 J_per_mol_K;
-unit W_per_m_K;
-unit mW_per_m_K = 1 / 1000 W_per_m_K;
-unit W_per_cm_K = 100 W_per_m_K;
-unit S_per_m;
-unit mS_per_cm = 1 / 10 S_per_m;
-unit uS_per_cm = 1 / 1000 mS_per_cm;
-unit per_m;
-unit per_cm = 100 per_m;
+unit mol_per_m3; // mole per cubic metre (amount concentration).
+unit mol_per_L = 1000 mol_per_m3; // mole per litre (amount concentration).
+unit mmol_per_L = 1 / 1000 mol_per_L; // millimole per litre (amount concentration).
+unit umol_per_L = 1 / 1000 mmol_per_L; // micromole per litre (amount concentration).
+unit nmol_per_L = 1 / 1000 umol_per_L; // nanomole per litre (amount concentration).
+unit mmol_per_m3 = 1 / 1000 mol_per_m3; // millimole per cubic metre (amount concentration).
+unit mol_per_mL = 1000 mol_per_L; // mole per millilitre (amount concentration).
+unit mmol_per_mL = 1 / 1000 mol_per_mL; // millimole per millilitre (amount concentration).
+unit umol_per_mL = 1 / 1000 mmol_per_mL; // micromole per millilitre (amount concentration).
+unit kg_per_m3; // kilogram per cubic metre (density or mass concentration).
+unit g_per_L = 1 kg_per_m3; // gram per litre (density or mass concentration).
+unit mg_per_mL = 1 g_per_L; // milligram per millilitre (density or mass concentration).
+unit g_per_cm3 = 1000 kg_per_m3; // gram per cubic centimetre (density or mass concentration).
+unit g_per_m3 = 1 / 1000 kg_per_m3; // gram per cubic metre (density or mass concentration).
+unit mg_per_L = 1 g_per_m3; // milligram per litre (density or mass concentration).
+unit ug_per_L = 1 / 1000 mg_per_L; // microgram per litre (density or mass concentration).
+unit lb_per_ft3 = 28349523125 / 1769802912 kg_per_m3; // avoirdupois pound per cubic international foot (density).
+unit mol_per_kg; // mole per kilogram of solvent (molality).
+unit mmol_per_kg = 1 / 1000 mol_per_kg; // millimole per kilogram of solvent (molality).
+unit umol_per_kg = 1 / 1000 mmol_per_kg; // micromole per kilogram of solvent (molality).
+unit mol_per_g = 1000 mol_per_kg; // mole per gram of solvent (molality).
+unit mmol_per_g = 1 mol_per_kg; // millimole per gram of solvent (molality).
+unit umol_per_g = 1 mmol_per_kg; // micromole per gram of solvent (molality).
+unit kg_per_mol; // kilogram per mole (molar mass).
+unit g_per_mol = 1 / 1000 kg_per_mol; // gram per mole (molar mass).
+unit mg_per_mol = 1 / 1000 g_per_mol; // milligram per mole (molar mass).
+unit kg_per_kmol = 1 g_per_mol; // kilogram per kilomole (molar mass).
+unit m3_per_mol; // cubic metre per mole (molar volume).
+unit L_per_mol = 1 / 1000 m3_per_mol; // litre per mole (molar volume).
+unit mL_per_mol = 1 / 1000 L_per_mol; // millilitre per mole (molar volume).
+unit m3_per_kmol = 1 L_per_mol; // cubic metre per kilomole (molar volume).
+unit enzyme_unit = 50 / 3 nkat; // enzyme unit, one micromole converted per minute (catalytic activity).
+unit entity = 250000000 / 150553519 ymol; // one specified entity (amount of substance).
+unit e_charge = 801088317 / 5000000000 aC; // elementary charge, the positive magnitude of an electron's charge.
+unit Da; // dalton, also called the unified atomic mass unit (mass).
+unit kDa = 1000 Da; // kilodalton (mass).
+unit MDa = 1000 kDa; // megadalton (mass).
+unit GDa = 1000 MDa; // gigadalton (mass).
+unit J_per_mol; // joule per mole (molar energy).
+unit kJ_per_mol = 1000 J_per_mol; // kilojoule per mole (molar energy).
+unit cal_th_per_mol = 523 / 125 J_per_mol; // thermochemical calorie per mole (molar energy).
+unit J_per_K; // joule per kelvin (heat capacity).
+unit kJ_per_K = 1000 J_per_K; // kilojoule per kelvin (heat capacity).
+unit J_per_kg_K; // joule per kilogram per kelvin (specific heat capacity).
+unit kJ_per_kg_K = 1000 J_per_kg_K; // kilojoule per kilogram per kelvin (specific heat capacity).
+unit J_per_g_K = 1000 J_per_kg_K; // joule per gram per kelvin (specific heat capacity).
+unit cal_th_per_g_K = 4184 J_per_kg_K; // thermochemical calorie per gram per kelvin (specific heat capacity).
+unit J_per_mol_K; // joule per mole per kelvin (molar heat capacity).
+unit kJ_per_mol_K = 1000 J_per_mol_K; // kilojoule per mole per kelvin (molar heat capacity).
+unit cal_th_per_mol_K = 523 / 125 J_per_mol_K; // thermochemical calorie per mole per kelvin (molar heat capacity).
+unit W_per_m_K; // watt per metre per kelvin (thermal conductivity).
+unit mW_per_m_K = 1 / 1000 W_per_m_K; // milliwatt per metre per kelvin (thermal conductivity).
+unit W_per_cm_K = 100 W_per_m_K; // watt per centimetre per kelvin (thermal conductivity).
+unit S_per_m; // siemens per metre (electrical conductivity).
+unit mS_per_cm = 1 / 10 S_per_m; // millisiemens per centimetre (electrical conductivity).
+unit uS_per_cm = 1 / 1000 mS_per_cm; // microsiemens per centimetre (electrical conductivity).
+unit per_m; // reciprocal metre (wavenumber).
+unit per_cm = 100 per_m; // reciprocal centimetre (wavenumber).
