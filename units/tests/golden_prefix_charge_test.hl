@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_charge: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QC;
+
+type Denomination0 = GoldenQuantity in C;
+type Denomination1 = GoldenQuantity in EC;
+type Denomination2 = GoldenQuantity in GC;
+type Denomination3 = GoldenQuantity in MC;
+type Denomination4 = GoldenQuantity in PC;
+type Denomination5 = GoldenQuantity in QC;
+type Denomination6 = GoldenQuantity in RC;
+type Denomination7 = GoldenQuantity in TC;
+type Denomination8 = GoldenQuantity in YC;
+type Denomination9 = GoldenQuantity in ZC;
+type Denomination10 = GoldenQuantity in aC;
+type Denomination11 = GoldenQuantity in cC;
+type Denomination12 = GoldenQuantity in dC;
+type Denomination13 = GoldenQuantity in daC;
+type Denomination14 = GoldenQuantity in fC;
+type Denomination15 = GoldenQuantity in hC;
+type Denomination16 = GoldenQuantity in kC;
+type Denomination17 = GoldenQuantity in mC;
+type Denomination18 = GoldenQuantity in nC;
+type Denomination19 = GoldenQuantity in pC;
+type Denomination20 = GoldenQuantity in qC;
+type Denomination21 = GoldenQuantity in rC;
+type Denomination22 = GoldenQuantity in uC;
+type Denomination23 = GoldenQuantity in yC;
+type Denomination24 = GoldenQuantity in zC;
+
+fn check_runtime(k: Int) {
+    // 1 rC = 1000 qC
+    let source_0: Denomination21 = 1rC;
+    let target_0: Denomination20 = 1000qC;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_charge/adjacent_rC_qC: forward");
+    std::test::assert(right_0 == left_0, "prefix_charge/adjacent_rC_qC: reverse");
+    std::test::assert_eq_int(left_0 / 1qC, k * 1000, "prefix_charge/adjacent_rC_qC: target count");
+    std::test::assert_eq_int(right_0 / 1rC, k * 1, "prefix_charge/adjacent_rC_qC: source count");
+
+    // 1 yC = 1000 rC
+    let source_1: Denomination23 = 1yC;
+    let target_1: Denomination21 = 1000rC;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_charge/adjacent_yC_rC: forward");
+    std::test::assert(right_1 == left_1, "prefix_charge/adjacent_yC_rC: reverse");
+    std::test::assert_eq_int(left_1 / 1rC, k * 1000, "prefix_charge/adjacent_yC_rC: target count");
+    std::test::assert_eq_int(right_1 / 1yC, k * 1, "prefix_charge/adjacent_yC_rC: source count");
+
+    // 1 zC = 1000 yC
+    let source_2: Denomination24 = 1zC;
+    let target_2: Denomination23 = 1000yC;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_charge/adjacent_zC_yC: forward");
+    std::test::assert(right_2 == left_2, "prefix_charge/adjacent_zC_yC: reverse");
+    std::test::assert_eq_int(left_2 / 1yC, k * 1000, "prefix_charge/adjacent_zC_yC: target count");
+    std::test::assert_eq_int(right_2 / 1zC, k * 1, "prefix_charge/adjacent_zC_yC: source count");
+
+    // 1 aC = 1000 zC
+    let source_3: Denomination10 = 1aC;
+    let target_3: Denomination24 = 1000zC;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_charge/adjacent_aC_zC: forward");
+    std::test::assert(right_3 == left_3, "prefix_charge/adjacent_aC_zC: reverse");
+    std::test::assert_eq_int(left_3 / 1zC, k * 1000, "prefix_charge/adjacent_aC_zC: target count");
+    std::test::assert_eq_int(right_3 / 1aC, k * 1, "prefix_charge/adjacent_aC_zC: source count");
+
+    // 1 fC = 1000 aC
+    let source_4: Denomination14 = 1fC;
+    let target_4: Denomination10 = 1000aC;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_charge/adjacent_fC_aC: forward");
+    std::test::assert(right_4 == left_4, "prefix_charge/adjacent_fC_aC: reverse");
+    std::test::assert_eq_int(left_4 / 1aC, k * 1000, "prefix_charge/adjacent_fC_aC: target count");
+    std::test::assert_eq_int(right_4 / 1fC, k * 1, "prefix_charge/adjacent_fC_aC: source count");
+
+    // 1 pC = 1000 fC
+    let source_5: Denomination19 = 1pC;
+    let target_5: Denomination14 = 1000fC;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_charge/adjacent_pC_fC: forward");
+    std::test::assert(right_5 == left_5, "prefix_charge/adjacent_pC_fC: reverse");
+    std::test::assert_eq_int(left_5 / 1fC, k * 1000, "prefix_charge/adjacent_pC_fC: target count");
+    std::test::assert_eq_int(right_5 / 1pC, k * 1, "prefix_charge/adjacent_pC_fC: source count");
+
+    // 1 nC = 1000 pC
+    let source_6: Denomination18 = 1nC;
+    let target_6: Denomination19 = 1000pC;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_charge/adjacent_nC_pC: forward");
+    std::test::assert(right_6 == left_6, "prefix_charge/adjacent_nC_pC: reverse");
+    std::test::assert_eq_int(left_6 / 1pC, k * 1000, "prefix_charge/adjacent_nC_pC: target count");
+    std::test::assert_eq_int(right_6 / 1nC, k * 1, "prefix_charge/adjacent_nC_pC: source count");
+
+    // 1 uC = 1000 nC
+    let source_7: Denomination22 = 1uC;
+    let target_7: Denomination18 = 1000nC;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_charge/adjacent_uC_nC: forward");
+    std::test::assert(right_7 == left_7, "prefix_charge/adjacent_uC_nC: reverse");
+    std::test::assert_eq_int(left_7 / 1nC, k * 1000, "prefix_charge/adjacent_uC_nC: target count");
+    std::test::assert_eq_int(right_7 / 1uC, k * 1, "prefix_charge/adjacent_uC_nC: source count");
+
+    // 1 mC = 1000 uC
+    let source_8: Denomination17 = 1mC;
+    let target_8: Denomination22 = 1000uC;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_charge/adjacent_mC_uC: forward");
+    std::test::assert(right_8 == left_8, "prefix_charge/adjacent_mC_uC: reverse");
+    std::test::assert_eq_int(left_8 / 1uC, k * 1000, "prefix_charge/adjacent_mC_uC: target count");
+    std::test::assert_eq_int(right_8 / 1mC, k * 1, "prefix_charge/adjacent_mC_uC: source count");
+
+    // 1 cC = 10 mC
+    let source_9: Denomination11 = 1cC;
+    let target_9: Denomination17 = 10mC;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_charge/adjacent_cC_mC: forward");
+    std::test::assert(right_9 == left_9, "prefix_charge/adjacent_cC_mC: reverse");
+    std::test::assert_eq_int(left_9 / 1mC, k * 10, "prefix_charge/adjacent_cC_mC: target count");
+    std::test::assert_eq_int(right_9 / 1cC, k * 1, "prefix_charge/adjacent_cC_mC: source count");
+
+    // 1 dC = 10 cC
+    let source_10: Denomination12 = 1dC;
+    let target_10: Denomination11 = 10cC;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_charge/adjacent_dC_cC: forward");
+    std::test::assert(right_10 == left_10, "prefix_charge/adjacent_dC_cC: reverse");
+    std::test::assert_eq_int(left_10 / 1cC, k * 10, "prefix_charge/adjacent_dC_cC: target count");
+    std::test::assert_eq_int(right_10 / 1dC, k * 1, "prefix_charge/adjacent_dC_cC: source count");
+
+    // 1 C = 10 dC
+    let source_11: Denomination0 = 1C;
+    let target_11: Denomination12 = 10dC;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_charge/adjacent_C_dC: forward");
+    std::test::assert(right_11 == left_11, "prefix_charge/adjacent_C_dC: reverse");
+    std::test::assert_eq_int(left_11 / 1dC, k * 10, "prefix_charge/adjacent_C_dC: target count");
+    std::test::assert_eq_int(right_11 / 1C, k * 1, "prefix_charge/adjacent_C_dC: source count");
+
+    // 1 daC = 10 C
+    let source_12: Denomination13 = 1daC;
+    let target_12: Denomination0 = 10C;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_charge/adjacent_daC_C: forward");
+    std::test::assert(right_12 == left_12, "prefix_charge/adjacent_daC_C: reverse");
+    std::test::assert_eq_int(left_12 / 1C, k * 10, "prefix_charge/adjacent_daC_C: target count");
+    std::test::assert_eq_int(right_12 / 1daC, k * 1, "prefix_charge/adjacent_daC_C: source count");
+
+    // 1 hC = 10 daC
+    let source_13: Denomination15 = 1hC;
+    let target_13: Denomination13 = 10daC;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_charge/adjacent_hC_daC: forward");
+    std::test::assert(right_13 == left_13, "prefix_charge/adjacent_hC_daC: reverse");
+    std::test::assert_eq_int(left_13 / 1daC, k * 10, "prefix_charge/adjacent_hC_daC: target count");
+    std::test::assert_eq_int(right_13 / 1hC, k * 1, "prefix_charge/adjacent_hC_daC: source count");
+
+    // 1 kC = 10 hC
+    let source_14: Denomination16 = 1kC;
+    let target_14: Denomination15 = 10hC;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_charge/adjacent_kC_hC: forward");
+    std::test::assert(right_14 == left_14, "prefix_charge/adjacent_kC_hC: reverse");
+    std::test::assert_eq_int(left_14 / 1hC, k * 10, "prefix_charge/adjacent_kC_hC: target count");
+    std::test::assert_eq_int(right_14 / 1kC, k * 1, "prefix_charge/adjacent_kC_hC: source count");
+
+    // 1 MC = 1000 kC
+    let source_15: Denomination3 = 1MC;
+    let target_15: Denomination16 = 1000kC;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_charge/adjacent_MC_kC: forward");
+    std::test::assert(right_15 == left_15, "prefix_charge/adjacent_MC_kC: reverse");
+    std::test::assert_eq_int(left_15 / 1kC, k * 1000, "prefix_charge/adjacent_MC_kC: target count");
+    std::test::assert_eq_int(right_15 / 1MC, k * 1, "prefix_charge/adjacent_MC_kC: source count");
+
+    // 1 GC = 1000 MC
+    let source_16: Denomination2 = 1GC;
+    let target_16: Denomination3 = 1000MC;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_charge/adjacent_GC_MC: forward");
+    std::test::assert(right_16 == left_16, "prefix_charge/adjacent_GC_MC: reverse");
+    std::test::assert_eq_int(left_16 / 1MC, k * 1000, "prefix_charge/adjacent_GC_MC: target count");
+    std::test::assert_eq_int(right_16 / 1GC, k * 1, "prefix_charge/adjacent_GC_MC: source count");
+
+    // 1 TC = 1000 GC
+    let source_17: Denomination7 = 1TC;
+    let target_17: Denomination2 = 1000GC;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_charge/adjacent_TC_GC: forward");
+    std::test::assert(right_17 == left_17, "prefix_charge/adjacent_TC_GC: reverse");
+    std::test::assert_eq_int(left_17 / 1GC, k * 1000, "prefix_charge/adjacent_TC_GC: target count");
+    std::test::assert_eq_int(right_17 / 1TC, k * 1, "prefix_charge/adjacent_TC_GC: source count");
+
+    // 1 PC = 1000 TC
+    let source_18: Denomination4 = 1PC;
+    let target_18: Denomination7 = 1000TC;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_charge/adjacent_PC_TC: forward");
+    std::test::assert(right_18 == left_18, "prefix_charge/adjacent_PC_TC: reverse");
+    std::test::assert_eq_int(left_18 / 1TC, k * 1000, "prefix_charge/adjacent_PC_TC: target count");
+    std::test::assert_eq_int(right_18 / 1PC, k * 1, "prefix_charge/adjacent_PC_TC: source count");
+
+    // 1 EC = 1000 PC
+    let source_19: Denomination1 = 1EC;
+    let target_19: Denomination4 = 1000PC;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_charge/adjacent_EC_PC: forward");
+    std::test::assert(right_19 == left_19, "prefix_charge/adjacent_EC_PC: reverse");
+    std::test::assert_eq_int(left_19 / 1PC, k * 1000, "prefix_charge/adjacent_EC_PC: target count");
+    std::test::assert_eq_int(right_19 / 1EC, k * 1, "prefix_charge/adjacent_EC_PC: source count");
+
+    // 1 ZC = 1000 EC
+    let source_20: Denomination9 = 1ZC;
+    let target_20: Denomination1 = 1000EC;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_charge/adjacent_ZC_EC: forward");
+    std::test::assert(right_20 == left_20, "prefix_charge/adjacent_ZC_EC: reverse");
+    std::test::assert_eq_int(left_20 / 1EC, k * 1000, "prefix_charge/adjacent_ZC_EC: target count");
+    std::test::assert_eq_int(right_20 / 1ZC, k * 1, "prefix_charge/adjacent_ZC_EC: source count");
+
+    // 1 YC = 1000 ZC
+    let source_21: Denomination8 = 1YC;
+    let target_21: Denomination9 = 1000ZC;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_charge/adjacent_YC_ZC: forward");
+    std::test::assert(right_21 == left_21, "prefix_charge/adjacent_YC_ZC: reverse");
+    std::test::assert_eq_int(left_21 / 1ZC, k * 1000, "prefix_charge/adjacent_YC_ZC: target count");
+    std::test::assert_eq_int(right_21 / 1YC, k * 1, "prefix_charge/adjacent_YC_ZC: source count");
+
+    // 1 RC = 1000 YC
+    let source_22: Denomination6 = 1RC;
+    let target_22: Denomination8 = 1000YC;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_charge/adjacent_RC_YC: forward");
+    std::test::assert(right_22 == left_22, "prefix_charge/adjacent_RC_YC: reverse");
+    std::test::assert_eq_int(left_22 / 1YC, k * 1000, "prefix_charge/adjacent_RC_YC: target count");
+    std::test::assert_eq_int(right_22 / 1RC, k * 1, "prefix_charge/adjacent_RC_YC: source count");
+
+    // 1 QC = 1000 RC
+    let source_23: Denomination5 = 1QC;
+    let target_23: Denomination6 = 1000RC;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_charge/adjacent_QC_RC: forward");
+    std::test::assert(right_23 == left_23, "prefix_charge/adjacent_QC_RC: reverse");
+    std::test::assert_eq_int(left_23 / 1RC, k * 1000, "prefix_charge/adjacent_QC_RC: target count");
+    std::test::assert_eq_int(right_23 / 1QC, k * 1, "prefix_charge/adjacent_QC_RC: source count");
+
+    // 1000000000000000000 aC = 1 C
+    let source_24: Denomination10 = 1000000000000000000aC;
+    let target_24: Denomination0 = 1C;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_charge/base_anchor_aC: forward");
+    std::test::assert(right_24 == left_24, "prefix_charge/base_anchor_aC: reverse");
+    std::test::assert_eq_int(left_24 / 1C, k * 1, "prefix_charge/base_anchor_aC: target count");
+    std::test::assert_eq_int(right_24 / 1aC, k * 1000000000000000000, "prefix_charge/base_anchor_aC: source count");
+
+    // 1000000000000000 fC = 1 C
+    let source_25: Denomination14 = 1000000000000000fC;
+    let target_25: Denomination0 = 1C;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_charge/base_anchor_fC: forward");
+    std::test::assert(right_25 == left_25, "prefix_charge/base_anchor_fC: reverse");
+    std::test::assert_eq_int(left_25 / 1C, k * 1, "prefix_charge/base_anchor_fC: target count");
+    std::test::assert_eq_int(right_25 / 1fC, k * 1000000000000000, "prefix_charge/base_anchor_fC: source count");
+
+    // 1000000000000 pC = 1 C
+    let source_26: Denomination19 = 1000000000000pC;
+    let target_26: Denomination0 = 1C;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_charge/base_anchor_pC: forward");
+    std::test::assert(right_26 == left_26, "prefix_charge/base_anchor_pC: reverse");
+    std::test::assert_eq_int(left_26 / 1C, k * 1, "prefix_charge/base_anchor_pC: target count");
+    std::test::assert_eq_int(right_26 / 1pC, k * 1000000000000, "prefix_charge/base_anchor_pC: source count");
+
+    // 1000000000 nC = 1 C
+    let source_27: Denomination18 = 1000000000nC;
+    let target_27: Denomination0 = 1C;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_charge/base_anchor_nC: forward");
+    std::test::assert(right_27 == left_27, "prefix_charge/base_anchor_nC: reverse");
+    std::test::assert_eq_int(left_27 / 1C, k * 1, "prefix_charge/base_anchor_nC: target count");
+    std::test::assert_eq_int(right_27 / 1nC, k * 1000000000, "prefix_charge/base_anchor_nC: source count");
+
+    // 1000000 uC = 1 C
+    let source_28: Denomination22 = 1000000uC;
+    let target_28: Denomination0 = 1C;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_charge/base_anchor_uC: forward");
+    std::test::assert(right_28 == left_28, "prefix_charge/base_anchor_uC: reverse");
+    std::test::assert_eq_int(left_28 / 1C, k * 1, "prefix_charge/base_anchor_uC: target count");
+    std::test::assert_eq_int(right_28 / 1uC, k * 1000000, "prefix_charge/base_anchor_uC: source count");
+
+    // 1000 mC = 1 C
+    let source_29: Denomination17 = 1000mC;
+    let target_29: Denomination0 = 1C;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_charge/base_anchor_mC: forward");
+    std::test::assert(right_29 == left_29, "prefix_charge/base_anchor_mC: reverse");
+    std::test::assert_eq_int(left_29 / 1C, k * 1, "prefix_charge/base_anchor_mC: target count");
+    std::test::assert_eq_int(right_29 / 1mC, k * 1000, "prefix_charge/base_anchor_mC: source count");
+
+    // 100 cC = 1 C
+    let source_30: Denomination11 = 100cC;
+    let target_30: Denomination0 = 1C;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_charge/base_anchor_cC: forward");
+    std::test::assert(right_30 == left_30, "prefix_charge/base_anchor_cC: reverse");
+    std::test::assert_eq_int(left_30 / 1C, k * 1, "prefix_charge/base_anchor_cC: target count");
+    std::test::assert_eq_int(right_30 / 1cC, k * 100, "prefix_charge/base_anchor_cC: source count");
+
+    // 1 hC = 100 C
+    let source_31: Denomination15 = 1hC;
+    let target_31: Denomination0 = 100C;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_charge/base_anchor_hC: forward");
+    std::test::assert(right_31 == left_31, "prefix_charge/base_anchor_hC: reverse");
+    std::test::assert_eq_int(left_31 / 1C, k * 100, "prefix_charge/base_anchor_hC: target count");
+    std::test::assert_eq_int(right_31 / 1hC, k * 1, "prefix_charge/base_anchor_hC: source count");
+
+    // 1 kC = 1000 C
+    let source_32: Denomination16 = 1kC;
+    let target_32: Denomination0 = 1000C;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_charge/base_anchor_kC: forward");
+    std::test::assert(right_32 == left_32, "prefix_charge/base_anchor_kC: reverse");
+    std::test::assert_eq_int(left_32 / 1C, k * 1000, "prefix_charge/base_anchor_kC: target count");
+    std::test::assert_eq_int(right_32 / 1kC, k * 1, "prefix_charge/base_anchor_kC: source count");
+
+    // 1 MC = 1000000 C
+    let source_33: Denomination3 = 1MC;
+    let target_33: Denomination0 = 1000000C;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_charge/base_anchor_MC: forward");
+    std::test::assert(right_33 == left_33, "prefix_charge/base_anchor_MC: reverse");
+    std::test::assert_eq_int(left_33 / 1C, k * 1000000, "prefix_charge/base_anchor_MC: target count");
+    std::test::assert_eq_int(right_33 / 1MC, k * 1, "prefix_charge/base_anchor_MC: source count");
+
+    // 1 GC = 1000000000 C
+    let source_34: Denomination2 = 1GC;
+    let target_34: Denomination0 = 1000000000C;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_charge/base_anchor_GC: forward");
+    std::test::assert(right_34 == left_34, "prefix_charge/base_anchor_GC: reverse");
+    std::test::assert_eq_int(left_34 / 1C, k * 1000000000, "prefix_charge/base_anchor_GC: target count");
+    std::test::assert_eq_int(right_34 / 1GC, k * 1, "prefix_charge/base_anchor_GC: source count");
+
+    // 1 TC = 1000000000000 C
+    let source_35: Denomination7 = 1TC;
+    let target_35: Denomination0 = 1000000000000C;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_charge/base_anchor_TC: forward");
+    std::test::assert(right_35 == left_35, "prefix_charge/base_anchor_TC: reverse");
+    std::test::assert_eq_int(left_35 / 1C, k * 1000000000000, "prefix_charge/base_anchor_TC: target count");
+    std::test::assert_eq_int(right_35 / 1TC, k * 1, "prefix_charge/base_anchor_TC: source count");
+
+    // 1 PC = 1000000000000000 C
+    let source_36: Denomination4 = 1PC;
+    let target_36: Denomination0 = 1000000000000000C;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_charge/base_anchor_PC: forward");
+    std::test::assert(right_36 == left_36, "prefix_charge/base_anchor_PC: reverse");
+    std::test::assert_eq_int(left_36 / 1C, k * 1000000000000000, "prefix_charge/base_anchor_PC: target count");
+    std::test::assert_eq_int(right_36 / 1PC, k * 1, "prefix_charge/base_anchor_PC: source count");
+
+    // 1 EC = 1000000000000000000 C
+    let source_37: Denomination1 = 1EC;
+    let target_37: Denomination0 = 1000000000000000000C;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_charge/base_anchor_EC: forward");
+    std::test::assert(right_37 == left_37, "prefix_charge/base_anchor_EC: reverse");
+    std::test::assert_eq_int(left_37 / 1C, k * 1000000000000000000, "prefix_charge/base_anchor_EC: target count");
+    std::test::assert_eq_int(right_37 / 1EC, k * 1, "prefix_charge/base_anchor_EC: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

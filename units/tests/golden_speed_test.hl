@@ -1,0 +1,117 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// speed: 9 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in km_per_h;
+
+type Denomination0 = GoldenQuantity in cm_per_s;
+type Denomination1 = GoldenQuantity in ft_per_s;
+type Denomination2 = GoldenQuantity in km_per_h;
+type Denomination3 = GoldenQuantity in knot;
+type Denomination4 = GoldenQuantity in m_per_h;
+type Denomination5 = GoldenQuantity in m_per_s;
+type Denomination6 = GoldenQuantity in mi_per_h;
+type Denomination7 = GoldenQuantity in mm_per_s;
+type Denomination8 = GoldenQuantity in um_per_s;
+
+fn check_runtime(k: Int) {
+    // 3125 mi_per_h = 1397 m_per_s
+    let source_0: Denomination6 = 3125mi_per_h;
+    let target_0: Denomination5 = 1397m_per_s;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "speed/mi_per_h_to_m_per_s: forward");
+    std::test::assert(right_0 == left_0, "speed/mi_per_h_to_m_per_s: reverse");
+    std::test::assert_eq_int(left_0 / 1m_per_s, k * 1397, "speed/mi_per_h_to_m_per_s: target count");
+    std::test::assert_eq_int(right_0 / 1mi_per_h, k * 3125, "speed/mi_per_h_to_m_per_s: source count");
+
+    // 250 knot = 463 km_per_h
+    let source_1: Denomination3 = 250knot;
+    let target_1: Denomination2 = 463km_per_h;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "speed/knot_to_km_per_h: forward");
+    std::test::assert(right_1 == left_1, "speed/knot_to_km_per_h: reverse");
+    std::test::assert_eq_int(left_1 / 1km_per_h, k * 463, "speed/knot_to_km_per_h: target count");
+    std::test::assert_eq_int(right_1 / 1knot, k * 250, "speed/knot_to_km_per_h: source count");
+
+    // 1 knot = 1852 m_per_h
+    let source_2: Denomination3 = 1knot;
+    let target_2: Denomination4 = 1852m_per_h;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "speed/knot_to_m_per_h: forward");
+    std::test::assert(right_2 == left_2, "speed/knot_to_m_per_h: reverse");
+    std::test::assert_eq_int(left_2 / 1m_per_h, k * 1852, "speed/knot_to_m_per_h: target count");
+    std::test::assert_eq_int(right_2 / 1knot, k * 1, "speed/knot_to_m_per_h: source count");
+
+    // 18 km_per_h = 5 m_per_s
+    let source_3: Denomination2 = 18km_per_h;
+    let target_3: Denomination5 = 5m_per_s;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "speed/km_per_h_to_m_per_s: forward");
+    std::test::assert(right_3 == left_3, "speed/km_per_h_to_m_per_s: reverse");
+    std::test::assert_eq_int(left_3 / 1m_per_s, k * 5, "speed/km_per_h_to_m_per_s: target count");
+    std::test::assert_eq_int(right_3 / 1km_per_h, k * 18, "speed/km_per_h_to_m_per_s: source count");
+
+    // 1250 ft_per_s = 381 m_per_s
+    let source_4: Denomination1 = 1250ft_per_s;
+    let target_4: Denomination5 = 381m_per_s;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "speed/ft_per_s_to_m_per_s: forward");
+    std::test::assert(right_4 == left_4, "speed/ft_per_s_to_m_per_s: reverse");
+    std::test::assert_eq_int(left_4 / 1m_per_s, k * 381, "speed/ft_per_s_to_m_per_s: target count");
+    std::test::assert_eq_int(right_4 / 1ft_per_s, k * 1250, "speed/ft_per_s_to_m_per_s: source count");
+
+    // 1 m_per_s = 3600 m_per_h
+    let source_5: Denomination5 = 1m_per_s;
+    let target_5: Denomination4 = 3600m_per_h;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "speed/m_per_s_to_m_per_h: forward");
+    std::test::assert(right_5 == left_5, "speed/m_per_s_to_m_per_h: reverse");
+    std::test::assert_eq_int(left_5 / 1m_per_h, k * 3600, "speed/m_per_s_to_m_per_h: target count");
+    std::test::assert_eq_int(right_5 / 1m_per_s, k * 1, "speed/m_per_s_to_m_per_h: source count");
+
+    // 1 cm_per_s = 10 mm_per_s
+    let source_6: Denomination0 = 1cm_per_s;
+    let target_6: Denomination7 = 10mm_per_s;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "speed/cm_per_s_to_mm_per_s: forward");
+    std::test::assert(right_6 == left_6, "speed/cm_per_s_to_mm_per_s: reverse");
+    std::test::assert_eq_int(left_6 / 1mm_per_s, k * 10, "speed/cm_per_s_to_mm_per_s: target count");
+    std::test::assert_eq_int(right_6 / 1cm_per_s, k * 1, "speed/cm_per_s_to_mm_per_s: source count");
+
+    // 1 mm_per_s = 1000 um_per_s
+    let source_7: Denomination7 = 1mm_per_s;
+    let target_7: Denomination8 = 1000um_per_s;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "speed/mm_per_s_to_um_per_s: forward");
+    std::test::assert(right_7 == left_7, "speed/mm_per_s_to_um_per_s: reverse");
+    std::test::assert_eq_int(left_7 / 1um_per_s, k * 1000, "speed/mm_per_s_to_um_per_s: target count");
+    std::test::assert_eq_int(right_7 / 1mm_per_s, k * 1, "speed/mm_per_s_to_um_per_s: source count");
+
+    // 9 km_per_h = 2500000 um_per_s
+    let source_8: Denomination2 = 9km_per_h;
+    let target_8: Denomination8 = 2500000um_per_s;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "speed/km_per_h_to_um_per_s: forward");
+    std::test::assert(right_8 == left_8, "speed/km_per_h_to_um_per_s: reverse");
+    std::test::assert_eq_int(left_8 / 1um_per_s, k * 2500000, "speed/km_per_h_to_um_per_s: target count");
+    std::test::assert_eq_int(right_8 / 1km_per_h, k * 9, "speed/km_per_h_to_um_per_s: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

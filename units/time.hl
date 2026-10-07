@@ -1,0 +1,27 @@
+// Exact unit catalogue. Source definitions and spelling policy: README.md.
+// No quantity types or rounding policies are imposed by this seed.
+
+// ns, us, ms, s, min, h and day belong to the stdlib; never redeclare them.
+// asec is attosecond: as is the import-alias keyword. A week is exactly 7 fixed days.
+unit ds = 1 / 10 s;
+unit cs = 1 / 10 ds;
+unit ps = 1 / 1000 ns;
+unit fs = 1 / 1000 ps;
+unit asec = 1 / 1000 fs;
+unit zs = 1 / 1000 asec;
+unit ys = 1 / 1000 zs;
+unit rs = 1 / 1000 ys;
+unit qs = 1 / 1000 rs;
+unit das = 10 s;
+unit hs = 10 das;
+unit ks = 10 hs;
+unit Ms = 1000 ks;
+unit Gs = 1000 Ms;
+unit Ts = 1000 Gs;
+unit Ps = 1000 Ts;
+unit Es = 1000 Ps;
+unit Zs = 1000 Es;
+unit Ys = 1000 Zs;
+unit Rs = 1000 Ys;
+unit Qs = 1000 Rs;
+unit week = 7 day;

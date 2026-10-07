@@ -1,0 +1,118 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// pressure: 5 runtime ratios, 3 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QPa;
+
+type Denomination0 = GoldenQuantity in Ba;
+type Denomination1 = GoldenQuantity in Pa;
+type Denomination2 = GoldenQuantity in Torr;
+type Denomination3 = GoldenQuantity in atm;
+type Denomination4 = GoldenQuantity in bar;
+type Denomination5 = GoldenQuantity in kPa;
+type Denomination6 = GoldenQuantity in mbar;
+type Denomination7 = GoldenQuantity in psi;
+
+fn check_runtime(k: Int) {
+    // 3040 Torr = 4053 mbar
+    let source_0: Denomination2 = 3040Torr;
+    let target_0: Denomination6 = 4053mbar;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "pressure/Torr_to_mbar: forward");
+    std::test::assert(right_0 == left_0, "pressure/Torr_to_mbar: reverse");
+    std::test::assert_eq_int(left_0 / 1mbar, k * 4053, "pressure/Torr_to_mbar: target count");
+    std::test::assert_eq_int(right_0 / 1Torr, k * 3040, "pressure/Torr_to_mbar: source count");
+
+    // 1 atm = 760 Torr
+    let source_1: Denomination3 = 1atm;
+    let target_1: Denomination2 = 760Torr;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "pressure/atm_to_Torr: forward");
+    std::test::assert(right_1 == left_1, "pressure/atm_to_Torr: reverse");
+    std::test::assert_eq_int(left_1 / 1Torr, k * 760, "pressure/atm_to_Torr: target count");
+    std::test::assert_eq_int(right_1 / 1atm, k * 1, "pressure/atm_to_Torr: source count");
+
+    // 1 bar = 1000 mbar
+    let source_2: Denomination4 = 1bar;
+    let target_2: Denomination6 = 1000mbar;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "pressure/bar_to_mbar: forward");
+    std::test::assert(right_2 == left_2, "pressure/bar_to_mbar: reverse");
+    std::test::assert_eq_int(left_2 / 1mbar, k * 1000, "pressure/bar_to_mbar: target count");
+    std::test::assert_eq_int(right_2 / 1bar, k * 1, "pressure/bar_to_mbar: source count");
+
+    // 40 atm = 4053 kPa
+    let source_3: Denomination3 = 40atm;
+    let target_3: Denomination5 = 4053kPa;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "pressure/atm_to_kPa: forward");
+    std::test::assert(right_3 == left_3, "pressure/atm_to_kPa: reverse");
+    std::test::assert_eq_int(left_3 / 1kPa, k * 4053, "pressure/atm_to_kPa: target count");
+    std::test::assert_eq_int(right_3 / 1atm, k * 40, "pressure/atm_to_kPa: source count");
+
+    // 1 Pa = 10 Ba
+    let source_4: Denomination1 = 1Pa;
+    let target_4: Denomination0 = 10Ba;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "pressure/Pa_to_Ba: forward");
+    std::test::assert(right_4 == left_4, "pressure/Pa_to_Ba: reverse");
+    std::test::assert_eq_int(left_4 / 1Ba, k * 10, "pressure/Pa_to_Ba: target count");
+    std::test::assert_eq_int(right_4 / 1Pa, k * 1, "pressure/Pa_to_Ba: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_0_forward_positive: Denomination1 = 1290320000psi;
+    let expected_0_forward_positive: Denomination1 = 8896443230521Pa;
+    std::test::assert(actual_0_forward_positive == expected_0_forward_positive, "pressure/psi_to_Pa: literal forward positive");
+    let actual_0_forward_negative: Denomination1 = -actual_0_forward_positive;
+    let expected_0_forward_negative: Denomination1 = -expected_0_forward_positive;
+    std::test::assert(actual_0_forward_negative == expected_0_forward_negative, "pressure/psi_to_Pa: literal forward negative");
+    let actual_0_reverse_positive: Denomination7 = 8896443230521Pa;
+    let expected_0_reverse_positive: Denomination7 = 1290320000psi;
+    std::test::assert(actual_0_reverse_positive == expected_0_reverse_positive, "pressure/psi_to_Pa: literal reverse positive");
+    let actual_0_reverse_negative: Denomination7 = -actual_0_reverse_positive;
+    let expected_0_reverse_negative: Denomination7 = -expected_0_reverse_positive;
+    std::test::assert(actual_0_reverse_negative == expected_0_reverse_negative, "pressure/psi_to_Pa: literal reverse negative");
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_1_forward_positive: Denomination7 = 1270920461503atm;
+    let expected_1_forward_positive: Denomination7 = 18677382000000psi;
+    std::test::assert(actual_1_forward_positive == expected_1_forward_positive, "pressure/atm_to_psi: literal forward positive");
+    let actual_1_forward_negative: Denomination7 = -actual_1_forward_positive;
+    let expected_1_forward_negative: Denomination7 = -expected_1_forward_positive;
+    std::test::assert(actual_1_forward_negative == expected_1_forward_negative, "pressure/atm_to_psi: literal forward negative");
+    let actual_1_reverse_positive: Denomination3 = 18677382000000psi;
+    let expected_1_reverse_positive: Denomination3 = 1270920461503atm;
+    std::test::assert(actual_1_reverse_positive == expected_1_reverse_positive, "pressure/atm_to_psi: literal reverse positive");
+    let actual_1_reverse_negative: Denomination3 = -actual_1_reverse_positive;
+    let expected_1_reverse_negative: Denomination3 = -expected_1_reverse_positive;
+    std::test::assert(actual_1_reverse_negative == expected_1_reverse_negative, "pressure/atm_to_psi: literal reverse negative");
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_2_forward_positive: Denomination7 = 8896443230521bar;
+    let expected_2_forward_positive: Denomination7 = 129032000000000psi;
+    std::test::assert(actual_2_forward_positive == expected_2_forward_positive, "pressure/bar_to_psi: literal forward positive");
+    let actual_2_forward_negative: Denomination7 = -actual_2_forward_positive;
+    let expected_2_forward_negative: Denomination7 = -expected_2_forward_positive;
+    std::test::assert(actual_2_forward_negative == expected_2_forward_negative, "pressure/bar_to_psi: literal forward negative");
+    let actual_2_reverse_positive: Denomination4 = 129032000000000psi;
+    let expected_2_reverse_positive: Denomination4 = 8896443230521bar;
+    std::test::assert(actual_2_reverse_positive == expected_2_reverse_positive, "pressure/bar_to_psi: literal reverse positive");
+    let actual_2_reverse_negative: Denomination4 = -actual_2_reverse_positive;
+    let expected_2_reverse_negative: Denomination4 = -expected_2_reverse_positive;
+    std::test::assert(actual_2_reverse_negative == expected_2_reverse_negative, "pressure/bar_to_psi: literal reverse negative");
+}

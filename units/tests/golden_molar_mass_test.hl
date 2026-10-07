@@ -1,0 +1,52 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// molar_mass: 3 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in kg_per_mol;
+
+type Denomination0 = GoldenQuantity in g_per_mol;
+type Denomination1 = GoldenQuantity in kg_per_kmol;
+type Denomination2 = GoldenQuantity in kg_per_mol;
+type Denomination3 = GoldenQuantity in mg_per_mol;
+
+fn check_runtime(k: Int) {
+    // 1 g_per_mol = 1 kg_per_kmol
+    let source_0: Denomination0 = 1g_per_mol;
+    let target_0: Denomination1 = 1kg_per_kmol;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "molar_mass/g_per_mol_to_kg_per_kmol: forward");
+    std::test::assert(right_0 == left_0, "molar_mass/g_per_mol_to_kg_per_kmol: reverse");
+    std::test::assert_eq_int(left_0 / 1kg_per_kmol, k * 1, "molar_mass/g_per_mol_to_kg_per_kmol: target count");
+    std::test::assert_eq_int(right_0 / 1g_per_mol, k * 1, "molar_mass/g_per_mol_to_kg_per_kmol: source count");
+
+    // 1000 mg_per_mol = 1 kg_per_kmol
+    let source_1: Denomination3 = 1000mg_per_mol;
+    let target_1: Denomination1 = 1kg_per_kmol;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "molar_mass/mg_per_mol_to_kg_per_kmol: forward");
+    std::test::assert(right_1 == left_1, "molar_mass/mg_per_mol_to_kg_per_kmol: reverse");
+    std::test::assert_eq_int(left_1 / 1kg_per_kmol, k * 1, "molar_mass/mg_per_mol_to_kg_per_kmol: target count");
+    std::test::assert_eq_int(right_1 / 1mg_per_mol, k * 1000, "molar_mass/mg_per_mol_to_kg_per_kmol: source count");
+
+    // 1 kg_per_mol = 1000000 mg_per_mol
+    let source_2: Denomination2 = 1kg_per_mol;
+    let target_2: Denomination3 = 1000000mg_per_mol;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "molar_mass/kg_per_mol_to_mg_per_mol: forward");
+    std::test::assert(right_2 == left_2, "molar_mass/kg_per_mol_to_mg_per_mol: reverse");
+    std::test::assert_eq_int(left_2 / 1mg_per_mol, k * 1000000, "molar_mass/kg_per_mol_to_mg_per_mol: target count");
+    std::test::assert_eq_int(right_2 / 1kg_per_mol, k * 1, "molar_mass/kg_per_mol_to_mg_per_mol: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

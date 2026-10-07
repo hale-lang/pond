@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_luminous_flux: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in Qlm;
+
+type Denomination0 = GoldenQuantity in Elm;
+type Denomination1 = GoldenQuantity in Glm;
+type Denomination2 = GoldenQuantity in Mlm;
+type Denomination3 = GoldenQuantity in Plm;
+type Denomination4 = GoldenQuantity in Qlm;
+type Denomination5 = GoldenQuantity in Rlm;
+type Denomination6 = GoldenQuantity in Tlm;
+type Denomination7 = GoldenQuantity in Ylm;
+type Denomination8 = GoldenQuantity in Zlm;
+type Denomination9 = GoldenQuantity in alm;
+type Denomination10 = GoldenQuantity in clm;
+type Denomination11 = GoldenQuantity in dalm;
+type Denomination12 = GoldenQuantity in dlm;
+type Denomination13 = GoldenQuantity in flm;
+type Denomination14 = GoldenQuantity in hlm;
+type Denomination15 = GoldenQuantity in klm;
+type Denomination16 = GoldenQuantity in lm;
+type Denomination17 = GoldenQuantity in mlm;
+type Denomination18 = GoldenQuantity in nlm;
+type Denomination19 = GoldenQuantity in plm;
+type Denomination20 = GoldenQuantity in qlm;
+type Denomination21 = GoldenQuantity in rlm;
+type Denomination22 = GoldenQuantity in ulm;
+type Denomination23 = GoldenQuantity in ylm;
+type Denomination24 = GoldenQuantity in zlm;
+
+fn check_runtime(k: Int) {
+    // 1 rlm = 1000 qlm
+    let source_0: Denomination21 = 1rlm;
+    let target_0: Denomination20 = 1000qlm;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_luminous_flux/adjacent_rlm_qlm: forward");
+    std::test::assert(right_0 == left_0, "prefix_luminous_flux/adjacent_rlm_qlm: reverse");
+    std::test::assert_eq_int(left_0 / 1qlm, k * 1000, "prefix_luminous_flux/adjacent_rlm_qlm: target count");
+    std::test::assert_eq_int(right_0 / 1rlm, k * 1, "prefix_luminous_flux/adjacent_rlm_qlm: source count");
+
+    // 1 ylm = 1000 rlm
+    let source_1: Denomination23 = 1ylm;
+    let target_1: Denomination21 = 1000rlm;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_luminous_flux/adjacent_ylm_rlm: forward");
+    std::test::assert(right_1 == left_1, "prefix_luminous_flux/adjacent_ylm_rlm: reverse");
+    std::test::assert_eq_int(left_1 / 1rlm, k * 1000, "prefix_luminous_flux/adjacent_ylm_rlm: target count");
+    std::test::assert_eq_int(right_1 / 1ylm, k * 1, "prefix_luminous_flux/adjacent_ylm_rlm: source count");
+
+    // 1 zlm = 1000 ylm
+    let source_2: Denomination24 = 1zlm;
+    let target_2: Denomination23 = 1000ylm;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_luminous_flux/adjacent_zlm_ylm: forward");
+    std::test::assert(right_2 == left_2, "prefix_luminous_flux/adjacent_zlm_ylm: reverse");
+    std::test::assert_eq_int(left_2 / 1ylm, k * 1000, "prefix_luminous_flux/adjacent_zlm_ylm: target count");
+    std::test::assert_eq_int(right_2 / 1zlm, k * 1, "prefix_luminous_flux/adjacent_zlm_ylm: source count");
+
+    // 1 alm = 1000 zlm
+    let source_3: Denomination9 = 1alm;
+    let target_3: Denomination24 = 1000zlm;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_luminous_flux/adjacent_alm_zlm: forward");
+    std::test::assert(right_3 == left_3, "prefix_luminous_flux/adjacent_alm_zlm: reverse");
+    std::test::assert_eq_int(left_3 / 1zlm, k * 1000, "prefix_luminous_flux/adjacent_alm_zlm: target count");
+    std::test::assert_eq_int(right_3 / 1alm, k * 1, "prefix_luminous_flux/adjacent_alm_zlm: source count");
+
+    // 1 flm = 1000 alm
+    let source_4: Denomination13 = 1flm;
+    let target_4: Denomination9 = 1000alm;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_luminous_flux/adjacent_flm_alm: forward");
+    std::test::assert(right_4 == left_4, "prefix_luminous_flux/adjacent_flm_alm: reverse");
+    std::test::assert_eq_int(left_4 / 1alm, k * 1000, "prefix_luminous_flux/adjacent_flm_alm: target count");
+    std::test::assert_eq_int(right_4 / 1flm, k * 1, "prefix_luminous_flux/adjacent_flm_alm: source count");
+
+    // 1 plm = 1000 flm
+    let source_5: Denomination19 = 1plm;
+    let target_5: Denomination13 = 1000flm;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_luminous_flux/adjacent_plm_flm: forward");
+    std::test::assert(right_5 == left_5, "prefix_luminous_flux/adjacent_plm_flm: reverse");
+    std::test::assert_eq_int(left_5 / 1flm, k * 1000, "prefix_luminous_flux/adjacent_plm_flm: target count");
+    std::test::assert_eq_int(right_5 / 1plm, k * 1, "prefix_luminous_flux/adjacent_plm_flm: source count");
+
+    // 1 nlm = 1000 plm
+    let source_6: Denomination18 = 1nlm;
+    let target_6: Denomination19 = 1000plm;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_luminous_flux/adjacent_nlm_plm: forward");
+    std::test::assert(right_6 == left_6, "prefix_luminous_flux/adjacent_nlm_plm: reverse");
+    std::test::assert_eq_int(left_6 / 1plm, k * 1000, "prefix_luminous_flux/adjacent_nlm_plm: target count");
+    std::test::assert_eq_int(right_6 / 1nlm, k * 1, "prefix_luminous_flux/adjacent_nlm_plm: source count");
+
+    // 1 ulm = 1000 nlm
+    let source_7: Denomination22 = 1ulm;
+    let target_7: Denomination18 = 1000nlm;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_luminous_flux/adjacent_ulm_nlm: forward");
+    std::test::assert(right_7 == left_7, "prefix_luminous_flux/adjacent_ulm_nlm: reverse");
+    std::test::assert_eq_int(left_7 / 1nlm, k * 1000, "prefix_luminous_flux/adjacent_ulm_nlm: target count");
+    std::test::assert_eq_int(right_7 / 1ulm, k * 1, "prefix_luminous_flux/adjacent_ulm_nlm: source count");
+
+    // 1 mlm = 1000 ulm
+    let source_8: Denomination17 = 1mlm;
+    let target_8: Denomination22 = 1000ulm;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_luminous_flux/adjacent_mlm_ulm: forward");
+    std::test::assert(right_8 == left_8, "prefix_luminous_flux/adjacent_mlm_ulm: reverse");
+    std::test::assert_eq_int(left_8 / 1ulm, k * 1000, "prefix_luminous_flux/adjacent_mlm_ulm: target count");
+    std::test::assert_eq_int(right_8 / 1mlm, k * 1, "prefix_luminous_flux/adjacent_mlm_ulm: source count");
+
+    // 1 clm = 10 mlm
+    let source_9: Denomination10 = 1clm;
+    let target_9: Denomination17 = 10mlm;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_luminous_flux/adjacent_clm_mlm: forward");
+    std::test::assert(right_9 == left_9, "prefix_luminous_flux/adjacent_clm_mlm: reverse");
+    std::test::assert_eq_int(left_9 / 1mlm, k * 10, "prefix_luminous_flux/adjacent_clm_mlm: target count");
+    std::test::assert_eq_int(right_9 / 1clm, k * 1, "prefix_luminous_flux/adjacent_clm_mlm: source count");
+
+    // 1 dlm = 10 clm
+    let source_10: Denomination12 = 1dlm;
+    let target_10: Denomination10 = 10clm;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_luminous_flux/adjacent_dlm_clm: forward");
+    std::test::assert(right_10 == left_10, "prefix_luminous_flux/adjacent_dlm_clm: reverse");
+    std::test::assert_eq_int(left_10 / 1clm, k * 10, "prefix_luminous_flux/adjacent_dlm_clm: target count");
+    std::test::assert_eq_int(right_10 / 1dlm, k * 1, "prefix_luminous_flux/adjacent_dlm_clm: source count");
+
+    // 1 lm = 10 dlm
+    let source_11: Denomination16 = 1lm;
+    let target_11: Denomination12 = 10dlm;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_luminous_flux/adjacent_lm_dlm: forward");
+    std::test::assert(right_11 == left_11, "prefix_luminous_flux/adjacent_lm_dlm: reverse");
+    std::test::assert_eq_int(left_11 / 1dlm, k * 10, "prefix_luminous_flux/adjacent_lm_dlm: target count");
+    std::test::assert_eq_int(right_11 / 1lm, k * 1, "prefix_luminous_flux/adjacent_lm_dlm: source count");
+
+    // 1 dalm = 10 lm
+    let source_12: Denomination11 = 1dalm;
+    let target_12: Denomination16 = 10lm;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_luminous_flux/adjacent_dalm_lm: forward");
+    std::test::assert(right_12 == left_12, "prefix_luminous_flux/adjacent_dalm_lm: reverse");
+    std::test::assert_eq_int(left_12 / 1lm, k * 10, "prefix_luminous_flux/adjacent_dalm_lm: target count");
+    std::test::assert_eq_int(right_12 / 1dalm, k * 1, "prefix_luminous_flux/adjacent_dalm_lm: source count");
+
+    // 1 hlm = 10 dalm
+    let source_13: Denomination14 = 1hlm;
+    let target_13: Denomination11 = 10dalm;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_luminous_flux/adjacent_hlm_dalm: forward");
+    std::test::assert(right_13 == left_13, "prefix_luminous_flux/adjacent_hlm_dalm: reverse");
+    std::test::assert_eq_int(left_13 / 1dalm, k * 10, "prefix_luminous_flux/adjacent_hlm_dalm: target count");
+    std::test::assert_eq_int(right_13 / 1hlm, k * 1, "prefix_luminous_flux/adjacent_hlm_dalm: source count");
+
+    // 1 klm = 10 hlm
+    let source_14: Denomination15 = 1klm;
+    let target_14: Denomination14 = 10hlm;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_luminous_flux/adjacent_klm_hlm: forward");
+    std::test::assert(right_14 == left_14, "prefix_luminous_flux/adjacent_klm_hlm: reverse");
+    std::test::assert_eq_int(left_14 / 1hlm, k * 10, "prefix_luminous_flux/adjacent_klm_hlm: target count");
+    std::test::assert_eq_int(right_14 / 1klm, k * 1, "prefix_luminous_flux/adjacent_klm_hlm: source count");
+
+    // 1 Mlm = 1000 klm
+    let source_15: Denomination2 = 1Mlm;
+    let target_15: Denomination15 = 1000klm;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_luminous_flux/adjacent_Mlm_klm: forward");
+    std::test::assert(right_15 == left_15, "prefix_luminous_flux/adjacent_Mlm_klm: reverse");
+    std::test::assert_eq_int(left_15 / 1klm, k * 1000, "prefix_luminous_flux/adjacent_Mlm_klm: target count");
+    std::test::assert_eq_int(right_15 / 1Mlm, k * 1, "prefix_luminous_flux/adjacent_Mlm_klm: source count");
+
+    // 1 Glm = 1000 Mlm
+    let source_16: Denomination1 = 1Glm;
+    let target_16: Denomination2 = 1000Mlm;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_luminous_flux/adjacent_Glm_Mlm: forward");
+    std::test::assert(right_16 == left_16, "prefix_luminous_flux/adjacent_Glm_Mlm: reverse");
+    std::test::assert_eq_int(left_16 / 1Mlm, k * 1000, "prefix_luminous_flux/adjacent_Glm_Mlm: target count");
+    std::test::assert_eq_int(right_16 / 1Glm, k * 1, "prefix_luminous_flux/adjacent_Glm_Mlm: source count");
+
+    // 1 Tlm = 1000 Glm
+    let source_17: Denomination6 = 1Tlm;
+    let target_17: Denomination1 = 1000Glm;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_luminous_flux/adjacent_Tlm_Glm: forward");
+    std::test::assert(right_17 == left_17, "prefix_luminous_flux/adjacent_Tlm_Glm: reverse");
+    std::test::assert_eq_int(left_17 / 1Glm, k * 1000, "prefix_luminous_flux/adjacent_Tlm_Glm: target count");
+    std::test::assert_eq_int(right_17 / 1Tlm, k * 1, "prefix_luminous_flux/adjacent_Tlm_Glm: source count");
+
+    // 1 Plm = 1000 Tlm
+    let source_18: Denomination3 = 1Plm;
+    let target_18: Denomination6 = 1000Tlm;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_luminous_flux/adjacent_Plm_Tlm: forward");
+    std::test::assert(right_18 == left_18, "prefix_luminous_flux/adjacent_Plm_Tlm: reverse");
+    std::test::assert_eq_int(left_18 / 1Tlm, k * 1000, "prefix_luminous_flux/adjacent_Plm_Tlm: target count");
+    std::test::assert_eq_int(right_18 / 1Plm, k * 1, "prefix_luminous_flux/adjacent_Plm_Tlm: source count");
+
+    // 1 Elm = 1000 Plm
+    let source_19: Denomination0 = 1Elm;
+    let target_19: Denomination3 = 1000Plm;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_luminous_flux/adjacent_Elm_Plm: forward");
+    std::test::assert(right_19 == left_19, "prefix_luminous_flux/adjacent_Elm_Plm: reverse");
+    std::test::assert_eq_int(left_19 / 1Plm, k * 1000, "prefix_luminous_flux/adjacent_Elm_Plm: target count");
+    std::test::assert_eq_int(right_19 / 1Elm, k * 1, "prefix_luminous_flux/adjacent_Elm_Plm: source count");
+
+    // 1 Zlm = 1000 Elm
+    let source_20: Denomination8 = 1Zlm;
+    let target_20: Denomination0 = 1000Elm;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_luminous_flux/adjacent_Zlm_Elm: forward");
+    std::test::assert(right_20 == left_20, "prefix_luminous_flux/adjacent_Zlm_Elm: reverse");
+    std::test::assert_eq_int(left_20 / 1Elm, k * 1000, "prefix_luminous_flux/adjacent_Zlm_Elm: target count");
+    std::test::assert_eq_int(right_20 / 1Zlm, k * 1, "prefix_luminous_flux/adjacent_Zlm_Elm: source count");
+
+    // 1 Ylm = 1000 Zlm
+    let source_21: Denomination7 = 1Ylm;
+    let target_21: Denomination8 = 1000Zlm;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_luminous_flux/adjacent_Ylm_Zlm: forward");
+    std::test::assert(right_21 == left_21, "prefix_luminous_flux/adjacent_Ylm_Zlm: reverse");
+    std::test::assert_eq_int(left_21 / 1Zlm, k * 1000, "prefix_luminous_flux/adjacent_Ylm_Zlm: target count");
+    std::test::assert_eq_int(right_21 / 1Ylm, k * 1, "prefix_luminous_flux/adjacent_Ylm_Zlm: source count");
+
+    // 1 Rlm = 1000 Ylm
+    let source_22: Denomination5 = 1Rlm;
+    let target_22: Denomination7 = 1000Ylm;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_luminous_flux/adjacent_Rlm_Ylm: forward");
+    std::test::assert(right_22 == left_22, "prefix_luminous_flux/adjacent_Rlm_Ylm: reverse");
+    std::test::assert_eq_int(left_22 / 1Ylm, k * 1000, "prefix_luminous_flux/adjacent_Rlm_Ylm: target count");
+    std::test::assert_eq_int(right_22 / 1Rlm, k * 1, "prefix_luminous_flux/adjacent_Rlm_Ylm: source count");
+
+    // 1 Qlm = 1000 Rlm
+    let source_23: Denomination4 = 1Qlm;
+    let target_23: Denomination5 = 1000Rlm;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_luminous_flux/adjacent_Qlm_Rlm: forward");
+    std::test::assert(right_23 == left_23, "prefix_luminous_flux/adjacent_Qlm_Rlm: reverse");
+    std::test::assert_eq_int(left_23 / 1Rlm, k * 1000, "prefix_luminous_flux/adjacent_Qlm_Rlm: target count");
+    std::test::assert_eq_int(right_23 / 1Qlm, k * 1, "prefix_luminous_flux/adjacent_Qlm_Rlm: source count");
+
+    // 1000000000000000000 alm = 1 lm
+    let source_24: Denomination9 = 1000000000000000000alm;
+    let target_24: Denomination16 = 1lm;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_luminous_flux/base_anchor_alm: forward");
+    std::test::assert(right_24 == left_24, "prefix_luminous_flux/base_anchor_alm: reverse");
+    std::test::assert_eq_int(left_24 / 1lm, k * 1, "prefix_luminous_flux/base_anchor_alm: target count");
+    std::test::assert_eq_int(right_24 / 1alm, k * 1000000000000000000, "prefix_luminous_flux/base_anchor_alm: source count");
+
+    // 1000000000000000 flm = 1 lm
+    let source_25: Denomination13 = 1000000000000000flm;
+    let target_25: Denomination16 = 1lm;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_luminous_flux/base_anchor_flm: forward");
+    std::test::assert(right_25 == left_25, "prefix_luminous_flux/base_anchor_flm: reverse");
+    std::test::assert_eq_int(left_25 / 1lm, k * 1, "prefix_luminous_flux/base_anchor_flm: target count");
+    std::test::assert_eq_int(right_25 / 1flm, k * 1000000000000000, "prefix_luminous_flux/base_anchor_flm: source count");
+
+    // 1000000000000 plm = 1 lm
+    let source_26: Denomination19 = 1000000000000plm;
+    let target_26: Denomination16 = 1lm;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_luminous_flux/base_anchor_plm: forward");
+    std::test::assert(right_26 == left_26, "prefix_luminous_flux/base_anchor_plm: reverse");
+    std::test::assert_eq_int(left_26 / 1lm, k * 1, "prefix_luminous_flux/base_anchor_plm: target count");
+    std::test::assert_eq_int(right_26 / 1plm, k * 1000000000000, "prefix_luminous_flux/base_anchor_plm: source count");
+
+    // 1000000000 nlm = 1 lm
+    let source_27: Denomination18 = 1000000000nlm;
+    let target_27: Denomination16 = 1lm;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_luminous_flux/base_anchor_nlm: forward");
+    std::test::assert(right_27 == left_27, "prefix_luminous_flux/base_anchor_nlm: reverse");
+    std::test::assert_eq_int(left_27 / 1lm, k * 1, "prefix_luminous_flux/base_anchor_nlm: target count");
+    std::test::assert_eq_int(right_27 / 1nlm, k * 1000000000, "prefix_luminous_flux/base_anchor_nlm: source count");
+
+    // 1000000 ulm = 1 lm
+    let source_28: Denomination22 = 1000000ulm;
+    let target_28: Denomination16 = 1lm;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_luminous_flux/base_anchor_ulm: forward");
+    std::test::assert(right_28 == left_28, "prefix_luminous_flux/base_anchor_ulm: reverse");
+    std::test::assert_eq_int(left_28 / 1lm, k * 1, "prefix_luminous_flux/base_anchor_ulm: target count");
+    std::test::assert_eq_int(right_28 / 1ulm, k * 1000000, "prefix_luminous_flux/base_anchor_ulm: source count");
+
+    // 1000 mlm = 1 lm
+    let source_29: Denomination17 = 1000mlm;
+    let target_29: Denomination16 = 1lm;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_luminous_flux/base_anchor_mlm: forward");
+    std::test::assert(right_29 == left_29, "prefix_luminous_flux/base_anchor_mlm: reverse");
+    std::test::assert_eq_int(left_29 / 1lm, k * 1, "prefix_luminous_flux/base_anchor_mlm: target count");
+    std::test::assert_eq_int(right_29 / 1mlm, k * 1000, "prefix_luminous_flux/base_anchor_mlm: source count");
+
+    // 100 clm = 1 lm
+    let source_30: Denomination10 = 100clm;
+    let target_30: Denomination16 = 1lm;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_luminous_flux/base_anchor_clm: forward");
+    std::test::assert(right_30 == left_30, "prefix_luminous_flux/base_anchor_clm: reverse");
+    std::test::assert_eq_int(left_30 / 1lm, k * 1, "prefix_luminous_flux/base_anchor_clm: target count");
+    std::test::assert_eq_int(right_30 / 1clm, k * 100, "prefix_luminous_flux/base_anchor_clm: source count");
+
+    // 1 hlm = 100 lm
+    let source_31: Denomination14 = 1hlm;
+    let target_31: Denomination16 = 100lm;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_luminous_flux/base_anchor_hlm: forward");
+    std::test::assert(right_31 == left_31, "prefix_luminous_flux/base_anchor_hlm: reverse");
+    std::test::assert_eq_int(left_31 / 1lm, k * 100, "prefix_luminous_flux/base_anchor_hlm: target count");
+    std::test::assert_eq_int(right_31 / 1hlm, k * 1, "prefix_luminous_flux/base_anchor_hlm: source count");
+
+    // 1 klm = 1000 lm
+    let source_32: Denomination15 = 1klm;
+    let target_32: Denomination16 = 1000lm;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_luminous_flux/base_anchor_klm: forward");
+    std::test::assert(right_32 == left_32, "prefix_luminous_flux/base_anchor_klm: reverse");
+    std::test::assert_eq_int(left_32 / 1lm, k * 1000, "prefix_luminous_flux/base_anchor_klm: target count");
+    std::test::assert_eq_int(right_32 / 1klm, k * 1, "prefix_luminous_flux/base_anchor_klm: source count");
+
+    // 1 Mlm = 1000000 lm
+    let source_33: Denomination2 = 1Mlm;
+    let target_33: Denomination16 = 1000000lm;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_luminous_flux/base_anchor_Mlm: forward");
+    std::test::assert(right_33 == left_33, "prefix_luminous_flux/base_anchor_Mlm: reverse");
+    std::test::assert_eq_int(left_33 / 1lm, k * 1000000, "prefix_luminous_flux/base_anchor_Mlm: target count");
+    std::test::assert_eq_int(right_33 / 1Mlm, k * 1, "prefix_luminous_flux/base_anchor_Mlm: source count");
+
+    // 1 Glm = 1000000000 lm
+    let source_34: Denomination1 = 1Glm;
+    let target_34: Denomination16 = 1000000000lm;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_luminous_flux/base_anchor_Glm: forward");
+    std::test::assert(right_34 == left_34, "prefix_luminous_flux/base_anchor_Glm: reverse");
+    std::test::assert_eq_int(left_34 / 1lm, k * 1000000000, "prefix_luminous_flux/base_anchor_Glm: target count");
+    std::test::assert_eq_int(right_34 / 1Glm, k * 1, "prefix_luminous_flux/base_anchor_Glm: source count");
+
+    // 1 Tlm = 1000000000000 lm
+    let source_35: Denomination6 = 1Tlm;
+    let target_35: Denomination16 = 1000000000000lm;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_luminous_flux/base_anchor_Tlm: forward");
+    std::test::assert(right_35 == left_35, "prefix_luminous_flux/base_anchor_Tlm: reverse");
+    std::test::assert_eq_int(left_35 / 1lm, k * 1000000000000, "prefix_luminous_flux/base_anchor_Tlm: target count");
+    std::test::assert_eq_int(right_35 / 1Tlm, k * 1, "prefix_luminous_flux/base_anchor_Tlm: source count");
+
+    // 1 Plm = 1000000000000000 lm
+    let source_36: Denomination3 = 1Plm;
+    let target_36: Denomination16 = 1000000000000000lm;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_luminous_flux/base_anchor_Plm: forward");
+    std::test::assert(right_36 == left_36, "prefix_luminous_flux/base_anchor_Plm: reverse");
+    std::test::assert_eq_int(left_36 / 1lm, k * 1000000000000000, "prefix_luminous_flux/base_anchor_Plm: target count");
+    std::test::assert_eq_int(right_36 / 1Plm, k * 1, "prefix_luminous_flux/base_anchor_Plm: source count");
+
+    // 1 Elm = 1000000000000000000 lm
+    let source_37: Denomination0 = 1Elm;
+    let target_37: Denomination16 = 1000000000000000000lm;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_luminous_flux/base_anchor_Elm: forward");
+    std::test::assert(right_37 == left_37, "prefix_luminous_flux/base_anchor_Elm: reverse");
+    std::test::assert_eq_int(left_37 / 1lm, k * 1000000000000000000, "prefix_luminous_flux/base_anchor_Elm: target count");
+    std::test::assert_eq_int(right_37 / 1Elm, k * 1, "prefix_luminous_flux/base_anchor_Elm: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

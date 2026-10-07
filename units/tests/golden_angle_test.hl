@@ -1,0 +1,83 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// angle: 6 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in turn;
+
+type Denomination0 = GoldenQuantity in arcmin;
+type Denomination1 = GoldenQuantity in arcsec;
+type Denomination2 = GoldenQuantity in degree;
+type Denomination3 = GoldenQuantity in gradian;
+type Denomination4 = GoldenQuantity in turn;
+
+fn check_runtime(k: Int) {
+    // 1 turn = 360 degree
+    let source_0: Denomination4 = 1turn;
+    let target_0: Denomination2 = 360degree;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "angle/turn_to_degree: forward");
+    std::test::assert(right_0 == left_0, "angle/turn_to_degree: reverse");
+    std::test::assert_eq_int(left_0 / 1degree, k * 360, "angle/turn_to_degree: target count");
+    std::test::assert_eq_int(right_0 / 1turn, k * 1, "angle/turn_to_degree: source count");
+
+    // 1 turn = 400 gradian
+    let source_1: Denomination4 = 1turn;
+    let target_1: Denomination3 = 400gradian;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "angle/turn_to_gradian: forward");
+    std::test::assert(right_1 == left_1, "angle/turn_to_gradian: reverse");
+    std::test::assert_eq_int(left_1 / 1gradian, k * 400, "angle/turn_to_gradian: target count");
+    std::test::assert_eq_int(right_1 / 1turn, k * 1, "angle/turn_to_gradian: source count");
+
+    // 1 turn = 21600 arcmin
+    let source_2: Denomination4 = 1turn;
+    let target_2: Denomination0 = 21600arcmin;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "angle/turn_to_arcmin: forward");
+    std::test::assert(right_2 == left_2, "angle/turn_to_arcmin: reverse");
+    std::test::assert_eq_int(left_2 / 1arcmin, k * 21600, "angle/turn_to_arcmin: target count");
+    std::test::assert_eq_int(right_2 / 1turn, k * 1, "angle/turn_to_arcmin: source count");
+
+    // 1 turn = 1296000 arcsec
+    let source_3: Denomination4 = 1turn;
+    let target_3: Denomination1 = 1296000arcsec;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "angle/turn_to_arcsec: forward");
+    std::test::assert(right_3 == left_3, "angle/turn_to_arcsec: reverse");
+    std::test::assert_eq_int(left_3 / 1arcsec, k * 1296000, "angle/turn_to_arcsec: target count");
+    std::test::assert_eq_int(right_3 / 1turn, k * 1, "angle/turn_to_arcsec: source count");
+
+    // 1 gradian = 54 arcmin
+    let source_4: Denomination3 = 1gradian;
+    let target_4: Denomination0 = 54arcmin;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "angle/gradian_to_arcmin: forward");
+    std::test::assert(right_4 == left_4, "angle/gradian_to_arcmin: reverse");
+    std::test::assert_eq_int(left_4 / 1arcmin, k * 54, "angle/gradian_to_arcmin: target count");
+    std::test::assert_eq_int(right_4 / 1gradian, k * 1, "angle/gradian_to_arcmin: source count");
+
+    // 1 degree = 3600 arcsec
+    let source_5: Denomination2 = 1degree;
+    let target_5: Denomination1 = 3600arcsec;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "angle/degree_to_arcsec: forward");
+    std::test::assert(right_5 == left_5, "angle/degree_to_arcsec: reverse");
+    std::test::assert_eq_int(left_5 / 1arcsec, k * 3600, "angle/degree_to_arcsec: target count");
+    std::test::assert_eq_int(right_5 / 1degree, k * 1, "angle/degree_to_arcsec: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

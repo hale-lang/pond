@@ -1,0 +1,194 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// area: 16 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in km2;
+
+type Denomination0 = GoldenQuantity in acre;
+type Denomination1 = GoldenQuantity in angstrom2;
+type Denomination2 = GoldenQuantity in barn;
+type Denomination3 = GoldenQuantity in cm2;
+type Denomination4 = GoldenQuantity in dm2;
+type Denomination5 = GoldenQuantity in ft2;
+type Denomination6 = GoldenQuantity in ha;
+type Denomination7 = GoldenQuantity in in2;
+type Denomination8 = GoldenQuantity in km2;
+type Denomination9 = GoldenQuantity in m2;
+type Denomination10 = GoldenQuantity in mi2;
+type Denomination11 = GoldenQuantity in mm2;
+type Denomination12 = GoldenQuantity in nm2;
+type Denomination13 = GoldenQuantity in pm2;
+type Denomination14 = GoldenQuantity in um2;
+type Denomination15 = GoldenQuantity in yd2;
+
+fn check_runtime(k: Int) {
+    // 2500 in2 = 16129 cm2
+    let source_0: Denomination7 = 2500in2;
+    let target_0: Denomination3 = 16129cm2;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "area/in2_to_cm2: forward");
+    std::test::assert(right_0 == left_0, "area/in2_to_cm2: reverse");
+    std::test::assert_eq_int(left_0 / 1cm2, k * 16129, "area/in2_to_cm2: target count");
+    std::test::assert_eq_int(right_0 / 1in2, k * 2500, "area/in2_to_cm2: source count");
+
+    // 625 ft2 = 580644 cm2
+    let source_1: Denomination5 = 625ft2;
+    let target_1: Denomination3 = 580644cm2;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "area/ft2_to_cm2: forward");
+    std::test::assert(right_1 == left_1, "area/ft2_to_cm2: reverse");
+    std::test::assert_eq_int(left_1 / 1cm2, k * 580644, "area/ft2_to_cm2: target count");
+    std::test::assert_eq_int(right_1 / 1ft2, k * 625, "area/ft2_to_cm2: source count");
+
+    // 1 yd2 = 9 ft2
+    let source_2: Denomination15 = 1yd2;
+    let target_2: Denomination5 = 9ft2;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "area/yd2_to_ft2: forward");
+    std::test::assert(right_2 == left_2, "area/yd2_to_ft2: reverse");
+    std::test::assert_eq_int(left_2 / 1ft2, k * 9, "area/yd2_to_ft2: target count");
+    std::test::assert_eq_int(right_2 / 1yd2, k * 1, "area/yd2_to_ft2: source count");
+
+    // 1 mi2 = 640 acre
+    let source_3: Denomination10 = 1mi2;
+    let target_3: Denomination0 = 640acre;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "area/mi2_to_acre: forward");
+    std::test::assert(right_3 == left_3, "area/mi2_to_acre: reverse");
+    std::test::assert_eq_int(left_3 / 1acre, k * 640, "area/mi2_to_acre: target count");
+    std::test::assert_eq_int(right_3 / 1mi2, k * 1, "area/mi2_to_acre: source count");
+
+    // 390625000 acre = 158080329 ha
+    let source_4: Denomination0 = 390625000acre;
+    let target_4: Denomination6 = 158080329ha;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "area/acre_to_ha: forward");
+    std::test::assert(right_4 == left_4, "area/acre_to_ha: reverse");
+    std::test::assert_eq_int(left_4 / 1ha, k * 158080329, "area/acre_to_ha: target count");
+    std::test::assert_eq_int(right_4 / 1acre, k * 390625000, "area/acre_to_ha: source count");
+
+    // 9765625 mi2 = 2529285264 ha
+    let source_5: Denomination10 = 9765625mi2;
+    let target_5: Denomination6 = 2529285264ha;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "area/mi2_to_ha: forward");
+    std::test::assert(right_5 == left_5, "area/mi2_to_ha: reverse");
+    std::test::assert_eq_int(left_5 / 1ha, k * 2529285264, "area/mi2_to_ha: target count");
+    std::test::assert_eq_int(right_5 / 1mi2, k * 9765625, "area/mi2_to_ha: source count");
+
+    // 1 km2 = 100 ha
+    let source_6: Denomination8 = 1km2;
+    let target_6: Denomination6 = 100ha;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "area/km2_to_ha: forward");
+    std::test::assert(right_6 == left_6, "area/km2_to_ha: reverse");
+    std::test::assert_eq_int(left_6 / 1ha, k * 100, "area/km2_to_ha: target count");
+    std::test::assert_eq_int(right_6 / 1km2, k * 1, "area/km2_to_ha: source count");
+
+    // 1 m2 = 1000000 mm2
+    let source_7: Denomination9 = 1m2;
+    let target_7: Denomination11 = 1000000mm2;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "area/m2_to_mm2: forward");
+    std::test::assert(right_7 == left_7, "area/m2_to_mm2: reverse");
+    std::test::assert_eq_int(left_7 / 1mm2, k * 1000000, "area/m2_to_mm2: target count");
+    std::test::assert_eq_int(right_7 / 1m2, k * 1, "area/m2_to_mm2: source count");
+
+    // 1 cm2 = 100 mm2
+    let source_8: Denomination3 = 1cm2;
+    let target_8: Denomination11 = 100mm2;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "area/cm2_to_mm2: forward");
+    std::test::assert(right_8 == left_8, "area/cm2_to_mm2: reverse");
+    std::test::assert_eq_int(left_8 / 1mm2, k * 100, "area/cm2_to_mm2: target count");
+    std::test::assert_eq_int(right_8 / 1cm2, k * 1, "area/cm2_to_mm2: source count");
+
+    // 1 um2 = 1000000 nm2
+    let source_9: Denomination14 = 1um2;
+    let target_9: Denomination12 = 1000000nm2;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "area/um2_to_nm2: forward");
+    std::test::assert(right_9 == left_9, "area/um2_to_nm2: reverse");
+    std::test::assert_eq_int(left_9 / 1nm2, k * 1000000, "area/um2_to_nm2: target count");
+    std::test::assert_eq_int(right_9 / 1um2, k * 1, "area/um2_to_nm2: source count");
+
+    // 1 nm2 = 1000000 pm2
+    let source_10: Denomination12 = 1nm2;
+    let target_10: Denomination13 = 1000000pm2;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "area/nm2_to_pm2: forward");
+    std::test::assert(right_10 == left_10, "area/nm2_to_pm2: reverse");
+    std::test::assert_eq_int(left_10 / 1pm2, k * 1000000, "area/nm2_to_pm2: target count");
+    std::test::assert_eq_int(right_10 / 1nm2, k * 1, "area/nm2_to_pm2: source count");
+
+    // 1 angstrom2 = 100000000 barn
+    let source_11: Denomination1 = 1angstrom2;
+    let target_11: Denomination2 = 100000000barn;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "area/angstrom2_to_barn: forward");
+    std::test::assert(right_11 == left_11, "area/angstrom2_to_barn: reverse");
+    std::test::assert_eq_int(left_11 / 1barn, k * 100000000, "area/angstrom2_to_barn: target count");
+    std::test::assert_eq_int(right_11 / 1angstrom2, k * 1, "area/angstrom2_to_barn: source count");
+
+    // 1 pm2 = 10000 barn
+    let source_12: Denomination13 = 1pm2;
+    let target_12: Denomination2 = 10000barn;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "area/pm2_to_barn: forward");
+    std::test::assert(right_12 == left_12, "area/pm2_to_barn: reverse");
+    std::test::assert_eq_int(left_12 / 1barn, k * 10000, "area/pm2_to_barn: target count");
+    std::test::assert_eq_int(right_12 / 1pm2, k * 1, "area/pm2_to_barn: source count");
+
+    // 1 cm2 = 100000000 um2
+    let source_13: Denomination3 = 1cm2;
+    let target_13: Denomination14 = 100000000um2;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "area/cm2_to_um2: forward");
+    std::test::assert(right_13 == left_13, "area/cm2_to_um2: reverse");
+    std::test::assert_eq_int(left_13 / 1um2, k * 100000000, "area/cm2_to_um2: target count");
+    std::test::assert_eq_int(right_13 / 1cm2, k * 1, "area/cm2_to_um2: source count");
+
+    // 1 dm2 = 100 cm2
+    let source_14: Denomination4 = 1dm2;
+    let target_14: Denomination3 = 100cm2;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "area/dm2_to_cm2: forward");
+    std::test::assert(right_14 == left_14, "area/dm2_to_cm2: reverse");
+    std::test::assert_eq_int(left_14 / 1cm2, k * 100, "area/dm2_to_cm2: target count");
+    std::test::assert_eq_int(right_14 / 1dm2, k * 1, "area/dm2_to_cm2: source count");
+
+    // 1 ha = 10000 m2
+    let source_15: Denomination6 = 1ha;
+    let target_15: Denomination9 = 10000m2;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "area/ha_to_m2: forward");
+    std::test::assert(right_15 == left_15, "area/ha_to_m2: reverse");
+    std::test::assert_eq_int(left_15 / 1m2, k * 10000, "area/ha_to_m2: target count");
+    std::test::assert_eq_int(right_15 / 1ha, k * 1, "area/ha_to_m2: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

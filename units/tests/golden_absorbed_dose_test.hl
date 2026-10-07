@@ -1,0 +1,41 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// absorbed_dose: 2 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QGy;
+
+type Denomination0 = GoldenQuantity in Gy;
+type Denomination1 = GoldenQuantity in mGy;
+type Denomination2 = GoldenQuantity in radiation_rad;
+
+fn check_runtime(k: Int) {
+    // 1 Gy = 100 radiation_rad
+    let source_0: Denomination0 = 1Gy;
+    let target_0: Denomination2 = 100radiation_rad;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "absorbed_dose/Gy_to_radiation_rad: forward");
+    std::test::assert(right_0 == left_0, "absorbed_dose/Gy_to_radiation_rad: reverse");
+    std::test::assert_eq_int(left_0 / 1radiation_rad, k * 100, "absorbed_dose/Gy_to_radiation_rad: target count");
+    std::test::assert_eq_int(right_0 / 1Gy, k * 1, "absorbed_dose/Gy_to_radiation_rad: source count");
+
+    // 1 radiation_rad = 10 mGy
+    let source_1: Denomination2 = 1radiation_rad;
+    let target_1: Denomination1 = 10mGy;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "absorbed_dose/radiation_rad_to_mGy: forward");
+    std::test::assert(right_1 == left_1, "absorbed_dose/radiation_rad_to_mGy: reverse");
+    std::test::assert_eq_int(left_1 / 1mGy, k * 10, "absorbed_dose/radiation_rad_to_mGy: target count");
+    std::test::assert_eq_int(right_1 / 1radiation_rad, k * 1, "absorbed_dose/radiation_rad_to_mGy: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

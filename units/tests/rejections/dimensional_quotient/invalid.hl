@@ -1,0 +1,2 @@
+import "../../../quantities" as q;
+fn main() { let velocity = 10m / 2s; }

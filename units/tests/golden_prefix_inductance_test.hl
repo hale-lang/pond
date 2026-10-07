@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_inductance: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QH;
+
+type Denomination0 = GoldenQuantity in EH;
+type Denomination1 = GoldenQuantity in GH;
+type Denomination2 = GoldenQuantity in H;
+type Denomination3 = GoldenQuantity in MH;
+type Denomination4 = GoldenQuantity in PH;
+type Denomination5 = GoldenQuantity in QH;
+type Denomination6 = GoldenQuantity in RH;
+type Denomination7 = GoldenQuantity in TH;
+type Denomination8 = GoldenQuantity in YH;
+type Denomination9 = GoldenQuantity in ZH;
+type Denomination10 = GoldenQuantity in aH;
+type Denomination11 = GoldenQuantity in cH;
+type Denomination12 = GoldenQuantity in dH;
+type Denomination13 = GoldenQuantity in daH;
+type Denomination14 = GoldenQuantity in fH;
+type Denomination15 = GoldenQuantity in hH;
+type Denomination16 = GoldenQuantity in kH;
+type Denomination17 = GoldenQuantity in mH;
+type Denomination18 = GoldenQuantity in nH;
+type Denomination19 = GoldenQuantity in pH;
+type Denomination20 = GoldenQuantity in qH;
+type Denomination21 = GoldenQuantity in rH;
+type Denomination22 = GoldenQuantity in uH;
+type Denomination23 = GoldenQuantity in yH;
+type Denomination24 = GoldenQuantity in zH;
+
+fn check_runtime(k: Int) {
+    // 1 rH = 1000 qH
+    let source_0: Denomination21 = 1rH;
+    let target_0: Denomination20 = 1000qH;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_inductance/adjacent_rH_qH: forward");
+    std::test::assert(right_0 == left_0, "prefix_inductance/adjacent_rH_qH: reverse");
+    std::test::assert_eq_int(left_0 / 1qH, k * 1000, "prefix_inductance/adjacent_rH_qH: target count");
+    std::test::assert_eq_int(right_0 / 1rH, k * 1, "prefix_inductance/adjacent_rH_qH: source count");
+
+    // 1 yH = 1000 rH
+    let source_1: Denomination23 = 1yH;
+    let target_1: Denomination21 = 1000rH;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_inductance/adjacent_yH_rH: forward");
+    std::test::assert(right_1 == left_1, "prefix_inductance/adjacent_yH_rH: reverse");
+    std::test::assert_eq_int(left_1 / 1rH, k * 1000, "prefix_inductance/adjacent_yH_rH: target count");
+    std::test::assert_eq_int(right_1 / 1yH, k * 1, "prefix_inductance/adjacent_yH_rH: source count");
+
+    // 1 zH = 1000 yH
+    let source_2: Denomination24 = 1zH;
+    let target_2: Denomination23 = 1000yH;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_inductance/adjacent_zH_yH: forward");
+    std::test::assert(right_2 == left_2, "prefix_inductance/adjacent_zH_yH: reverse");
+    std::test::assert_eq_int(left_2 / 1yH, k * 1000, "prefix_inductance/adjacent_zH_yH: target count");
+    std::test::assert_eq_int(right_2 / 1zH, k * 1, "prefix_inductance/adjacent_zH_yH: source count");
+
+    // 1 aH = 1000 zH
+    let source_3: Denomination10 = 1aH;
+    let target_3: Denomination24 = 1000zH;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_inductance/adjacent_aH_zH: forward");
+    std::test::assert(right_3 == left_3, "prefix_inductance/adjacent_aH_zH: reverse");
+    std::test::assert_eq_int(left_3 / 1zH, k * 1000, "prefix_inductance/adjacent_aH_zH: target count");
+    std::test::assert_eq_int(right_3 / 1aH, k * 1, "prefix_inductance/adjacent_aH_zH: source count");
+
+    // 1 fH = 1000 aH
+    let source_4: Denomination14 = 1fH;
+    let target_4: Denomination10 = 1000aH;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_inductance/adjacent_fH_aH: forward");
+    std::test::assert(right_4 == left_4, "prefix_inductance/adjacent_fH_aH: reverse");
+    std::test::assert_eq_int(left_4 / 1aH, k * 1000, "prefix_inductance/adjacent_fH_aH: target count");
+    std::test::assert_eq_int(right_4 / 1fH, k * 1, "prefix_inductance/adjacent_fH_aH: source count");
+
+    // 1 pH = 1000 fH
+    let source_5: Denomination19 = 1pH;
+    let target_5: Denomination14 = 1000fH;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_inductance/adjacent_pH_fH: forward");
+    std::test::assert(right_5 == left_5, "prefix_inductance/adjacent_pH_fH: reverse");
+    std::test::assert_eq_int(left_5 / 1fH, k * 1000, "prefix_inductance/adjacent_pH_fH: target count");
+    std::test::assert_eq_int(right_5 / 1pH, k * 1, "prefix_inductance/adjacent_pH_fH: source count");
+
+    // 1 nH = 1000 pH
+    let source_6: Denomination18 = 1nH;
+    let target_6: Denomination19 = 1000pH;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_inductance/adjacent_nH_pH: forward");
+    std::test::assert(right_6 == left_6, "prefix_inductance/adjacent_nH_pH: reverse");
+    std::test::assert_eq_int(left_6 / 1pH, k * 1000, "prefix_inductance/adjacent_nH_pH: target count");
+    std::test::assert_eq_int(right_6 / 1nH, k * 1, "prefix_inductance/adjacent_nH_pH: source count");
+
+    // 1 uH = 1000 nH
+    let source_7: Denomination22 = 1uH;
+    let target_7: Denomination18 = 1000nH;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_inductance/adjacent_uH_nH: forward");
+    std::test::assert(right_7 == left_7, "prefix_inductance/adjacent_uH_nH: reverse");
+    std::test::assert_eq_int(left_7 / 1nH, k * 1000, "prefix_inductance/adjacent_uH_nH: target count");
+    std::test::assert_eq_int(right_7 / 1uH, k * 1, "prefix_inductance/adjacent_uH_nH: source count");
+
+    // 1 mH = 1000 uH
+    let source_8: Denomination17 = 1mH;
+    let target_8: Denomination22 = 1000uH;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_inductance/adjacent_mH_uH: forward");
+    std::test::assert(right_8 == left_8, "prefix_inductance/adjacent_mH_uH: reverse");
+    std::test::assert_eq_int(left_8 / 1uH, k * 1000, "prefix_inductance/adjacent_mH_uH: target count");
+    std::test::assert_eq_int(right_8 / 1mH, k * 1, "prefix_inductance/adjacent_mH_uH: source count");
+
+    // 1 cH = 10 mH
+    let source_9: Denomination11 = 1cH;
+    let target_9: Denomination17 = 10mH;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_inductance/adjacent_cH_mH: forward");
+    std::test::assert(right_9 == left_9, "prefix_inductance/adjacent_cH_mH: reverse");
+    std::test::assert_eq_int(left_9 / 1mH, k * 10, "prefix_inductance/adjacent_cH_mH: target count");
+    std::test::assert_eq_int(right_9 / 1cH, k * 1, "prefix_inductance/adjacent_cH_mH: source count");
+
+    // 1 dH = 10 cH
+    let source_10: Denomination12 = 1dH;
+    let target_10: Denomination11 = 10cH;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_inductance/adjacent_dH_cH: forward");
+    std::test::assert(right_10 == left_10, "prefix_inductance/adjacent_dH_cH: reverse");
+    std::test::assert_eq_int(left_10 / 1cH, k * 10, "prefix_inductance/adjacent_dH_cH: target count");
+    std::test::assert_eq_int(right_10 / 1dH, k * 1, "prefix_inductance/adjacent_dH_cH: source count");
+
+    // 1 H = 10 dH
+    let source_11: Denomination2 = 1H;
+    let target_11: Denomination12 = 10dH;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_inductance/adjacent_H_dH: forward");
+    std::test::assert(right_11 == left_11, "prefix_inductance/adjacent_H_dH: reverse");
+    std::test::assert_eq_int(left_11 / 1dH, k * 10, "prefix_inductance/adjacent_H_dH: target count");
+    std::test::assert_eq_int(right_11 / 1H, k * 1, "prefix_inductance/adjacent_H_dH: source count");
+
+    // 1 daH = 10 H
+    let source_12: Denomination13 = 1daH;
+    let target_12: Denomination2 = 10H;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_inductance/adjacent_daH_H: forward");
+    std::test::assert(right_12 == left_12, "prefix_inductance/adjacent_daH_H: reverse");
+    std::test::assert_eq_int(left_12 / 1H, k * 10, "prefix_inductance/adjacent_daH_H: target count");
+    std::test::assert_eq_int(right_12 / 1daH, k * 1, "prefix_inductance/adjacent_daH_H: source count");
+
+    // 1 hH = 10 daH
+    let source_13: Denomination15 = 1hH;
+    let target_13: Denomination13 = 10daH;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_inductance/adjacent_hH_daH: forward");
+    std::test::assert(right_13 == left_13, "prefix_inductance/adjacent_hH_daH: reverse");
+    std::test::assert_eq_int(left_13 / 1daH, k * 10, "prefix_inductance/adjacent_hH_daH: target count");
+    std::test::assert_eq_int(right_13 / 1hH, k * 1, "prefix_inductance/adjacent_hH_daH: source count");
+
+    // 1 kH = 10 hH
+    let source_14: Denomination16 = 1kH;
+    let target_14: Denomination15 = 10hH;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_inductance/adjacent_kH_hH: forward");
+    std::test::assert(right_14 == left_14, "prefix_inductance/adjacent_kH_hH: reverse");
+    std::test::assert_eq_int(left_14 / 1hH, k * 10, "prefix_inductance/adjacent_kH_hH: target count");
+    std::test::assert_eq_int(right_14 / 1kH, k * 1, "prefix_inductance/adjacent_kH_hH: source count");
+
+    // 1 MH = 1000 kH
+    let source_15: Denomination3 = 1MH;
+    let target_15: Denomination16 = 1000kH;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_inductance/adjacent_MH_kH: forward");
+    std::test::assert(right_15 == left_15, "prefix_inductance/adjacent_MH_kH: reverse");
+    std::test::assert_eq_int(left_15 / 1kH, k * 1000, "prefix_inductance/adjacent_MH_kH: target count");
+    std::test::assert_eq_int(right_15 / 1MH, k * 1, "prefix_inductance/adjacent_MH_kH: source count");
+
+    // 1 GH = 1000 MH
+    let source_16: Denomination1 = 1GH;
+    let target_16: Denomination3 = 1000MH;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_inductance/adjacent_GH_MH: forward");
+    std::test::assert(right_16 == left_16, "prefix_inductance/adjacent_GH_MH: reverse");
+    std::test::assert_eq_int(left_16 / 1MH, k * 1000, "prefix_inductance/adjacent_GH_MH: target count");
+    std::test::assert_eq_int(right_16 / 1GH, k * 1, "prefix_inductance/adjacent_GH_MH: source count");
+
+    // 1 TH = 1000 GH
+    let source_17: Denomination7 = 1TH;
+    let target_17: Denomination1 = 1000GH;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_inductance/adjacent_TH_GH: forward");
+    std::test::assert(right_17 == left_17, "prefix_inductance/adjacent_TH_GH: reverse");
+    std::test::assert_eq_int(left_17 / 1GH, k * 1000, "prefix_inductance/adjacent_TH_GH: target count");
+    std::test::assert_eq_int(right_17 / 1TH, k * 1, "prefix_inductance/adjacent_TH_GH: source count");
+
+    // 1 PH = 1000 TH
+    let source_18: Denomination4 = 1PH;
+    let target_18: Denomination7 = 1000TH;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_inductance/adjacent_PH_TH: forward");
+    std::test::assert(right_18 == left_18, "prefix_inductance/adjacent_PH_TH: reverse");
+    std::test::assert_eq_int(left_18 / 1TH, k * 1000, "prefix_inductance/adjacent_PH_TH: target count");
+    std::test::assert_eq_int(right_18 / 1PH, k * 1, "prefix_inductance/adjacent_PH_TH: source count");
+
+    // 1 EH = 1000 PH
+    let source_19: Denomination0 = 1EH;
+    let target_19: Denomination4 = 1000PH;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_inductance/adjacent_EH_PH: forward");
+    std::test::assert(right_19 == left_19, "prefix_inductance/adjacent_EH_PH: reverse");
+    std::test::assert_eq_int(left_19 / 1PH, k * 1000, "prefix_inductance/adjacent_EH_PH: target count");
+    std::test::assert_eq_int(right_19 / 1EH, k * 1, "prefix_inductance/adjacent_EH_PH: source count");
+
+    // 1 ZH = 1000 EH
+    let source_20: Denomination9 = 1ZH;
+    let target_20: Denomination0 = 1000EH;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_inductance/adjacent_ZH_EH: forward");
+    std::test::assert(right_20 == left_20, "prefix_inductance/adjacent_ZH_EH: reverse");
+    std::test::assert_eq_int(left_20 / 1EH, k * 1000, "prefix_inductance/adjacent_ZH_EH: target count");
+    std::test::assert_eq_int(right_20 / 1ZH, k * 1, "prefix_inductance/adjacent_ZH_EH: source count");
+
+    // 1 YH = 1000 ZH
+    let source_21: Denomination8 = 1YH;
+    let target_21: Denomination9 = 1000ZH;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_inductance/adjacent_YH_ZH: forward");
+    std::test::assert(right_21 == left_21, "prefix_inductance/adjacent_YH_ZH: reverse");
+    std::test::assert_eq_int(left_21 / 1ZH, k * 1000, "prefix_inductance/adjacent_YH_ZH: target count");
+    std::test::assert_eq_int(right_21 / 1YH, k * 1, "prefix_inductance/adjacent_YH_ZH: source count");
+
+    // 1 RH = 1000 YH
+    let source_22: Denomination6 = 1RH;
+    let target_22: Denomination8 = 1000YH;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_inductance/adjacent_RH_YH: forward");
+    std::test::assert(right_22 == left_22, "prefix_inductance/adjacent_RH_YH: reverse");
+    std::test::assert_eq_int(left_22 / 1YH, k * 1000, "prefix_inductance/adjacent_RH_YH: target count");
+    std::test::assert_eq_int(right_22 / 1RH, k * 1, "prefix_inductance/adjacent_RH_YH: source count");
+
+    // 1 QH = 1000 RH
+    let source_23: Denomination5 = 1QH;
+    let target_23: Denomination6 = 1000RH;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_inductance/adjacent_QH_RH: forward");
+    std::test::assert(right_23 == left_23, "prefix_inductance/adjacent_QH_RH: reverse");
+    std::test::assert_eq_int(left_23 / 1RH, k * 1000, "prefix_inductance/adjacent_QH_RH: target count");
+    std::test::assert_eq_int(right_23 / 1QH, k * 1, "prefix_inductance/adjacent_QH_RH: source count");
+
+    // 1000000000000000000 aH = 1 H
+    let source_24: Denomination10 = 1000000000000000000aH;
+    let target_24: Denomination2 = 1H;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_inductance/base_anchor_aH: forward");
+    std::test::assert(right_24 == left_24, "prefix_inductance/base_anchor_aH: reverse");
+    std::test::assert_eq_int(left_24 / 1H, k * 1, "prefix_inductance/base_anchor_aH: target count");
+    std::test::assert_eq_int(right_24 / 1aH, k * 1000000000000000000, "prefix_inductance/base_anchor_aH: source count");
+
+    // 1000000000000000 fH = 1 H
+    let source_25: Denomination14 = 1000000000000000fH;
+    let target_25: Denomination2 = 1H;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_inductance/base_anchor_fH: forward");
+    std::test::assert(right_25 == left_25, "prefix_inductance/base_anchor_fH: reverse");
+    std::test::assert_eq_int(left_25 / 1H, k * 1, "prefix_inductance/base_anchor_fH: target count");
+    std::test::assert_eq_int(right_25 / 1fH, k * 1000000000000000, "prefix_inductance/base_anchor_fH: source count");
+
+    // 1000000000000 pH = 1 H
+    let source_26: Denomination19 = 1000000000000pH;
+    let target_26: Denomination2 = 1H;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_inductance/base_anchor_pH: forward");
+    std::test::assert(right_26 == left_26, "prefix_inductance/base_anchor_pH: reverse");
+    std::test::assert_eq_int(left_26 / 1H, k * 1, "prefix_inductance/base_anchor_pH: target count");
+    std::test::assert_eq_int(right_26 / 1pH, k * 1000000000000, "prefix_inductance/base_anchor_pH: source count");
+
+    // 1000000000 nH = 1 H
+    let source_27: Denomination18 = 1000000000nH;
+    let target_27: Denomination2 = 1H;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_inductance/base_anchor_nH: forward");
+    std::test::assert(right_27 == left_27, "prefix_inductance/base_anchor_nH: reverse");
+    std::test::assert_eq_int(left_27 / 1H, k * 1, "prefix_inductance/base_anchor_nH: target count");
+    std::test::assert_eq_int(right_27 / 1nH, k * 1000000000, "prefix_inductance/base_anchor_nH: source count");
+
+    // 1000000 uH = 1 H
+    let source_28: Denomination22 = 1000000uH;
+    let target_28: Denomination2 = 1H;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_inductance/base_anchor_uH: forward");
+    std::test::assert(right_28 == left_28, "prefix_inductance/base_anchor_uH: reverse");
+    std::test::assert_eq_int(left_28 / 1H, k * 1, "prefix_inductance/base_anchor_uH: target count");
+    std::test::assert_eq_int(right_28 / 1uH, k * 1000000, "prefix_inductance/base_anchor_uH: source count");
+
+    // 1000 mH = 1 H
+    let source_29: Denomination17 = 1000mH;
+    let target_29: Denomination2 = 1H;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_inductance/base_anchor_mH: forward");
+    std::test::assert(right_29 == left_29, "prefix_inductance/base_anchor_mH: reverse");
+    std::test::assert_eq_int(left_29 / 1H, k * 1, "prefix_inductance/base_anchor_mH: target count");
+    std::test::assert_eq_int(right_29 / 1mH, k * 1000, "prefix_inductance/base_anchor_mH: source count");
+
+    // 100 cH = 1 H
+    let source_30: Denomination11 = 100cH;
+    let target_30: Denomination2 = 1H;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_inductance/base_anchor_cH: forward");
+    std::test::assert(right_30 == left_30, "prefix_inductance/base_anchor_cH: reverse");
+    std::test::assert_eq_int(left_30 / 1H, k * 1, "prefix_inductance/base_anchor_cH: target count");
+    std::test::assert_eq_int(right_30 / 1cH, k * 100, "prefix_inductance/base_anchor_cH: source count");
+
+    // 1 hH = 100 H
+    let source_31: Denomination15 = 1hH;
+    let target_31: Denomination2 = 100H;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_inductance/base_anchor_hH: forward");
+    std::test::assert(right_31 == left_31, "prefix_inductance/base_anchor_hH: reverse");
+    std::test::assert_eq_int(left_31 / 1H, k * 100, "prefix_inductance/base_anchor_hH: target count");
+    std::test::assert_eq_int(right_31 / 1hH, k * 1, "prefix_inductance/base_anchor_hH: source count");
+
+    // 1 kH = 1000 H
+    let source_32: Denomination16 = 1kH;
+    let target_32: Denomination2 = 1000H;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_inductance/base_anchor_kH: forward");
+    std::test::assert(right_32 == left_32, "prefix_inductance/base_anchor_kH: reverse");
+    std::test::assert_eq_int(left_32 / 1H, k * 1000, "prefix_inductance/base_anchor_kH: target count");
+    std::test::assert_eq_int(right_32 / 1kH, k * 1, "prefix_inductance/base_anchor_kH: source count");
+
+    // 1 MH = 1000000 H
+    let source_33: Denomination3 = 1MH;
+    let target_33: Denomination2 = 1000000H;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_inductance/base_anchor_MH: forward");
+    std::test::assert(right_33 == left_33, "prefix_inductance/base_anchor_MH: reverse");
+    std::test::assert_eq_int(left_33 / 1H, k * 1000000, "prefix_inductance/base_anchor_MH: target count");
+    std::test::assert_eq_int(right_33 / 1MH, k * 1, "prefix_inductance/base_anchor_MH: source count");
+
+    // 1 GH = 1000000000 H
+    let source_34: Denomination1 = 1GH;
+    let target_34: Denomination2 = 1000000000H;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_inductance/base_anchor_GH: forward");
+    std::test::assert(right_34 == left_34, "prefix_inductance/base_anchor_GH: reverse");
+    std::test::assert_eq_int(left_34 / 1H, k * 1000000000, "prefix_inductance/base_anchor_GH: target count");
+    std::test::assert_eq_int(right_34 / 1GH, k * 1, "prefix_inductance/base_anchor_GH: source count");
+
+    // 1 TH = 1000000000000 H
+    let source_35: Denomination7 = 1TH;
+    let target_35: Denomination2 = 1000000000000H;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_inductance/base_anchor_TH: forward");
+    std::test::assert(right_35 == left_35, "prefix_inductance/base_anchor_TH: reverse");
+    std::test::assert_eq_int(left_35 / 1H, k * 1000000000000, "prefix_inductance/base_anchor_TH: target count");
+    std::test::assert_eq_int(right_35 / 1TH, k * 1, "prefix_inductance/base_anchor_TH: source count");
+
+    // 1 PH = 1000000000000000 H
+    let source_36: Denomination4 = 1PH;
+    let target_36: Denomination2 = 1000000000000000H;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_inductance/base_anchor_PH: forward");
+    std::test::assert(right_36 == left_36, "prefix_inductance/base_anchor_PH: reverse");
+    std::test::assert_eq_int(left_36 / 1H, k * 1000000000000000, "prefix_inductance/base_anchor_PH: target count");
+    std::test::assert_eq_int(right_36 / 1PH, k * 1, "prefix_inductance/base_anchor_PH: source count");
+
+    // 1 EH = 1000000000000000000 H
+    let source_37: Denomination0 = 1EH;
+    let target_37: Denomination2 = 1000000000000000000H;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_inductance/base_anchor_EH: forward");
+    std::test::assert(right_37 == left_37, "prefix_inductance/base_anchor_EH: reverse");
+    std::test::assert_eq_int(left_37 / 1H, k * 1000000000000000000, "prefix_inductance/base_anchor_EH: target count");
+    std::test::assert_eq_int(right_37 / 1EH, k * 1, "prefix_inductance/base_anchor_EH: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

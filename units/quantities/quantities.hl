@@ -1,0 +1,62 @@
+// Optional denominations: see README.md for precision and headroom.
+// Applications choosing their own should import the parent catalogue only.
+import ".." as units;
+
+type Length = quantity Int in um;
+type Mass = quantity Int in ug;
+type Current = quantity Int in uA;
+type TemperatureDelta = quantity Int in temperature_quantum;
+type Amount = quantity Int in nmol;
+type LuminousIntensity = quantity Int in ucd;
+type Frequency = quantity Int in mHz;
+type Force = quantity Int in uN;
+type Pressure = quantity Int in mPa;
+type Energy = quantity Int in nJ;
+type Power = quantity Int in uW;
+type Charge = quantity Int in nC;
+type Voltage = quantity Int in uV;
+type Capacitance = quantity Int in pF;
+type Resistance = quantity Int in uohm;
+type Conductance = quantity Int in nS;
+type MagneticFlux = quantity Int in pWb;
+type MagneticFluxDensity = quantity Int in nT;
+type Inductance = quantity Int in nH;
+type LuminousFlux = quantity Int in ulm;
+type Illuminance = quantity Int in ulx;
+type Activity = quantity Int in mBq;
+type AbsorbedDose = quantity Int in nGy;
+type EquivalentDose = quantity Int in nSv;
+type CatalyticActivity = quantity Int in pkat;
+type RadianAngle = quantity Int in urad;
+type SolidAngle = quantity Int in usr;
+type Area = quantity Int in mm2;
+type Volume = quantity Int in uL;
+type DegreeAngle = quantity Int in arcsec;
+type AtomicMass = quantity Int in Da;
+type Speed = quantity Int in mm_per_s;
+type Acceleration = quantity Int in um_per_s2;
+type DynamicViscosity = quantity Int in mPa_s;
+type KinematicViscosity = quantity Int in mm2_per_s;
+type SurfaceTension = quantity Int in mN_per_m;
+type VolumeFlow = quantity Int in mL_per_min;
+type MassFlow = quantity Int in g_per_min;
+type Torque = quantity Int in mN_m;
+type Concentration = quantity Int in umol_per_L;
+type Density = quantity Int in ug_per_L;
+type Molality = quantity Int in umol_per_kg;
+type MolarMass = quantity Int in mg_per_mol;
+type MolarVolume = quantity Int in mL_per_mol;
+type MolarEnergy = quantity Int in J_per_mol;
+type HeatCapacity = quantity Int in J_per_K;
+type SpecificHeat = quantity Int in J_per_kg_K;
+type MolarHeatCapacity = quantity Int in J_per_mol_K;
+type ThermalConductivity = quantity Int in mW_per_m_K;
+type Conductivity = quantity Int in uS_per_cm;
+type Wavenumber = quantity Int in per_m;
+type Information = quantity Int in bit;
+type Ratio = quantity Int in ppb;
+
+type Kelvin = point TemperatureDelta;
+type Celsius = point TemperatureDelta { origin: 273150 mK; }
+type Fahrenheit = point TemperatureDelta { origin: 459670000 udegF; }
+type Rankine = point TemperatureDelta;

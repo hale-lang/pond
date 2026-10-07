@@ -1,0 +1,3 @@
+import "../../.." as units;
+type FloatLength = quantity Float in m;
+fn main() { }

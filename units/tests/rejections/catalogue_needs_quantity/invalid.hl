@@ -1,0 +1,2 @@
+import "../../.." as units;
+fn main() { let distance = 1m; }

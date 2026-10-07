@@ -1,0 +1,2 @@
+import "../../../quantities" as q;
+fn main() { let area = 2m * 3m; }

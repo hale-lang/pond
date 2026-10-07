@@ -1,0 +1,51 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// conductivity: 3 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in S_per_m;
+
+type Denomination0 = GoldenQuantity in S_per_m;
+type Denomination1 = GoldenQuantity in mS_per_cm;
+type Denomination2 = GoldenQuantity in uS_per_cm;
+
+fn check_runtime(k: Int) {
+    // 1 S_per_m = 10 mS_per_cm
+    let source_0: Denomination0 = 1S_per_m;
+    let target_0: Denomination1 = 10mS_per_cm;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "conductivity/S_per_m_to_mS_per_cm: forward");
+    std::test::assert(right_0 == left_0, "conductivity/S_per_m_to_mS_per_cm: reverse");
+    std::test::assert_eq_int(left_0 / 1mS_per_cm, k * 10, "conductivity/S_per_m_to_mS_per_cm: target count");
+    std::test::assert_eq_int(right_0 / 1S_per_m, k * 1, "conductivity/S_per_m_to_mS_per_cm: source count");
+
+    // 1 S_per_m = 10000 uS_per_cm
+    let source_1: Denomination0 = 1S_per_m;
+    let target_1: Denomination2 = 10000uS_per_cm;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "conductivity/S_per_m_to_uS_per_cm: forward");
+    std::test::assert(right_1 == left_1, "conductivity/S_per_m_to_uS_per_cm: reverse");
+    std::test::assert_eq_int(left_1 / 1uS_per_cm, k * 10000, "conductivity/S_per_m_to_uS_per_cm: target count");
+    std::test::assert_eq_int(right_1 / 1S_per_m, k * 1, "conductivity/S_per_m_to_uS_per_cm: source count");
+
+    // 1 mS_per_cm = 1000 uS_per_cm
+    let source_2: Denomination1 = 1mS_per_cm;
+    let target_2: Denomination2 = 1000uS_per_cm;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "conductivity/mS_per_cm_to_uS_per_cm: forward");
+    std::test::assert(right_2 == left_2, "conductivity/mS_per_cm_to_uS_per_cm: reverse");
+    std::test::assert_eq_int(left_2 / 1uS_per_cm, k * 1000, "conductivity/mS_per_cm_to_uS_per_cm: target count");
+    std::test::assert_eq_int(right_2 / 1mS_per_cm, k * 1, "conductivity/mS_per_cm_to_uS_per_cm: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

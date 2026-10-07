@@ -5,17 +5,26 @@ current compiler, with a self-contained program, an expected result,
 and an observed result. Nothing here is a design note, a triage
 record, or a workaround log; that material lives in `FRICTION.log`.
 
+## 2026-10-07 units additions
+
+Entries 10–13 are new standalone reproductions verified against Hale `0.22.0`
+at `2027ab41c1d10b98c0b8baeceafb587ba2178b1a`. They cover imported scalar
+constructors/policies, exact negative literals, and Duration refinements.
+The earlier nine entries retain their own historical verification baselines;
+this library addition does not claim to reverify unrelated compiler bugs.
+
 **Compiler under test:** `hale 0.16.0`, `hale-lang/hale` @ `37914e5`
 (2026-08-12), release build.
 **Last-known-good reference:** `hale 0.13.0` @ `16b227e`.
 **Date of this pass:** 2026-08-12 (third pass — both entries below
 re-run verbatim against `37914e5` and **both still reproduce**).
 
-Every repro is a complete seed: drop `main.hl` into a directory and
-run `hale build <dir>/ && <dir>/<dir>`. No imports, no stdlib beyond
-`println` / `to_string`.
+Each entry provides a self-contained reproducer and its commands. The
+new cross-seed cases in §§10–11 explicitly show both the library and app
+files; they need no Pond dependency. Keep each entry's compiler baseline
+with its result rather than treating this file as one whole-repo recheck.
 
-**Nine open bugs.** Entries 3–9 were found on 2026-09-24 while building
+**Nine entries from the earlier passes.** Entries 3–9 were found on 2026-09-24 while building
 `realtime/nats`, against `hale 0.21.0`, and each carries its own
 commit. Entries 1–2 are unchanged since they were filed at `3c05dad`. The
 six reported in the first pass are fixed and re-verified; see the tail
@@ -44,6 +53,10 @@ work.
 | 7 | `@form(vec)` `pop` never frees a String/Bytes cell, and `set` never frees replaced Bytes (hale#1037) | medium | memory |
 | 8 | Use-after-free at exit: a collapsed child with a `@form(vec)` is reclaimed twice after violating in an adapter-relayed handler (hale#1036) | **high** | memory safety |
 | 9 | Publishing a topic bound to an adapter leaks the encoded payload in the publisher's region (hale#1038) | medium | memory |
+| 10 | Imported scalar point constructors check but do not lower | medium | codegen (2027ab41) |
+| 11 | Qualified imported scalar casts do not recognize rounding policies | medium | checker (2027ab41) |
+| 12 | Unary minus loses an exact quantity literal's divisibility proof | medium | checker (2027ab41) |
+| 13 | Duration and a nanosecond refinement have inconsistent backend classes | medium | codegen (2027ab41) |
 
 ---
 
@@ -502,6 +515,119 @@ A program publishing through `realtime/nats` grows by this much per
 message on the publisher's side. Once it is subtracted, the NATS
 connection itself stays flat over 100k messages each way (the soak is
 described in `realtime/nats/README.md`).
+
+## 10. Imported scalar point constructors check but do not lower — medium
+
+Reproduced 2026-10-07 against Hale `0.22.0` at
+`2027ab41c1d10b98c0b8baeceafb587ba2178b1a`. No Pond dependency is needed.
+
+`lib/units.hl`:
+
+```hale
+unit mK;
+unit K = 1000 mK;
+type Temperature = quantity Int in mK;
+type Celsius = point Temperature { origin: 273150 mK; }
+```
+
+`app/main.hl`:
+
+```hale
+import "../lib" as u;
+fn main() {
+    let room = u::Celsius(25K);
+    println(room);
+}
+```
+
+Run `hale check app` and `hale build app -o output` from their parent directory.
+Expected: both succeed, and `./output` prints `25000`, the point's count in mK.
+Observed: check succeeds; build exits 1 with
+`unsupported in codegen v0: path call u::Celsius in expression position`.
+
+A plain local alias (`type Celsius = u::Celsius;`) also fails native lowering.
+A scalar refinement (`type Celsius = u::Celsius in mK;`) followed by
+`Celsius(25K)` builds and runs. Pond's optional temperature examples use that
+form; the exported point's origin is preserved.
+
+## 11. Qualified imported scalar casts do not recognize rounding policies — medium
+
+Reproduced 2026-10-07 against the same `2027ab41` compiler.
+
+`lib/units.hl`:
+
+```hale
+unit mm;
+unit m = 1000 mm;
+type Length = quantity Int in mm;
+type Metres = Length in m;
+```
+
+`app/main.hl`:
+
+```hale
+import "../lib" as u;
+fn main() {
+    let distance = 1500mm;
+    let rounded = u::Metres(distance) or half_even;
+    println(rounded);
+}
+```
+
+Run `hale check app` and `hale build app -o output`. Expected: both succeed,
+and `./output` prints `2m`. Observed: both exit 1 with
+`type error: unknown identifier half_even: no binding, param, const or declaration with that name is in scope`.
+
+The explicit denomination conversion works:
+`let rounded: u::Metres = distance.in(m) or half_even;`.
+Pond's optional quantity examples use that supported surface.
+
+## 12. Unary minus loses an exact quantity literal's divisibility proof — medium
+
+Reproduced 2026-10-07 against the same `2027ab41` compiler. A single `main.hl`:
+
+```hale
+unit a;
+unit b = 2 / 3 a;
+type Q = quantity Int in b;
+type A = Q in a;
+fn main() {
+    let n: A = -3b;
+}
+```
+
+Run `hale check main.hl` and `hale build main.hl`. Expected: `-3b` is exactly
+`-2a`, so it requires no remainder policy, just like the positive literal.
+Observed: both exit 1, reporting that `A` from `Q` divides by 3 and demanding a
+rounding policy at `-3b`. The positive `3b` control checks, builds and runs.
+
+Pond's exact-literal golden cases negate the already converted positive value.
+Its runtime signed conversion tests remain enabled; this gap is not encoded
+as an expected-failure language rule.
+
+## 13. Duration and a nanosecond refinement have inconsistent backend classes — medium
+
+Reproduced 2026-10-07 against the same `2027ab41` compiler. A single `main.hl`:
+
+```hale
+type Nanoseconds = Duration in ns;
+fn main() {
+    let a: Duration = 1ns;
+    let b: Nanoseconds = 1ns;
+    std::test::assert(a == b, "equal durations");
+}
+```
+
+Run `hale check main.hl` and `hale build main.hl`. Expected: both succeed and
+the assertion passes. Observed: check succeeds; build exits 1 with
+`unsupported in codegen v0: binary op operands of mixed types Duration and Int`.
+This needs no large value and no cross-denomination arithmetic.
+
+Declaring `unit ps = 1 / 1000 ns;` and comparing `a.in(ps) == b.in(ps)` builds
+and runs: exact widening avoids the mixed representation. Three golden time
+cases use that form with counts verified to fit i64. The source fixture and
+generator comments keep the reason visible.
+
 
 ## Verified fixed by `3c05dad` — do not re-report
 

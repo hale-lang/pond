@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_conductance: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QS;
+
+type Denomination0 = GoldenQuantity in ES;
+type Denomination1 = GoldenQuantity in GS;
+type Denomination2 = GoldenQuantity in MS;
+type Denomination3 = GoldenQuantity in PS;
+type Denomination4 = GoldenQuantity in QS;
+type Denomination5 = GoldenQuantity in RS;
+type Denomination6 = GoldenQuantity in S;
+type Denomination7 = GoldenQuantity in TS;
+type Denomination8 = GoldenQuantity in YS;
+type Denomination9 = GoldenQuantity in ZS;
+type Denomination10 = GoldenQuantity in aS;
+type Denomination11 = GoldenQuantity in cS;
+type Denomination12 = GoldenQuantity in dS;
+type Denomination13 = GoldenQuantity in daS;
+type Denomination14 = GoldenQuantity in fS;
+type Denomination15 = GoldenQuantity in hS;
+type Denomination16 = GoldenQuantity in kS;
+type Denomination17 = GoldenQuantity in mS;
+type Denomination18 = GoldenQuantity in nS;
+type Denomination19 = GoldenQuantity in pS;
+type Denomination20 = GoldenQuantity in qS;
+type Denomination21 = GoldenQuantity in rS;
+type Denomination22 = GoldenQuantity in uS;
+type Denomination23 = GoldenQuantity in yS;
+type Denomination24 = GoldenQuantity in zS;
+
+fn check_runtime(k: Int) {
+    // 1 rS = 1000 qS
+    let source_0: Denomination21 = 1rS;
+    let target_0: Denomination20 = 1000qS;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_conductance/adjacent_rS_qS: forward");
+    std::test::assert(right_0 == left_0, "prefix_conductance/adjacent_rS_qS: reverse");
+    std::test::assert_eq_int(left_0 / 1qS, k * 1000, "prefix_conductance/adjacent_rS_qS: target count");
+    std::test::assert_eq_int(right_0 / 1rS, k * 1, "prefix_conductance/adjacent_rS_qS: source count");
+
+    // 1 yS = 1000 rS
+    let source_1: Denomination23 = 1yS;
+    let target_1: Denomination21 = 1000rS;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_conductance/adjacent_yS_rS: forward");
+    std::test::assert(right_1 == left_1, "prefix_conductance/adjacent_yS_rS: reverse");
+    std::test::assert_eq_int(left_1 / 1rS, k * 1000, "prefix_conductance/adjacent_yS_rS: target count");
+    std::test::assert_eq_int(right_1 / 1yS, k * 1, "prefix_conductance/adjacent_yS_rS: source count");
+
+    // 1 zS = 1000 yS
+    let source_2: Denomination24 = 1zS;
+    let target_2: Denomination23 = 1000yS;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_conductance/adjacent_zS_yS: forward");
+    std::test::assert(right_2 == left_2, "prefix_conductance/adjacent_zS_yS: reverse");
+    std::test::assert_eq_int(left_2 / 1yS, k * 1000, "prefix_conductance/adjacent_zS_yS: target count");
+    std::test::assert_eq_int(right_2 / 1zS, k * 1, "prefix_conductance/adjacent_zS_yS: source count");
+
+    // 1 aS = 1000 zS
+    let source_3: Denomination10 = 1aS;
+    let target_3: Denomination24 = 1000zS;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_conductance/adjacent_aS_zS: forward");
+    std::test::assert(right_3 == left_3, "prefix_conductance/adjacent_aS_zS: reverse");
+    std::test::assert_eq_int(left_3 / 1zS, k * 1000, "prefix_conductance/adjacent_aS_zS: target count");
+    std::test::assert_eq_int(right_3 / 1aS, k * 1, "prefix_conductance/adjacent_aS_zS: source count");
+
+    // 1 fS = 1000 aS
+    let source_4: Denomination14 = 1fS;
+    let target_4: Denomination10 = 1000aS;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_conductance/adjacent_fS_aS: forward");
+    std::test::assert(right_4 == left_4, "prefix_conductance/adjacent_fS_aS: reverse");
+    std::test::assert_eq_int(left_4 / 1aS, k * 1000, "prefix_conductance/adjacent_fS_aS: target count");
+    std::test::assert_eq_int(right_4 / 1fS, k * 1, "prefix_conductance/adjacent_fS_aS: source count");
+
+    // 1 pS = 1000 fS
+    let source_5: Denomination19 = 1pS;
+    let target_5: Denomination14 = 1000fS;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_conductance/adjacent_pS_fS: forward");
+    std::test::assert(right_5 == left_5, "prefix_conductance/adjacent_pS_fS: reverse");
+    std::test::assert_eq_int(left_5 / 1fS, k * 1000, "prefix_conductance/adjacent_pS_fS: target count");
+    std::test::assert_eq_int(right_5 / 1pS, k * 1, "prefix_conductance/adjacent_pS_fS: source count");
+
+    // 1 nS = 1000 pS
+    let source_6: Denomination18 = 1nS;
+    let target_6: Denomination19 = 1000pS;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_conductance/adjacent_nS_pS: forward");
+    std::test::assert(right_6 == left_6, "prefix_conductance/adjacent_nS_pS: reverse");
+    std::test::assert_eq_int(left_6 / 1pS, k * 1000, "prefix_conductance/adjacent_nS_pS: target count");
+    std::test::assert_eq_int(right_6 / 1nS, k * 1, "prefix_conductance/adjacent_nS_pS: source count");
+
+    // 1 uS = 1000 nS
+    let source_7: Denomination22 = 1uS;
+    let target_7: Denomination18 = 1000nS;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_conductance/adjacent_uS_nS: forward");
+    std::test::assert(right_7 == left_7, "prefix_conductance/adjacent_uS_nS: reverse");
+    std::test::assert_eq_int(left_7 / 1nS, k * 1000, "prefix_conductance/adjacent_uS_nS: target count");
+    std::test::assert_eq_int(right_7 / 1uS, k * 1, "prefix_conductance/adjacent_uS_nS: source count");
+
+    // 1 mS = 1000 uS
+    let source_8: Denomination17 = 1mS;
+    let target_8: Denomination22 = 1000uS;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_conductance/adjacent_mS_uS: forward");
+    std::test::assert(right_8 == left_8, "prefix_conductance/adjacent_mS_uS: reverse");
+    std::test::assert_eq_int(left_8 / 1uS, k * 1000, "prefix_conductance/adjacent_mS_uS: target count");
+    std::test::assert_eq_int(right_8 / 1mS, k * 1, "prefix_conductance/adjacent_mS_uS: source count");
+
+    // 1 cS = 10 mS
+    let source_9: Denomination11 = 1cS;
+    let target_9: Denomination17 = 10mS;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_conductance/adjacent_cS_mS: forward");
+    std::test::assert(right_9 == left_9, "prefix_conductance/adjacent_cS_mS: reverse");
+    std::test::assert_eq_int(left_9 / 1mS, k * 10, "prefix_conductance/adjacent_cS_mS: target count");
+    std::test::assert_eq_int(right_9 / 1cS, k * 1, "prefix_conductance/adjacent_cS_mS: source count");
+
+    // 1 dS = 10 cS
+    let source_10: Denomination12 = 1dS;
+    let target_10: Denomination11 = 10cS;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_conductance/adjacent_dS_cS: forward");
+    std::test::assert(right_10 == left_10, "prefix_conductance/adjacent_dS_cS: reverse");
+    std::test::assert_eq_int(left_10 / 1cS, k * 10, "prefix_conductance/adjacent_dS_cS: target count");
+    std::test::assert_eq_int(right_10 / 1dS, k * 1, "prefix_conductance/adjacent_dS_cS: source count");
+
+    // 1 S = 10 dS
+    let source_11: Denomination6 = 1S;
+    let target_11: Denomination12 = 10dS;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_conductance/adjacent_S_dS: forward");
+    std::test::assert(right_11 == left_11, "prefix_conductance/adjacent_S_dS: reverse");
+    std::test::assert_eq_int(left_11 / 1dS, k * 10, "prefix_conductance/adjacent_S_dS: target count");
+    std::test::assert_eq_int(right_11 / 1S, k * 1, "prefix_conductance/adjacent_S_dS: source count");
+
+    // 1 daS = 10 S
+    let source_12: Denomination13 = 1daS;
+    let target_12: Denomination6 = 10S;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_conductance/adjacent_daS_S: forward");
+    std::test::assert(right_12 == left_12, "prefix_conductance/adjacent_daS_S: reverse");
+    std::test::assert_eq_int(left_12 / 1S, k * 10, "prefix_conductance/adjacent_daS_S: target count");
+    std::test::assert_eq_int(right_12 / 1daS, k * 1, "prefix_conductance/adjacent_daS_S: source count");
+
+    // 1 hS = 10 daS
+    let source_13: Denomination15 = 1hS;
+    let target_13: Denomination13 = 10daS;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_conductance/adjacent_hS_daS: forward");
+    std::test::assert(right_13 == left_13, "prefix_conductance/adjacent_hS_daS: reverse");
+    std::test::assert_eq_int(left_13 / 1daS, k * 10, "prefix_conductance/adjacent_hS_daS: target count");
+    std::test::assert_eq_int(right_13 / 1hS, k * 1, "prefix_conductance/adjacent_hS_daS: source count");
+
+    // 1 kS = 10 hS
+    let source_14: Denomination16 = 1kS;
+    let target_14: Denomination15 = 10hS;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_conductance/adjacent_kS_hS: forward");
+    std::test::assert(right_14 == left_14, "prefix_conductance/adjacent_kS_hS: reverse");
+    std::test::assert_eq_int(left_14 / 1hS, k * 10, "prefix_conductance/adjacent_kS_hS: target count");
+    std::test::assert_eq_int(right_14 / 1kS, k * 1, "prefix_conductance/adjacent_kS_hS: source count");
+
+    // 1 MS = 1000 kS
+    let source_15: Denomination2 = 1MS;
+    let target_15: Denomination16 = 1000kS;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_conductance/adjacent_MS_kS: forward");
+    std::test::assert(right_15 == left_15, "prefix_conductance/adjacent_MS_kS: reverse");
+    std::test::assert_eq_int(left_15 / 1kS, k * 1000, "prefix_conductance/adjacent_MS_kS: target count");
+    std::test::assert_eq_int(right_15 / 1MS, k * 1, "prefix_conductance/adjacent_MS_kS: source count");
+
+    // 1 GS = 1000 MS
+    let source_16: Denomination1 = 1GS;
+    let target_16: Denomination2 = 1000MS;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_conductance/adjacent_GS_MS: forward");
+    std::test::assert(right_16 == left_16, "prefix_conductance/adjacent_GS_MS: reverse");
+    std::test::assert_eq_int(left_16 / 1MS, k * 1000, "prefix_conductance/adjacent_GS_MS: target count");
+    std::test::assert_eq_int(right_16 / 1GS, k * 1, "prefix_conductance/adjacent_GS_MS: source count");
+
+    // 1 TS = 1000 GS
+    let source_17: Denomination7 = 1TS;
+    let target_17: Denomination1 = 1000GS;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_conductance/adjacent_TS_GS: forward");
+    std::test::assert(right_17 == left_17, "prefix_conductance/adjacent_TS_GS: reverse");
+    std::test::assert_eq_int(left_17 / 1GS, k * 1000, "prefix_conductance/adjacent_TS_GS: target count");
+    std::test::assert_eq_int(right_17 / 1TS, k * 1, "prefix_conductance/adjacent_TS_GS: source count");
+
+    // 1 PS = 1000 TS
+    let source_18: Denomination3 = 1PS;
+    let target_18: Denomination7 = 1000TS;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_conductance/adjacent_PS_TS: forward");
+    std::test::assert(right_18 == left_18, "prefix_conductance/adjacent_PS_TS: reverse");
+    std::test::assert_eq_int(left_18 / 1TS, k * 1000, "prefix_conductance/adjacent_PS_TS: target count");
+    std::test::assert_eq_int(right_18 / 1PS, k * 1, "prefix_conductance/adjacent_PS_TS: source count");
+
+    // 1 ES = 1000 PS
+    let source_19: Denomination0 = 1ES;
+    let target_19: Denomination3 = 1000PS;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_conductance/adjacent_ES_PS: forward");
+    std::test::assert(right_19 == left_19, "prefix_conductance/adjacent_ES_PS: reverse");
+    std::test::assert_eq_int(left_19 / 1PS, k * 1000, "prefix_conductance/adjacent_ES_PS: target count");
+    std::test::assert_eq_int(right_19 / 1ES, k * 1, "prefix_conductance/adjacent_ES_PS: source count");
+
+    // 1 ZS = 1000 ES
+    let source_20: Denomination9 = 1ZS;
+    let target_20: Denomination0 = 1000ES;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_conductance/adjacent_ZS_ES: forward");
+    std::test::assert(right_20 == left_20, "prefix_conductance/adjacent_ZS_ES: reverse");
+    std::test::assert_eq_int(left_20 / 1ES, k * 1000, "prefix_conductance/adjacent_ZS_ES: target count");
+    std::test::assert_eq_int(right_20 / 1ZS, k * 1, "prefix_conductance/adjacent_ZS_ES: source count");
+
+    // 1 YS = 1000 ZS
+    let source_21: Denomination8 = 1YS;
+    let target_21: Denomination9 = 1000ZS;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_conductance/adjacent_YS_ZS: forward");
+    std::test::assert(right_21 == left_21, "prefix_conductance/adjacent_YS_ZS: reverse");
+    std::test::assert_eq_int(left_21 / 1ZS, k * 1000, "prefix_conductance/adjacent_YS_ZS: target count");
+    std::test::assert_eq_int(right_21 / 1YS, k * 1, "prefix_conductance/adjacent_YS_ZS: source count");
+
+    // 1 RS = 1000 YS
+    let source_22: Denomination5 = 1RS;
+    let target_22: Denomination8 = 1000YS;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_conductance/adjacent_RS_YS: forward");
+    std::test::assert(right_22 == left_22, "prefix_conductance/adjacent_RS_YS: reverse");
+    std::test::assert_eq_int(left_22 / 1YS, k * 1000, "prefix_conductance/adjacent_RS_YS: target count");
+    std::test::assert_eq_int(right_22 / 1RS, k * 1, "prefix_conductance/adjacent_RS_YS: source count");
+
+    // 1 QS = 1000 RS
+    let source_23: Denomination4 = 1QS;
+    let target_23: Denomination5 = 1000RS;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_conductance/adjacent_QS_RS: forward");
+    std::test::assert(right_23 == left_23, "prefix_conductance/adjacent_QS_RS: reverse");
+    std::test::assert_eq_int(left_23 / 1RS, k * 1000, "prefix_conductance/adjacent_QS_RS: target count");
+    std::test::assert_eq_int(right_23 / 1QS, k * 1, "prefix_conductance/adjacent_QS_RS: source count");
+
+    // 1000000000000000000 aS = 1 S
+    let source_24: Denomination10 = 1000000000000000000aS;
+    let target_24: Denomination6 = 1S;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_conductance/base_anchor_aS: forward");
+    std::test::assert(right_24 == left_24, "prefix_conductance/base_anchor_aS: reverse");
+    std::test::assert_eq_int(left_24 / 1S, k * 1, "prefix_conductance/base_anchor_aS: target count");
+    std::test::assert_eq_int(right_24 / 1aS, k * 1000000000000000000, "prefix_conductance/base_anchor_aS: source count");
+
+    // 1000000000000000 fS = 1 S
+    let source_25: Denomination14 = 1000000000000000fS;
+    let target_25: Denomination6 = 1S;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_conductance/base_anchor_fS: forward");
+    std::test::assert(right_25 == left_25, "prefix_conductance/base_anchor_fS: reverse");
+    std::test::assert_eq_int(left_25 / 1S, k * 1, "prefix_conductance/base_anchor_fS: target count");
+    std::test::assert_eq_int(right_25 / 1fS, k * 1000000000000000, "prefix_conductance/base_anchor_fS: source count");
+
+    // 1000000000000 pS = 1 S
+    let source_26: Denomination19 = 1000000000000pS;
+    let target_26: Denomination6 = 1S;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_conductance/base_anchor_pS: forward");
+    std::test::assert(right_26 == left_26, "prefix_conductance/base_anchor_pS: reverse");
+    std::test::assert_eq_int(left_26 / 1S, k * 1, "prefix_conductance/base_anchor_pS: target count");
+    std::test::assert_eq_int(right_26 / 1pS, k * 1000000000000, "prefix_conductance/base_anchor_pS: source count");
+
+    // 1000000000 nS = 1 S
+    let source_27: Denomination18 = 1000000000nS;
+    let target_27: Denomination6 = 1S;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_conductance/base_anchor_nS: forward");
+    std::test::assert(right_27 == left_27, "prefix_conductance/base_anchor_nS: reverse");
+    std::test::assert_eq_int(left_27 / 1S, k * 1, "prefix_conductance/base_anchor_nS: target count");
+    std::test::assert_eq_int(right_27 / 1nS, k * 1000000000, "prefix_conductance/base_anchor_nS: source count");
+
+    // 1000000 uS = 1 S
+    let source_28: Denomination22 = 1000000uS;
+    let target_28: Denomination6 = 1S;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_conductance/base_anchor_uS: forward");
+    std::test::assert(right_28 == left_28, "prefix_conductance/base_anchor_uS: reverse");
+    std::test::assert_eq_int(left_28 / 1S, k * 1, "prefix_conductance/base_anchor_uS: target count");
+    std::test::assert_eq_int(right_28 / 1uS, k * 1000000, "prefix_conductance/base_anchor_uS: source count");
+
+    // 1000 mS = 1 S
+    let source_29: Denomination17 = 1000mS;
+    let target_29: Denomination6 = 1S;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_conductance/base_anchor_mS: forward");
+    std::test::assert(right_29 == left_29, "prefix_conductance/base_anchor_mS: reverse");
+    std::test::assert_eq_int(left_29 / 1S, k * 1, "prefix_conductance/base_anchor_mS: target count");
+    std::test::assert_eq_int(right_29 / 1mS, k * 1000, "prefix_conductance/base_anchor_mS: source count");
+
+    // 100 cS = 1 S
+    let source_30: Denomination11 = 100cS;
+    let target_30: Denomination6 = 1S;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_conductance/base_anchor_cS: forward");
+    std::test::assert(right_30 == left_30, "prefix_conductance/base_anchor_cS: reverse");
+    std::test::assert_eq_int(left_30 / 1S, k * 1, "prefix_conductance/base_anchor_cS: target count");
+    std::test::assert_eq_int(right_30 / 1cS, k * 100, "prefix_conductance/base_anchor_cS: source count");
+
+    // 1 hS = 100 S
+    let source_31: Denomination15 = 1hS;
+    let target_31: Denomination6 = 100S;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_conductance/base_anchor_hS: forward");
+    std::test::assert(right_31 == left_31, "prefix_conductance/base_anchor_hS: reverse");
+    std::test::assert_eq_int(left_31 / 1S, k * 100, "prefix_conductance/base_anchor_hS: target count");
+    std::test::assert_eq_int(right_31 / 1hS, k * 1, "prefix_conductance/base_anchor_hS: source count");
+
+    // 1 kS = 1000 S
+    let source_32: Denomination16 = 1kS;
+    let target_32: Denomination6 = 1000S;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_conductance/base_anchor_kS: forward");
+    std::test::assert(right_32 == left_32, "prefix_conductance/base_anchor_kS: reverse");
+    std::test::assert_eq_int(left_32 / 1S, k * 1000, "prefix_conductance/base_anchor_kS: target count");
+    std::test::assert_eq_int(right_32 / 1kS, k * 1, "prefix_conductance/base_anchor_kS: source count");
+
+    // 1 MS = 1000000 S
+    let source_33: Denomination2 = 1MS;
+    let target_33: Denomination6 = 1000000S;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_conductance/base_anchor_MS: forward");
+    std::test::assert(right_33 == left_33, "prefix_conductance/base_anchor_MS: reverse");
+    std::test::assert_eq_int(left_33 / 1S, k * 1000000, "prefix_conductance/base_anchor_MS: target count");
+    std::test::assert_eq_int(right_33 / 1MS, k * 1, "prefix_conductance/base_anchor_MS: source count");
+
+    // 1 GS = 1000000000 S
+    let source_34: Denomination1 = 1GS;
+    let target_34: Denomination6 = 1000000000S;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_conductance/base_anchor_GS: forward");
+    std::test::assert(right_34 == left_34, "prefix_conductance/base_anchor_GS: reverse");
+    std::test::assert_eq_int(left_34 / 1S, k * 1000000000, "prefix_conductance/base_anchor_GS: target count");
+    std::test::assert_eq_int(right_34 / 1GS, k * 1, "prefix_conductance/base_anchor_GS: source count");
+
+    // 1 TS = 1000000000000 S
+    let source_35: Denomination7 = 1TS;
+    let target_35: Denomination6 = 1000000000000S;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_conductance/base_anchor_TS: forward");
+    std::test::assert(right_35 == left_35, "prefix_conductance/base_anchor_TS: reverse");
+    std::test::assert_eq_int(left_35 / 1S, k * 1000000000000, "prefix_conductance/base_anchor_TS: target count");
+    std::test::assert_eq_int(right_35 / 1TS, k * 1, "prefix_conductance/base_anchor_TS: source count");
+
+    // 1 PS = 1000000000000000 S
+    let source_36: Denomination3 = 1PS;
+    let target_36: Denomination6 = 1000000000000000S;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_conductance/base_anchor_PS: forward");
+    std::test::assert(right_36 == left_36, "prefix_conductance/base_anchor_PS: reverse");
+    std::test::assert_eq_int(left_36 / 1S, k * 1000000000000000, "prefix_conductance/base_anchor_PS: target count");
+    std::test::assert_eq_int(right_36 / 1PS, k * 1, "prefix_conductance/base_anchor_PS: source count");
+
+    // 1 ES = 1000000000000000000 S
+    let source_37: Denomination0 = 1ES;
+    let target_37: Denomination6 = 1000000000000000000S;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_conductance/base_anchor_ES: forward");
+    std::test::assert(right_37 == left_37, "prefix_conductance/base_anchor_ES: reverse");
+    std::test::assert_eq_int(left_37 / 1S, k * 1000000000000000000, "prefix_conductance/base_anchor_ES: target count");
+    std::test::assert_eq_int(right_37 / 1ES, k * 1, "prefix_conductance/base_anchor_ES: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

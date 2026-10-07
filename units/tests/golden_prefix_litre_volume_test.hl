@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_litre_volume: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QL;
+
+type Denomination0 = GoldenQuantity in EL;
+type Denomination1 = GoldenQuantity in GL;
+type Denomination2 = GoldenQuantity in L;
+type Denomination3 = GoldenQuantity in ML;
+type Denomination4 = GoldenQuantity in PL;
+type Denomination5 = GoldenQuantity in QL;
+type Denomination6 = GoldenQuantity in RL;
+type Denomination7 = GoldenQuantity in TL;
+type Denomination8 = GoldenQuantity in YL;
+type Denomination9 = GoldenQuantity in ZL;
+type Denomination10 = GoldenQuantity in aL;
+type Denomination11 = GoldenQuantity in cL;
+type Denomination12 = GoldenQuantity in dL;
+type Denomination13 = GoldenQuantity in daL;
+type Denomination14 = GoldenQuantity in fL;
+type Denomination15 = GoldenQuantity in hL;
+type Denomination16 = GoldenQuantity in kL;
+type Denomination17 = GoldenQuantity in mL;
+type Denomination18 = GoldenQuantity in nL;
+type Denomination19 = GoldenQuantity in pL;
+type Denomination20 = GoldenQuantity in qL;
+type Denomination21 = GoldenQuantity in rL;
+type Denomination22 = GoldenQuantity in uL;
+type Denomination23 = GoldenQuantity in yL;
+type Denomination24 = GoldenQuantity in zL;
+
+fn check_runtime(k: Int) {
+    // 1 rL = 1000 qL
+    let source_0: Denomination21 = 1rL;
+    let target_0: Denomination20 = 1000qL;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_litre_volume/adjacent_rL_qL: forward");
+    std::test::assert(right_0 == left_0, "prefix_litre_volume/adjacent_rL_qL: reverse");
+    std::test::assert_eq_int(left_0 / 1qL, k * 1000, "prefix_litre_volume/adjacent_rL_qL: target count");
+    std::test::assert_eq_int(right_0 / 1rL, k * 1, "prefix_litre_volume/adjacent_rL_qL: source count");
+
+    // 1 yL = 1000 rL
+    let source_1: Denomination23 = 1yL;
+    let target_1: Denomination21 = 1000rL;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_litre_volume/adjacent_yL_rL: forward");
+    std::test::assert(right_1 == left_1, "prefix_litre_volume/adjacent_yL_rL: reverse");
+    std::test::assert_eq_int(left_1 / 1rL, k * 1000, "prefix_litre_volume/adjacent_yL_rL: target count");
+    std::test::assert_eq_int(right_1 / 1yL, k * 1, "prefix_litre_volume/adjacent_yL_rL: source count");
+
+    // 1 zL = 1000 yL
+    let source_2: Denomination24 = 1zL;
+    let target_2: Denomination23 = 1000yL;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_litre_volume/adjacent_zL_yL: forward");
+    std::test::assert(right_2 == left_2, "prefix_litre_volume/adjacent_zL_yL: reverse");
+    std::test::assert_eq_int(left_2 / 1yL, k * 1000, "prefix_litre_volume/adjacent_zL_yL: target count");
+    std::test::assert_eq_int(right_2 / 1zL, k * 1, "prefix_litre_volume/adjacent_zL_yL: source count");
+
+    // 1 aL = 1000 zL
+    let source_3: Denomination10 = 1aL;
+    let target_3: Denomination24 = 1000zL;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_litre_volume/adjacent_aL_zL: forward");
+    std::test::assert(right_3 == left_3, "prefix_litre_volume/adjacent_aL_zL: reverse");
+    std::test::assert_eq_int(left_3 / 1zL, k * 1000, "prefix_litre_volume/adjacent_aL_zL: target count");
+    std::test::assert_eq_int(right_3 / 1aL, k * 1, "prefix_litre_volume/adjacent_aL_zL: source count");
+
+    // 1 fL = 1000 aL
+    let source_4: Denomination14 = 1fL;
+    let target_4: Denomination10 = 1000aL;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_litre_volume/adjacent_fL_aL: forward");
+    std::test::assert(right_4 == left_4, "prefix_litre_volume/adjacent_fL_aL: reverse");
+    std::test::assert_eq_int(left_4 / 1aL, k * 1000, "prefix_litre_volume/adjacent_fL_aL: target count");
+    std::test::assert_eq_int(right_4 / 1fL, k * 1, "prefix_litre_volume/adjacent_fL_aL: source count");
+
+    // 1 pL = 1000 fL
+    let source_5: Denomination19 = 1pL;
+    let target_5: Denomination14 = 1000fL;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_litre_volume/adjacent_pL_fL: forward");
+    std::test::assert(right_5 == left_5, "prefix_litre_volume/adjacent_pL_fL: reverse");
+    std::test::assert_eq_int(left_5 / 1fL, k * 1000, "prefix_litre_volume/adjacent_pL_fL: target count");
+    std::test::assert_eq_int(right_5 / 1pL, k * 1, "prefix_litre_volume/adjacent_pL_fL: source count");
+
+    // 1 nL = 1000 pL
+    let source_6: Denomination18 = 1nL;
+    let target_6: Denomination19 = 1000pL;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_litre_volume/adjacent_nL_pL: forward");
+    std::test::assert(right_6 == left_6, "prefix_litre_volume/adjacent_nL_pL: reverse");
+    std::test::assert_eq_int(left_6 / 1pL, k * 1000, "prefix_litre_volume/adjacent_nL_pL: target count");
+    std::test::assert_eq_int(right_6 / 1nL, k * 1, "prefix_litre_volume/adjacent_nL_pL: source count");
+
+    // 1 uL = 1000 nL
+    let source_7: Denomination22 = 1uL;
+    let target_7: Denomination18 = 1000nL;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_litre_volume/adjacent_uL_nL: forward");
+    std::test::assert(right_7 == left_7, "prefix_litre_volume/adjacent_uL_nL: reverse");
+    std::test::assert_eq_int(left_7 / 1nL, k * 1000, "prefix_litre_volume/adjacent_uL_nL: target count");
+    std::test::assert_eq_int(right_7 / 1uL, k * 1, "prefix_litre_volume/adjacent_uL_nL: source count");
+
+    // 1 mL = 1000 uL
+    let source_8: Denomination17 = 1mL;
+    let target_8: Denomination22 = 1000uL;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_litre_volume/adjacent_mL_uL: forward");
+    std::test::assert(right_8 == left_8, "prefix_litre_volume/adjacent_mL_uL: reverse");
+    std::test::assert_eq_int(left_8 / 1uL, k * 1000, "prefix_litre_volume/adjacent_mL_uL: target count");
+    std::test::assert_eq_int(right_8 / 1mL, k * 1, "prefix_litre_volume/adjacent_mL_uL: source count");
+
+    // 1 cL = 10 mL
+    let source_9: Denomination11 = 1cL;
+    let target_9: Denomination17 = 10mL;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_litre_volume/adjacent_cL_mL: forward");
+    std::test::assert(right_9 == left_9, "prefix_litre_volume/adjacent_cL_mL: reverse");
+    std::test::assert_eq_int(left_9 / 1mL, k * 10, "prefix_litre_volume/adjacent_cL_mL: target count");
+    std::test::assert_eq_int(right_9 / 1cL, k * 1, "prefix_litre_volume/adjacent_cL_mL: source count");
+
+    // 1 dL = 10 cL
+    let source_10: Denomination12 = 1dL;
+    let target_10: Denomination11 = 10cL;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_litre_volume/adjacent_dL_cL: forward");
+    std::test::assert(right_10 == left_10, "prefix_litre_volume/adjacent_dL_cL: reverse");
+    std::test::assert_eq_int(left_10 / 1cL, k * 10, "prefix_litre_volume/adjacent_dL_cL: target count");
+    std::test::assert_eq_int(right_10 / 1dL, k * 1, "prefix_litre_volume/adjacent_dL_cL: source count");
+
+    // 1 L = 10 dL
+    let source_11: Denomination2 = 1L;
+    let target_11: Denomination12 = 10dL;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_litre_volume/adjacent_L_dL: forward");
+    std::test::assert(right_11 == left_11, "prefix_litre_volume/adjacent_L_dL: reverse");
+    std::test::assert_eq_int(left_11 / 1dL, k * 10, "prefix_litre_volume/adjacent_L_dL: target count");
+    std::test::assert_eq_int(right_11 / 1L, k * 1, "prefix_litre_volume/adjacent_L_dL: source count");
+
+    // 1 daL = 10 L
+    let source_12: Denomination13 = 1daL;
+    let target_12: Denomination2 = 10L;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_litre_volume/adjacent_daL_L: forward");
+    std::test::assert(right_12 == left_12, "prefix_litre_volume/adjacent_daL_L: reverse");
+    std::test::assert_eq_int(left_12 / 1L, k * 10, "prefix_litre_volume/adjacent_daL_L: target count");
+    std::test::assert_eq_int(right_12 / 1daL, k * 1, "prefix_litre_volume/adjacent_daL_L: source count");
+
+    // 1 hL = 10 daL
+    let source_13: Denomination15 = 1hL;
+    let target_13: Denomination13 = 10daL;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_litre_volume/adjacent_hL_daL: forward");
+    std::test::assert(right_13 == left_13, "prefix_litre_volume/adjacent_hL_daL: reverse");
+    std::test::assert_eq_int(left_13 / 1daL, k * 10, "prefix_litre_volume/adjacent_hL_daL: target count");
+    std::test::assert_eq_int(right_13 / 1hL, k * 1, "prefix_litre_volume/adjacent_hL_daL: source count");
+
+    // 1 kL = 10 hL
+    let source_14: Denomination16 = 1kL;
+    let target_14: Denomination15 = 10hL;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_litre_volume/adjacent_kL_hL: forward");
+    std::test::assert(right_14 == left_14, "prefix_litre_volume/adjacent_kL_hL: reverse");
+    std::test::assert_eq_int(left_14 / 1hL, k * 10, "prefix_litre_volume/adjacent_kL_hL: target count");
+    std::test::assert_eq_int(right_14 / 1kL, k * 1, "prefix_litre_volume/adjacent_kL_hL: source count");
+
+    // 1 ML = 1000 kL
+    let source_15: Denomination3 = 1ML;
+    let target_15: Denomination16 = 1000kL;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_litre_volume/adjacent_ML_kL: forward");
+    std::test::assert(right_15 == left_15, "prefix_litre_volume/adjacent_ML_kL: reverse");
+    std::test::assert_eq_int(left_15 / 1kL, k * 1000, "prefix_litre_volume/adjacent_ML_kL: target count");
+    std::test::assert_eq_int(right_15 / 1ML, k * 1, "prefix_litre_volume/adjacent_ML_kL: source count");
+
+    // 1 GL = 1000 ML
+    let source_16: Denomination1 = 1GL;
+    let target_16: Denomination3 = 1000ML;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_litre_volume/adjacent_GL_ML: forward");
+    std::test::assert(right_16 == left_16, "prefix_litre_volume/adjacent_GL_ML: reverse");
+    std::test::assert_eq_int(left_16 / 1ML, k * 1000, "prefix_litre_volume/adjacent_GL_ML: target count");
+    std::test::assert_eq_int(right_16 / 1GL, k * 1, "prefix_litre_volume/adjacent_GL_ML: source count");
+
+    // 1 TL = 1000 GL
+    let source_17: Denomination7 = 1TL;
+    let target_17: Denomination1 = 1000GL;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_litre_volume/adjacent_TL_GL: forward");
+    std::test::assert(right_17 == left_17, "prefix_litre_volume/adjacent_TL_GL: reverse");
+    std::test::assert_eq_int(left_17 / 1GL, k * 1000, "prefix_litre_volume/adjacent_TL_GL: target count");
+    std::test::assert_eq_int(right_17 / 1TL, k * 1, "prefix_litre_volume/adjacent_TL_GL: source count");
+
+    // 1 PL = 1000 TL
+    let source_18: Denomination4 = 1PL;
+    let target_18: Denomination7 = 1000TL;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_litre_volume/adjacent_PL_TL: forward");
+    std::test::assert(right_18 == left_18, "prefix_litre_volume/adjacent_PL_TL: reverse");
+    std::test::assert_eq_int(left_18 / 1TL, k * 1000, "prefix_litre_volume/adjacent_PL_TL: target count");
+    std::test::assert_eq_int(right_18 / 1PL, k * 1, "prefix_litre_volume/adjacent_PL_TL: source count");
+
+    // 1 EL = 1000 PL
+    let source_19: Denomination0 = 1EL;
+    let target_19: Denomination4 = 1000PL;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_litre_volume/adjacent_EL_PL: forward");
+    std::test::assert(right_19 == left_19, "prefix_litre_volume/adjacent_EL_PL: reverse");
+    std::test::assert_eq_int(left_19 / 1PL, k * 1000, "prefix_litre_volume/adjacent_EL_PL: target count");
+    std::test::assert_eq_int(right_19 / 1EL, k * 1, "prefix_litre_volume/adjacent_EL_PL: source count");
+
+    // 1 ZL = 1000 EL
+    let source_20: Denomination9 = 1ZL;
+    let target_20: Denomination0 = 1000EL;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_litre_volume/adjacent_ZL_EL: forward");
+    std::test::assert(right_20 == left_20, "prefix_litre_volume/adjacent_ZL_EL: reverse");
+    std::test::assert_eq_int(left_20 / 1EL, k * 1000, "prefix_litre_volume/adjacent_ZL_EL: target count");
+    std::test::assert_eq_int(right_20 / 1ZL, k * 1, "prefix_litre_volume/adjacent_ZL_EL: source count");
+
+    // 1 YL = 1000 ZL
+    let source_21: Denomination8 = 1YL;
+    let target_21: Denomination9 = 1000ZL;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_litre_volume/adjacent_YL_ZL: forward");
+    std::test::assert(right_21 == left_21, "prefix_litre_volume/adjacent_YL_ZL: reverse");
+    std::test::assert_eq_int(left_21 / 1ZL, k * 1000, "prefix_litre_volume/adjacent_YL_ZL: target count");
+    std::test::assert_eq_int(right_21 / 1YL, k * 1, "prefix_litre_volume/adjacent_YL_ZL: source count");
+
+    // 1 RL = 1000 YL
+    let source_22: Denomination6 = 1RL;
+    let target_22: Denomination8 = 1000YL;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_litre_volume/adjacent_RL_YL: forward");
+    std::test::assert(right_22 == left_22, "prefix_litre_volume/adjacent_RL_YL: reverse");
+    std::test::assert_eq_int(left_22 / 1YL, k * 1000, "prefix_litre_volume/adjacent_RL_YL: target count");
+    std::test::assert_eq_int(right_22 / 1RL, k * 1, "prefix_litre_volume/adjacent_RL_YL: source count");
+
+    // 1 QL = 1000 RL
+    let source_23: Denomination5 = 1QL;
+    let target_23: Denomination6 = 1000RL;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_litre_volume/adjacent_QL_RL: forward");
+    std::test::assert(right_23 == left_23, "prefix_litre_volume/adjacent_QL_RL: reverse");
+    std::test::assert_eq_int(left_23 / 1RL, k * 1000, "prefix_litre_volume/adjacent_QL_RL: target count");
+    std::test::assert_eq_int(right_23 / 1QL, k * 1, "prefix_litre_volume/adjacent_QL_RL: source count");
+
+    // 1000000000000000000 aL = 1 L
+    let source_24: Denomination10 = 1000000000000000000aL;
+    let target_24: Denomination2 = 1L;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_litre_volume/base_anchor_aL: forward");
+    std::test::assert(right_24 == left_24, "prefix_litre_volume/base_anchor_aL: reverse");
+    std::test::assert_eq_int(left_24 / 1L, k * 1, "prefix_litre_volume/base_anchor_aL: target count");
+    std::test::assert_eq_int(right_24 / 1aL, k * 1000000000000000000, "prefix_litre_volume/base_anchor_aL: source count");
+
+    // 1000000000000000 fL = 1 L
+    let source_25: Denomination14 = 1000000000000000fL;
+    let target_25: Denomination2 = 1L;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_litre_volume/base_anchor_fL: forward");
+    std::test::assert(right_25 == left_25, "prefix_litre_volume/base_anchor_fL: reverse");
+    std::test::assert_eq_int(left_25 / 1L, k * 1, "prefix_litre_volume/base_anchor_fL: target count");
+    std::test::assert_eq_int(right_25 / 1fL, k * 1000000000000000, "prefix_litre_volume/base_anchor_fL: source count");
+
+    // 1000000000000 pL = 1 L
+    let source_26: Denomination19 = 1000000000000pL;
+    let target_26: Denomination2 = 1L;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_litre_volume/base_anchor_pL: forward");
+    std::test::assert(right_26 == left_26, "prefix_litre_volume/base_anchor_pL: reverse");
+    std::test::assert_eq_int(left_26 / 1L, k * 1, "prefix_litre_volume/base_anchor_pL: target count");
+    std::test::assert_eq_int(right_26 / 1pL, k * 1000000000000, "prefix_litre_volume/base_anchor_pL: source count");
+
+    // 1000000000 nL = 1 L
+    let source_27: Denomination18 = 1000000000nL;
+    let target_27: Denomination2 = 1L;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_litre_volume/base_anchor_nL: forward");
+    std::test::assert(right_27 == left_27, "prefix_litre_volume/base_anchor_nL: reverse");
+    std::test::assert_eq_int(left_27 / 1L, k * 1, "prefix_litre_volume/base_anchor_nL: target count");
+    std::test::assert_eq_int(right_27 / 1nL, k * 1000000000, "prefix_litre_volume/base_anchor_nL: source count");
+
+    // 1000000 uL = 1 L
+    let source_28: Denomination22 = 1000000uL;
+    let target_28: Denomination2 = 1L;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_litre_volume/base_anchor_uL: forward");
+    std::test::assert(right_28 == left_28, "prefix_litre_volume/base_anchor_uL: reverse");
+    std::test::assert_eq_int(left_28 / 1L, k * 1, "prefix_litre_volume/base_anchor_uL: target count");
+    std::test::assert_eq_int(right_28 / 1uL, k * 1000000, "prefix_litre_volume/base_anchor_uL: source count");
+
+    // 1000 mL = 1 L
+    let source_29: Denomination17 = 1000mL;
+    let target_29: Denomination2 = 1L;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_litre_volume/base_anchor_mL: forward");
+    std::test::assert(right_29 == left_29, "prefix_litre_volume/base_anchor_mL: reverse");
+    std::test::assert_eq_int(left_29 / 1L, k * 1, "prefix_litre_volume/base_anchor_mL: target count");
+    std::test::assert_eq_int(right_29 / 1mL, k * 1000, "prefix_litre_volume/base_anchor_mL: source count");
+
+    // 100 cL = 1 L
+    let source_30: Denomination11 = 100cL;
+    let target_30: Denomination2 = 1L;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_litre_volume/base_anchor_cL: forward");
+    std::test::assert(right_30 == left_30, "prefix_litre_volume/base_anchor_cL: reverse");
+    std::test::assert_eq_int(left_30 / 1L, k * 1, "prefix_litre_volume/base_anchor_cL: target count");
+    std::test::assert_eq_int(right_30 / 1cL, k * 100, "prefix_litre_volume/base_anchor_cL: source count");
+
+    // 1 hL = 100 L
+    let source_31: Denomination15 = 1hL;
+    let target_31: Denomination2 = 100L;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_litre_volume/base_anchor_hL: forward");
+    std::test::assert(right_31 == left_31, "prefix_litre_volume/base_anchor_hL: reverse");
+    std::test::assert_eq_int(left_31 / 1L, k * 100, "prefix_litre_volume/base_anchor_hL: target count");
+    std::test::assert_eq_int(right_31 / 1hL, k * 1, "prefix_litre_volume/base_anchor_hL: source count");
+
+    // 1 kL = 1000 L
+    let source_32: Denomination16 = 1kL;
+    let target_32: Denomination2 = 1000L;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_litre_volume/base_anchor_kL: forward");
+    std::test::assert(right_32 == left_32, "prefix_litre_volume/base_anchor_kL: reverse");
+    std::test::assert_eq_int(left_32 / 1L, k * 1000, "prefix_litre_volume/base_anchor_kL: target count");
+    std::test::assert_eq_int(right_32 / 1kL, k * 1, "prefix_litre_volume/base_anchor_kL: source count");
+
+    // 1 ML = 1000000 L
+    let source_33: Denomination3 = 1ML;
+    let target_33: Denomination2 = 1000000L;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_litre_volume/base_anchor_ML: forward");
+    std::test::assert(right_33 == left_33, "prefix_litre_volume/base_anchor_ML: reverse");
+    std::test::assert_eq_int(left_33 / 1L, k * 1000000, "prefix_litre_volume/base_anchor_ML: target count");
+    std::test::assert_eq_int(right_33 / 1ML, k * 1, "prefix_litre_volume/base_anchor_ML: source count");
+
+    // 1 GL = 1000000000 L
+    let source_34: Denomination1 = 1GL;
+    let target_34: Denomination2 = 1000000000L;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_litre_volume/base_anchor_GL: forward");
+    std::test::assert(right_34 == left_34, "prefix_litre_volume/base_anchor_GL: reverse");
+    std::test::assert_eq_int(left_34 / 1L, k * 1000000000, "prefix_litre_volume/base_anchor_GL: target count");
+    std::test::assert_eq_int(right_34 / 1GL, k * 1, "prefix_litre_volume/base_anchor_GL: source count");
+
+    // 1 TL = 1000000000000 L
+    let source_35: Denomination7 = 1TL;
+    let target_35: Denomination2 = 1000000000000L;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_litre_volume/base_anchor_TL: forward");
+    std::test::assert(right_35 == left_35, "prefix_litre_volume/base_anchor_TL: reverse");
+    std::test::assert_eq_int(left_35 / 1L, k * 1000000000000, "prefix_litre_volume/base_anchor_TL: target count");
+    std::test::assert_eq_int(right_35 / 1TL, k * 1, "prefix_litre_volume/base_anchor_TL: source count");
+
+    // 1 PL = 1000000000000000 L
+    let source_36: Denomination4 = 1PL;
+    let target_36: Denomination2 = 1000000000000000L;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_litre_volume/base_anchor_PL: forward");
+    std::test::assert(right_36 == left_36, "prefix_litre_volume/base_anchor_PL: reverse");
+    std::test::assert_eq_int(left_36 / 1L, k * 1000000000000000, "prefix_litre_volume/base_anchor_PL: target count");
+    std::test::assert_eq_int(right_36 / 1PL, k * 1, "prefix_litre_volume/base_anchor_PL: source count");
+
+    // 1 EL = 1000000000000000000 L
+    let source_37: Denomination0 = 1EL;
+    let target_37: Denomination2 = 1000000000000000000L;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_litre_volume/base_anchor_EL: forward");
+    std::test::assert(right_37 == left_37, "prefix_litre_volume/base_anchor_EL: reverse");
+    std::test::assert_eq_int(left_37 / 1L, k * 1000000000000000000, "prefix_litre_volume/base_anchor_EL: target count");
+    std::test::assert_eq_int(right_37 / 1EL, k * 1, "prefix_litre_volume/base_anchor_EL: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

@@ -1,0 +1,6 @@
+import "../../../quantities" as q;
+
+fn main() {
+    let atomic_mass = 1Da;
+    let grams = atomic_mass.in(g);
+}

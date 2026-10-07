@@ -1,0 +1,620 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// information: 56 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QiB;
+
+type Denomination0 = GoldenQuantity in B;
+type Denomination1 = GoldenQuantity in EB;
+type Denomination2 = GoldenQuantity in Ebit;
+type Denomination3 = GoldenQuantity in EiB;
+type Denomination4 = GoldenQuantity in Eibit;
+type Denomination5 = GoldenQuantity in GB;
+type Denomination6 = GoldenQuantity in Gbit;
+type Denomination7 = GoldenQuantity in GiB;
+type Denomination8 = GoldenQuantity in Gibit;
+type Denomination9 = GoldenQuantity in KiB;
+type Denomination10 = GoldenQuantity in Kibit;
+type Denomination11 = GoldenQuantity in MB;
+type Denomination12 = GoldenQuantity in Mbit;
+type Denomination13 = GoldenQuantity in MiB;
+type Denomination14 = GoldenQuantity in Mibit;
+type Denomination15 = GoldenQuantity in PB;
+type Denomination16 = GoldenQuantity in Pbit;
+type Denomination17 = GoldenQuantity in PiB;
+type Denomination18 = GoldenQuantity in Pibit;
+type Denomination19 = GoldenQuantity in QB;
+type Denomination20 = GoldenQuantity in Qbit;
+type Denomination21 = GoldenQuantity in QiB;
+type Denomination22 = GoldenQuantity in Qibit;
+type Denomination23 = GoldenQuantity in RB;
+type Denomination24 = GoldenQuantity in Rbit;
+type Denomination25 = GoldenQuantity in RiB;
+type Denomination26 = GoldenQuantity in Ribit;
+type Denomination27 = GoldenQuantity in TB;
+type Denomination28 = GoldenQuantity in Tbit;
+type Denomination29 = GoldenQuantity in TiB;
+type Denomination30 = GoldenQuantity in Tibit;
+type Denomination31 = GoldenQuantity in YB;
+type Denomination32 = GoldenQuantity in Ybit;
+type Denomination33 = GoldenQuantity in YiB;
+type Denomination34 = GoldenQuantity in Yibit;
+type Denomination35 = GoldenQuantity in ZB;
+type Denomination36 = GoldenQuantity in Zbit;
+type Denomination37 = GoldenQuantity in ZiB;
+type Denomination38 = GoldenQuantity in Zibit;
+type Denomination39 = GoldenQuantity in bit;
+type Denomination40 = GoldenQuantity in kB;
+type Denomination41 = GoldenQuantity in kbit;
+
+fn check_runtime(k: Int) {
+    // 1 B = 8 bit
+    let source_0: Denomination0 = 1B;
+    let target_0: Denomination39 = 8bit;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "information/B_to_bit: forward");
+    std::test::assert(right_0 == left_0, "information/B_to_bit: reverse");
+    std::test::assert_eq_int(left_0 / 1bit, k * 8, "information/B_to_bit: target count");
+    std::test::assert_eq_int(right_0 / 1B, k * 1, "information/B_to_bit: source count");
+
+    // 1 KiB = 8192 bit
+    let source_1: Denomination9 = 1KiB;
+    let target_1: Denomination39 = 8192bit;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "information/KiB_to_bit: forward");
+    std::test::assert(right_1 == left_1, "information/KiB_to_bit: reverse");
+    std::test::assert_eq_int(left_1 / 1bit, k * 8192, "information/KiB_to_bit: target count");
+    std::test::assert_eq_int(right_1 / 1KiB, k * 1, "information/KiB_to_bit: source count");
+
+    // 125 MiB = 131072 kB
+    let source_2: Denomination13 = 125MiB;
+    let target_2: Denomination40 = 131072kB;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "information/MiB_to_kB: forward");
+    std::test::assert(right_2 == left_2, "information/MiB_to_kB: reverse");
+    std::test::assert_eq_int(left_2 / 1kB, k * 131072, "information/MiB_to_kB: target count");
+    std::test::assert_eq_int(right_2 / 1MiB, k * 125, "information/MiB_to_kB: source count");
+
+    // 15625 GiB = 16777216 MB
+    let source_3: Denomination7 = 15625GiB;
+    let target_3: Denomination11 = 16777216MB;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "information/GiB_to_MB: forward");
+    std::test::assert(right_3 == left_3, "information/GiB_to_MB: reverse");
+    std::test::assert_eq_int(left_3 / 1MB, k * 16777216, "information/GiB_to_MB: target count");
+    std::test::assert_eq_int(right_3 / 1GiB, k * 15625, "information/GiB_to_MB: source count");
+
+    // 1 QiB = 8 Qibit
+    let source_4: Denomination21 = 1QiB;
+    let target_4: Denomination22 = 8Qibit;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "information/QiB_to_Qibit: forward");
+    std::test::assert(right_4 == left_4, "information/QiB_to_Qibit: reverse");
+    std::test::assert_eq_int(left_4 / 1Qibit, k * 8, "information/QiB_to_Qibit: target count");
+    std::test::assert_eq_int(right_4 / 1QiB, k * 1, "information/QiB_to_Qibit: source count");
+
+    // 1 QB = 8 Qbit
+    let source_5: Denomination19 = 1QB;
+    let target_5: Denomination20 = 8Qbit;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "information/QB_to_Qbit: forward");
+    std::test::assert(right_5 == left_5, "information/QB_to_Qbit: reverse");
+    std::test::assert_eq_int(left_5 / 1Qbit, k * 8, "information/QB_to_Qbit: target count");
+    std::test::assert_eq_int(right_5 / 1QB, k * 1, "information/QB_to_Qbit: source count");
+
+    // 1 kbit = 1000 bit
+    let source_6: Denomination41 = 1kbit;
+    let target_6: Denomination39 = 1000bit;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "information/kbit_to_bit: forward");
+    std::test::assert(right_6 == left_6, "information/kbit_to_bit: reverse");
+    std::test::assert_eq_int(left_6 / 1bit, k * 1000, "information/kbit_to_bit: target count");
+    std::test::assert_eq_int(right_6 / 1kbit, k * 1, "information/kbit_to_bit: source count");
+
+    // 1 Mbit = 1000 kbit
+    let source_7: Denomination12 = 1Mbit;
+    let target_7: Denomination41 = 1000kbit;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "information/Mbit_to_kbit: forward");
+    std::test::assert(right_7 == left_7, "information/Mbit_to_kbit: reverse");
+    std::test::assert_eq_int(left_7 / 1kbit, k * 1000, "information/Mbit_to_kbit: target count");
+    std::test::assert_eq_int(right_7 / 1Mbit, k * 1, "information/Mbit_to_kbit: source count");
+
+    // 1 Gbit = 1000 Mbit
+    let source_8: Denomination6 = 1Gbit;
+    let target_8: Denomination12 = 1000Mbit;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "information/Gbit_to_Mbit: forward");
+    std::test::assert(right_8 == left_8, "information/Gbit_to_Mbit: reverse");
+    std::test::assert_eq_int(left_8 / 1Mbit, k * 1000, "information/Gbit_to_Mbit: target count");
+    std::test::assert_eq_int(right_8 / 1Gbit, k * 1, "information/Gbit_to_Mbit: source count");
+
+    // 1 Tbit = 1000 Gbit
+    let source_9: Denomination28 = 1Tbit;
+    let target_9: Denomination6 = 1000Gbit;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "information/Tbit_to_Gbit: forward");
+    std::test::assert(right_9 == left_9, "information/Tbit_to_Gbit: reverse");
+    std::test::assert_eq_int(left_9 / 1Gbit, k * 1000, "information/Tbit_to_Gbit: target count");
+    std::test::assert_eq_int(right_9 / 1Tbit, k * 1, "information/Tbit_to_Gbit: source count");
+
+    // 1 Pbit = 1000 Tbit
+    let source_10: Denomination16 = 1Pbit;
+    let target_10: Denomination28 = 1000Tbit;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "information/Pbit_to_Tbit: forward");
+    std::test::assert(right_10 == left_10, "information/Pbit_to_Tbit: reverse");
+    std::test::assert_eq_int(left_10 / 1Tbit, k * 1000, "information/Pbit_to_Tbit: target count");
+    std::test::assert_eq_int(right_10 / 1Pbit, k * 1, "information/Pbit_to_Tbit: source count");
+
+    // 1 Ebit = 1000 Pbit
+    let source_11: Denomination2 = 1Ebit;
+    let target_11: Denomination16 = 1000Pbit;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "information/Ebit_to_Pbit: forward");
+    std::test::assert(right_11 == left_11, "information/Ebit_to_Pbit: reverse");
+    std::test::assert_eq_int(left_11 / 1Pbit, k * 1000, "information/Ebit_to_Pbit: target count");
+    std::test::assert_eq_int(right_11 / 1Ebit, k * 1, "information/Ebit_to_Pbit: source count");
+
+    // 1 Zbit = 1000 Ebit
+    let source_12: Denomination36 = 1Zbit;
+    let target_12: Denomination2 = 1000Ebit;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "information/Zbit_to_Ebit: forward");
+    std::test::assert(right_12 == left_12, "information/Zbit_to_Ebit: reverse");
+    std::test::assert_eq_int(left_12 / 1Ebit, k * 1000, "information/Zbit_to_Ebit: target count");
+    std::test::assert_eq_int(right_12 / 1Zbit, k * 1, "information/Zbit_to_Ebit: source count");
+
+    // 1 Ybit = 1000 Zbit
+    let source_13: Denomination32 = 1Ybit;
+    let target_13: Denomination36 = 1000Zbit;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "information/Ybit_to_Zbit: forward");
+    std::test::assert(right_13 == left_13, "information/Ybit_to_Zbit: reverse");
+    std::test::assert_eq_int(left_13 / 1Zbit, k * 1000, "information/Ybit_to_Zbit: target count");
+    std::test::assert_eq_int(right_13 / 1Ybit, k * 1, "information/Ybit_to_Zbit: source count");
+
+    // 1 Rbit = 1000 Ybit
+    let source_14: Denomination24 = 1Rbit;
+    let target_14: Denomination32 = 1000Ybit;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "information/Rbit_to_Ybit: forward");
+    std::test::assert(right_14 == left_14, "information/Rbit_to_Ybit: reverse");
+    std::test::assert_eq_int(left_14 / 1Ybit, k * 1000, "information/Rbit_to_Ybit: target count");
+    std::test::assert_eq_int(right_14 / 1Rbit, k * 1, "information/Rbit_to_Ybit: source count");
+
+    // 1 Qbit = 1000 Rbit
+    let source_15: Denomination20 = 1Qbit;
+    let target_15: Denomination24 = 1000Rbit;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "information/Qbit_to_Rbit: forward");
+    std::test::assert(right_15 == left_15, "information/Qbit_to_Rbit: reverse");
+    std::test::assert_eq_int(left_15 / 1Rbit, k * 1000, "information/Qbit_to_Rbit: target count");
+    std::test::assert_eq_int(right_15 / 1Qbit, k * 1, "information/Qbit_to_Rbit: source count");
+
+    // 1 Kibit = 1024 bit
+    let source_16: Denomination10 = 1Kibit;
+    let target_16: Denomination39 = 1024bit;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "information/Kibit_to_bit: forward");
+    std::test::assert(right_16 == left_16, "information/Kibit_to_bit: reverse");
+    std::test::assert_eq_int(left_16 / 1bit, k * 1024, "information/Kibit_to_bit: target count");
+    std::test::assert_eq_int(right_16 / 1Kibit, k * 1, "information/Kibit_to_bit: source count");
+
+    // 1 Mibit = 1024 Kibit
+    let source_17: Denomination14 = 1Mibit;
+    let target_17: Denomination10 = 1024Kibit;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "information/Mibit_to_Kibit: forward");
+    std::test::assert(right_17 == left_17, "information/Mibit_to_Kibit: reverse");
+    std::test::assert_eq_int(left_17 / 1Kibit, k * 1024, "information/Mibit_to_Kibit: target count");
+    std::test::assert_eq_int(right_17 / 1Mibit, k * 1, "information/Mibit_to_Kibit: source count");
+
+    // 1 Gibit = 1024 Mibit
+    let source_18: Denomination8 = 1Gibit;
+    let target_18: Denomination14 = 1024Mibit;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "information/Gibit_to_Mibit: forward");
+    std::test::assert(right_18 == left_18, "information/Gibit_to_Mibit: reverse");
+    std::test::assert_eq_int(left_18 / 1Mibit, k * 1024, "information/Gibit_to_Mibit: target count");
+    std::test::assert_eq_int(right_18 / 1Gibit, k * 1, "information/Gibit_to_Mibit: source count");
+
+    // 1 Tibit = 1024 Gibit
+    let source_19: Denomination30 = 1Tibit;
+    let target_19: Denomination8 = 1024Gibit;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "information/Tibit_to_Gibit: forward");
+    std::test::assert(right_19 == left_19, "information/Tibit_to_Gibit: reverse");
+    std::test::assert_eq_int(left_19 / 1Gibit, k * 1024, "information/Tibit_to_Gibit: target count");
+    std::test::assert_eq_int(right_19 / 1Tibit, k * 1, "information/Tibit_to_Gibit: source count");
+
+    // 1 Pibit = 1024 Tibit
+    let source_20: Denomination18 = 1Pibit;
+    let target_20: Denomination30 = 1024Tibit;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "information/Pibit_to_Tibit: forward");
+    std::test::assert(right_20 == left_20, "information/Pibit_to_Tibit: reverse");
+    std::test::assert_eq_int(left_20 / 1Tibit, k * 1024, "information/Pibit_to_Tibit: target count");
+    std::test::assert_eq_int(right_20 / 1Pibit, k * 1, "information/Pibit_to_Tibit: source count");
+
+    // 1 Eibit = 1024 Pibit
+    let source_21: Denomination4 = 1Eibit;
+    let target_21: Denomination18 = 1024Pibit;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "information/Eibit_to_Pibit: forward");
+    std::test::assert(right_21 == left_21, "information/Eibit_to_Pibit: reverse");
+    std::test::assert_eq_int(left_21 / 1Pibit, k * 1024, "information/Eibit_to_Pibit: target count");
+    std::test::assert_eq_int(right_21 / 1Eibit, k * 1, "information/Eibit_to_Pibit: source count");
+
+    // 1 Zibit = 1024 Eibit
+    let source_22: Denomination38 = 1Zibit;
+    let target_22: Denomination4 = 1024Eibit;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "information/Zibit_to_Eibit: forward");
+    std::test::assert(right_22 == left_22, "information/Zibit_to_Eibit: reverse");
+    std::test::assert_eq_int(left_22 / 1Eibit, k * 1024, "information/Zibit_to_Eibit: target count");
+    std::test::assert_eq_int(right_22 / 1Zibit, k * 1, "information/Zibit_to_Eibit: source count");
+
+    // 1 Yibit = 1024 Zibit
+    let source_23: Denomination34 = 1Yibit;
+    let target_23: Denomination38 = 1024Zibit;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "information/Yibit_to_Zibit: forward");
+    std::test::assert(right_23 == left_23, "information/Yibit_to_Zibit: reverse");
+    std::test::assert_eq_int(left_23 / 1Zibit, k * 1024, "information/Yibit_to_Zibit: target count");
+    std::test::assert_eq_int(right_23 / 1Yibit, k * 1, "information/Yibit_to_Zibit: source count");
+
+    // 1 Ribit = 1024 Yibit
+    let source_24: Denomination26 = 1Ribit;
+    let target_24: Denomination34 = 1024Yibit;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "information/Ribit_to_Yibit: forward");
+    std::test::assert(right_24 == left_24, "information/Ribit_to_Yibit: reverse");
+    std::test::assert_eq_int(left_24 / 1Yibit, k * 1024, "information/Ribit_to_Yibit: target count");
+    std::test::assert_eq_int(right_24 / 1Ribit, k * 1, "information/Ribit_to_Yibit: source count");
+
+    // 1 Qibit = 1024 Ribit
+    let source_25: Denomination22 = 1Qibit;
+    let target_25: Denomination26 = 1024Ribit;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "information/Qibit_to_Ribit: forward");
+    std::test::assert(right_25 == left_25, "information/Qibit_to_Ribit: reverse");
+    std::test::assert_eq_int(left_25 / 1Ribit, k * 1024, "information/Qibit_to_Ribit: target count");
+    std::test::assert_eq_int(right_25 / 1Qibit, k * 1, "information/Qibit_to_Ribit: source count");
+
+    // 1 Mibit = 1048576 bit
+    let source_26: Denomination14 = 1Mibit;
+    let target_26: Denomination39 = 1048576bit;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "information/Mibit_to_bit: forward");
+    std::test::assert(right_26 == left_26, "information/Mibit_to_bit: reverse");
+    std::test::assert_eq_int(left_26 / 1bit, k * 1048576, "information/Mibit_to_bit: target count");
+    std::test::assert_eq_int(right_26 / 1Mibit, k * 1, "information/Mibit_to_bit: source count");
+
+    // 1 Gibit = 1073741824 bit
+    let source_27: Denomination8 = 1Gibit;
+    let target_27: Denomination39 = 1073741824bit;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "information/Gibit_to_bit: forward");
+    std::test::assert(right_27 == left_27, "information/Gibit_to_bit: reverse");
+    std::test::assert_eq_int(left_27 / 1bit, k * 1073741824, "information/Gibit_to_bit: target count");
+    std::test::assert_eq_int(right_27 / 1Gibit, k * 1, "information/Gibit_to_bit: source count");
+
+    // 1 Tibit = 1099511627776 bit
+    let source_28: Denomination30 = 1Tibit;
+    let target_28: Denomination39 = 1099511627776bit;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "information/Tibit_to_bit: forward");
+    std::test::assert(right_28 == left_28, "information/Tibit_to_bit: reverse");
+    std::test::assert_eq_int(left_28 / 1bit, k * 1099511627776, "information/Tibit_to_bit: target count");
+    std::test::assert_eq_int(right_28 / 1Tibit, k * 1, "information/Tibit_to_bit: source count");
+
+    // 1 Pibit = 1125899906842624 bit
+    let source_29: Denomination18 = 1Pibit;
+    let target_29: Denomination39 = 1125899906842624bit;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "information/Pibit_to_bit: forward");
+    std::test::assert(right_29 == left_29, "information/Pibit_to_bit: reverse");
+    std::test::assert_eq_int(left_29 / 1bit, k * 1125899906842624, "information/Pibit_to_bit: target count");
+    std::test::assert_eq_int(right_29 / 1Pibit, k * 1, "information/Pibit_to_bit: source count");
+
+    // 1 Eibit = 1152921504606846976 bit
+    let source_30: Denomination4 = 1Eibit;
+    let target_30: Denomination39 = 1152921504606846976bit;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "information/Eibit_to_bit: forward");
+    std::test::assert(right_30 == left_30, "information/Eibit_to_bit: reverse");
+    std::test::assert_eq_int(left_30 / 1bit, k * 1152921504606846976, "information/Eibit_to_bit: target count");
+    std::test::assert_eq_int(right_30 / 1Eibit, k * 1, "information/Eibit_to_bit: source count");
+
+    // 1 kB = 1000 B
+    let source_31: Denomination40 = 1kB;
+    let target_31: Denomination0 = 1000B;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "information/kB_to_B: forward");
+    std::test::assert(right_31 == left_31, "information/kB_to_B: reverse");
+    std::test::assert_eq_int(left_31 / 1B, k * 1000, "information/kB_to_B: target count");
+    std::test::assert_eq_int(right_31 / 1kB, k * 1, "information/kB_to_B: source count");
+
+    // 1 MB = 1000 kB
+    let source_32: Denomination11 = 1MB;
+    let target_32: Denomination40 = 1000kB;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "information/MB_to_kB: forward");
+    std::test::assert(right_32 == left_32, "information/MB_to_kB: reverse");
+    std::test::assert_eq_int(left_32 / 1kB, k * 1000, "information/MB_to_kB: target count");
+    std::test::assert_eq_int(right_32 / 1MB, k * 1, "information/MB_to_kB: source count");
+
+    // 1 GB = 1000 MB
+    let source_33: Denomination5 = 1GB;
+    let target_33: Denomination11 = 1000MB;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "information/GB_to_MB: forward");
+    std::test::assert(right_33 == left_33, "information/GB_to_MB: reverse");
+    std::test::assert_eq_int(left_33 / 1MB, k * 1000, "information/GB_to_MB: target count");
+    std::test::assert_eq_int(right_33 / 1GB, k * 1, "information/GB_to_MB: source count");
+
+    // 1 TB = 1000 GB
+    let source_34: Denomination27 = 1TB;
+    let target_34: Denomination5 = 1000GB;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "information/TB_to_GB: forward");
+    std::test::assert(right_34 == left_34, "information/TB_to_GB: reverse");
+    std::test::assert_eq_int(left_34 / 1GB, k * 1000, "information/TB_to_GB: target count");
+    std::test::assert_eq_int(right_34 / 1TB, k * 1, "information/TB_to_GB: source count");
+
+    // 1 PB = 1000 TB
+    let source_35: Denomination15 = 1PB;
+    let target_35: Denomination27 = 1000TB;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "information/PB_to_TB: forward");
+    std::test::assert(right_35 == left_35, "information/PB_to_TB: reverse");
+    std::test::assert_eq_int(left_35 / 1TB, k * 1000, "information/PB_to_TB: target count");
+    std::test::assert_eq_int(right_35 / 1PB, k * 1, "information/PB_to_TB: source count");
+
+    // 1 EB = 1000 PB
+    let source_36: Denomination1 = 1EB;
+    let target_36: Denomination15 = 1000PB;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "information/EB_to_PB: forward");
+    std::test::assert(right_36 == left_36, "information/EB_to_PB: reverse");
+    std::test::assert_eq_int(left_36 / 1PB, k * 1000, "information/EB_to_PB: target count");
+    std::test::assert_eq_int(right_36 / 1EB, k * 1, "information/EB_to_PB: source count");
+
+    // 1 ZB = 1000 EB
+    let source_37: Denomination35 = 1ZB;
+    let target_37: Denomination1 = 1000EB;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "information/ZB_to_EB: forward");
+    std::test::assert(right_37 == left_37, "information/ZB_to_EB: reverse");
+    std::test::assert_eq_int(left_37 / 1EB, k * 1000, "information/ZB_to_EB: target count");
+    std::test::assert_eq_int(right_37 / 1ZB, k * 1, "information/ZB_to_EB: source count");
+
+    // 1 YB = 1000 ZB
+    let source_38: Denomination31 = 1YB;
+    let target_38: Denomination35 = 1000ZB;
+    let left_38 = k * source_38;
+    let right_38 = k * target_38;
+    std::test::assert(left_38 == right_38, "information/YB_to_ZB: forward");
+    std::test::assert(right_38 == left_38, "information/YB_to_ZB: reverse");
+    std::test::assert_eq_int(left_38 / 1ZB, k * 1000, "information/YB_to_ZB: target count");
+    std::test::assert_eq_int(right_38 / 1YB, k * 1, "information/YB_to_ZB: source count");
+
+    // 1 RB = 1000 YB
+    let source_39: Denomination23 = 1RB;
+    let target_39: Denomination31 = 1000YB;
+    let left_39 = k * source_39;
+    let right_39 = k * target_39;
+    std::test::assert(left_39 == right_39, "information/RB_to_YB: forward");
+    std::test::assert(right_39 == left_39, "information/RB_to_YB: reverse");
+    std::test::assert_eq_int(left_39 / 1YB, k * 1000, "information/RB_to_YB: target count");
+    std::test::assert_eq_int(right_39 / 1RB, k * 1, "information/RB_to_YB: source count");
+
+    // 1 QB = 1000 RB
+    let source_40: Denomination19 = 1QB;
+    let target_40: Denomination23 = 1000RB;
+    let left_40 = k * source_40;
+    let right_40 = k * target_40;
+    std::test::assert(left_40 == right_40, "information/QB_to_RB: forward");
+    std::test::assert(right_40 == left_40, "information/QB_to_RB: reverse");
+    std::test::assert_eq_int(left_40 / 1RB, k * 1000, "information/QB_to_RB: target count");
+    std::test::assert_eq_int(right_40 / 1QB, k * 1, "information/QB_to_RB: source count");
+
+    // 1 KiB = 1024 B
+    let source_41: Denomination9 = 1KiB;
+    let target_41: Denomination0 = 1024B;
+    let left_41 = k * source_41;
+    let right_41 = k * target_41;
+    std::test::assert(left_41 == right_41, "information/KiB_to_B: forward");
+    std::test::assert(right_41 == left_41, "information/KiB_to_B: reverse");
+    std::test::assert_eq_int(left_41 / 1B, k * 1024, "information/KiB_to_B: target count");
+    std::test::assert_eq_int(right_41 / 1KiB, k * 1, "information/KiB_to_B: source count");
+
+    // 1 MiB = 1024 KiB
+    let source_42: Denomination13 = 1MiB;
+    let target_42: Denomination9 = 1024KiB;
+    let left_42 = k * source_42;
+    let right_42 = k * target_42;
+    std::test::assert(left_42 == right_42, "information/MiB_to_KiB: forward");
+    std::test::assert(right_42 == left_42, "information/MiB_to_KiB: reverse");
+    std::test::assert_eq_int(left_42 / 1KiB, k * 1024, "information/MiB_to_KiB: target count");
+    std::test::assert_eq_int(right_42 / 1MiB, k * 1, "information/MiB_to_KiB: source count");
+
+    // 1 GiB = 1024 MiB
+    let source_43: Denomination7 = 1GiB;
+    let target_43: Denomination13 = 1024MiB;
+    let left_43 = k * source_43;
+    let right_43 = k * target_43;
+    std::test::assert(left_43 == right_43, "information/GiB_to_MiB: forward");
+    std::test::assert(right_43 == left_43, "information/GiB_to_MiB: reverse");
+    std::test::assert_eq_int(left_43 / 1MiB, k * 1024, "information/GiB_to_MiB: target count");
+    std::test::assert_eq_int(right_43 / 1GiB, k * 1, "information/GiB_to_MiB: source count");
+
+    // 1 TiB = 1024 GiB
+    let source_44: Denomination29 = 1TiB;
+    let target_44: Denomination7 = 1024GiB;
+    let left_44 = k * source_44;
+    let right_44 = k * target_44;
+    std::test::assert(left_44 == right_44, "information/TiB_to_GiB: forward");
+    std::test::assert(right_44 == left_44, "information/TiB_to_GiB: reverse");
+    std::test::assert_eq_int(left_44 / 1GiB, k * 1024, "information/TiB_to_GiB: target count");
+    std::test::assert_eq_int(right_44 / 1TiB, k * 1, "information/TiB_to_GiB: source count");
+
+    // 1 PiB = 1024 TiB
+    let source_45: Denomination17 = 1PiB;
+    let target_45: Denomination29 = 1024TiB;
+    let left_45 = k * source_45;
+    let right_45 = k * target_45;
+    std::test::assert(left_45 == right_45, "information/PiB_to_TiB: forward");
+    std::test::assert(right_45 == left_45, "information/PiB_to_TiB: reverse");
+    std::test::assert_eq_int(left_45 / 1TiB, k * 1024, "information/PiB_to_TiB: target count");
+    std::test::assert_eq_int(right_45 / 1PiB, k * 1, "information/PiB_to_TiB: source count");
+
+    // 1 EiB = 1024 PiB
+    let source_46: Denomination3 = 1EiB;
+    let target_46: Denomination17 = 1024PiB;
+    let left_46 = k * source_46;
+    let right_46 = k * target_46;
+    std::test::assert(left_46 == right_46, "information/EiB_to_PiB: forward");
+    std::test::assert(right_46 == left_46, "information/EiB_to_PiB: reverse");
+    std::test::assert_eq_int(left_46 / 1PiB, k * 1024, "information/EiB_to_PiB: target count");
+    std::test::assert_eq_int(right_46 / 1EiB, k * 1, "information/EiB_to_PiB: source count");
+
+    // 1 ZiB = 1024 EiB
+    let source_47: Denomination37 = 1ZiB;
+    let target_47: Denomination3 = 1024EiB;
+    let left_47 = k * source_47;
+    let right_47 = k * target_47;
+    std::test::assert(left_47 == right_47, "information/ZiB_to_EiB: forward");
+    std::test::assert(right_47 == left_47, "information/ZiB_to_EiB: reverse");
+    std::test::assert_eq_int(left_47 / 1EiB, k * 1024, "information/ZiB_to_EiB: target count");
+    std::test::assert_eq_int(right_47 / 1ZiB, k * 1, "information/ZiB_to_EiB: source count");
+
+    // 1 YiB = 1024 ZiB
+    let source_48: Denomination33 = 1YiB;
+    let target_48: Denomination37 = 1024ZiB;
+    let left_48 = k * source_48;
+    let right_48 = k * target_48;
+    std::test::assert(left_48 == right_48, "information/YiB_to_ZiB: forward");
+    std::test::assert(right_48 == left_48, "information/YiB_to_ZiB: reverse");
+    std::test::assert_eq_int(left_48 / 1ZiB, k * 1024, "information/YiB_to_ZiB: target count");
+    std::test::assert_eq_int(right_48 / 1YiB, k * 1, "information/YiB_to_ZiB: source count");
+
+    // 1 RiB = 1024 YiB
+    let source_49: Denomination25 = 1RiB;
+    let target_49: Denomination33 = 1024YiB;
+    let left_49 = k * source_49;
+    let right_49 = k * target_49;
+    std::test::assert(left_49 == right_49, "information/RiB_to_YiB: forward");
+    std::test::assert(right_49 == left_49, "information/RiB_to_YiB: reverse");
+    std::test::assert_eq_int(left_49 / 1YiB, k * 1024, "information/RiB_to_YiB: target count");
+    std::test::assert_eq_int(right_49 / 1RiB, k * 1, "information/RiB_to_YiB: source count");
+
+    // 1 QiB = 1024 RiB
+    let source_50: Denomination21 = 1QiB;
+    let target_50: Denomination25 = 1024RiB;
+    let left_50 = k * source_50;
+    let right_50 = k * target_50;
+    std::test::assert(left_50 == right_50, "information/QiB_to_RiB: forward");
+    std::test::assert(right_50 == left_50, "information/QiB_to_RiB: reverse");
+    std::test::assert_eq_int(left_50 / 1RiB, k * 1024, "information/QiB_to_RiB: target count");
+    std::test::assert_eq_int(right_50 / 1QiB, k * 1, "information/QiB_to_RiB: source count");
+
+    // 1 MiB = 1048576 B
+    let source_51: Denomination13 = 1MiB;
+    let target_51: Denomination0 = 1048576B;
+    let left_51 = k * source_51;
+    let right_51 = k * target_51;
+    std::test::assert(left_51 == right_51, "information/MiB_to_B: forward");
+    std::test::assert(right_51 == left_51, "information/MiB_to_B: reverse");
+    std::test::assert_eq_int(left_51 / 1B, k * 1048576, "information/MiB_to_B: target count");
+    std::test::assert_eq_int(right_51 / 1MiB, k * 1, "information/MiB_to_B: source count");
+
+    // 1 GiB = 1073741824 B
+    let source_52: Denomination7 = 1GiB;
+    let target_52: Denomination0 = 1073741824B;
+    let left_52 = k * source_52;
+    let right_52 = k * target_52;
+    std::test::assert(left_52 == right_52, "information/GiB_to_B: forward");
+    std::test::assert(right_52 == left_52, "information/GiB_to_B: reverse");
+    std::test::assert_eq_int(left_52 / 1B, k * 1073741824, "information/GiB_to_B: target count");
+    std::test::assert_eq_int(right_52 / 1GiB, k * 1, "information/GiB_to_B: source count");
+
+    // 1 TiB = 1099511627776 B
+    let source_53: Denomination29 = 1TiB;
+    let target_53: Denomination0 = 1099511627776B;
+    let left_53 = k * source_53;
+    let right_53 = k * target_53;
+    std::test::assert(left_53 == right_53, "information/TiB_to_B: forward");
+    std::test::assert(right_53 == left_53, "information/TiB_to_B: reverse");
+    std::test::assert_eq_int(left_53 / 1B, k * 1099511627776, "information/TiB_to_B: target count");
+    std::test::assert_eq_int(right_53 / 1TiB, k * 1, "information/TiB_to_B: source count");
+
+    // 1 PiB = 1125899906842624 B
+    let source_54: Denomination17 = 1PiB;
+    let target_54: Denomination0 = 1125899906842624B;
+    let left_54 = k * source_54;
+    let right_54 = k * target_54;
+    std::test::assert(left_54 == right_54, "information/PiB_to_B: forward");
+    std::test::assert(right_54 == left_54, "information/PiB_to_B: reverse");
+    std::test::assert_eq_int(left_54 / 1B, k * 1125899906842624, "information/PiB_to_B: target count");
+    std::test::assert_eq_int(right_54 / 1PiB, k * 1, "information/PiB_to_B: source count");
+
+    // 1 EiB = 1152921504606846976 B
+    let source_55: Denomination3 = 1EiB;
+    let target_55: Denomination0 = 1152921504606846976B;
+    let left_55 = k * source_55;
+    let right_55 = k * target_55;
+    std::test::assert(left_55 == right_55, "information/EiB_to_B: forward");
+    std::test::assert(right_55 == left_55, "information/EiB_to_B: reverse");
+    std::test::assert_eq_int(left_55 / 1B, k * 1152921504606846976, "information/EiB_to_B: target count");
+    std::test::assert_eq_int(right_55 / 1EiB, k * 1, "information/EiB_to_B: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

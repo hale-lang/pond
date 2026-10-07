@@ -1,0 +1,3 @@
+import "../../.." as units;
+type TestEnergy = quantity Int in QJ;
+fn main() { let comparison = 1eV < 1J; }

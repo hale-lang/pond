@@ -1,0 +1,67 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// charge: 3 runtime ratios, 1 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QC;
+
+type Denomination0 = GoldenQuantity in Ah;
+type Denomination1 = GoldenQuantity in C;
+type Denomination2 = GoldenQuantity in aC;
+type Denomination3 = GoldenQuantity in e_charge;
+type Denomination4 = GoldenQuantity in mAh;
+
+fn check_runtime(k: Int) {
+    // 1 Ah = 3600 C
+    let source_0: Denomination0 = 1Ah;
+    let target_0: Denomination1 = 3600C;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "charge/Ah_to_C: forward");
+    std::test::assert(right_0 == left_0, "charge/Ah_to_C: reverse");
+    std::test::assert_eq_int(left_0 / 1C, k * 3600, "charge/Ah_to_C: target count");
+    std::test::assert_eq_int(right_0 / 1Ah, k * 1, "charge/Ah_to_C: source count");
+
+    // 5 mAh = 18 C
+    let source_1: Denomination4 = 5mAh;
+    let target_1: Denomination1 = 18C;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "charge/mAh_to_C: forward");
+    std::test::assert(right_1 == left_1, "charge/mAh_to_C: reverse");
+    std::test::assert_eq_int(left_1 / 1C, k * 18, "charge/mAh_to_C: target count");
+    std::test::assert_eq_int(right_1 / 1mAh, k * 5, "charge/mAh_to_C: source count");
+
+    // 1 Ah = 1000 mAh
+    let source_2: Denomination0 = 1Ah;
+    let target_2: Denomination4 = 1000mAh;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "charge/Ah_to_mAh: forward");
+    std::test::assert(right_2 == left_2, "charge/Ah_to_mAh: reverse");
+    std::test::assert_eq_int(left_2 / 1mAh, k * 1000, "charge/Ah_to_mAh: target count");
+    std::test::assert_eq_int(right_2 / 1Ah, k * 1, "charge/Ah_to_mAh: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_0_forward_positive: Denomination2 = 5000000000e_charge;
+    let expected_0_forward_positive: Denomination2 = 801088317aC;
+    std::test::assert(actual_0_forward_positive == expected_0_forward_positive, "charge/e_charge_to_aC: literal forward positive");
+    let actual_0_forward_negative: Denomination2 = -actual_0_forward_positive;
+    let expected_0_forward_negative: Denomination2 = -expected_0_forward_positive;
+    std::test::assert(actual_0_forward_negative == expected_0_forward_negative, "charge/e_charge_to_aC: literal forward negative");
+    let actual_0_reverse_positive: Denomination3 = 801088317aC;
+    let expected_0_reverse_positive: Denomination3 = 5000000000e_charge;
+    std::test::assert(actual_0_reverse_positive == expected_0_reverse_positive, "charge/e_charge_to_aC: literal reverse positive");
+    let actual_0_reverse_negative: Denomination3 = -actual_0_reverse_positive;
+    let expected_0_reverse_negative: Denomination3 = -expected_0_reverse_positive;
+    std::test::assert(actual_0_reverse_negative == expected_0_reverse_negative, "charge/e_charge_to_aC: literal reverse negative");
+}

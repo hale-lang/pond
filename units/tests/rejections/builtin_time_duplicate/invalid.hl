@@ -1,0 +1,3 @@
+import "../../.." as units;
+unit ns;
+fn main() { }

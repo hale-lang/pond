@@ -1,0 +1,25 @@
+// The application chooses its own denominations from a unit-only import.
+import "../.." as units;
+
+type Length = quantity Int in um;
+type Volume = quantity Int in uL;
+type Concentration = quantity Int in umol_per_L;
+
+locus CatalogueDemo {
+    run() {
+        let length: Length = 5ft;
+        let volume: Volume = 250mL;
+        let concentration: Concentration = 15mmol_per_L;
+        println("5 international feet = ", length.in(mm) or floor);
+        println("250 mL = ", volume / 1uL, " uL");
+        println("15 mmol/L = ", concentration);
+        // A US liquid gallon does not contain a whole number of microlitres.
+        let jug = 1gal_us;
+        let rounded = jug.in(uL) or half_even;
+        println("1 US liquid gallon, nearest microlitre = ", rounded / 1uL, " uL");
+    }
+}
+
+fn main() {
+    CatalogueDemo { };
+}

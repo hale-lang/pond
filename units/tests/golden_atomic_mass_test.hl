@@ -1,0 +1,52 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// atomic_mass: 3 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in GDa;
+
+type Denomination0 = GoldenQuantity in Da;
+type Denomination1 = GoldenQuantity in GDa;
+type Denomination2 = GoldenQuantity in MDa;
+type Denomination3 = GoldenQuantity in kDa;
+
+fn check_runtime(k: Int) {
+    // 1 GDa = 1000000000 Da
+    let source_0: Denomination1 = 1GDa;
+    let target_0: Denomination0 = 1000000000Da;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "atomic_mass/GDa_to_Da: forward");
+    std::test::assert(right_0 == left_0, "atomic_mass/GDa_to_Da: reverse");
+    std::test::assert_eq_int(left_0 / 1Da, k * 1000000000, "atomic_mass/GDa_to_Da: target count");
+    std::test::assert_eq_int(right_0 / 1GDa, k * 1, "atomic_mass/GDa_to_Da: source count");
+
+    // 1 MDa = 1000 kDa
+    let source_1: Denomination2 = 1MDa;
+    let target_1: Denomination3 = 1000kDa;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "atomic_mass/MDa_to_kDa: forward");
+    std::test::assert(right_1 == left_1, "atomic_mass/MDa_to_kDa: reverse");
+    std::test::assert_eq_int(left_1 / 1kDa, k * 1000, "atomic_mass/MDa_to_kDa: target count");
+    std::test::assert_eq_int(right_1 / 1MDa, k * 1, "atomic_mass/MDa_to_kDa: source count");
+
+    // 1 kDa = 1000 Da
+    let source_2: Denomination3 = 1kDa;
+    let target_2: Denomination0 = 1000Da;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "atomic_mass/kDa_to_Da: forward");
+    std::test::assert(right_2 == left_2, "atomic_mass/kDa_to_Da: reverse");
+    std::test::assert_eq_int(left_2 / 1Da, k * 1000, "atomic_mass/kDa_to_Da: target count");
+    std::test::assert_eq_int(right_2 / 1kDa, k * 1, "atomic_mass/kDa_to_Da: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

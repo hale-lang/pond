@@ -1,0 +1,5 @@
+import "../../.." as units;
+
+fn main() {
+    let duration = 1Ts;
+}

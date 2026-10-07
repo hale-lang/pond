@@ -1,0 +1,89 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// power: 1 runtime ratios, 4 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QW;
+
+type Denomination0 = GoldenQuantity in Btu_IT_per_h;
+type Denomination1 = GoldenQuantity in W;
+type Denomination2 = GoldenQuantity in hp_mech;
+type Denomination3 = GoldenQuantity in hp_metric;
+type Denomination4 = GoldenQuantity in kW;
+
+fn check_runtime(k: Int) {
+    // 800 hp_metric = 588399 W
+    let source_0: Denomination3 = 800hp_metric;
+    let target_0: Denomination1 = 588399W;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "power/hp_metric_to_W: forward");
+    std::test::assert(right_0 == left_0, "power/hp_metric_to_W: reverse");
+    std::test::assert_eq_int(left_0 / 1W, k * 588399, "power/hp_metric_to_W: target count");
+    std::test::assert_eq_int(right_0 / 1hp_metric, k * 800, "power/hp_metric_to_W: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_0_forward_positive: Denomination1 = 50000000000000hp_mech;
+    let expected_0_forward_positive: Denomination1 = 37284993579113511W;
+    std::test::assert(actual_0_forward_positive == expected_0_forward_positive, "power/hp_mech_to_W: literal forward positive");
+    let actual_0_forward_negative: Denomination1 = -actual_0_forward_positive;
+    let expected_0_forward_negative: Denomination1 = -expected_0_forward_positive;
+    std::test::assert(actual_0_forward_negative == expected_0_forward_negative, "power/hp_mech_to_W: literal forward negative");
+    let actual_0_reverse_positive: Denomination2 = 37284993579113511W;
+    let expected_0_reverse_positive: Denomination2 = 50000000000000hp_mech;
+    std::test::assert(actual_0_reverse_positive == expected_0_reverse_positive, "power/hp_mech_to_W: literal reverse positive");
+    let actual_0_reverse_negative: Denomination2 = -actual_0_reverse_positive;
+    let expected_0_reverse_negative: Denomination2 = -expected_0_reverse_positive;
+    std::test::assert(actual_0_reverse_negative == expected_0_reverse_negative, "power/hp_mech_to_W: literal reverse negative");
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_1_forward_positive: Denomination1 = 180000000000Btu_IT_per_h;
+    let expected_1_forward_positive: Denomination1 = 52752792631W;
+    std::test::assert(actual_1_forward_positive == expected_1_forward_positive, "power/Btu_IT_per_h_to_W: literal forward positive");
+    let actual_1_forward_negative: Denomination1 = -actual_1_forward_positive;
+    let expected_1_forward_negative: Denomination1 = -expected_1_forward_positive;
+    std::test::assert(actual_1_forward_negative == expected_1_forward_negative, "power/Btu_IT_per_h_to_W: literal forward negative");
+    let actual_1_reverse_positive: Denomination0 = 52752792631W;
+    let expected_1_reverse_positive: Denomination0 = 180000000000Btu_IT_per_h;
+    std::test::assert(actual_1_reverse_positive == expected_1_reverse_positive, "power/Btu_IT_per_h_to_W: literal reverse positive");
+    let actual_1_reverse_negative: Denomination0 = -actual_1_reverse_positive;
+    let expected_1_reverse_negative: Denomination0 = -expected_1_reverse_positive;
+    std::test::assert(actual_1_reverse_negative == expected_1_reverse_negative, "power/Btu_IT_per_h_to_W: literal reverse negative");
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_2_forward_positive: Denomination3 = 62500000000hp_mech;
+    let expected_2_forward_positive: Denomination3 = 63366854089hp_metric;
+    std::test::assert(actual_2_forward_positive == expected_2_forward_positive, "power/hp_mech_to_hp_metric: literal forward positive");
+    let actual_2_forward_negative: Denomination3 = -actual_2_forward_positive;
+    let expected_2_forward_negative: Denomination3 = -expected_2_forward_positive;
+    std::test::assert(actual_2_forward_negative == expected_2_forward_negative, "power/hp_mech_to_hp_metric: literal forward negative");
+    let actual_2_reverse_positive: Denomination2 = 63366854089hp_metric;
+    let expected_2_reverse_positive: Denomination2 = 62500000000hp_mech;
+    std::test::assert(actual_2_reverse_positive == expected_2_reverse_positive, "power/hp_mech_to_hp_metric: literal reverse positive");
+    let actual_2_reverse_negative: Denomination2 = -actual_2_reverse_positive;
+    let expected_2_reverse_negative: Denomination2 = -expected_2_reverse_positive;
+    std::test::assert(actual_2_reverse_negative == expected_2_reverse_negative, "power/hp_mech_to_hp_metric: literal reverse negative");
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_3_forward_positive: Denomination0 = 52752792631kW;
+    let expected_3_forward_positive: Denomination0 = 180000000000000Btu_IT_per_h;
+    std::test::assert(actual_3_forward_positive == expected_3_forward_positive, "power/kW_to_Btu_IT_per_h: literal forward positive");
+    let actual_3_forward_negative: Denomination0 = -actual_3_forward_positive;
+    let expected_3_forward_negative: Denomination0 = -expected_3_forward_positive;
+    std::test::assert(actual_3_forward_negative == expected_3_forward_negative, "power/kW_to_Btu_IT_per_h: literal forward negative");
+    let actual_3_reverse_positive: Denomination4 = 180000000000000Btu_IT_per_h;
+    let expected_3_reverse_positive: Denomination4 = 52752792631kW;
+    std::test::assert(actual_3_reverse_positive == expected_3_reverse_positive, "power/kW_to_Btu_IT_per_h: literal reverse positive");
+    let actual_3_reverse_negative: Denomination4 = -actual_3_reverse_positive;
+    let expected_3_reverse_negative: Denomination4 = -expected_3_reverse_positive;
+    std::test::assert(actual_3_reverse_negative == expected_3_reverse_negative, "power/kW_to_Btu_IT_per_h: literal reverse negative");
+}

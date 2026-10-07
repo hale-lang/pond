@@ -1,0 +1,24 @@
+import "../../quantities" as q;
+
+// A local refinement enables native constructors for imported point types.
+type Celsius = q::Celsius in temperature_quantum;
+type Fahrenheit = q::Fahrenheit in temperature_quantum;
+type Kelvin = q::Kelvin in temperature_quantum;
+
+locus QuantitiesDemo {
+    run() {
+        let room = Celsius(25degC);
+        let freezing = Celsius(0degC);
+        let length: q::Length = 1inch;
+        let charge: q::Charge = 2500mAh;
+        let fahrenheit_delta = Fahrenheit(room) - Fahrenheit(freezing);
+        println("one inch = ", length);
+        println("battery charge = ", charge.in(C) or floor);
+        println("25 C above freezing = ", fahrenheit_delta.in(degF) or floor);
+        println("25 C above absolute zero = ", (Kelvin(room) - Kelvin(0K)).in(mK) or floor);
+    }
+}
+
+fn main() {
+    QuantitiesDemo { };
+}

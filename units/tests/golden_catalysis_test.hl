@@ -1,0 +1,52 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// catalysis: 3 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in Qkat;
+
+type Denomination0 = GoldenQuantity in enzyme_unit;
+type Denomination1 = GoldenQuantity in kat;
+type Denomination2 = GoldenQuantity in nkat;
+type Denomination3 = GoldenQuantity in ukat;
+
+fn check_runtime(k: Int) {
+    // 3 enzyme_unit = 50 nkat
+    let source_0: Denomination0 = 3enzyme_unit;
+    let target_0: Denomination2 = 50nkat;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "catalysis/enzyme_unit_to_nkat: forward");
+    std::test::assert(right_0 == left_0, "catalysis/enzyme_unit_to_nkat: reverse");
+    std::test::assert_eq_int(left_0 / 1nkat, k * 50, "catalysis/enzyme_unit_to_nkat: target count");
+    std::test::assert_eq_int(right_0 / 1enzyme_unit, k * 3, "catalysis/enzyme_unit_to_nkat: source count");
+
+    // 60 enzyme_unit = 1 ukat
+    let source_1: Denomination0 = 60enzyme_unit;
+    let target_1: Denomination3 = 1ukat;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "catalysis/enzyme_unit_to_ukat: forward");
+    std::test::assert(right_1 == left_1, "catalysis/enzyme_unit_to_ukat: reverse");
+    std::test::assert_eq_int(left_1 / 1ukat, k * 1, "catalysis/enzyme_unit_to_ukat: target count");
+    std::test::assert_eq_int(right_1 / 1enzyme_unit, k * 60, "catalysis/enzyme_unit_to_ukat: source count");
+
+    // 1 kat = 60000000 enzyme_unit
+    let source_2: Denomination1 = 1kat;
+    let target_2: Denomination0 = 60000000enzyme_unit;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "catalysis/kat_to_enzyme_unit: forward");
+    std::test::assert(right_2 == left_2, "catalysis/kat_to_enzyme_unit: reverse");
+    std::test::assert_eq_int(left_2 / 1enzyme_unit, k * 60000000, "catalysis/kat_to_enzyme_unit: target count");
+    std::test::assert_eq_int(right_2 / 1kat, k * 1, "catalysis/kat_to_enzyme_unit: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

@@ -1,0 +1,84 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// acceleration: 6 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in g0;
+
+type Denomination0 = GoldenQuantity in Gal;
+type Denomination1 = GoldenQuantity in ft_per_s2;
+type Denomination2 = GoldenQuantity in g0;
+type Denomination3 = GoldenQuantity in m_per_s2;
+type Denomination4 = GoldenQuantity in mm_per_s2;
+type Denomination5 = GoldenQuantity in um_per_s2;
+
+fn check_runtime(k: Int) {
+    // 6096 g0 = 196133 ft_per_s2
+    let source_0: Denomination2 = 6096g0;
+    let target_0: Denomination1 = 196133ft_per_s2;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "acceleration/g0_to_ft_per_s2: forward");
+    std::test::assert(right_0 == left_0, "acceleration/g0_to_ft_per_s2: reverse");
+    std::test::assert_eq_int(left_0 / 1ft_per_s2, k * 196133, "acceleration/g0_to_ft_per_s2: target count");
+    std::test::assert_eq_int(right_0 / 1g0, k * 6096, "acceleration/g0_to_ft_per_s2: source count");
+
+    // 200 g0 = 196133 Gal
+    let source_1: Denomination2 = 200g0;
+    let target_1: Denomination0 = 196133Gal;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "acceleration/g0_to_Gal: forward");
+    std::test::assert(right_1 == left_1, "acceleration/g0_to_Gal: reverse");
+    std::test::assert_eq_int(left_1 / 1Gal, k * 196133, "acceleration/g0_to_Gal: target count");
+    std::test::assert_eq_int(right_1 / 1g0, k * 200, "acceleration/g0_to_Gal: source count");
+
+    // 1 m_per_s2 = 100 Gal
+    let source_2: Denomination3 = 1m_per_s2;
+    let target_2: Denomination0 = 100Gal;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "acceleration/m_per_s2_to_Gal: forward");
+    std::test::assert(right_2 == left_2, "acceleration/m_per_s2_to_Gal: reverse");
+    std::test::assert_eq_int(left_2 / 1Gal, k * 100, "acceleration/m_per_s2_to_Gal: target count");
+    std::test::assert_eq_int(right_2 / 1m_per_s2, k * 1, "acceleration/m_per_s2_to_Gal: source count");
+
+    // 1 Gal = 10 mm_per_s2
+    let source_3: Denomination0 = 1Gal;
+    let target_3: Denomination4 = 10mm_per_s2;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "acceleration/Gal_to_mm_per_s2: forward");
+    std::test::assert(right_3 == left_3, "acceleration/Gal_to_mm_per_s2: reverse");
+    std::test::assert_eq_int(left_3 / 1mm_per_s2, k * 10, "acceleration/Gal_to_mm_per_s2: target count");
+    std::test::assert_eq_int(right_3 / 1Gal, k * 1, "acceleration/Gal_to_mm_per_s2: source count");
+
+    // 1 mm_per_s2 = 1000 um_per_s2
+    let source_4: Denomination4 = 1mm_per_s2;
+    let target_4: Denomination5 = 1000um_per_s2;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "acceleration/mm_per_s2_to_um_per_s2: forward");
+    std::test::assert(right_4 == left_4, "acceleration/mm_per_s2_to_um_per_s2: reverse");
+    std::test::assert_eq_int(left_4 / 1um_per_s2, k * 1000, "acceleration/mm_per_s2_to_um_per_s2: target count");
+    std::test::assert_eq_int(right_4 / 1mm_per_s2, k * 1, "acceleration/mm_per_s2_to_um_per_s2: source count");
+
+    // 20000 g0 = 196133 m_per_s2
+    let source_5: Denomination2 = 20000g0;
+    let target_5: Denomination3 = 196133m_per_s2;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "acceleration/g0_to_m_per_s2: forward");
+    std::test::assert(right_5 == left_5, "acceleration/g0_to_m_per_s2: reverse");
+    std::test::assert_eq_int(left_5 / 1m_per_s2, k * 196133, "acceleration/g0_to_m_per_s2: target count");
+    std::test::assert_eq_int(right_5 / 1g0, k * 20000, "acceleration/g0_to_m_per_s2: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

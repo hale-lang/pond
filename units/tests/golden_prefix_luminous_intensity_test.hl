@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_luminous_intensity: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in Qcd;
+
+type Denomination0 = GoldenQuantity in Ecd;
+type Denomination1 = GoldenQuantity in Gcd;
+type Denomination2 = GoldenQuantity in Mcd;
+type Denomination3 = GoldenQuantity in Pcd;
+type Denomination4 = GoldenQuantity in Qcd;
+type Denomination5 = GoldenQuantity in Rcd;
+type Denomination6 = GoldenQuantity in Tcd;
+type Denomination7 = GoldenQuantity in Ycd;
+type Denomination8 = GoldenQuantity in Zcd;
+type Denomination9 = GoldenQuantity in acd;
+type Denomination10 = GoldenQuantity in ccd;
+type Denomination11 = GoldenQuantity in cd;
+type Denomination12 = GoldenQuantity in dacd;
+type Denomination13 = GoldenQuantity in dcd;
+type Denomination14 = GoldenQuantity in fcd;
+type Denomination15 = GoldenQuantity in hcd;
+type Denomination16 = GoldenQuantity in kcd;
+type Denomination17 = GoldenQuantity in mcd;
+type Denomination18 = GoldenQuantity in ncd;
+type Denomination19 = GoldenQuantity in pcd;
+type Denomination20 = GoldenQuantity in qcd;
+type Denomination21 = GoldenQuantity in rcd;
+type Denomination22 = GoldenQuantity in ucd;
+type Denomination23 = GoldenQuantity in ycd;
+type Denomination24 = GoldenQuantity in zcd;
+
+fn check_runtime(k: Int) {
+    // 1 rcd = 1000 qcd
+    let source_0: Denomination21 = 1rcd;
+    let target_0: Denomination20 = 1000qcd;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_luminous_intensity/adjacent_rcd_qcd: forward");
+    std::test::assert(right_0 == left_0, "prefix_luminous_intensity/adjacent_rcd_qcd: reverse");
+    std::test::assert_eq_int(left_0 / 1qcd, k * 1000, "prefix_luminous_intensity/adjacent_rcd_qcd: target count");
+    std::test::assert_eq_int(right_0 / 1rcd, k * 1, "prefix_luminous_intensity/adjacent_rcd_qcd: source count");
+
+    // 1 ycd = 1000 rcd
+    let source_1: Denomination23 = 1ycd;
+    let target_1: Denomination21 = 1000rcd;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_luminous_intensity/adjacent_ycd_rcd: forward");
+    std::test::assert(right_1 == left_1, "prefix_luminous_intensity/adjacent_ycd_rcd: reverse");
+    std::test::assert_eq_int(left_1 / 1rcd, k * 1000, "prefix_luminous_intensity/adjacent_ycd_rcd: target count");
+    std::test::assert_eq_int(right_1 / 1ycd, k * 1, "prefix_luminous_intensity/adjacent_ycd_rcd: source count");
+
+    // 1 zcd = 1000 ycd
+    let source_2: Denomination24 = 1zcd;
+    let target_2: Denomination23 = 1000ycd;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_luminous_intensity/adjacent_zcd_ycd: forward");
+    std::test::assert(right_2 == left_2, "prefix_luminous_intensity/adjacent_zcd_ycd: reverse");
+    std::test::assert_eq_int(left_2 / 1ycd, k * 1000, "prefix_luminous_intensity/adjacent_zcd_ycd: target count");
+    std::test::assert_eq_int(right_2 / 1zcd, k * 1, "prefix_luminous_intensity/adjacent_zcd_ycd: source count");
+
+    // 1 acd = 1000 zcd
+    let source_3: Denomination9 = 1acd;
+    let target_3: Denomination24 = 1000zcd;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_luminous_intensity/adjacent_acd_zcd: forward");
+    std::test::assert(right_3 == left_3, "prefix_luminous_intensity/adjacent_acd_zcd: reverse");
+    std::test::assert_eq_int(left_3 / 1zcd, k * 1000, "prefix_luminous_intensity/adjacent_acd_zcd: target count");
+    std::test::assert_eq_int(right_3 / 1acd, k * 1, "prefix_luminous_intensity/adjacent_acd_zcd: source count");
+
+    // 1 fcd = 1000 acd
+    let source_4: Denomination14 = 1fcd;
+    let target_4: Denomination9 = 1000acd;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_luminous_intensity/adjacent_fcd_acd: forward");
+    std::test::assert(right_4 == left_4, "prefix_luminous_intensity/adjacent_fcd_acd: reverse");
+    std::test::assert_eq_int(left_4 / 1acd, k * 1000, "prefix_luminous_intensity/adjacent_fcd_acd: target count");
+    std::test::assert_eq_int(right_4 / 1fcd, k * 1, "prefix_luminous_intensity/adjacent_fcd_acd: source count");
+
+    // 1 pcd = 1000 fcd
+    let source_5: Denomination19 = 1pcd;
+    let target_5: Denomination14 = 1000fcd;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_luminous_intensity/adjacent_pcd_fcd: forward");
+    std::test::assert(right_5 == left_5, "prefix_luminous_intensity/adjacent_pcd_fcd: reverse");
+    std::test::assert_eq_int(left_5 / 1fcd, k * 1000, "prefix_luminous_intensity/adjacent_pcd_fcd: target count");
+    std::test::assert_eq_int(right_5 / 1pcd, k * 1, "prefix_luminous_intensity/adjacent_pcd_fcd: source count");
+
+    // 1 ncd = 1000 pcd
+    let source_6: Denomination18 = 1ncd;
+    let target_6: Denomination19 = 1000pcd;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_luminous_intensity/adjacent_ncd_pcd: forward");
+    std::test::assert(right_6 == left_6, "prefix_luminous_intensity/adjacent_ncd_pcd: reverse");
+    std::test::assert_eq_int(left_6 / 1pcd, k * 1000, "prefix_luminous_intensity/adjacent_ncd_pcd: target count");
+    std::test::assert_eq_int(right_6 / 1ncd, k * 1, "prefix_luminous_intensity/adjacent_ncd_pcd: source count");
+
+    // 1 ucd = 1000 ncd
+    let source_7: Denomination22 = 1ucd;
+    let target_7: Denomination18 = 1000ncd;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_luminous_intensity/adjacent_ucd_ncd: forward");
+    std::test::assert(right_7 == left_7, "prefix_luminous_intensity/adjacent_ucd_ncd: reverse");
+    std::test::assert_eq_int(left_7 / 1ncd, k * 1000, "prefix_luminous_intensity/adjacent_ucd_ncd: target count");
+    std::test::assert_eq_int(right_7 / 1ucd, k * 1, "prefix_luminous_intensity/adjacent_ucd_ncd: source count");
+
+    // 1 mcd = 1000 ucd
+    let source_8: Denomination17 = 1mcd;
+    let target_8: Denomination22 = 1000ucd;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_luminous_intensity/adjacent_mcd_ucd: forward");
+    std::test::assert(right_8 == left_8, "prefix_luminous_intensity/adjacent_mcd_ucd: reverse");
+    std::test::assert_eq_int(left_8 / 1ucd, k * 1000, "prefix_luminous_intensity/adjacent_mcd_ucd: target count");
+    std::test::assert_eq_int(right_8 / 1mcd, k * 1, "prefix_luminous_intensity/adjacent_mcd_ucd: source count");
+
+    // 1 ccd = 10 mcd
+    let source_9: Denomination10 = 1ccd;
+    let target_9: Denomination17 = 10mcd;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_luminous_intensity/adjacent_ccd_mcd: forward");
+    std::test::assert(right_9 == left_9, "prefix_luminous_intensity/adjacent_ccd_mcd: reverse");
+    std::test::assert_eq_int(left_9 / 1mcd, k * 10, "prefix_luminous_intensity/adjacent_ccd_mcd: target count");
+    std::test::assert_eq_int(right_9 / 1ccd, k * 1, "prefix_luminous_intensity/adjacent_ccd_mcd: source count");
+
+    // 1 dcd = 10 ccd
+    let source_10: Denomination13 = 1dcd;
+    let target_10: Denomination10 = 10ccd;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_luminous_intensity/adjacent_dcd_ccd: forward");
+    std::test::assert(right_10 == left_10, "prefix_luminous_intensity/adjacent_dcd_ccd: reverse");
+    std::test::assert_eq_int(left_10 / 1ccd, k * 10, "prefix_luminous_intensity/adjacent_dcd_ccd: target count");
+    std::test::assert_eq_int(right_10 / 1dcd, k * 1, "prefix_luminous_intensity/adjacent_dcd_ccd: source count");
+
+    // 1 cd = 10 dcd
+    let source_11: Denomination11 = 1cd;
+    let target_11: Denomination13 = 10dcd;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_luminous_intensity/adjacent_cd_dcd: forward");
+    std::test::assert(right_11 == left_11, "prefix_luminous_intensity/adjacent_cd_dcd: reverse");
+    std::test::assert_eq_int(left_11 / 1dcd, k * 10, "prefix_luminous_intensity/adjacent_cd_dcd: target count");
+    std::test::assert_eq_int(right_11 / 1cd, k * 1, "prefix_luminous_intensity/adjacent_cd_dcd: source count");
+
+    // 1 dacd = 10 cd
+    let source_12: Denomination12 = 1dacd;
+    let target_12: Denomination11 = 10cd;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_luminous_intensity/adjacent_dacd_cd: forward");
+    std::test::assert(right_12 == left_12, "prefix_luminous_intensity/adjacent_dacd_cd: reverse");
+    std::test::assert_eq_int(left_12 / 1cd, k * 10, "prefix_luminous_intensity/adjacent_dacd_cd: target count");
+    std::test::assert_eq_int(right_12 / 1dacd, k * 1, "prefix_luminous_intensity/adjacent_dacd_cd: source count");
+
+    // 1 hcd = 10 dacd
+    let source_13: Denomination15 = 1hcd;
+    let target_13: Denomination12 = 10dacd;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_luminous_intensity/adjacent_hcd_dacd: forward");
+    std::test::assert(right_13 == left_13, "prefix_luminous_intensity/adjacent_hcd_dacd: reverse");
+    std::test::assert_eq_int(left_13 / 1dacd, k * 10, "prefix_luminous_intensity/adjacent_hcd_dacd: target count");
+    std::test::assert_eq_int(right_13 / 1hcd, k * 1, "prefix_luminous_intensity/adjacent_hcd_dacd: source count");
+
+    // 1 kcd = 10 hcd
+    let source_14: Denomination16 = 1kcd;
+    let target_14: Denomination15 = 10hcd;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_luminous_intensity/adjacent_kcd_hcd: forward");
+    std::test::assert(right_14 == left_14, "prefix_luminous_intensity/adjacent_kcd_hcd: reverse");
+    std::test::assert_eq_int(left_14 / 1hcd, k * 10, "prefix_luminous_intensity/adjacent_kcd_hcd: target count");
+    std::test::assert_eq_int(right_14 / 1kcd, k * 1, "prefix_luminous_intensity/adjacent_kcd_hcd: source count");
+
+    // 1 Mcd = 1000 kcd
+    let source_15: Denomination2 = 1Mcd;
+    let target_15: Denomination16 = 1000kcd;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_luminous_intensity/adjacent_Mcd_kcd: forward");
+    std::test::assert(right_15 == left_15, "prefix_luminous_intensity/adjacent_Mcd_kcd: reverse");
+    std::test::assert_eq_int(left_15 / 1kcd, k * 1000, "prefix_luminous_intensity/adjacent_Mcd_kcd: target count");
+    std::test::assert_eq_int(right_15 / 1Mcd, k * 1, "prefix_luminous_intensity/adjacent_Mcd_kcd: source count");
+
+    // 1 Gcd = 1000 Mcd
+    let source_16: Denomination1 = 1Gcd;
+    let target_16: Denomination2 = 1000Mcd;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_luminous_intensity/adjacent_Gcd_Mcd: forward");
+    std::test::assert(right_16 == left_16, "prefix_luminous_intensity/adjacent_Gcd_Mcd: reverse");
+    std::test::assert_eq_int(left_16 / 1Mcd, k * 1000, "prefix_luminous_intensity/adjacent_Gcd_Mcd: target count");
+    std::test::assert_eq_int(right_16 / 1Gcd, k * 1, "prefix_luminous_intensity/adjacent_Gcd_Mcd: source count");
+
+    // 1 Tcd = 1000 Gcd
+    let source_17: Denomination6 = 1Tcd;
+    let target_17: Denomination1 = 1000Gcd;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_luminous_intensity/adjacent_Tcd_Gcd: forward");
+    std::test::assert(right_17 == left_17, "prefix_luminous_intensity/adjacent_Tcd_Gcd: reverse");
+    std::test::assert_eq_int(left_17 / 1Gcd, k * 1000, "prefix_luminous_intensity/adjacent_Tcd_Gcd: target count");
+    std::test::assert_eq_int(right_17 / 1Tcd, k * 1, "prefix_luminous_intensity/adjacent_Tcd_Gcd: source count");
+
+    // 1 Pcd = 1000 Tcd
+    let source_18: Denomination3 = 1Pcd;
+    let target_18: Denomination6 = 1000Tcd;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_luminous_intensity/adjacent_Pcd_Tcd: forward");
+    std::test::assert(right_18 == left_18, "prefix_luminous_intensity/adjacent_Pcd_Tcd: reverse");
+    std::test::assert_eq_int(left_18 / 1Tcd, k * 1000, "prefix_luminous_intensity/adjacent_Pcd_Tcd: target count");
+    std::test::assert_eq_int(right_18 / 1Pcd, k * 1, "prefix_luminous_intensity/adjacent_Pcd_Tcd: source count");
+
+    // 1 Ecd = 1000 Pcd
+    let source_19: Denomination0 = 1Ecd;
+    let target_19: Denomination3 = 1000Pcd;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_luminous_intensity/adjacent_Ecd_Pcd: forward");
+    std::test::assert(right_19 == left_19, "prefix_luminous_intensity/adjacent_Ecd_Pcd: reverse");
+    std::test::assert_eq_int(left_19 / 1Pcd, k * 1000, "prefix_luminous_intensity/adjacent_Ecd_Pcd: target count");
+    std::test::assert_eq_int(right_19 / 1Ecd, k * 1, "prefix_luminous_intensity/adjacent_Ecd_Pcd: source count");
+
+    // 1 Zcd = 1000 Ecd
+    let source_20: Denomination8 = 1Zcd;
+    let target_20: Denomination0 = 1000Ecd;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_luminous_intensity/adjacent_Zcd_Ecd: forward");
+    std::test::assert(right_20 == left_20, "prefix_luminous_intensity/adjacent_Zcd_Ecd: reverse");
+    std::test::assert_eq_int(left_20 / 1Ecd, k * 1000, "prefix_luminous_intensity/adjacent_Zcd_Ecd: target count");
+    std::test::assert_eq_int(right_20 / 1Zcd, k * 1, "prefix_luminous_intensity/adjacent_Zcd_Ecd: source count");
+
+    // 1 Ycd = 1000 Zcd
+    let source_21: Denomination7 = 1Ycd;
+    let target_21: Denomination8 = 1000Zcd;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_luminous_intensity/adjacent_Ycd_Zcd: forward");
+    std::test::assert(right_21 == left_21, "prefix_luminous_intensity/adjacent_Ycd_Zcd: reverse");
+    std::test::assert_eq_int(left_21 / 1Zcd, k * 1000, "prefix_luminous_intensity/adjacent_Ycd_Zcd: target count");
+    std::test::assert_eq_int(right_21 / 1Ycd, k * 1, "prefix_luminous_intensity/adjacent_Ycd_Zcd: source count");
+
+    // 1 Rcd = 1000 Ycd
+    let source_22: Denomination5 = 1Rcd;
+    let target_22: Denomination7 = 1000Ycd;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_luminous_intensity/adjacent_Rcd_Ycd: forward");
+    std::test::assert(right_22 == left_22, "prefix_luminous_intensity/adjacent_Rcd_Ycd: reverse");
+    std::test::assert_eq_int(left_22 / 1Ycd, k * 1000, "prefix_luminous_intensity/adjacent_Rcd_Ycd: target count");
+    std::test::assert_eq_int(right_22 / 1Rcd, k * 1, "prefix_luminous_intensity/adjacent_Rcd_Ycd: source count");
+
+    // 1 Qcd = 1000 Rcd
+    let source_23: Denomination4 = 1Qcd;
+    let target_23: Denomination5 = 1000Rcd;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_luminous_intensity/adjacent_Qcd_Rcd: forward");
+    std::test::assert(right_23 == left_23, "prefix_luminous_intensity/adjacent_Qcd_Rcd: reverse");
+    std::test::assert_eq_int(left_23 / 1Rcd, k * 1000, "prefix_luminous_intensity/adjacent_Qcd_Rcd: target count");
+    std::test::assert_eq_int(right_23 / 1Qcd, k * 1, "prefix_luminous_intensity/adjacent_Qcd_Rcd: source count");
+
+    // 1000000000000000000 acd = 1 cd
+    let source_24: Denomination9 = 1000000000000000000acd;
+    let target_24: Denomination11 = 1cd;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_luminous_intensity/base_anchor_acd: forward");
+    std::test::assert(right_24 == left_24, "prefix_luminous_intensity/base_anchor_acd: reverse");
+    std::test::assert_eq_int(left_24 / 1cd, k * 1, "prefix_luminous_intensity/base_anchor_acd: target count");
+    std::test::assert_eq_int(right_24 / 1acd, k * 1000000000000000000, "prefix_luminous_intensity/base_anchor_acd: source count");
+
+    // 1000000000000000 fcd = 1 cd
+    let source_25: Denomination14 = 1000000000000000fcd;
+    let target_25: Denomination11 = 1cd;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_luminous_intensity/base_anchor_fcd: forward");
+    std::test::assert(right_25 == left_25, "prefix_luminous_intensity/base_anchor_fcd: reverse");
+    std::test::assert_eq_int(left_25 / 1cd, k * 1, "prefix_luminous_intensity/base_anchor_fcd: target count");
+    std::test::assert_eq_int(right_25 / 1fcd, k * 1000000000000000, "prefix_luminous_intensity/base_anchor_fcd: source count");
+
+    // 1000000000000 pcd = 1 cd
+    let source_26: Denomination19 = 1000000000000pcd;
+    let target_26: Denomination11 = 1cd;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_luminous_intensity/base_anchor_pcd: forward");
+    std::test::assert(right_26 == left_26, "prefix_luminous_intensity/base_anchor_pcd: reverse");
+    std::test::assert_eq_int(left_26 / 1cd, k * 1, "prefix_luminous_intensity/base_anchor_pcd: target count");
+    std::test::assert_eq_int(right_26 / 1pcd, k * 1000000000000, "prefix_luminous_intensity/base_anchor_pcd: source count");
+
+    // 1000000000 ncd = 1 cd
+    let source_27: Denomination18 = 1000000000ncd;
+    let target_27: Denomination11 = 1cd;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_luminous_intensity/base_anchor_ncd: forward");
+    std::test::assert(right_27 == left_27, "prefix_luminous_intensity/base_anchor_ncd: reverse");
+    std::test::assert_eq_int(left_27 / 1cd, k * 1, "prefix_luminous_intensity/base_anchor_ncd: target count");
+    std::test::assert_eq_int(right_27 / 1ncd, k * 1000000000, "prefix_luminous_intensity/base_anchor_ncd: source count");
+
+    // 1000000 ucd = 1 cd
+    let source_28: Denomination22 = 1000000ucd;
+    let target_28: Denomination11 = 1cd;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_luminous_intensity/base_anchor_ucd: forward");
+    std::test::assert(right_28 == left_28, "prefix_luminous_intensity/base_anchor_ucd: reverse");
+    std::test::assert_eq_int(left_28 / 1cd, k * 1, "prefix_luminous_intensity/base_anchor_ucd: target count");
+    std::test::assert_eq_int(right_28 / 1ucd, k * 1000000, "prefix_luminous_intensity/base_anchor_ucd: source count");
+
+    // 1000 mcd = 1 cd
+    let source_29: Denomination17 = 1000mcd;
+    let target_29: Denomination11 = 1cd;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_luminous_intensity/base_anchor_mcd: forward");
+    std::test::assert(right_29 == left_29, "prefix_luminous_intensity/base_anchor_mcd: reverse");
+    std::test::assert_eq_int(left_29 / 1cd, k * 1, "prefix_luminous_intensity/base_anchor_mcd: target count");
+    std::test::assert_eq_int(right_29 / 1mcd, k * 1000, "prefix_luminous_intensity/base_anchor_mcd: source count");
+
+    // 100 ccd = 1 cd
+    let source_30: Denomination10 = 100ccd;
+    let target_30: Denomination11 = 1cd;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_luminous_intensity/base_anchor_ccd: forward");
+    std::test::assert(right_30 == left_30, "prefix_luminous_intensity/base_anchor_ccd: reverse");
+    std::test::assert_eq_int(left_30 / 1cd, k * 1, "prefix_luminous_intensity/base_anchor_ccd: target count");
+    std::test::assert_eq_int(right_30 / 1ccd, k * 100, "prefix_luminous_intensity/base_anchor_ccd: source count");
+
+    // 1 hcd = 100 cd
+    let source_31: Denomination15 = 1hcd;
+    let target_31: Denomination11 = 100cd;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_luminous_intensity/base_anchor_hcd: forward");
+    std::test::assert(right_31 == left_31, "prefix_luminous_intensity/base_anchor_hcd: reverse");
+    std::test::assert_eq_int(left_31 / 1cd, k * 100, "prefix_luminous_intensity/base_anchor_hcd: target count");
+    std::test::assert_eq_int(right_31 / 1hcd, k * 1, "prefix_luminous_intensity/base_anchor_hcd: source count");
+
+    // 1 kcd = 1000 cd
+    let source_32: Denomination16 = 1kcd;
+    let target_32: Denomination11 = 1000cd;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_luminous_intensity/base_anchor_kcd: forward");
+    std::test::assert(right_32 == left_32, "prefix_luminous_intensity/base_anchor_kcd: reverse");
+    std::test::assert_eq_int(left_32 / 1cd, k * 1000, "prefix_luminous_intensity/base_anchor_kcd: target count");
+    std::test::assert_eq_int(right_32 / 1kcd, k * 1, "prefix_luminous_intensity/base_anchor_kcd: source count");
+
+    // 1 Mcd = 1000000 cd
+    let source_33: Denomination2 = 1Mcd;
+    let target_33: Denomination11 = 1000000cd;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_luminous_intensity/base_anchor_Mcd: forward");
+    std::test::assert(right_33 == left_33, "prefix_luminous_intensity/base_anchor_Mcd: reverse");
+    std::test::assert_eq_int(left_33 / 1cd, k * 1000000, "prefix_luminous_intensity/base_anchor_Mcd: target count");
+    std::test::assert_eq_int(right_33 / 1Mcd, k * 1, "prefix_luminous_intensity/base_anchor_Mcd: source count");
+
+    // 1 Gcd = 1000000000 cd
+    let source_34: Denomination1 = 1Gcd;
+    let target_34: Denomination11 = 1000000000cd;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_luminous_intensity/base_anchor_Gcd: forward");
+    std::test::assert(right_34 == left_34, "prefix_luminous_intensity/base_anchor_Gcd: reverse");
+    std::test::assert_eq_int(left_34 / 1cd, k * 1000000000, "prefix_luminous_intensity/base_anchor_Gcd: target count");
+    std::test::assert_eq_int(right_34 / 1Gcd, k * 1, "prefix_luminous_intensity/base_anchor_Gcd: source count");
+
+    // 1 Tcd = 1000000000000 cd
+    let source_35: Denomination6 = 1Tcd;
+    let target_35: Denomination11 = 1000000000000cd;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_luminous_intensity/base_anchor_Tcd: forward");
+    std::test::assert(right_35 == left_35, "prefix_luminous_intensity/base_anchor_Tcd: reverse");
+    std::test::assert_eq_int(left_35 / 1cd, k * 1000000000000, "prefix_luminous_intensity/base_anchor_Tcd: target count");
+    std::test::assert_eq_int(right_35 / 1Tcd, k * 1, "prefix_luminous_intensity/base_anchor_Tcd: source count");
+
+    // 1 Pcd = 1000000000000000 cd
+    let source_36: Denomination3 = 1Pcd;
+    let target_36: Denomination11 = 1000000000000000cd;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_luminous_intensity/base_anchor_Pcd: forward");
+    std::test::assert(right_36 == left_36, "prefix_luminous_intensity/base_anchor_Pcd: reverse");
+    std::test::assert_eq_int(left_36 / 1cd, k * 1000000000000000, "prefix_luminous_intensity/base_anchor_Pcd: target count");
+    std::test::assert_eq_int(right_36 / 1Pcd, k * 1, "prefix_luminous_intensity/base_anchor_Pcd: source count");
+
+    // 1 Ecd = 1000000000000000000 cd
+    let source_37: Denomination0 = 1Ecd;
+    let target_37: Denomination11 = 1000000000000000000cd;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_luminous_intensity/base_anchor_Ecd: forward");
+    std::test::assert(right_37 == left_37, "prefix_luminous_intensity/base_anchor_Ecd: reverse");
+    std::test::assert_eq_int(left_37 / 1cd, k * 1000000000000000000, "prefix_luminous_intensity/base_anchor_Ecd: target count");
+    std::test::assert_eq_int(right_37 / 1Ecd, k * 1, "prefix_luminous_intensity/base_anchor_Ecd: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

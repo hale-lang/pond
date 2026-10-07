@@ -31,11 +31,12 @@ import "vendor/pond/agent/llm" as llm;
 You vendor the whole pond repo, then import only the libs you
 use. Each lib lives at its own path under `vendor/pond/`.
 
-> **Upstream baseline: hale 0.16.0.** Every lib type-checks, tests
-> and runs against it. [`CONTRACTS.md`](./CONTRACTS.md) records the
-> exact commit each refresh pass builds against, and
-> [`COMPILER-BUGS.md`](./COMPILER-BUGS.md) carries any compiler
-> defects the current pass is blocked on.
+> **Compiler compatibility is per library.** The older catalogue's
+> recorded baseline is hale 0.16.0; newer libraries state newer
+> requirements. In particular, [`units/`](./units/README.md) needs the
+> post-v0.22 unit dialect. [`CONTRACTS.md`](./CONTRACTS.md) records
+> verification commits, and [`COMPILER-BUGS.md`](./COMPILER-BUGS.md)
+> carries reproduced compiler defects with their own baselines.
 
 ## Catalog
 
@@ -64,6 +65,7 @@ apps, other `_util` libs, and tier libs — since upstream WS3.4
 | `subprocess/` | fork/exec wrapper with pipes + timeout | `sub` |
 | `math/matrix/` | Dense matrix + matmul + linalg primitives | `mat` |
 | `math/stats/` | Mean, var, quantile, online moments | `stats` |
+| `units/` | Exact physics, chemistry, engineering and computing unit catalogue, with optional quantity types and a sourced golden corpus — requires the post-v0.22 unit dialect | `units` / `q` |
 | `term/` | Terminal control: color profiles + styled output (auto-downgrade), ANSI escapes, raw mode — pure Hale over `std::term` | `term` |
 
 ### Tier 1 — Rails-shape web stack

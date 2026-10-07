@@ -14,6 +14,24 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-10-07 status note — `units` added
+
+- New `pond/units` catalogue: 986 exact unit declarations; its optional
+  `pond/units/quantities` seed provides 53 principal quantities and four
+  temperature points. This is a new contract, with no older surface changed.
+- Verified against Hale `0.22.0` at
+  `2027ab41c1d10b98c0b8baeceafb587ba2178b1a`, after the unit dialect merged.
+  The original v0.22.0 release is insufficient. Other Pond libraries retain
+  their existing verification baselines.
+- Derived dimensions, Float quantities, custom rounding functions, calendars,
+  width packing and physical range validation are not promised. Compound unit
+  names are independent graph components. Exactness and Int headroom are
+  separate contracts; see `units/README.md`.
+- Imported point construction currently needs a local scalar refinement;
+  qualified scalar policies and two additional unit-lowering cases are
+  recorded with standalone reproductions in `COMPILER-BUGS.md` §§10–13.
+  `FRICTION.log § pond/units` records the supported shapes.
+
 ## 2026-09-24 status note — `realtime/nats` added (hale 0.21.0)
 
 - **New lib `pond/realtime/nats`** (pond#23), surface in § Tier 3.
@@ -774,6 +792,40 @@ locus OnlineMoments {                    // Welford's running mean/var
 
 type StatsError { kind: String; }        // "empty" | "out_of_range"
 ```
+
+### `pond/units/` — aliases `units`, `q` for the optional seed
+
+The public unit symbols and exact equations are the seven root `.hl` files,
+indexed by `units/README.md` (986 declarations). The root import adds only
+units, with no rounding policy and no principal quantity except the stdlib's
+existing time types. Literal suffixes are global even across aliased imports;
+consumers must not redeclare a catalogue symbol. Applications choose one
+principal quantity per connected component.
+
+```hale
+import "vendor/pond/units" as units;
+type Length = quantity Int in um;
+```
+
+The optional `units/quantities` seed imports that catalogue and defines the 53
+principal quantities and denominations listed in its README, plus `Kelvin`,
+`Celsius`, `Fahrenheit`, `Rankine` points over `TemperatureDelta`. Its defaults
+are an opt-in precision/range choice, not limits imposed by the catalogue.
+No default rounding or physical-validity range is attached. Alternative
+boundaries refine these types (`type Fine = q::Length in nm;`) instead of
+introducing a second principal quantity. At the verified compiler revision,
+local scalar refinements enable imported point constructors; plain aliases
+and qualified calls are not equivalent in native lowering.
+
+There is no derived-dimension arithmetic or approximate conversion API.
+Separate components deliberately include degree/radian, Da/gram, energy/torque
+and absorbed/equivalent dose. `entity` and `e_charge` use exact revised-SI
+constants. Common customary units disambiguate system and kind in their names.
+
+Verification includes independent golden rational relationships, native signed
+conversion/rounding tests, check/build rejection fixtures, and two runnable
+examples. Every unit needs an independent golden relationship. Changes to a
+symbol, factor or default denomination change this public contract.
 
 ### `pond/term/` — alias `term`
 

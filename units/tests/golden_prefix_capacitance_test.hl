@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_capacitance: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QF;
+
+type Denomination0 = GoldenQuantity in EF;
+type Denomination1 = GoldenQuantity in F;
+type Denomination2 = GoldenQuantity in GF;
+type Denomination3 = GoldenQuantity in MF;
+type Denomination4 = GoldenQuantity in PF;
+type Denomination5 = GoldenQuantity in QF;
+type Denomination6 = GoldenQuantity in RF;
+type Denomination7 = GoldenQuantity in TF;
+type Denomination8 = GoldenQuantity in YF;
+type Denomination9 = GoldenQuantity in ZF;
+type Denomination10 = GoldenQuantity in aF;
+type Denomination11 = GoldenQuantity in cF;
+type Denomination12 = GoldenQuantity in dF;
+type Denomination13 = GoldenQuantity in daF;
+type Denomination14 = GoldenQuantity in fF;
+type Denomination15 = GoldenQuantity in hF;
+type Denomination16 = GoldenQuantity in kF;
+type Denomination17 = GoldenQuantity in mF;
+type Denomination18 = GoldenQuantity in nF;
+type Denomination19 = GoldenQuantity in pF;
+type Denomination20 = GoldenQuantity in qF;
+type Denomination21 = GoldenQuantity in rF;
+type Denomination22 = GoldenQuantity in uF;
+type Denomination23 = GoldenQuantity in yF;
+type Denomination24 = GoldenQuantity in zF;
+
+fn check_runtime(k: Int) {
+    // 1 rF = 1000 qF
+    let source_0: Denomination21 = 1rF;
+    let target_0: Denomination20 = 1000qF;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_capacitance/adjacent_rF_qF: forward");
+    std::test::assert(right_0 == left_0, "prefix_capacitance/adjacent_rF_qF: reverse");
+    std::test::assert_eq_int(left_0 / 1qF, k * 1000, "prefix_capacitance/adjacent_rF_qF: target count");
+    std::test::assert_eq_int(right_0 / 1rF, k * 1, "prefix_capacitance/adjacent_rF_qF: source count");
+
+    // 1 yF = 1000 rF
+    let source_1: Denomination23 = 1yF;
+    let target_1: Denomination21 = 1000rF;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_capacitance/adjacent_yF_rF: forward");
+    std::test::assert(right_1 == left_1, "prefix_capacitance/adjacent_yF_rF: reverse");
+    std::test::assert_eq_int(left_1 / 1rF, k * 1000, "prefix_capacitance/adjacent_yF_rF: target count");
+    std::test::assert_eq_int(right_1 / 1yF, k * 1, "prefix_capacitance/adjacent_yF_rF: source count");
+
+    // 1 zF = 1000 yF
+    let source_2: Denomination24 = 1zF;
+    let target_2: Denomination23 = 1000yF;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_capacitance/adjacent_zF_yF: forward");
+    std::test::assert(right_2 == left_2, "prefix_capacitance/adjacent_zF_yF: reverse");
+    std::test::assert_eq_int(left_2 / 1yF, k * 1000, "prefix_capacitance/adjacent_zF_yF: target count");
+    std::test::assert_eq_int(right_2 / 1zF, k * 1, "prefix_capacitance/adjacent_zF_yF: source count");
+
+    // 1 aF = 1000 zF
+    let source_3: Denomination10 = 1aF;
+    let target_3: Denomination24 = 1000zF;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_capacitance/adjacent_aF_zF: forward");
+    std::test::assert(right_3 == left_3, "prefix_capacitance/adjacent_aF_zF: reverse");
+    std::test::assert_eq_int(left_3 / 1zF, k * 1000, "prefix_capacitance/adjacent_aF_zF: target count");
+    std::test::assert_eq_int(right_3 / 1aF, k * 1, "prefix_capacitance/adjacent_aF_zF: source count");
+
+    // 1 fF = 1000 aF
+    let source_4: Denomination14 = 1fF;
+    let target_4: Denomination10 = 1000aF;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_capacitance/adjacent_fF_aF: forward");
+    std::test::assert(right_4 == left_4, "prefix_capacitance/adjacent_fF_aF: reverse");
+    std::test::assert_eq_int(left_4 / 1aF, k * 1000, "prefix_capacitance/adjacent_fF_aF: target count");
+    std::test::assert_eq_int(right_4 / 1fF, k * 1, "prefix_capacitance/adjacent_fF_aF: source count");
+
+    // 1 pF = 1000 fF
+    let source_5: Denomination19 = 1pF;
+    let target_5: Denomination14 = 1000fF;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_capacitance/adjacent_pF_fF: forward");
+    std::test::assert(right_5 == left_5, "prefix_capacitance/adjacent_pF_fF: reverse");
+    std::test::assert_eq_int(left_5 / 1fF, k * 1000, "prefix_capacitance/adjacent_pF_fF: target count");
+    std::test::assert_eq_int(right_5 / 1pF, k * 1, "prefix_capacitance/adjacent_pF_fF: source count");
+
+    // 1 nF = 1000 pF
+    let source_6: Denomination18 = 1nF;
+    let target_6: Denomination19 = 1000pF;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_capacitance/adjacent_nF_pF: forward");
+    std::test::assert(right_6 == left_6, "prefix_capacitance/adjacent_nF_pF: reverse");
+    std::test::assert_eq_int(left_6 / 1pF, k * 1000, "prefix_capacitance/adjacent_nF_pF: target count");
+    std::test::assert_eq_int(right_6 / 1nF, k * 1, "prefix_capacitance/adjacent_nF_pF: source count");
+
+    // 1 uF = 1000 nF
+    let source_7: Denomination22 = 1uF;
+    let target_7: Denomination18 = 1000nF;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_capacitance/adjacent_uF_nF: forward");
+    std::test::assert(right_7 == left_7, "prefix_capacitance/adjacent_uF_nF: reverse");
+    std::test::assert_eq_int(left_7 / 1nF, k * 1000, "prefix_capacitance/adjacent_uF_nF: target count");
+    std::test::assert_eq_int(right_7 / 1uF, k * 1, "prefix_capacitance/adjacent_uF_nF: source count");
+
+    // 1 mF = 1000 uF
+    let source_8: Denomination17 = 1mF;
+    let target_8: Denomination22 = 1000uF;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_capacitance/adjacent_mF_uF: forward");
+    std::test::assert(right_8 == left_8, "prefix_capacitance/adjacent_mF_uF: reverse");
+    std::test::assert_eq_int(left_8 / 1uF, k * 1000, "prefix_capacitance/adjacent_mF_uF: target count");
+    std::test::assert_eq_int(right_8 / 1mF, k * 1, "prefix_capacitance/adjacent_mF_uF: source count");
+
+    // 1 cF = 10 mF
+    let source_9: Denomination11 = 1cF;
+    let target_9: Denomination17 = 10mF;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_capacitance/adjacent_cF_mF: forward");
+    std::test::assert(right_9 == left_9, "prefix_capacitance/adjacent_cF_mF: reverse");
+    std::test::assert_eq_int(left_9 / 1mF, k * 10, "prefix_capacitance/adjacent_cF_mF: target count");
+    std::test::assert_eq_int(right_9 / 1cF, k * 1, "prefix_capacitance/adjacent_cF_mF: source count");
+
+    // 1 dF = 10 cF
+    let source_10: Denomination12 = 1dF;
+    let target_10: Denomination11 = 10cF;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_capacitance/adjacent_dF_cF: forward");
+    std::test::assert(right_10 == left_10, "prefix_capacitance/adjacent_dF_cF: reverse");
+    std::test::assert_eq_int(left_10 / 1cF, k * 10, "prefix_capacitance/adjacent_dF_cF: target count");
+    std::test::assert_eq_int(right_10 / 1dF, k * 1, "prefix_capacitance/adjacent_dF_cF: source count");
+
+    // 1 F = 10 dF
+    let source_11: Denomination1 = 1F;
+    let target_11: Denomination12 = 10dF;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_capacitance/adjacent_F_dF: forward");
+    std::test::assert(right_11 == left_11, "prefix_capacitance/adjacent_F_dF: reverse");
+    std::test::assert_eq_int(left_11 / 1dF, k * 10, "prefix_capacitance/adjacent_F_dF: target count");
+    std::test::assert_eq_int(right_11 / 1F, k * 1, "prefix_capacitance/adjacent_F_dF: source count");
+
+    // 1 daF = 10 F
+    let source_12: Denomination13 = 1daF;
+    let target_12: Denomination1 = 10F;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_capacitance/adjacent_daF_F: forward");
+    std::test::assert(right_12 == left_12, "prefix_capacitance/adjacent_daF_F: reverse");
+    std::test::assert_eq_int(left_12 / 1F, k * 10, "prefix_capacitance/adjacent_daF_F: target count");
+    std::test::assert_eq_int(right_12 / 1daF, k * 1, "prefix_capacitance/adjacent_daF_F: source count");
+
+    // 1 hF = 10 daF
+    let source_13: Denomination15 = 1hF;
+    let target_13: Denomination13 = 10daF;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_capacitance/adjacent_hF_daF: forward");
+    std::test::assert(right_13 == left_13, "prefix_capacitance/adjacent_hF_daF: reverse");
+    std::test::assert_eq_int(left_13 / 1daF, k * 10, "prefix_capacitance/adjacent_hF_daF: target count");
+    std::test::assert_eq_int(right_13 / 1hF, k * 1, "prefix_capacitance/adjacent_hF_daF: source count");
+
+    // 1 kF = 10 hF
+    let source_14: Denomination16 = 1kF;
+    let target_14: Denomination15 = 10hF;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_capacitance/adjacent_kF_hF: forward");
+    std::test::assert(right_14 == left_14, "prefix_capacitance/adjacent_kF_hF: reverse");
+    std::test::assert_eq_int(left_14 / 1hF, k * 10, "prefix_capacitance/adjacent_kF_hF: target count");
+    std::test::assert_eq_int(right_14 / 1kF, k * 1, "prefix_capacitance/adjacent_kF_hF: source count");
+
+    // 1 MF = 1000 kF
+    let source_15: Denomination3 = 1MF;
+    let target_15: Denomination16 = 1000kF;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_capacitance/adjacent_MF_kF: forward");
+    std::test::assert(right_15 == left_15, "prefix_capacitance/adjacent_MF_kF: reverse");
+    std::test::assert_eq_int(left_15 / 1kF, k * 1000, "prefix_capacitance/adjacent_MF_kF: target count");
+    std::test::assert_eq_int(right_15 / 1MF, k * 1, "prefix_capacitance/adjacent_MF_kF: source count");
+
+    // 1 GF = 1000 MF
+    let source_16: Denomination2 = 1GF;
+    let target_16: Denomination3 = 1000MF;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_capacitance/adjacent_GF_MF: forward");
+    std::test::assert(right_16 == left_16, "prefix_capacitance/adjacent_GF_MF: reverse");
+    std::test::assert_eq_int(left_16 / 1MF, k * 1000, "prefix_capacitance/adjacent_GF_MF: target count");
+    std::test::assert_eq_int(right_16 / 1GF, k * 1, "prefix_capacitance/adjacent_GF_MF: source count");
+
+    // 1 TF = 1000 GF
+    let source_17: Denomination7 = 1TF;
+    let target_17: Denomination2 = 1000GF;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_capacitance/adjacent_TF_GF: forward");
+    std::test::assert(right_17 == left_17, "prefix_capacitance/adjacent_TF_GF: reverse");
+    std::test::assert_eq_int(left_17 / 1GF, k * 1000, "prefix_capacitance/adjacent_TF_GF: target count");
+    std::test::assert_eq_int(right_17 / 1TF, k * 1, "prefix_capacitance/adjacent_TF_GF: source count");
+
+    // 1 PF = 1000 TF
+    let source_18: Denomination4 = 1PF;
+    let target_18: Denomination7 = 1000TF;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_capacitance/adjacent_PF_TF: forward");
+    std::test::assert(right_18 == left_18, "prefix_capacitance/adjacent_PF_TF: reverse");
+    std::test::assert_eq_int(left_18 / 1TF, k * 1000, "prefix_capacitance/adjacent_PF_TF: target count");
+    std::test::assert_eq_int(right_18 / 1PF, k * 1, "prefix_capacitance/adjacent_PF_TF: source count");
+
+    // 1 EF = 1000 PF
+    let source_19: Denomination0 = 1EF;
+    let target_19: Denomination4 = 1000PF;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_capacitance/adjacent_EF_PF: forward");
+    std::test::assert(right_19 == left_19, "prefix_capacitance/adjacent_EF_PF: reverse");
+    std::test::assert_eq_int(left_19 / 1PF, k * 1000, "prefix_capacitance/adjacent_EF_PF: target count");
+    std::test::assert_eq_int(right_19 / 1EF, k * 1, "prefix_capacitance/adjacent_EF_PF: source count");
+
+    // 1 ZF = 1000 EF
+    let source_20: Denomination9 = 1ZF;
+    let target_20: Denomination0 = 1000EF;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_capacitance/adjacent_ZF_EF: forward");
+    std::test::assert(right_20 == left_20, "prefix_capacitance/adjacent_ZF_EF: reverse");
+    std::test::assert_eq_int(left_20 / 1EF, k * 1000, "prefix_capacitance/adjacent_ZF_EF: target count");
+    std::test::assert_eq_int(right_20 / 1ZF, k * 1, "prefix_capacitance/adjacent_ZF_EF: source count");
+
+    // 1 YF = 1000 ZF
+    let source_21: Denomination8 = 1YF;
+    let target_21: Denomination9 = 1000ZF;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_capacitance/adjacent_YF_ZF: forward");
+    std::test::assert(right_21 == left_21, "prefix_capacitance/adjacent_YF_ZF: reverse");
+    std::test::assert_eq_int(left_21 / 1ZF, k * 1000, "prefix_capacitance/adjacent_YF_ZF: target count");
+    std::test::assert_eq_int(right_21 / 1YF, k * 1, "prefix_capacitance/adjacent_YF_ZF: source count");
+
+    // 1 RF = 1000 YF
+    let source_22: Denomination6 = 1RF;
+    let target_22: Denomination8 = 1000YF;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_capacitance/adjacent_RF_YF: forward");
+    std::test::assert(right_22 == left_22, "prefix_capacitance/adjacent_RF_YF: reverse");
+    std::test::assert_eq_int(left_22 / 1YF, k * 1000, "prefix_capacitance/adjacent_RF_YF: target count");
+    std::test::assert_eq_int(right_22 / 1RF, k * 1, "prefix_capacitance/adjacent_RF_YF: source count");
+
+    // 1 QF = 1000 RF
+    let source_23: Denomination5 = 1QF;
+    let target_23: Denomination6 = 1000RF;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_capacitance/adjacent_QF_RF: forward");
+    std::test::assert(right_23 == left_23, "prefix_capacitance/adjacent_QF_RF: reverse");
+    std::test::assert_eq_int(left_23 / 1RF, k * 1000, "prefix_capacitance/adjacent_QF_RF: target count");
+    std::test::assert_eq_int(right_23 / 1QF, k * 1, "prefix_capacitance/adjacent_QF_RF: source count");
+
+    // 1000000000000000000 aF = 1 F
+    let source_24: Denomination10 = 1000000000000000000aF;
+    let target_24: Denomination1 = 1F;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_capacitance/base_anchor_aF: forward");
+    std::test::assert(right_24 == left_24, "prefix_capacitance/base_anchor_aF: reverse");
+    std::test::assert_eq_int(left_24 / 1F, k * 1, "prefix_capacitance/base_anchor_aF: target count");
+    std::test::assert_eq_int(right_24 / 1aF, k * 1000000000000000000, "prefix_capacitance/base_anchor_aF: source count");
+
+    // 1000000000000000 fF = 1 F
+    let source_25: Denomination14 = 1000000000000000fF;
+    let target_25: Denomination1 = 1F;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_capacitance/base_anchor_fF: forward");
+    std::test::assert(right_25 == left_25, "prefix_capacitance/base_anchor_fF: reverse");
+    std::test::assert_eq_int(left_25 / 1F, k * 1, "prefix_capacitance/base_anchor_fF: target count");
+    std::test::assert_eq_int(right_25 / 1fF, k * 1000000000000000, "prefix_capacitance/base_anchor_fF: source count");
+
+    // 1000000000000 pF = 1 F
+    let source_26: Denomination19 = 1000000000000pF;
+    let target_26: Denomination1 = 1F;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_capacitance/base_anchor_pF: forward");
+    std::test::assert(right_26 == left_26, "prefix_capacitance/base_anchor_pF: reverse");
+    std::test::assert_eq_int(left_26 / 1F, k * 1, "prefix_capacitance/base_anchor_pF: target count");
+    std::test::assert_eq_int(right_26 / 1pF, k * 1000000000000, "prefix_capacitance/base_anchor_pF: source count");
+
+    // 1000000000 nF = 1 F
+    let source_27: Denomination18 = 1000000000nF;
+    let target_27: Denomination1 = 1F;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_capacitance/base_anchor_nF: forward");
+    std::test::assert(right_27 == left_27, "prefix_capacitance/base_anchor_nF: reverse");
+    std::test::assert_eq_int(left_27 / 1F, k * 1, "prefix_capacitance/base_anchor_nF: target count");
+    std::test::assert_eq_int(right_27 / 1nF, k * 1000000000, "prefix_capacitance/base_anchor_nF: source count");
+
+    // 1000000 uF = 1 F
+    let source_28: Denomination22 = 1000000uF;
+    let target_28: Denomination1 = 1F;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_capacitance/base_anchor_uF: forward");
+    std::test::assert(right_28 == left_28, "prefix_capacitance/base_anchor_uF: reverse");
+    std::test::assert_eq_int(left_28 / 1F, k * 1, "prefix_capacitance/base_anchor_uF: target count");
+    std::test::assert_eq_int(right_28 / 1uF, k * 1000000, "prefix_capacitance/base_anchor_uF: source count");
+
+    // 1000 mF = 1 F
+    let source_29: Denomination17 = 1000mF;
+    let target_29: Denomination1 = 1F;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_capacitance/base_anchor_mF: forward");
+    std::test::assert(right_29 == left_29, "prefix_capacitance/base_anchor_mF: reverse");
+    std::test::assert_eq_int(left_29 / 1F, k * 1, "prefix_capacitance/base_anchor_mF: target count");
+    std::test::assert_eq_int(right_29 / 1mF, k * 1000, "prefix_capacitance/base_anchor_mF: source count");
+
+    // 100 cF = 1 F
+    let source_30: Denomination11 = 100cF;
+    let target_30: Denomination1 = 1F;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_capacitance/base_anchor_cF: forward");
+    std::test::assert(right_30 == left_30, "prefix_capacitance/base_anchor_cF: reverse");
+    std::test::assert_eq_int(left_30 / 1F, k * 1, "prefix_capacitance/base_anchor_cF: target count");
+    std::test::assert_eq_int(right_30 / 1cF, k * 100, "prefix_capacitance/base_anchor_cF: source count");
+
+    // 1 hF = 100 F
+    let source_31: Denomination15 = 1hF;
+    let target_31: Denomination1 = 100F;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_capacitance/base_anchor_hF: forward");
+    std::test::assert(right_31 == left_31, "prefix_capacitance/base_anchor_hF: reverse");
+    std::test::assert_eq_int(left_31 / 1F, k * 100, "prefix_capacitance/base_anchor_hF: target count");
+    std::test::assert_eq_int(right_31 / 1hF, k * 1, "prefix_capacitance/base_anchor_hF: source count");
+
+    // 1 kF = 1000 F
+    let source_32: Denomination16 = 1kF;
+    let target_32: Denomination1 = 1000F;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_capacitance/base_anchor_kF: forward");
+    std::test::assert(right_32 == left_32, "prefix_capacitance/base_anchor_kF: reverse");
+    std::test::assert_eq_int(left_32 / 1F, k * 1000, "prefix_capacitance/base_anchor_kF: target count");
+    std::test::assert_eq_int(right_32 / 1kF, k * 1, "prefix_capacitance/base_anchor_kF: source count");
+
+    // 1 MF = 1000000 F
+    let source_33: Denomination3 = 1MF;
+    let target_33: Denomination1 = 1000000F;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_capacitance/base_anchor_MF: forward");
+    std::test::assert(right_33 == left_33, "prefix_capacitance/base_anchor_MF: reverse");
+    std::test::assert_eq_int(left_33 / 1F, k * 1000000, "prefix_capacitance/base_anchor_MF: target count");
+    std::test::assert_eq_int(right_33 / 1MF, k * 1, "prefix_capacitance/base_anchor_MF: source count");
+
+    // 1 GF = 1000000000 F
+    let source_34: Denomination2 = 1GF;
+    let target_34: Denomination1 = 1000000000F;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_capacitance/base_anchor_GF: forward");
+    std::test::assert(right_34 == left_34, "prefix_capacitance/base_anchor_GF: reverse");
+    std::test::assert_eq_int(left_34 / 1F, k * 1000000000, "prefix_capacitance/base_anchor_GF: target count");
+    std::test::assert_eq_int(right_34 / 1GF, k * 1, "prefix_capacitance/base_anchor_GF: source count");
+
+    // 1 TF = 1000000000000 F
+    let source_35: Denomination7 = 1TF;
+    let target_35: Denomination1 = 1000000000000F;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_capacitance/base_anchor_TF: forward");
+    std::test::assert(right_35 == left_35, "prefix_capacitance/base_anchor_TF: reverse");
+    std::test::assert_eq_int(left_35 / 1F, k * 1000000000000, "prefix_capacitance/base_anchor_TF: target count");
+    std::test::assert_eq_int(right_35 / 1TF, k * 1, "prefix_capacitance/base_anchor_TF: source count");
+
+    // 1 PF = 1000000000000000 F
+    let source_36: Denomination4 = 1PF;
+    let target_36: Denomination1 = 1000000000000000F;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_capacitance/base_anchor_PF: forward");
+    std::test::assert(right_36 == left_36, "prefix_capacitance/base_anchor_PF: reverse");
+    std::test::assert_eq_int(left_36 / 1F, k * 1000000000000000, "prefix_capacitance/base_anchor_PF: target count");
+    std::test::assert_eq_int(right_36 / 1PF, k * 1, "prefix_capacitance/base_anchor_PF: source count");
+
+    // 1 EF = 1000000000000000000 F
+    let source_37: Denomination0 = 1EF;
+    let target_37: Denomination1 = 1000000000000000000F;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_capacitance/base_anchor_EF: forward");
+    std::test::assert(right_37 == left_37, "prefix_capacitance/base_anchor_EF: reverse");
+    std::test::assert_eq_int(left_37 / 1F, k * 1000000000000000000, "prefix_capacitance/base_anchor_EF: target count");
+    std::test::assert_eq_int(right_37 / 1EF, k * 1, "prefix_capacitance/base_anchor_EF: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

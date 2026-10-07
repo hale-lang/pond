@@ -1,0 +1,45 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// torque: 1 runtime ratios, 1 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in N_m;
+
+type Denomination0 = GoldenQuantity in N_m;
+type Denomination1 = GoldenQuantity in lbf_ft;
+type Denomination2 = GoldenQuantity in mN_m;
+
+fn check_runtime(k: Int) {
+    // 1 N_m = 1000 mN_m
+    let source_0: Denomination0 = 1N_m;
+    let target_0: Denomination2 = 1000mN_m;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "torque/N_m_to_mN_m: forward");
+    std::test::assert(right_0 == left_0, "torque/N_m_to_mN_m: reverse");
+    std::test::assert_eq_int(left_0 / 1mN_m, k * 1000, "torque/N_m_to_mN_m: target count");
+    std::test::assert_eq_int(right_0 / 1N_m, k * 1, "torque/N_m_to_mN_m: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_0_forward_positive: Denomination0 = 2500000000000000lbf_ft;
+    let expected_0_forward_positive: Denomination0 = 3389544870828501N_m;
+    std::test::assert(actual_0_forward_positive == expected_0_forward_positive, "torque/lbf_ft_to_N_m: literal forward positive");
+    let actual_0_forward_negative: Denomination0 = -actual_0_forward_positive;
+    let expected_0_forward_negative: Denomination0 = -expected_0_forward_positive;
+    std::test::assert(actual_0_forward_negative == expected_0_forward_negative, "torque/lbf_ft_to_N_m: literal forward negative");
+    let actual_0_reverse_positive: Denomination1 = 3389544870828501N_m;
+    let expected_0_reverse_positive: Denomination1 = 2500000000000000lbf_ft;
+    std::test::assert(actual_0_reverse_positive == expected_0_reverse_positive, "torque/lbf_ft_to_N_m: literal reverse positive");
+    let actual_0_reverse_negative: Denomination1 = -actual_0_reverse_positive;
+    let expected_0_reverse_negative: Denomination1 = -expected_0_reverse_positive;
+    std::test::assert(actual_0_reverse_negative == expected_0_reverse_negative, "torque/lbf_ft_to_N_m: literal reverse negative");
+}
