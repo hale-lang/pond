@@ -1,0 +1,78 @@
+// Native behavior at precision boundaries; independent of the golden catalogue.
+import ".." as units;
+
+type TestLength = quantity Int in um;
+type TestRatio = quantity Int in ppb;
+type Millimetres = TestLength in mm { round: half_even; }
+
+fn measured(count: Int) -> TestLength {
+    return count * 1um;
+}
+
+fn rate(count: Int) -> TestRatio {
+    return count * 1bp;
+}
+
+fn check_rounding(count: Int, down: Int, up: Int, toward_zero: Int, even: Int, away: Int) {
+    let value = measured(count);
+    let floored = value.in(mm) or floor;
+    let ceiling = value.in(mm) or ceil;
+    let truncated = value.in(mm) or trunc;
+    let half_even_value = value.in(mm) or half_even;
+    let half_up_value = value.in(mm) or half_up;
+    std::test::assert_eq_int(floored / 1mm, down, "floor at a millimetre boundary");
+    std::test::assert_eq_int(ceiling / 1mm, up, "ceil at a millimetre boundary");
+    std::test::assert_eq_int(truncated / 1mm, toward_zero, "trunc at a millimetre boundary");
+    std::test::assert_eq_int(half_even_value / 1mm, even, "half_even at a millimetre boundary");
+    std::test::assert_eq_int(half_up_value / 1mm, away, "half_up at a millimetre boundary");
+    let boundary: Millimetres = value;
+    std::test::assert(boundary == half_even_value, "type and site policies agree at runtime");
+}
+
+fn main() {
+    check_rounding(1250, 1, 2, 1, 1, 1);
+    check_rounding(1500, 1, 2, 1, 2, 2);
+    check_rounding(2500, 2, 3, 2, 2, 3);
+    check_rounding(2750, 2, 3, 2, 3, 3);
+    check_rounding(-1250, -2, -1, -1, -1, -1);
+    check_rounding(-1500, -2, -1, -1, -2, -2);
+    check_rounding(-2500, -3, -2, -2, -2, -3);
+    check_rounding(-2750, -3, -2, -2, -3, -3);
+    check_rounding(2000, 2, 2, 2, 2, 2);
+    check_rounding(-2000, -2, -2, -2, -2, -2);
+    check_rounding(0, 0, 0, 0, 0, 0);
+
+    let positive_tie: Millimetres = 2500um;
+    let negative_tie: Millimetres = -2500um;
+    std::test::assert(positive_tie == 2mm, "literal half_even tie goes to even");
+    std::test::assert(negative_tie == -2mm, "negative literal half_even tie goes to even");
+
+    let exact = measured(2000).in(mm) or 99mm;
+    let missing = measured(1500).in(mm) or 99mm;
+    let missing_negative = measured(-1500).in(mm) or 99mm;
+    std::test::assert(exact == 2mm, "exact conversion preserves the value before substitute");
+    std::test::assert(missing == 99mm, "inexact positive conversion uses substitute");
+    std::test::assert(missing_negative == 99mm, "inexact negative conversion uses substitute");
+
+    let negative = measured(-1500);
+    let (whole, rest) = negative.split(mm);
+    std::test::assert_eq_int(whole, -2, "negative split floors the whole count");
+    std::test::assert(rest == 500um, "negative split has a nonnegative residue");
+    std::test::assert(whole * 1mm + rest == negative, "negative split reconstructs the original quantity");
+    let (exact_whole, exact_rest) = measured(-2000).split(mm);
+    std::test::assert_eq_int(exact_whole, -2, "exact negative split preserves whole count");
+    std::test::assert(exact_rest == 0um, "exact negative split has zero residue");
+
+    let elapsed: Duration = 1week + 2h + 30min;
+    std::test::assert_eq_int(elapsed / 1s, 613800, "catalogue week composes with builtin time units");
+    std::test::assert(1000ps == 1ns, "subnanosecond units join the builtin time component");
+    let half: Duration = 1500ms / 2 or floor;
+    std::test::assert(half == 750ms, "builtin Duration participates in exact quantity arithmetic");
+
+    let fraction = measured(1234567) * rate(3);
+    std::test::assert(fraction > 370um && fraction < 371um, "dimensionless multiplication keeps fractional precision");
+    let settled = fraction.in(um) or half_even;
+    std::test::assert(settled == 370um, "dimensionless multiplication rounds only at the boundary");
+    std::test::assert(2m * 25pct == 500mm, "percent scales a physical quantity");
+    std::test::assert(1one == 100pct && 1pct == 100bp, "dimensionless denominations share one quantity");
+}

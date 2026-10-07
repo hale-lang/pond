@@ -1,0 +1,290 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// volume: 25 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QL;
+
+type Denomination0 = GoldenQuantity in L;
+type Denomination1 = GoldenQuantity in acre_ft;
+type Denomination2 = GoldenQuantity in cm3;
+type Denomination3 = GoldenQuantity in cup_us;
+type Denomination4 = GoldenQuantity in dm3;
+type Denomination5 = GoldenQuantity in floz_imp;
+type Denomination6 = GoldenQuantity in floz_us;
+type Denomination7 = GoldenQuantity in ft3;
+type Denomination8 = GoldenQuantity in gal_imp;
+type Denomination9 = GoldenQuantity in gal_us;
+type Denomination10 = GoldenQuantity in in3;
+type Denomination11 = GoldenQuantity in km3;
+type Denomination12 = GoldenQuantity in m3;
+type Denomination13 = GoldenQuantity in mL;
+type Denomination14 = GoldenQuantity in mm3;
+type Denomination15 = GoldenQuantity in pt_imp;
+type Denomination16 = GoldenQuantity in pt_us;
+type Denomination17 = GoldenQuantity in qt_imp;
+type Denomination18 = GoldenQuantity in qt_us;
+type Denomination19 = GoldenQuantity in tbsp_us;
+type Denomination20 = GoldenQuantity in tsp_us;
+type Denomination21 = GoldenQuantity in yd3;
+
+fn check_runtime(k: Int) {
+    // 125000 in3 = 2048383 mL
+    let source_0: Denomination10 = 125000in3;
+    let target_0: Denomination13 = 2048383mL;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "volume/in3_to_mL: forward");
+    std::test::assert(right_0 == left_0, "volume/in3_to_mL: reverse");
+    std::test::assert_eq_int(left_0 / 1mL, k * 2048383, "volume/in3_to_mL: target count");
+    std::test::assert_eq_int(right_0 / 1in3, k * 125000, "volume/in3_to_mL: source count");
+
+    // 1953125 ft3 = 55306341 L
+    let source_1: Denomination7 = 1953125ft3;
+    let target_1: Denomination0 = 55306341L;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "volume/ft3_to_L: forward");
+    std::test::assert(right_1 == left_1, "volume/ft3_to_L: reverse");
+    std::test::assert_eq_int(left_1 / 1L, k * 55306341, "volume/ft3_to_L: target count");
+    std::test::assert_eq_int(right_1 / 1ft3, k * 1953125, "volume/ft3_to_L: source count");
+
+    // 125000000 gal_us = 473176473 L
+    let source_2: Denomination9 = 125000000gal_us;
+    let target_2: Denomination0 = 473176473L;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "volume/gal_us_to_L: forward");
+    std::test::assert(right_2 == left_2, "volume/gal_us_to_L: reverse");
+    std::test::assert_eq_int(left_2 / 1L, k * 473176473, "volume/gal_us_to_L: target count");
+    std::test::assert_eq_int(right_2 / 1gal_us, k * 125000000, "volume/gal_us_to_L: source count");
+
+    // 16000000 floz_us = 473176473 mL
+    let source_3: Denomination6 = 16000000floz_us;
+    let target_3: Denomination13 = 473176473mL;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "volume/floz_us_to_mL: forward");
+    std::test::assert(right_3 == left_3, "volume/floz_us_to_mL: reverse");
+    std::test::assert_eq_int(left_3 / 1mL, k * 473176473, "volume/floz_us_to_mL: target count");
+    std::test::assert_eq_int(right_3 / 1floz_us, k * 16000000, "volume/floz_us_to_mL: source count");
+
+    // 32000000 tbsp_us = 473176473 mL
+    let source_4: Denomination19 = 32000000tbsp_us;
+    let target_4: Denomination13 = 473176473mL;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "volume/tbsp_us_to_mL: forward");
+    std::test::assert(right_4 == left_4, "volume/tbsp_us_to_mL: reverse");
+    std::test::assert_eq_int(left_4 / 1mL, k * 473176473, "volume/tbsp_us_to_mL: target count");
+    std::test::assert_eq_int(right_4 / 1tbsp_us, k * 32000000, "volume/tbsp_us_to_mL: source count");
+
+    // 32000000 tsp_us = 157725491 mL
+    let source_5: Denomination20 = 32000000tsp_us;
+    let target_5: Denomination13 = 157725491mL;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "volume/tsp_us_to_mL: forward");
+    std::test::assert(right_5 == left_5, "volume/tsp_us_to_mL: reverse");
+    std::test::assert_eq_int(left_5 / 1mL, k * 157725491, "volume/tsp_us_to_mL: target count");
+    std::test::assert_eq_int(right_5 / 1tsp_us, k * 32000000, "volume/tsp_us_to_mL: source count");
+
+    // 48828125 acre_ft = 60228605349 m3
+    let source_6: Denomination1 = 48828125acre_ft;
+    let target_6: Denomination12 = 60228605349m3;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "volume/acre_ft_to_m3: forward");
+    std::test::assert(right_6 == left_6, "volume/acre_ft_to_m3: reverse");
+    std::test::assert_eq_int(left_6 / 1m3, k * 60228605349, "volume/acre_ft_to_m3: target count");
+    std::test::assert_eq_int(right_6 / 1acre_ft, k * 48828125, "volume/acre_ft_to_m3: source count");
+
+    // 1 yd3 = 27 ft3
+    let source_7: Denomination21 = 1yd3;
+    let target_7: Denomination7 = 27ft3;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "volume/yd3_to_ft3: forward");
+    std::test::assert(right_7 == left_7, "volume/yd3_to_ft3: reverse");
+    std::test::assert_eq_int(left_7 / 1ft3, k * 27, "volume/yd3_to_ft3: target count");
+    std::test::assert_eq_int(right_7 / 1yd3, k * 1, "volume/yd3_to_ft3: source count");
+
+    // 1 ft3 = 1728 in3
+    let source_8: Denomination7 = 1ft3;
+    let target_8: Denomination10 = 1728in3;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "volume/ft3_to_in3: forward");
+    std::test::assert(right_8 == left_8, "volume/ft3_to_in3: reverse");
+    std::test::assert_eq_int(left_8 / 1in3, k * 1728, "volume/ft3_to_in3: target count");
+    std::test::assert_eq_int(right_8 / 1ft3, k * 1, "volume/ft3_to_in3: source count");
+
+    // 1 L = 1000 cm3
+    let source_9: Denomination0 = 1L;
+    let target_9: Denomination2 = 1000cm3;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "volume/L_to_cm3: forward");
+    std::test::assert(right_9 == left_9, "volume/L_to_cm3: reverse");
+    std::test::assert_eq_int(left_9 / 1cm3, k * 1000, "volume/L_to_cm3: target count");
+    std::test::assert_eq_int(right_9 / 1L, k * 1, "volume/L_to_cm3: source count");
+
+    // 1 L = 1 dm3
+    let source_10: Denomination0 = 1L;
+    let target_10: Denomination4 = 1dm3;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "volume/L_to_dm3: forward");
+    std::test::assert(right_10 == left_10, "volume/L_to_dm3: reverse");
+    std::test::assert_eq_int(left_10 / 1dm3, k * 1, "volume/L_to_dm3: target count");
+    std::test::assert_eq_int(right_10 / 1L, k * 1, "volume/L_to_dm3: source count");
+
+    // 1 m3 = 1000 L
+    let source_11: Denomination12 = 1m3;
+    let target_11: Denomination0 = 1000L;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "volume/m3_to_L: forward");
+    std::test::assert(right_11 == left_11, "volume/m3_to_L: reverse");
+    std::test::assert_eq_int(left_11 / 1L, k * 1000, "volume/m3_to_L: target count");
+    std::test::assert_eq_int(right_11 / 1m3, k * 1, "volume/m3_to_L: source count");
+
+    // 1 km3 = 1000000000 m3
+    let source_12: Denomination11 = 1km3;
+    let target_12: Denomination12 = 1000000000m3;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "volume/km3_to_m3: forward");
+    std::test::assert(right_12 == left_12, "volume/km3_to_m3: reverse");
+    std::test::assert_eq_int(left_12 / 1m3, k * 1000000000, "volume/km3_to_m3: target count");
+    std::test::assert_eq_int(right_12 / 1km3, k * 1, "volume/km3_to_m3: source count");
+
+    // 1 cm3 = 1000 mm3
+    let source_13: Denomination2 = 1cm3;
+    let target_13: Denomination14 = 1000mm3;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "volume/cm3_to_mm3: forward");
+    std::test::assert(right_13 == left_13, "volume/cm3_to_mm3: reverse");
+    std::test::assert_eq_int(left_13 / 1mm3, k * 1000, "volume/cm3_to_mm3: target count");
+    std::test::assert_eq_int(right_13 / 1cm3, k * 1, "volume/cm3_to_mm3: source count");
+
+    // 1 gal_us = 4 qt_us
+    let source_14: Denomination9 = 1gal_us;
+    let target_14: Denomination18 = 4qt_us;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "volume/gal_us_to_qt_us: forward");
+    std::test::assert(right_14 == left_14, "volume/gal_us_to_qt_us: reverse");
+    std::test::assert_eq_int(left_14 / 1qt_us, k * 4, "volume/gal_us_to_qt_us: target count");
+    std::test::assert_eq_int(right_14 / 1gal_us, k * 1, "volume/gal_us_to_qt_us: source count");
+
+    // 1 gal_us = 8 pt_us
+    let source_15: Denomination9 = 1gal_us;
+    let target_15: Denomination16 = 8pt_us;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "volume/gal_us_to_pt_us: forward");
+    std::test::assert(right_15 == left_15, "volume/gal_us_to_pt_us: reverse");
+    std::test::assert_eq_int(left_15 / 1pt_us, k * 8, "volume/gal_us_to_pt_us: target count");
+    std::test::assert_eq_int(right_15 / 1gal_us, k * 1, "volume/gal_us_to_pt_us: source count");
+
+    // 1 gal_us = 16 cup_us
+    let source_16: Denomination9 = 1gal_us;
+    let target_16: Denomination3 = 16cup_us;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "volume/gal_us_to_cup_us: forward");
+    std::test::assert(right_16 == left_16, "volume/gal_us_to_cup_us: reverse");
+    std::test::assert_eq_int(left_16 / 1cup_us, k * 16, "volume/gal_us_to_cup_us: target count");
+    std::test::assert_eq_int(right_16 / 1gal_us, k * 1, "volume/gal_us_to_cup_us: source count");
+
+    // 1 gal_us = 128 floz_us
+    let source_17: Denomination9 = 1gal_us;
+    let target_17: Denomination6 = 128floz_us;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "volume/gal_us_to_floz_us: forward");
+    std::test::assert(right_17 == left_17, "volume/gal_us_to_floz_us: reverse");
+    std::test::assert_eq_int(left_17 / 1floz_us, k * 128, "volume/gal_us_to_floz_us: target count");
+    std::test::assert_eq_int(right_17 / 1gal_us, k * 1, "volume/gal_us_to_floz_us: source count");
+
+    // 1 gal_us = 256 tbsp_us
+    let source_18: Denomination9 = 1gal_us;
+    let target_18: Denomination19 = 256tbsp_us;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "volume/gal_us_to_tbsp_us: forward");
+    std::test::assert(right_18 == left_18, "volume/gal_us_to_tbsp_us: reverse");
+    std::test::assert_eq_int(left_18 / 1tbsp_us, k * 256, "volume/gal_us_to_tbsp_us: target count");
+    std::test::assert_eq_int(right_18 / 1gal_us, k * 1, "volume/gal_us_to_tbsp_us: source count");
+
+    // 1 gal_us = 768 tsp_us
+    let source_19: Denomination9 = 1gal_us;
+    let target_19: Denomination20 = 768tsp_us;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "volume/gal_us_to_tsp_us: forward");
+    std::test::assert(right_19 == left_19, "volume/gal_us_to_tsp_us: reverse");
+    std::test::assert_eq_int(left_19 / 1tsp_us, k * 768, "volume/gal_us_to_tsp_us: target count");
+    std::test::assert_eq_int(right_19 / 1gal_us, k * 1, "volume/gal_us_to_tsp_us: source count");
+
+    // 100000 gal_imp = 454609 L
+    let source_20: Denomination8 = 100000gal_imp;
+    let target_20: Denomination0 = 454609L;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "volume/gal_imp_to_L: forward");
+    std::test::assert(right_20 == left_20, "volume/gal_imp_to_L: reverse");
+    std::test::assert_eq_int(left_20 / 1L, k * 454609, "volume/gal_imp_to_L: target count");
+    std::test::assert_eq_int(right_20 / 1gal_imp, k * 100000, "volume/gal_imp_to_L: source count");
+
+    // 1 qt_imp = 2 pt_imp
+    let source_21: Denomination17 = 1qt_imp;
+    let target_21: Denomination15 = 2pt_imp;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "volume/qt_imp_to_pt_imp: forward");
+    std::test::assert(right_21 == left_21, "volume/qt_imp_to_pt_imp: reverse");
+    std::test::assert_eq_int(left_21 / 1pt_imp, k * 2, "volume/qt_imp_to_pt_imp: target count");
+    std::test::assert_eq_int(right_21 / 1qt_imp, k * 1, "volume/qt_imp_to_pt_imp: source count");
+
+    // 1 pt_imp = 20 floz_imp
+    let source_22: Denomination15 = 1pt_imp;
+    let target_22: Denomination5 = 20floz_imp;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "volume/pt_imp_to_floz_imp: forward");
+    std::test::assert(right_22 == left_22, "volume/pt_imp_to_floz_imp: reverse");
+    std::test::assert_eq_int(left_22 / 1floz_imp, k * 20, "volume/pt_imp_to_floz_imp: target count");
+    std::test::assert_eq_int(right_22 / 1pt_imp, k * 1, "volume/pt_imp_to_floz_imp: source count");
+
+    // 473176473 gal_imp = 568261250 gal_us
+    let source_23: Denomination8 = 473176473gal_imp;
+    let target_23: Denomination9 = 568261250gal_us;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "volume/gal_imp_to_gal_us: forward");
+    std::test::assert(right_23 == left_23, "volume/gal_imp_to_gal_us: reverse");
+    std::test::assert_eq_int(left_23 / 1gal_us, k * 568261250, "volume/gal_imp_to_gal_us: target count");
+    std::test::assert_eq_int(right_23 / 1gal_imp, k * 473176473, "volume/gal_imp_to_gal_us: source count");
+
+    // 473176473 floz_imp = 454609000 floz_us
+    let source_24: Denomination5 = 473176473floz_imp;
+    let target_24: Denomination6 = 454609000floz_us;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "volume/floz_imp_to_floz_us: forward");
+    std::test::assert(right_24 == left_24, "volume/floz_imp_to_floz_us: reverse");
+    std::test::assert_eq_int(left_24 / 1floz_us, k * 454609000, "volume/floz_imp_to_floz_us: target count");
+    std::test::assert_eq_int(right_24 / 1floz_imp, k * 473176473, "volume/floz_imp_to_floz_us: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

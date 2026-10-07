@@ -1,0 +1,110 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// density: 7 runtime ratios, 1 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in g_per_cm3;
+
+type Denomination0 = GoldenQuantity in g_per_L;
+type Denomination1 = GoldenQuantity in g_per_cm3;
+type Denomination2 = GoldenQuantity in g_per_m3;
+type Denomination3 = GoldenQuantity in kg_per_m3;
+type Denomination4 = GoldenQuantity in lb_per_ft3;
+type Denomination5 = GoldenQuantity in mg_per_L;
+type Denomination6 = GoldenQuantity in mg_per_mL;
+type Denomination7 = GoldenQuantity in ug_per_L;
+
+fn check_runtime(k: Int) {
+    // 1 g_per_L = 1 kg_per_m3
+    let source_0: Denomination0 = 1g_per_L;
+    let target_0: Denomination3 = 1kg_per_m3;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "density/g_per_L_to_kg_per_m3: forward");
+    std::test::assert(right_0 == left_0, "density/g_per_L_to_kg_per_m3: reverse");
+    std::test::assert_eq_int(left_0 / 1kg_per_m3, k * 1, "density/g_per_L_to_kg_per_m3: target count");
+    std::test::assert_eq_int(right_0 / 1g_per_L, k * 1, "density/g_per_L_to_kg_per_m3: source count");
+
+    // 1 mg_per_mL = 1 kg_per_m3
+    let source_1: Denomination6 = 1mg_per_mL;
+    let target_1: Denomination3 = 1kg_per_m3;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "density/mg_per_mL_to_kg_per_m3: forward");
+    std::test::assert(right_1 == left_1, "density/mg_per_mL_to_kg_per_m3: reverse");
+    std::test::assert_eq_int(left_1 / 1kg_per_m3, k * 1, "density/mg_per_mL_to_kg_per_m3: target count");
+    std::test::assert_eq_int(right_1 / 1mg_per_mL, k * 1, "density/mg_per_mL_to_kg_per_m3: source count");
+
+    // 1 g_per_cm3 = 1000 kg_per_m3
+    let source_2: Denomination1 = 1g_per_cm3;
+    let target_2: Denomination3 = 1000kg_per_m3;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "density/g_per_cm3_to_kg_per_m3: forward");
+    std::test::assert(right_2 == left_2, "density/g_per_cm3_to_kg_per_m3: reverse");
+    std::test::assert_eq_int(left_2 / 1kg_per_m3, k * 1000, "density/g_per_cm3_to_kg_per_m3: target count");
+    std::test::assert_eq_int(right_2 / 1g_per_cm3, k * 1, "density/g_per_cm3_to_kg_per_m3: source count");
+
+    // 1 mg_per_L = 1 g_per_m3
+    let source_3: Denomination5 = 1mg_per_L;
+    let target_3: Denomination2 = 1g_per_m3;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "density/mg_per_L_to_g_per_m3: forward");
+    std::test::assert(right_3 == left_3, "density/mg_per_L_to_g_per_m3: reverse");
+    std::test::assert_eq_int(left_3 / 1g_per_m3, k * 1, "density/mg_per_L_to_g_per_m3: target count");
+    std::test::assert_eq_int(right_3 / 1mg_per_L, k * 1, "density/mg_per_L_to_g_per_m3: source count");
+
+    // 1 g_per_L = 1000000 ug_per_L
+    let source_4: Denomination0 = 1g_per_L;
+    let target_4: Denomination7 = 1000000ug_per_L;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "density/g_per_L_to_ug_per_L: forward");
+    std::test::assert(right_4 == left_4, "density/g_per_L_to_ug_per_L: reverse");
+    std::test::assert_eq_int(left_4 / 1ug_per_L, k * 1000000, "density/g_per_L_to_ug_per_L: target count");
+    std::test::assert_eq_int(right_4 / 1g_per_L, k * 1, "density/g_per_L_to_ug_per_L: source count");
+
+    // 1 g_per_cm3 = 1000 mg_per_mL
+    let source_5: Denomination1 = 1g_per_cm3;
+    let target_5: Denomination6 = 1000mg_per_mL;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "density/g_per_cm3_to_mg_per_mL: forward");
+    std::test::assert(right_5 == left_5, "density/g_per_cm3_to_mg_per_mL: reverse");
+    std::test::assert_eq_int(left_5 / 1mg_per_mL, k * 1000, "density/g_per_cm3_to_mg_per_mL: target count");
+    std::test::assert_eq_int(right_5 / 1g_per_cm3, k * 1, "density/g_per_cm3_to_mg_per_mL: source count");
+
+    // 1 kg_per_m3 = 1000 g_per_m3
+    let source_6: Denomination3 = 1kg_per_m3;
+    let target_6: Denomination2 = 1000g_per_m3;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "density/kg_per_m3_to_g_per_m3: forward");
+    std::test::assert(right_6 == left_6, "density/kg_per_m3_to_g_per_m3: reverse");
+    std::test::assert_eq_int(left_6 / 1g_per_m3, k * 1000, "density/kg_per_m3_to_g_per_m3: target count");
+    std::test::assert_eq_int(right_6 / 1kg_per_m3, k * 1, "density/kg_per_m3_to_g_per_m3: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_0_forward_positive: Denomination3 = 1769802912lb_per_ft3;
+    let expected_0_forward_positive: Denomination3 = 28349523125kg_per_m3;
+    std::test::assert(actual_0_forward_positive == expected_0_forward_positive, "density/lb_per_ft3_to_kg_per_m3: literal forward positive");
+    let actual_0_forward_negative: Denomination3 = -actual_0_forward_positive;
+    let expected_0_forward_negative: Denomination3 = -expected_0_forward_positive;
+    std::test::assert(actual_0_forward_negative == expected_0_forward_negative, "density/lb_per_ft3_to_kg_per_m3: literal forward negative");
+    let actual_0_reverse_positive: Denomination4 = 28349523125kg_per_m3;
+    let expected_0_reverse_positive: Denomination4 = 1769802912lb_per_ft3;
+    std::test::assert(actual_0_reverse_positive == expected_0_reverse_positive, "density/lb_per_ft3_to_kg_per_m3: literal reverse positive");
+    let actual_0_reverse_negative: Denomination4 = -actual_0_reverse_positive;
+    let expected_0_reverse_negative: Denomination4 = -expected_0_reverse_positive;
+    std::test::assert(actual_0_reverse_negative == expected_0_reverse_negative, "density/lb_per_ft3_to_kg_per_m3: literal reverse negative");
+}

@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_amount: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in Qmol;
+
+type Denomination0 = GoldenQuantity in Emol;
+type Denomination1 = GoldenQuantity in Gmol;
+type Denomination2 = GoldenQuantity in Mmol;
+type Denomination3 = GoldenQuantity in Pmol;
+type Denomination4 = GoldenQuantity in Qmol;
+type Denomination5 = GoldenQuantity in Rmol;
+type Denomination6 = GoldenQuantity in Tmol;
+type Denomination7 = GoldenQuantity in Ymol;
+type Denomination8 = GoldenQuantity in Zmol;
+type Denomination9 = GoldenQuantity in amol;
+type Denomination10 = GoldenQuantity in cmol;
+type Denomination11 = GoldenQuantity in damol;
+type Denomination12 = GoldenQuantity in dmol;
+type Denomination13 = GoldenQuantity in fmol;
+type Denomination14 = GoldenQuantity in hmol;
+type Denomination15 = GoldenQuantity in kmol;
+type Denomination16 = GoldenQuantity in mmol;
+type Denomination17 = GoldenQuantity in mol;
+type Denomination18 = GoldenQuantity in nmol;
+type Denomination19 = GoldenQuantity in pmol;
+type Denomination20 = GoldenQuantity in qmol;
+type Denomination21 = GoldenQuantity in rmol;
+type Denomination22 = GoldenQuantity in umol;
+type Denomination23 = GoldenQuantity in ymol;
+type Denomination24 = GoldenQuantity in zmol;
+
+fn check_runtime(k: Int) {
+    // 1 rmol = 1000 qmol
+    let source_0: Denomination21 = 1rmol;
+    let target_0: Denomination20 = 1000qmol;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_amount/adjacent_rmol_qmol: forward");
+    std::test::assert(right_0 == left_0, "prefix_amount/adjacent_rmol_qmol: reverse");
+    std::test::assert_eq_int(left_0 / 1qmol, k * 1000, "prefix_amount/adjacent_rmol_qmol: target count");
+    std::test::assert_eq_int(right_0 / 1rmol, k * 1, "prefix_amount/adjacent_rmol_qmol: source count");
+
+    // 1 ymol = 1000 rmol
+    let source_1: Denomination23 = 1ymol;
+    let target_1: Denomination21 = 1000rmol;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_amount/adjacent_ymol_rmol: forward");
+    std::test::assert(right_1 == left_1, "prefix_amount/adjacent_ymol_rmol: reverse");
+    std::test::assert_eq_int(left_1 / 1rmol, k * 1000, "prefix_amount/adjacent_ymol_rmol: target count");
+    std::test::assert_eq_int(right_1 / 1ymol, k * 1, "prefix_amount/adjacent_ymol_rmol: source count");
+
+    // 1 zmol = 1000 ymol
+    let source_2: Denomination24 = 1zmol;
+    let target_2: Denomination23 = 1000ymol;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_amount/adjacent_zmol_ymol: forward");
+    std::test::assert(right_2 == left_2, "prefix_amount/adjacent_zmol_ymol: reverse");
+    std::test::assert_eq_int(left_2 / 1ymol, k * 1000, "prefix_amount/adjacent_zmol_ymol: target count");
+    std::test::assert_eq_int(right_2 / 1zmol, k * 1, "prefix_amount/adjacent_zmol_ymol: source count");
+
+    // 1 amol = 1000 zmol
+    let source_3: Denomination9 = 1amol;
+    let target_3: Denomination24 = 1000zmol;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_amount/adjacent_amol_zmol: forward");
+    std::test::assert(right_3 == left_3, "prefix_amount/adjacent_amol_zmol: reverse");
+    std::test::assert_eq_int(left_3 / 1zmol, k * 1000, "prefix_amount/adjacent_amol_zmol: target count");
+    std::test::assert_eq_int(right_3 / 1amol, k * 1, "prefix_amount/adjacent_amol_zmol: source count");
+
+    // 1 fmol = 1000 amol
+    let source_4: Denomination13 = 1fmol;
+    let target_4: Denomination9 = 1000amol;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_amount/adjacent_fmol_amol: forward");
+    std::test::assert(right_4 == left_4, "prefix_amount/adjacent_fmol_amol: reverse");
+    std::test::assert_eq_int(left_4 / 1amol, k * 1000, "prefix_amount/adjacent_fmol_amol: target count");
+    std::test::assert_eq_int(right_4 / 1fmol, k * 1, "prefix_amount/adjacent_fmol_amol: source count");
+
+    // 1 pmol = 1000 fmol
+    let source_5: Denomination19 = 1pmol;
+    let target_5: Denomination13 = 1000fmol;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_amount/adjacent_pmol_fmol: forward");
+    std::test::assert(right_5 == left_5, "prefix_amount/adjacent_pmol_fmol: reverse");
+    std::test::assert_eq_int(left_5 / 1fmol, k * 1000, "prefix_amount/adjacent_pmol_fmol: target count");
+    std::test::assert_eq_int(right_5 / 1pmol, k * 1, "prefix_amount/adjacent_pmol_fmol: source count");
+
+    // 1 nmol = 1000 pmol
+    let source_6: Denomination18 = 1nmol;
+    let target_6: Denomination19 = 1000pmol;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_amount/adjacent_nmol_pmol: forward");
+    std::test::assert(right_6 == left_6, "prefix_amount/adjacent_nmol_pmol: reverse");
+    std::test::assert_eq_int(left_6 / 1pmol, k * 1000, "prefix_amount/adjacent_nmol_pmol: target count");
+    std::test::assert_eq_int(right_6 / 1nmol, k * 1, "prefix_amount/adjacent_nmol_pmol: source count");
+
+    // 1 umol = 1000 nmol
+    let source_7: Denomination22 = 1umol;
+    let target_7: Denomination18 = 1000nmol;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_amount/adjacent_umol_nmol: forward");
+    std::test::assert(right_7 == left_7, "prefix_amount/adjacent_umol_nmol: reverse");
+    std::test::assert_eq_int(left_7 / 1nmol, k * 1000, "prefix_amount/adjacent_umol_nmol: target count");
+    std::test::assert_eq_int(right_7 / 1umol, k * 1, "prefix_amount/adjacent_umol_nmol: source count");
+
+    // 1 mmol = 1000 umol
+    let source_8: Denomination16 = 1mmol;
+    let target_8: Denomination22 = 1000umol;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_amount/adjacent_mmol_umol: forward");
+    std::test::assert(right_8 == left_8, "prefix_amount/adjacent_mmol_umol: reverse");
+    std::test::assert_eq_int(left_8 / 1umol, k * 1000, "prefix_amount/adjacent_mmol_umol: target count");
+    std::test::assert_eq_int(right_8 / 1mmol, k * 1, "prefix_amount/adjacent_mmol_umol: source count");
+
+    // 1 cmol = 10 mmol
+    let source_9: Denomination10 = 1cmol;
+    let target_9: Denomination16 = 10mmol;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_amount/adjacent_cmol_mmol: forward");
+    std::test::assert(right_9 == left_9, "prefix_amount/adjacent_cmol_mmol: reverse");
+    std::test::assert_eq_int(left_9 / 1mmol, k * 10, "prefix_amount/adjacent_cmol_mmol: target count");
+    std::test::assert_eq_int(right_9 / 1cmol, k * 1, "prefix_amount/adjacent_cmol_mmol: source count");
+
+    // 1 dmol = 10 cmol
+    let source_10: Denomination12 = 1dmol;
+    let target_10: Denomination10 = 10cmol;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_amount/adjacent_dmol_cmol: forward");
+    std::test::assert(right_10 == left_10, "prefix_amount/adjacent_dmol_cmol: reverse");
+    std::test::assert_eq_int(left_10 / 1cmol, k * 10, "prefix_amount/adjacent_dmol_cmol: target count");
+    std::test::assert_eq_int(right_10 / 1dmol, k * 1, "prefix_amount/adjacent_dmol_cmol: source count");
+
+    // 1 mol = 10 dmol
+    let source_11: Denomination17 = 1mol;
+    let target_11: Denomination12 = 10dmol;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_amount/adjacent_mol_dmol: forward");
+    std::test::assert(right_11 == left_11, "prefix_amount/adjacent_mol_dmol: reverse");
+    std::test::assert_eq_int(left_11 / 1dmol, k * 10, "prefix_amount/adjacent_mol_dmol: target count");
+    std::test::assert_eq_int(right_11 / 1mol, k * 1, "prefix_amount/adjacent_mol_dmol: source count");
+
+    // 1 damol = 10 mol
+    let source_12: Denomination11 = 1damol;
+    let target_12: Denomination17 = 10mol;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_amount/adjacent_damol_mol: forward");
+    std::test::assert(right_12 == left_12, "prefix_amount/adjacent_damol_mol: reverse");
+    std::test::assert_eq_int(left_12 / 1mol, k * 10, "prefix_amount/adjacent_damol_mol: target count");
+    std::test::assert_eq_int(right_12 / 1damol, k * 1, "prefix_amount/adjacent_damol_mol: source count");
+
+    // 1 hmol = 10 damol
+    let source_13: Denomination14 = 1hmol;
+    let target_13: Denomination11 = 10damol;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_amount/adjacent_hmol_damol: forward");
+    std::test::assert(right_13 == left_13, "prefix_amount/adjacent_hmol_damol: reverse");
+    std::test::assert_eq_int(left_13 / 1damol, k * 10, "prefix_amount/adjacent_hmol_damol: target count");
+    std::test::assert_eq_int(right_13 / 1hmol, k * 1, "prefix_amount/adjacent_hmol_damol: source count");
+
+    // 1 kmol = 10 hmol
+    let source_14: Denomination15 = 1kmol;
+    let target_14: Denomination14 = 10hmol;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_amount/adjacent_kmol_hmol: forward");
+    std::test::assert(right_14 == left_14, "prefix_amount/adjacent_kmol_hmol: reverse");
+    std::test::assert_eq_int(left_14 / 1hmol, k * 10, "prefix_amount/adjacent_kmol_hmol: target count");
+    std::test::assert_eq_int(right_14 / 1kmol, k * 1, "prefix_amount/adjacent_kmol_hmol: source count");
+
+    // 1 Mmol = 1000 kmol
+    let source_15: Denomination2 = 1Mmol;
+    let target_15: Denomination15 = 1000kmol;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_amount/adjacent_Mmol_kmol: forward");
+    std::test::assert(right_15 == left_15, "prefix_amount/adjacent_Mmol_kmol: reverse");
+    std::test::assert_eq_int(left_15 / 1kmol, k * 1000, "prefix_amount/adjacent_Mmol_kmol: target count");
+    std::test::assert_eq_int(right_15 / 1Mmol, k * 1, "prefix_amount/adjacent_Mmol_kmol: source count");
+
+    // 1 Gmol = 1000 Mmol
+    let source_16: Denomination1 = 1Gmol;
+    let target_16: Denomination2 = 1000Mmol;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_amount/adjacent_Gmol_Mmol: forward");
+    std::test::assert(right_16 == left_16, "prefix_amount/adjacent_Gmol_Mmol: reverse");
+    std::test::assert_eq_int(left_16 / 1Mmol, k * 1000, "prefix_amount/adjacent_Gmol_Mmol: target count");
+    std::test::assert_eq_int(right_16 / 1Gmol, k * 1, "prefix_amount/adjacent_Gmol_Mmol: source count");
+
+    // 1 Tmol = 1000 Gmol
+    let source_17: Denomination6 = 1Tmol;
+    let target_17: Denomination1 = 1000Gmol;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_amount/adjacent_Tmol_Gmol: forward");
+    std::test::assert(right_17 == left_17, "prefix_amount/adjacent_Tmol_Gmol: reverse");
+    std::test::assert_eq_int(left_17 / 1Gmol, k * 1000, "prefix_amount/adjacent_Tmol_Gmol: target count");
+    std::test::assert_eq_int(right_17 / 1Tmol, k * 1, "prefix_amount/adjacent_Tmol_Gmol: source count");
+
+    // 1 Pmol = 1000 Tmol
+    let source_18: Denomination3 = 1Pmol;
+    let target_18: Denomination6 = 1000Tmol;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_amount/adjacent_Pmol_Tmol: forward");
+    std::test::assert(right_18 == left_18, "prefix_amount/adjacent_Pmol_Tmol: reverse");
+    std::test::assert_eq_int(left_18 / 1Tmol, k * 1000, "prefix_amount/adjacent_Pmol_Tmol: target count");
+    std::test::assert_eq_int(right_18 / 1Pmol, k * 1, "prefix_amount/adjacent_Pmol_Tmol: source count");
+
+    // 1 Emol = 1000 Pmol
+    let source_19: Denomination0 = 1Emol;
+    let target_19: Denomination3 = 1000Pmol;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_amount/adjacent_Emol_Pmol: forward");
+    std::test::assert(right_19 == left_19, "prefix_amount/adjacent_Emol_Pmol: reverse");
+    std::test::assert_eq_int(left_19 / 1Pmol, k * 1000, "prefix_amount/adjacent_Emol_Pmol: target count");
+    std::test::assert_eq_int(right_19 / 1Emol, k * 1, "prefix_amount/adjacent_Emol_Pmol: source count");
+
+    // 1 Zmol = 1000 Emol
+    let source_20: Denomination8 = 1Zmol;
+    let target_20: Denomination0 = 1000Emol;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_amount/adjacent_Zmol_Emol: forward");
+    std::test::assert(right_20 == left_20, "prefix_amount/adjacent_Zmol_Emol: reverse");
+    std::test::assert_eq_int(left_20 / 1Emol, k * 1000, "prefix_amount/adjacent_Zmol_Emol: target count");
+    std::test::assert_eq_int(right_20 / 1Zmol, k * 1, "prefix_amount/adjacent_Zmol_Emol: source count");
+
+    // 1 Ymol = 1000 Zmol
+    let source_21: Denomination7 = 1Ymol;
+    let target_21: Denomination8 = 1000Zmol;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_amount/adjacent_Ymol_Zmol: forward");
+    std::test::assert(right_21 == left_21, "prefix_amount/adjacent_Ymol_Zmol: reverse");
+    std::test::assert_eq_int(left_21 / 1Zmol, k * 1000, "prefix_amount/adjacent_Ymol_Zmol: target count");
+    std::test::assert_eq_int(right_21 / 1Ymol, k * 1, "prefix_amount/adjacent_Ymol_Zmol: source count");
+
+    // 1 Rmol = 1000 Ymol
+    let source_22: Denomination5 = 1Rmol;
+    let target_22: Denomination7 = 1000Ymol;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_amount/adjacent_Rmol_Ymol: forward");
+    std::test::assert(right_22 == left_22, "prefix_amount/adjacent_Rmol_Ymol: reverse");
+    std::test::assert_eq_int(left_22 / 1Ymol, k * 1000, "prefix_amount/adjacent_Rmol_Ymol: target count");
+    std::test::assert_eq_int(right_22 / 1Rmol, k * 1, "prefix_amount/adjacent_Rmol_Ymol: source count");
+
+    // 1 Qmol = 1000 Rmol
+    let source_23: Denomination4 = 1Qmol;
+    let target_23: Denomination5 = 1000Rmol;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_amount/adjacent_Qmol_Rmol: forward");
+    std::test::assert(right_23 == left_23, "prefix_amount/adjacent_Qmol_Rmol: reverse");
+    std::test::assert_eq_int(left_23 / 1Rmol, k * 1000, "prefix_amount/adjacent_Qmol_Rmol: target count");
+    std::test::assert_eq_int(right_23 / 1Qmol, k * 1, "prefix_amount/adjacent_Qmol_Rmol: source count");
+
+    // 1000000000000000000 amol = 1 mol
+    let source_24: Denomination9 = 1000000000000000000amol;
+    let target_24: Denomination17 = 1mol;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_amount/base_anchor_amol: forward");
+    std::test::assert(right_24 == left_24, "prefix_amount/base_anchor_amol: reverse");
+    std::test::assert_eq_int(left_24 / 1mol, k * 1, "prefix_amount/base_anchor_amol: target count");
+    std::test::assert_eq_int(right_24 / 1amol, k * 1000000000000000000, "prefix_amount/base_anchor_amol: source count");
+
+    // 1000000000000000 fmol = 1 mol
+    let source_25: Denomination13 = 1000000000000000fmol;
+    let target_25: Denomination17 = 1mol;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_amount/base_anchor_fmol: forward");
+    std::test::assert(right_25 == left_25, "prefix_amount/base_anchor_fmol: reverse");
+    std::test::assert_eq_int(left_25 / 1mol, k * 1, "prefix_amount/base_anchor_fmol: target count");
+    std::test::assert_eq_int(right_25 / 1fmol, k * 1000000000000000, "prefix_amount/base_anchor_fmol: source count");
+
+    // 1000000000000 pmol = 1 mol
+    let source_26: Denomination19 = 1000000000000pmol;
+    let target_26: Denomination17 = 1mol;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_amount/base_anchor_pmol: forward");
+    std::test::assert(right_26 == left_26, "prefix_amount/base_anchor_pmol: reverse");
+    std::test::assert_eq_int(left_26 / 1mol, k * 1, "prefix_amount/base_anchor_pmol: target count");
+    std::test::assert_eq_int(right_26 / 1pmol, k * 1000000000000, "prefix_amount/base_anchor_pmol: source count");
+
+    // 1000000000 nmol = 1 mol
+    let source_27: Denomination18 = 1000000000nmol;
+    let target_27: Denomination17 = 1mol;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_amount/base_anchor_nmol: forward");
+    std::test::assert(right_27 == left_27, "prefix_amount/base_anchor_nmol: reverse");
+    std::test::assert_eq_int(left_27 / 1mol, k * 1, "prefix_amount/base_anchor_nmol: target count");
+    std::test::assert_eq_int(right_27 / 1nmol, k * 1000000000, "prefix_amount/base_anchor_nmol: source count");
+
+    // 1000000 umol = 1 mol
+    let source_28: Denomination22 = 1000000umol;
+    let target_28: Denomination17 = 1mol;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_amount/base_anchor_umol: forward");
+    std::test::assert(right_28 == left_28, "prefix_amount/base_anchor_umol: reverse");
+    std::test::assert_eq_int(left_28 / 1mol, k * 1, "prefix_amount/base_anchor_umol: target count");
+    std::test::assert_eq_int(right_28 / 1umol, k * 1000000, "prefix_amount/base_anchor_umol: source count");
+
+    // 1000 mmol = 1 mol
+    let source_29: Denomination16 = 1000mmol;
+    let target_29: Denomination17 = 1mol;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_amount/base_anchor_mmol: forward");
+    std::test::assert(right_29 == left_29, "prefix_amount/base_anchor_mmol: reverse");
+    std::test::assert_eq_int(left_29 / 1mol, k * 1, "prefix_amount/base_anchor_mmol: target count");
+    std::test::assert_eq_int(right_29 / 1mmol, k * 1000, "prefix_amount/base_anchor_mmol: source count");
+
+    // 100 cmol = 1 mol
+    let source_30: Denomination10 = 100cmol;
+    let target_30: Denomination17 = 1mol;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_amount/base_anchor_cmol: forward");
+    std::test::assert(right_30 == left_30, "prefix_amount/base_anchor_cmol: reverse");
+    std::test::assert_eq_int(left_30 / 1mol, k * 1, "prefix_amount/base_anchor_cmol: target count");
+    std::test::assert_eq_int(right_30 / 1cmol, k * 100, "prefix_amount/base_anchor_cmol: source count");
+
+    // 1 hmol = 100 mol
+    let source_31: Denomination14 = 1hmol;
+    let target_31: Denomination17 = 100mol;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_amount/base_anchor_hmol: forward");
+    std::test::assert(right_31 == left_31, "prefix_amount/base_anchor_hmol: reverse");
+    std::test::assert_eq_int(left_31 / 1mol, k * 100, "prefix_amount/base_anchor_hmol: target count");
+    std::test::assert_eq_int(right_31 / 1hmol, k * 1, "prefix_amount/base_anchor_hmol: source count");
+
+    // 1 kmol = 1000 mol
+    let source_32: Denomination15 = 1kmol;
+    let target_32: Denomination17 = 1000mol;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_amount/base_anchor_kmol: forward");
+    std::test::assert(right_32 == left_32, "prefix_amount/base_anchor_kmol: reverse");
+    std::test::assert_eq_int(left_32 / 1mol, k * 1000, "prefix_amount/base_anchor_kmol: target count");
+    std::test::assert_eq_int(right_32 / 1kmol, k * 1, "prefix_amount/base_anchor_kmol: source count");
+
+    // 1 Mmol = 1000000 mol
+    let source_33: Denomination2 = 1Mmol;
+    let target_33: Denomination17 = 1000000mol;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_amount/base_anchor_Mmol: forward");
+    std::test::assert(right_33 == left_33, "prefix_amount/base_anchor_Mmol: reverse");
+    std::test::assert_eq_int(left_33 / 1mol, k * 1000000, "prefix_amount/base_anchor_Mmol: target count");
+    std::test::assert_eq_int(right_33 / 1Mmol, k * 1, "prefix_amount/base_anchor_Mmol: source count");
+
+    // 1 Gmol = 1000000000 mol
+    let source_34: Denomination1 = 1Gmol;
+    let target_34: Denomination17 = 1000000000mol;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_amount/base_anchor_Gmol: forward");
+    std::test::assert(right_34 == left_34, "prefix_amount/base_anchor_Gmol: reverse");
+    std::test::assert_eq_int(left_34 / 1mol, k * 1000000000, "prefix_amount/base_anchor_Gmol: target count");
+    std::test::assert_eq_int(right_34 / 1Gmol, k * 1, "prefix_amount/base_anchor_Gmol: source count");
+
+    // 1 Tmol = 1000000000000 mol
+    let source_35: Denomination6 = 1Tmol;
+    let target_35: Denomination17 = 1000000000000mol;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_amount/base_anchor_Tmol: forward");
+    std::test::assert(right_35 == left_35, "prefix_amount/base_anchor_Tmol: reverse");
+    std::test::assert_eq_int(left_35 / 1mol, k * 1000000000000, "prefix_amount/base_anchor_Tmol: target count");
+    std::test::assert_eq_int(right_35 / 1Tmol, k * 1, "prefix_amount/base_anchor_Tmol: source count");
+
+    // 1 Pmol = 1000000000000000 mol
+    let source_36: Denomination3 = 1Pmol;
+    let target_36: Denomination17 = 1000000000000000mol;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_amount/base_anchor_Pmol: forward");
+    std::test::assert(right_36 == left_36, "prefix_amount/base_anchor_Pmol: reverse");
+    std::test::assert_eq_int(left_36 / 1mol, k * 1000000000000000, "prefix_amount/base_anchor_Pmol: target count");
+    std::test::assert_eq_int(right_36 / 1Pmol, k * 1, "prefix_amount/base_anchor_Pmol: source count");
+
+    // 1 Emol = 1000000000000000000 mol
+    let source_37: Denomination0 = 1Emol;
+    let target_37: Denomination17 = 1000000000000000000mol;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_amount/base_anchor_Emol: forward");
+    std::test::assert(right_37 == left_37, "prefix_amount/base_anchor_Emol: reverse");
+    std::test::assert_eq_int(left_37 / 1mol, k * 1000000000000000000, "prefix_amount/base_anchor_Emol: target count");
+    std::test::assert_eq_int(right_37 / 1Emol, k * 1, "prefix_amount/base_anchor_Emol: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

@@ -1,0 +1,201 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// energy: 11 runtime ratios, 4 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QJ;
+
+type Denomination0 = GoldenQuantity in Btu_IT;
+type Denomination1 = GoldenQuantity in J;
+type Denomination2 = GoldenQuantity in MWh;
+type Denomination3 = GoldenQuantity in MeV;
+type Denomination4 = GoldenQuantity in Wh;
+type Denomination5 = GoldenQuantity in aJ;
+type Denomination6 = GoldenQuantity in cal_IT;
+type Denomination7 = GoldenQuantity in cal_th;
+type Denomination8 = GoldenQuantity in eV;
+type Denomination9 = GoldenQuantity in erg;
+type Denomination10 = GoldenQuantity in ft_lbf;
+type Denomination11 = GoldenQuantity in kWh;
+type Denomination12 = GoldenQuantity in kcal_IT;
+type Denomination13 = GoldenQuantity in kcal_th;
+type Denomination14 = GoldenQuantity in mJ;
+type Denomination15 = GoldenQuantity in nJ;
+type Denomination16 = GoldenQuantity in yJ;
+
+fn check_runtime(k: Int) {
+    // 1 cal_th = 4184 mJ
+    let source_0: Denomination7 = 1cal_th;
+    let target_0: Denomination14 = 4184mJ;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "energy/cal_th_to_mJ: forward");
+    std::test::assert(right_0 == left_0, "energy/cal_th_to_mJ: reverse");
+    std::test::assert_eq_int(left_0 / 1mJ, k * 4184, "energy/cal_th_to_mJ: target count");
+    std::test::assert_eq_int(right_0 / 1cal_th, k * 1, "energy/cal_th_to_mJ: source count");
+
+    // 10460 cal_IT = 10467 cal_th
+    let source_1: Denomination6 = 10460cal_IT;
+    let target_1: Denomination7 = 10467cal_th;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "energy/cal_IT_to_cal_th: forward");
+    std::test::assert(right_1 == left_1, "energy/cal_IT_to_cal_th: reverse");
+    std::test::assert_eq_int(left_1 / 1cal_th, k * 10467, "energy/cal_IT_to_cal_th: target count");
+    std::test::assert_eq_int(right_1 / 1cal_IT, k * 10460, "energy/cal_IT_to_cal_th: source count");
+
+    // 180000 Btu_IT = 45359237 cal_IT
+    let source_2: Denomination0 = 180000Btu_IT;
+    let target_2: Denomination6 = 45359237cal_IT;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "energy/Btu_IT_to_cal_IT: forward");
+    std::test::assert(right_2 == left_2, "energy/Btu_IT_to_cal_IT: reverse");
+    std::test::assert_eq_int(left_2 / 1cal_IT, k * 45359237, "energy/Btu_IT_to_cal_IT: target count");
+    std::test::assert_eq_int(right_2 / 1Btu_IT, k * 180000, "energy/Btu_IT_to_cal_IT: source count");
+
+    // 1 Wh = 3600 J
+    let source_3: Denomination4 = 1Wh;
+    let target_3: Denomination1 = 3600J;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "energy/Wh_to_J: forward");
+    std::test::assert(right_3 == left_3, "energy/Wh_to_J: reverse");
+    std::test::assert_eq_int(left_3 / 1J, k * 3600, "energy/Wh_to_J: target count");
+    std::test::assert_eq_int(right_3 / 1Wh, k * 1, "energy/Wh_to_J: source count");
+
+    // 1 kWh = 3600000 J
+    let source_4: Denomination11 = 1kWh;
+    let target_4: Denomination1 = 3600000J;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "energy/kWh_to_J: forward");
+    std::test::assert(right_4 == left_4, "energy/kWh_to_J: reverse");
+    std::test::assert_eq_int(left_4 / 1J, k * 3600000, "energy/kWh_to_J: target count");
+    std::test::assert_eq_int(right_4 / 1kWh, k * 1, "energy/kWh_to_J: source count");
+
+    // 1 MWh = 1000 kWh
+    let source_5: Denomination2 = 1MWh;
+    let target_5: Denomination11 = 1000kWh;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "energy/MWh_to_kWh: forward");
+    std::test::assert(right_5 == left_5, "energy/MWh_to_kWh: reverse");
+    std::test::assert_eq_int(left_5 / 1kWh, k * 1000, "energy/MWh_to_kWh: target count");
+    std::test::assert_eq_int(right_5 / 1MWh, k * 1, "energy/MWh_to_kWh: source count");
+
+    // 1 kcal_th = 4184 J
+    let source_6: Denomination13 = 1kcal_th;
+    let target_6: Denomination1 = 4184J;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "energy/kcal_th_to_J: forward");
+    std::test::assert(right_6 == left_6, "energy/kcal_th_to_J: reverse");
+    std::test::assert_eq_int(left_6 / 1J, k * 4184, "energy/kcal_th_to_J: target count");
+    std::test::assert_eq_int(right_6 / 1kcal_th, k * 1, "energy/kcal_th_to_J: source count");
+
+    // 5 kcal_IT = 20934 J
+    let source_7: Denomination12 = 5kcal_IT;
+    let target_7: Denomination1 = 20934J;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "energy/kcal_IT_to_J: forward");
+    std::test::assert(right_7 == left_7, "energy/kcal_IT_to_J: reverse");
+    std::test::assert_eq_int(left_7 / 1J, k * 20934, "energy/kcal_IT_to_J: target count");
+    std::test::assert_eq_int(right_7 / 1kcal_IT, k * 5, "energy/kcal_IT_to_J: source count");
+
+    // 5000 eV = 801088317 yJ
+    let source_8: Denomination8 = 5000eV;
+    let target_8: Denomination16 = 801088317yJ;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "energy/eV_to_yJ: forward");
+    std::test::assert(right_8 == left_8, "energy/eV_to_yJ: reverse");
+    std::test::assert_eq_int(left_8 / 1yJ, k * 801088317, "energy/eV_to_yJ: target count");
+    std::test::assert_eq_int(right_8 / 1eV, k * 5000, "energy/eV_to_yJ: source count");
+
+    // 1 erg = 100 nJ
+    let source_9: Denomination9 = 1erg;
+    let target_9: Denomination15 = 100nJ;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "energy/erg_to_nJ: forward");
+    std::test::assert(right_9 == left_9, "energy/erg_to_nJ: reverse");
+    std::test::assert_eq_int(left_9 / 1nJ, k * 100, "energy/erg_to_nJ: target count");
+    std::test::assert_eq_int(right_9 / 1erg, k * 1, "energy/erg_to_nJ: source count");
+
+    // 1 J = 10000000 erg
+    let source_10: Denomination1 = 1J;
+    let target_10: Denomination9 = 10000000erg;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "energy/J_to_erg: forward");
+    std::test::assert(right_10 == left_10, "energy/J_to_erg: reverse");
+    std::test::assert_eq_int(left_10 / 1erg, k * 10000000, "energy/J_to_erg: target count");
+    std::test::assert_eq_int(right_10 / 1J, k * 1, "energy/J_to_erg: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_0_forward_positive: Denomination1 = 2500000000000000ft_lbf;
+    let expected_0_forward_positive: Denomination1 = 3389544870828501J;
+    std::test::assert(actual_0_forward_positive == expected_0_forward_positive, "energy/ft_lbf_to_J: literal forward positive");
+    let actual_0_forward_negative: Denomination1 = -actual_0_forward_positive;
+    let expected_0_forward_negative: Denomination1 = -expected_0_forward_positive;
+    std::test::assert(actual_0_forward_negative == expected_0_forward_negative, "energy/ft_lbf_to_J: literal forward negative");
+    let actual_0_reverse_positive: Denomination10 = 3389544870828501J;
+    let expected_0_reverse_positive: Denomination10 = 2500000000000000ft_lbf;
+    std::test::assert(actual_0_reverse_positive == expected_0_reverse_positive, "energy/ft_lbf_to_J: literal reverse positive");
+    let actual_0_reverse_negative: Denomination10 = -actual_0_reverse_positive;
+    let expected_0_reverse_negative: Denomination10 = -expected_0_reverse_positive;
+    std::test::assert(actual_0_reverse_negative == expected_0_reverse_negative, "energy/ft_lbf_to_J: literal reverse negative");
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_1_forward_positive: Denomination4 = 180000000000Btu_IT;
+    let expected_1_forward_positive: Denomination4 = 52752792631Wh;
+    std::test::assert(actual_1_forward_positive == expected_1_forward_positive, "energy/Btu_IT_to_Wh: literal forward positive");
+    let actual_1_forward_negative: Denomination4 = -actual_1_forward_positive;
+    let expected_1_forward_negative: Denomination4 = -expected_1_forward_positive;
+    std::test::assert(actual_1_forward_negative == expected_1_forward_negative, "energy/Btu_IT_to_Wh: literal forward negative");
+    let actual_1_reverse_positive: Denomination0 = 52752792631Wh;
+    let expected_1_reverse_positive: Denomination0 = 180000000000Btu_IT;
+    std::test::assert(actual_1_reverse_positive == expected_1_reverse_positive, "energy/Btu_IT_to_Wh: literal reverse positive");
+    let actual_1_reverse_negative: Denomination0 = -actual_1_reverse_positive;
+    let expected_1_reverse_negative: Denomination0 = -expected_1_reverse_positive;
+    std::test::assert(actual_1_reverse_negative == expected_1_reverse_negative, "energy/Btu_IT_to_Wh: literal reverse negative");
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_2_forward_positive: Denomination5 = 5000000000eV;
+    let expected_2_forward_positive: Denomination5 = 801088317aJ;
+    std::test::assert(actual_2_forward_positive == expected_2_forward_positive, "energy/eV_to_aJ: literal forward positive");
+    let actual_2_forward_negative: Denomination5 = -actual_2_forward_positive;
+    let expected_2_forward_negative: Denomination5 = -expected_2_forward_positive;
+    std::test::assert(actual_2_forward_negative == expected_2_forward_negative, "energy/eV_to_aJ: literal forward negative");
+    let actual_2_reverse_positive: Denomination8 = 801088317aJ;
+    let expected_2_reverse_positive: Denomination8 = 5000000000eV;
+    std::test::assert(actual_2_reverse_positive == expected_2_reverse_positive, "energy/eV_to_aJ: literal reverse positive");
+    let actual_2_reverse_negative: Denomination8 = -actual_2_reverse_positive;
+    let expected_2_reverse_negative: Denomination8 = -expected_2_reverse_positive;
+    std::test::assert(actual_2_reverse_negative == expected_2_reverse_negative, "energy/eV_to_aJ: literal reverse negative");
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_3_forward_positive: Denomination15 = 5000000000000MeV;
+    let expected_3_forward_positive: Denomination15 = 801088317nJ;
+    std::test::assert(actual_3_forward_positive == expected_3_forward_positive, "energy/MeV_to_nJ: literal forward positive");
+    let actual_3_forward_negative: Denomination15 = -actual_3_forward_positive;
+    let expected_3_forward_negative: Denomination15 = -expected_3_forward_positive;
+    std::test::assert(actual_3_forward_negative == expected_3_forward_negative, "energy/MeV_to_nJ: literal forward negative");
+    let actual_3_reverse_positive: Denomination3 = 801088317nJ;
+    let expected_3_reverse_positive: Denomination3 = 5000000000000MeV;
+    std::test::assert(actual_3_reverse_positive == expected_3_reverse_positive, "energy/MeV_to_nJ: literal reverse positive");
+    let actual_3_reverse_negative: Denomination3 = -actual_3_reverse_positive;
+    let expected_3_reverse_negative: Denomination3 = -expected_3_reverse_positive;
+    std::test::assert(actual_3_reverse_negative == expected_3_reverse_negative, "energy/MeV_to_nJ: literal reverse negative");
+}

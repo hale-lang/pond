@@ -1,0 +1,372 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_duration: 28 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type Denomination0 = Duration in Gs;
+type Denomination1 = Duration in Ms;
+type Denomination2 = Duration in asec;
+type Denomination3 = Duration in cs;
+type Denomination4 = Duration in das;
+type Denomination5 = Duration in ds;
+type Denomination6 = Duration in fs;
+type Denomination7 = Duration in hs;
+type Denomination8 = Duration in ks;
+type Denomination9 = Duration in ms;
+type Denomination10 = Duration in ns;
+type Denomination11 = Duration in ps;
+type Denomination12 = Duration in qs;
+type Denomination13 = Duration in rs;
+type Denomination14 = Duration in s;
+type Denomination15 = Duration in us;
+type Denomination16 = Duration in ys;
+type Denomination17 = Duration in zs;
+
+fn check_runtime(k: Int) {
+    // 1 rs = 1000 qs
+    let source_0: Denomination13 = 1rs;
+    let target_0: Denomination12 = 1000qs;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_duration/adjacent_rs_qs: forward");
+    std::test::assert(right_0 == left_0, "prefix_duration/adjacent_rs_qs: reverse");
+    let source_unit_0: Denomination13 = 1rs;
+    let target_unit_0: Denomination12 = 1qs;
+    std::test::assert_eq_int(left_0 / target_unit_0, k * 1000, "prefix_duration/adjacent_rs_qs: target count");
+    std::test::assert_eq_int(right_0 / source_unit_0, k * 1, "prefix_duration/adjacent_rs_qs: source count");
+
+    // 1 ys = 1000 rs
+    let source_1: Denomination16 = 1ys;
+    let target_1: Denomination13 = 1000rs;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_duration/adjacent_ys_rs: forward");
+    std::test::assert(right_1 == left_1, "prefix_duration/adjacent_ys_rs: reverse");
+    let source_unit_1: Denomination16 = 1ys;
+    let target_unit_1: Denomination13 = 1rs;
+    std::test::assert_eq_int(left_1 / target_unit_1, k * 1000, "prefix_duration/adjacent_ys_rs: target count");
+    std::test::assert_eq_int(right_1 / source_unit_1, k * 1, "prefix_duration/adjacent_ys_rs: source count");
+
+    // 1 zs = 1000 ys
+    let source_2: Denomination17 = 1zs;
+    let target_2: Denomination16 = 1000ys;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_duration/adjacent_zs_ys: forward");
+    std::test::assert(right_2 == left_2, "prefix_duration/adjacent_zs_ys: reverse");
+    let source_unit_2: Denomination17 = 1zs;
+    let target_unit_2: Denomination16 = 1ys;
+    std::test::assert_eq_int(left_2 / target_unit_2, k * 1000, "prefix_duration/adjacent_zs_ys: target count");
+    std::test::assert_eq_int(right_2 / source_unit_2, k * 1, "prefix_duration/adjacent_zs_ys: source count");
+
+    // 1 asec = 1000 zs
+    let source_3: Denomination2 = 1asec;
+    let target_3: Denomination17 = 1000zs;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_duration/adjacent_asec_zs: forward");
+    std::test::assert(right_3 == left_3, "prefix_duration/adjacent_asec_zs: reverse");
+    let source_unit_3: Denomination2 = 1asec;
+    let target_unit_3: Denomination17 = 1zs;
+    std::test::assert_eq_int(left_3 / target_unit_3, k * 1000, "prefix_duration/adjacent_asec_zs: target count");
+    std::test::assert_eq_int(right_3 / source_unit_3, k * 1, "prefix_duration/adjacent_asec_zs: source count");
+
+    // 1 fs = 1000 asec
+    let source_4: Denomination6 = 1fs;
+    let target_4: Denomination2 = 1000asec;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_duration/adjacent_fs_asec: forward");
+    std::test::assert(right_4 == left_4, "prefix_duration/adjacent_fs_asec: reverse");
+    let source_unit_4: Denomination6 = 1fs;
+    let target_unit_4: Denomination2 = 1asec;
+    std::test::assert_eq_int(left_4 / target_unit_4, k * 1000, "prefix_duration/adjacent_fs_asec: target count");
+    std::test::assert_eq_int(right_4 / source_unit_4, k * 1, "prefix_duration/adjacent_fs_asec: source count");
+
+    // 1 ps = 1000 fs
+    let source_5: Denomination11 = 1ps;
+    let target_5: Denomination6 = 1000fs;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_duration/adjacent_ps_fs: forward");
+    std::test::assert(right_5 == left_5, "prefix_duration/adjacent_ps_fs: reverse");
+    let source_unit_5: Denomination11 = 1ps;
+    let target_unit_5: Denomination6 = 1fs;
+    std::test::assert_eq_int(left_5 / target_unit_5, k * 1000, "prefix_duration/adjacent_ps_fs: target count");
+    std::test::assert_eq_int(right_5 / source_unit_5, k * 1, "prefix_duration/adjacent_ps_fs: source count");
+
+    // 1 ns = 1000 ps
+    let source_6: Denomination10 = 1ns;
+    let target_6: Denomination11 = 1000ps;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_duration/adjacent_ns_ps: forward");
+    std::test::assert(right_6 == left_6, "prefix_duration/adjacent_ns_ps: reverse");
+    let source_unit_6: Denomination10 = 1ns;
+    let target_unit_6: Denomination11 = 1ps;
+    std::test::assert_eq_int(left_6 / target_unit_6, k * 1000, "prefix_duration/adjacent_ns_ps: target count");
+    std::test::assert_eq_int(right_6 / source_unit_6, k * 1, "prefix_duration/adjacent_ns_ps: source count");
+
+    // Exact widening to picoseconds avoids Hale codegen mixing its primitive Duration class with an Int-backed boundary at the canonical nanosecond meet; the signed ratio and both quotient counts are still checked at runtime.
+    // 1 us = 1000 ns
+    let source_7: Denomination15 = 1us;
+    let target_7: Denomination10 = 1000ns;
+    let left_7 = (k * source_7).in(ps);
+    let right_7 = (k * target_7).in(ps);
+    std::test::assert(left_7 == right_7, "prefix_duration/adjacent_us_ns: forward");
+    std::test::assert(right_7 == left_7, "prefix_duration/adjacent_us_ns: reverse");
+    let source_unit_7: Denomination15 = 1us;
+    let target_unit_7: Denomination10 = 1ns;
+    std::test::assert_eq_int(left_7 / target_unit_7, k * 1000, "prefix_duration/adjacent_us_ns: target count");
+    std::test::assert_eq_int(right_7 / source_unit_7, k * 1, "prefix_duration/adjacent_us_ns: source count");
+
+    // 1 ms = 1000 us
+    let source_8: Denomination9 = 1ms;
+    let target_8: Denomination15 = 1000us;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_duration/adjacent_ms_us: forward");
+    std::test::assert(right_8 == left_8, "prefix_duration/adjacent_ms_us: reverse");
+    let source_unit_8: Denomination9 = 1ms;
+    let target_unit_8: Denomination15 = 1us;
+    std::test::assert_eq_int(left_8 / target_unit_8, k * 1000, "prefix_duration/adjacent_ms_us: target count");
+    std::test::assert_eq_int(right_8 / source_unit_8, k * 1, "prefix_duration/adjacent_ms_us: source count");
+
+    // 1 cs = 10 ms
+    let source_9: Denomination3 = 1cs;
+    let target_9: Denomination9 = 10ms;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_duration/adjacent_cs_ms: forward");
+    std::test::assert(right_9 == left_9, "prefix_duration/adjacent_cs_ms: reverse");
+    let source_unit_9: Denomination3 = 1cs;
+    let target_unit_9: Denomination9 = 1ms;
+    std::test::assert_eq_int(left_9 / target_unit_9, k * 10, "prefix_duration/adjacent_cs_ms: target count");
+    std::test::assert_eq_int(right_9 / source_unit_9, k * 1, "prefix_duration/adjacent_cs_ms: source count");
+
+    // 1 ds = 10 cs
+    let source_10: Denomination5 = 1ds;
+    let target_10: Denomination3 = 10cs;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_duration/adjacent_ds_cs: forward");
+    std::test::assert(right_10 == left_10, "prefix_duration/adjacent_ds_cs: reverse");
+    let source_unit_10: Denomination5 = 1ds;
+    let target_unit_10: Denomination3 = 1cs;
+    std::test::assert_eq_int(left_10 / target_unit_10, k * 10, "prefix_duration/adjacent_ds_cs: target count");
+    std::test::assert_eq_int(right_10 / source_unit_10, k * 1, "prefix_duration/adjacent_ds_cs: source count");
+
+    // 1 s = 10 ds
+    let source_11: Denomination14 = 1s;
+    let target_11: Denomination5 = 10ds;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_duration/adjacent_s_ds: forward");
+    std::test::assert(right_11 == left_11, "prefix_duration/adjacent_s_ds: reverse");
+    let source_unit_11: Denomination14 = 1s;
+    let target_unit_11: Denomination5 = 1ds;
+    std::test::assert_eq_int(left_11 / target_unit_11, k * 10, "prefix_duration/adjacent_s_ds: target count");
+    std::test::assert_eq_int(right_11 / source_unit_11, k * 1, "prefix_duration/adjacent_s_ds: source count");
+
+    // 1 das = 10 s
+    let source_12: Denomination4 = 1das;
+    let target_12: Denomination14 = 10s;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_duration/adjacent_das_s: forward");
+    std::test::assert(right_12 == left_12, "prefix_duration/adjacent_das_s: reverse");
+    let source_unit_12: Denomination4 = 1das;
+    let target_unit_12: Denomination14 = 1s;
+    std::test::assert_eq_int(left_12 / target_unit_12, k * 10, "prefix_duration/adjacent_das_s: target count");
+    std::test::assert_eq_int(right_12 / source_unit_12, k * 1, "prefix_duration/adjacent_das_s: source count");
+
+    // 1 hs = 10 das
+    let source_13: Denomination7 = 1hs;
+    let target_13: Denomination4 = 10das;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_duration/adjacent_hs_das: forward");
+    std::test::assert(right_13 == left_13, "prefix_duration/adjacent_hs_das: reverse");
+    let source_unit_13: Denomination7 = 1hs;
+    let target_unit_13: Denomination4 = 1das;
+    std::test::assert_eq_int(left_13 / target_unit_13, k * 10, "prefix_duration/adjacent_hs_das: target count");
+    std::test::assert_eq_int(right_13 / source_unit_13, k * 1, "prefix_duration/adjacent_hs_das: source count");
+
+    // 1 ks = 10 hs
+    let source_14: Denomination8 = 1ks;
+    let target_14: Denomination7 = 10hs;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_duration/adjacent_ks_hs: forward");
+    std::test::assert(right_14 == left_14, "prefix_duration/adjacent_ks_hs: reverse");
+    let source_unit_14: Denomination8 = 1ks;
+    let target_unit_14: Denomination7 = 1hs;
+    std::test::assert_eq_int(left_14 / target_unit_14, k * 10, "prefix_duration/adjacent_ks_hs: target count");
+    std::test::assert_eq_int(right_14 / source_unit_14, k * 1, "prefix_duration/adjacent_ks_hs: source count");
+
+    // 1 Ms = 1000 ks
+    let source_15: Denomination1 = 1Ms;
+    let target_15: Denomination8 = 1000ks;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_duration/adjacent_Ms_ks: forward");
+    std::test::assert(right_15 == left_15, "prefix_duration/adjacent_Ms_ks: reverse");
+    let source_unit_15: Denomination1 = 1Ms;
+    let target_unit_15: Denomination8 = 1ks;
+    std::test::assert_eq_int(left_15 / target_unit_15, k * 1000, "prefix_duration/adjacent_Ms_ks: target count");
+    std::test::assert_eq_int(right_15 / source_unit_15, k * 1, "prefix_duration/adjacent_Ms_ks: source count");
+
+    // 1 Gs = 1000 Ms
+    let source_16: Denomination0 = 1Gs;
+    let target_16: Denomination1 = 1000Ms;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_duration/adjacent_Gs_Ms: forward");
+    std::test::assert(right_16 == left_16, "prefix_duration/adjacent_Gs_Ms: reverse");
+    let source_unit_16: Denomination0 = 1Gs;
+    let target_unit_16: Denomination1 = 1Ms;
+    std::test::assert_eq_int(left_16 / target_unit_16, k * 1000, "prefix_duration/adjacent_Gs_Ms: target count");
+    std::test::assert_eq_int(right_16 / source_unit_16, k * 1, "prefix_duration/adjacent_Gs_Ms: source count");
+
+    // 1000000000000000000 asec = 1 s
+    let source_17: Denomination2 = 1000000000000000000asec;
+    let target_17: Denomination14 = 1s;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_duration/base_anchor_asec: forward");
+    std::test::assert(right_17 == left_17, "prefix_duration/base_anchor_asec: reverse");
+    let source_unit_17: Denomination2 = 1asec;
+    let target_unit_17: Denomination14 = 1s;
+    std::test::assert_eq_int(left_17 / target_unit_17, k * 1, "prefix_duration/base_anchor_asec: target count");
+    std::test::assert_eq_int(right_17 / source_unit_17, k * 1000000000000000000, "prefix_duration/base_anchor_asec: source count");
+
+    // 1000000000000000 fs = 1 s
+    let source_18: Denomination6 = 1000000000000000fs;
+    let target_18: Denomination14 = 1s;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_duration/base_anchor_fs: forward");
+    std::test::assert(right_18 == left_18, "prefix_duration/base_anchor_fs: reverse");
+    let source_unit_18: Denomination6 = 1fs;
+    let target_unit_18: Denomination14 = 1s;
+    std::test::assert_eq_int(left_18 / target_unit_18, k * 1, "prefix_duration/base_anchor_fs: target count");
+    std::test::assert_eq_int(right_18 / source_unit_18, k * 1000000000000000, "prefix_duration/base_anchor_fs: source count");
+
+    // 1000000000000 ps = 1 s
+    let source_19: Denomination11 = 1000000000000ps;
+    let target_19: Denomination14 = 1s;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_duration/base_anchor_ps: forward");
+    std::test::assert(right_19 == left_19, "prefix_duration/base_anchor_ps: reverse");
+    let source_unit_19: Denomination11 = 1ps;
+    let target_unit_19: Denomination14 = 1s;
+    std::test::assert_eq_int(left_19 / target_unit_19, k * 1, "prefix_duration/base_anchor_ps: target count");
+    std::test::assert_eq_int(right_19 / source_unit_19, k * 1000000000000, "prefix_duration/base_anchor_ps: source count");
+
+    // Exact widening to picoseconds avoids Hale codegen mixing its primitive Duration class with an Int-backed boundary at the canonical nanosecond meet; the signed ratio and both quotient counts are still checked at runtime.
+    // 1000000000 ns = 1 s
+    let source_20: Denomination10 = 1000000000ns;
+    let target_20: Denomination14 = 1s;
+    let left_20 = (k * source_20).in(ps);
+    let right_20 = (k * target_20).in(ps);
+    std::test::assert(left_20 == right_20, "prefix_duration/base_anchor_ns: forward");
+    std::test::assert(right_20 == left_20, "prefix_duration/base_anchor_ns: reverse");
+    let source_unit_20: Denomination10 = 1ns;
+    let target_unit_20: Denomination14 = 1s;
+    std::test::assert_eq_int(left_20 / target_unit_20, k * 1, "prefix_duration/base_anchor_ns: target count");
+    std::test::assert_eq_int(right_20 / source_unit_20, k * 1000000000, "prefix_duration/base_anchor_ns: source count");
+
+    // 1000000 us = 1 s
+    let source_21: Denomination15 = 1000000us;
+    let target_21: Denomination14 = 1s;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_duration/base_anchor_us: forward");
+    std::test::assert(right_21 == left_21, "prefix_duration/base_anchor_us: reverse");
+    let source_unit_21: Denomination15 = 1us;
+    let target_unit_21: Denomination14 = 1s;
+    std::test::assert_eq_int(left_21 / target_unit_21, k * 1, "prefix_duration/base_anchor_us: target count");
+    std::test::assert_eq_int(right_21 / source_unit_21, k * 1000000, "prefix_duration/base_anchor_us: source count");
+
+    // 1000 ms = 1 s
+    let source_22: Denomination9 = 1000ms;
+    let target_22: Denomination14 = 1s;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_duration/base_anchor_ms: forward");
+    std::test::assert(right_22 == left_22, "prefix_duration/base_anchor_ms: reverse");
+    let source_unit_22: Denomination9 = 1ms;
+    let target_unit_22: Denomination14 = 1s;
+    std::test::assert_eq_int(left_22 / target_unit_22, k * 1, "prefix_duration/base_anchor_ms: target count");
+    std::test::assert_eq_int(right_22 / source_unit_22, k * 1000, "prefix_duration/base_anchor_ms: source count");
+
+    // 100 cs = 1 s
+    let source_23: Denomination3 = 100cs;
+    let target_23: Denomination14 = 1s;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_duration/base_anchor_cs: forward");
+    std::test::assert(right_23 == left_23, "prefix_duration/base_anchor_cs: reverse");
+    let source_unit_23: Denomination3 = 1cs;
+    let target_unit_23: Denomination14 = 1s;
+    std::test::assert_eq_int(left_23 / target_unit_23, k * 1, "prefix_duration/base_anchor_cs: target count");
+    std::test::assert_eq_int(right_23 / source_unit_23, k * 100, "prefix_duration/base_anchor_cs: source count");
+
+    // 1 hs = 100 s
+    let source_24: Denomination7 = 1hs;
+    let target_24: Denomination14 = 100s;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_duration/base_anchor_hs: forward");
+    std::test::assert(right_24 == left_24, "prefix_duration/base_anchor_hs: reverse");
+    let source_unit_24: Denomination7 = 1hs;
+    let target_unit_24: Denomination14 = 1s;
+    std::test::assert_eq_int(left_24 / target_unit_24, k * 100, "prefix_duration/base_anchor_hs: target count");
+    std::test::assert_eq_int(right_24 / source_unit_24, k * 1, "prefix_duration/base_anchor_hs: source count");
+
+    // 1 ks = 1000 s
+    let source_25: Denomination8 = 1ks;
+    let target_25: Denomination14 = 1000s;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_duration/base_anchor_ks: forward");
+    std::test::assert(right_25 == left_25, "prefix_duration/base_anchor_ks: reverse");
+    let source_unit_25: Denomination8 = 1ks;
+    let target_unit_25: Denomination14 = 1s;
+    std::test::assert_eq_int(left_25 / target_unit_25, k * 1000, "prefix_duration/base_anchor_ks: target count");
+    std::test::assert_eq_int(right_25 / source_unit_25, k * 1, "prefix_duration/base_anchor_ks: source count");
+
+    // 1 Ms = 1000000 s
+    let source_26: Denomination1 = 1Ms;
+    let target_26: Denomination14 = 1000000s;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_duration/base_anchor_Ms: forward");
+    std::test::assert(right_26 == left_26, "prefix_duration/base_anchor_Ms: reverse");
+    let source_unit_26: Denomination1 = 1Ms;
+    let target_unit_26: Denomination14 = 1s;
+    std::test::assert_eq_int(left_26 / target_unit_26, k * 1000000, "prefix_duration/base_anchor_Ms: target count");
+    std::test::assert_eq_int(right_26 / source_unit_26, k * 1, "prefix_duration/base_anchor_Ms: source count");
+
+    // 1 Gs = 1000000000 s
+    let source_27: Denomination0 = 1Gs;
+    let target_27: Denomination14 = 1000000000s;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_duration/base_anchor_Gs: forward");
+    std::test::assert(right_27 == left_27, "prefix_duration/base_anchor_Gs: reverse");
+    let source_unit_27: Denomination0 = 1Gs;
+    let target_unit_27: Denomination14 = 1s;
+    std::test::assert_eq_int(left_27 / target_unit_27, k * 1000000000, "prefix_duration/base_anchor_Gs: target count");
+    std::test::assert_eq_int(right_27 / source_unit_27, k * 1, "prefix_duration/base_anchor_Gs: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

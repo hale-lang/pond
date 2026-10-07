@@ -1,0 +1,41 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// amount_entities: 2 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in Qmol;
+
+type Denomination0 = GoldenQuantity in entity;
+type Denomination1 = GoldenQuantity in umol;
+type Denomination2 = GoldenQuantity in ymol;
+
+fn check_runtime(k: Int) {
+    // 150553519 entity = 250000000 ymol
+    let source_0: Denomination0 = 150553519entity;
+    let target_0: Denomination2 = 250000000ymol;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "amount_entities/entity_to_ymol: forward");
+    std::test::assert(right_0 == left_0, "amount_entities/entity_to_ymol: reverse");
+    std::test::assert_eq_int(left_0 / 1ymol, k * 250000000, "amount_entities/entity_to_ymol: target count");
+    std::test::assert_eq_int(right_0 / 1entity, k * 150553519, "amount_entities/entity_to_ymol: source count");
+
+    // 1 umol = 602214076000000000 entity
+    let source_1: Denomination1 = 1umol;
+    let target_1: Denomination0 = 602214076000000000entity;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "amount_entities/umol_to_entity: forward");
+    std::test::assert(right_1 == left_1, "amount_entities/umol_to_entity: reverse");
+    std::test::assert_eq_int(left_1 / 1entity, k * 602214076000000000, "amount_entities/umol_to_entity: target count");
+    std::test::assert_eq_int(right_1 / 1umol, k * 1, "amount_entities/umol_to_entity: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

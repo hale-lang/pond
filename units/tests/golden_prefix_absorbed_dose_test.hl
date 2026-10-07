@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_absorbed_dose: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QGy;
+
+type Denomination0 = GoldenQuantity in EGy;
+type Denomination1 = GoldenQuantity in GGy;
+type Denomination2 = GoldenQuantity in Gy;
+type Denomination3 = GoldenQuantity in MGy;
+type Denomination4 = GoldenQuantity in PGy;
+type Denomination5 = GoldenQuantity in QGy;
+type Denomination6 = GoldenQuantity in RGy;
+type Denomination7 = GoldenQuantity in TGy;
+type Denomination8 = GoldenQuantity in YGy;
+type Denomination9 = GoldenQuantity in ZGy;
+type Denomination10 = GoldenQuantity in aGy;
+type Denomination11 = GoldenQuantity in cGy;
+type Denomination12 = GoldenQuantity in dGy;
+type Denomination13 = GoldenQuantity in daGy;
+type Denomination14 = GoldenQuantity in fGy;
+type Denomination15 = GoldenQuantity in hGy;
+type Denomination16 = GoldenQuantity in kGy;
+type Denomination17 = GoldenQuantity in mGy;
+type Denomination18 = GoldenQuantity in nGy;
+type Denomination19 = GoldenQuantity in pGy;
+type Denomination20 = GoldenQuantity in qGy;
+type Denomination21 = GoldenQuantity in rGy;
+type Denomination22 = GoldenQuantity in uGy;
+type Denomination23 = GoldenQuantity in yGy;
+type Denomination24 = GoldenQuantity in zGy;
+
+fn check_runtime(k: Int) {
+    // 1 rGy = 1000 qGy
+    let source_0: Denomination21 = 1rGy;
+    let target_0: Denomination20 = 1000qGy;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_absorbed_dose/adjacent_rGy_qGy: forward");
+    std::test::assert(right_0 == left_0, "prefix_absorbed_dose/adjacent_rGy_qGy: reverse");
+    std::test::assert_eq_int(left_0 / 1qGy, k * 1000, "prefix_absorbed_dose/adjacent_rGy_qGy: target count");
+    std::test::assert_eq_int(right_0 / 1rGy, k * 1, "prefix_absorbed_dose/adjacent_rGy_qGy: source count");
+
+    // 1 yGy = 1000 rGy
+    let source_1: Denomination23 = 1yGy;
+    let target_1: Denomination21 = 1000rGy;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_absorbed_dose/adjacent_yGy_rGy: forward");
+    std::test::assert(right_1 == left_1, "prefix_absorbed_dose/adjacent_yGy_rGy: reverse");
+    std::test::assert_eq_int(left_1 / 1rGy, k * 1000, "prefix_absorbed_dose/adjacent_yGy_rGy: target count");
+    std::test::assert_eq_int(right_1 / 1yGy, k * 1, "prefix_absorbed_dose/adjacent_yGy_rGy: source count");
+
+    // 1 zGy = 1000 yGy
+    let source_2: Denomination24 = 1zGy;
+    let target_2: Denomination23 = 1000yGy;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_absorbed_dose/adjacent_zGy_yGy: forward");
+    std::test::assert(right_2 == left_2, "prefix_absorbed_dose/adjacent_zGy_yGy: reverse");
+    std::test::assert_eq_int(left_2 / 1yGy, k * 1000, "prefix_absorbed_dose/adjacent_zGy_yGy: target count");
+    std::test::assert_eq_int(right_2 / 1zGy, k * 1, "prefix_absorbed_dose/adjacent_zGy_yGy: source count");
+
+    // 1 aGy = 1000 zGy
+    let source_3: Denomination10 = 1aGy;
+    let target_3: Denomination24 = 1000zGy;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_absorbed_dose/adjacent_aGy_zGy: forward");
+    std::test::assert(right_3 == left_3, "prefix_absorbed_dose/adjacent_aGy_zGy: reverse");
+    std::test::assert_eq_int(left_3 / 1zGy, k * 1000, "prefix_absorbed_dose/adjacent_aGy_zGy: target count");
+    std::test::assert_eq_int(right_3 / 1aGy, k * 1, "prefix_absorbed_dose/adjacent_aGy_zGy: source count");
+
+    // 1 fGy = 1000 aGy
+    let source_4: Denomination14 = 1fGy;
+    let target_4: Denomination10 = 1000aGy;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_absorbed_dose/adjacent_fGy_aGy: forward");
+    std::test::assert(right_4 == left_4, "prefix_absorbed_dose/adjacent_fGy_aGy: reverse");
+    std::test::assert_eq_int(left_4 / 1aGy, k * 1000, "prefix_absorbed_dose/adjacent_fGy_aGy: target count");
+    std::test::assert_eq_int(right_4 / 1fGy, k * 1, "prefix_absorbed_dose/adjacent_fGy_aGy: source count");
+
+    // 1 pGy = 1000 fGy
+    let source_5: Denomination19 = 1pGy;
+    let target_5: Denomination14 = 1000fGy;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_absorbed_dose/adjacent_pGy_fGy: forward");
+    std::test::assert(right_5 == left_5, "prefix_absorbed_dose/adjacent_pGy_fGy: reverse");
+    std::test::assert_eq_int(left_5 / 1fGy, k * 1000, "prefix_absorbed_dose/adjacent_pGy_fGy: target count");
+    std::test::assert_eq_int(right_5 / 1pGy, k * 1, "prefix_absorbed_dose/adjacent_pGy_fGy: source count");
+
+    // 1 nGy = 1000 pGy
+    let source_6: Denomination18 = 1nGy;
+    let target_6: Denomination19 = 1000pGy;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_absorbed_dose/adjacent_nGy_pGy: forward");
+    std::test::assert(right_6 == left_6, "prefix_absorbed_dose/adjacent_nGy_pGy: reverse");
+    std::test::assert_eq_int(left_6 / 1pGy, k * 1000, "prefix_absorbed_dose/adjacent_nGy_pGy: target count");
+    std::test::assert_eq_int(right_6 / 1nGy, k * 1, "prefix_absorbed_dose/adjacent_nGy_pGy: source count");
+
+    // 1 uGy = 1000 nGy
+    let source_7: Denomination22 = 1uGy;
+    let target_7: Denomination18 = 1000nGy;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_absorbed_dose/adjacent_uGy_nGy: forward");
+    std::test::assert(right_7 == left_7, "prefix_absorbed_dose/adjacent_uGy_nGy: reverse");
+    std::test::assert_eq_int(left_7 / 1nGy, k * 1000, "prefix_absorbed_dose/adjacent_uGy_nGy: target count");
+    std::test::assert_eq_int(right_7 / 1uGy, k * 1, "prefix_absorbed_dose/adjacent_uGy_nGy: source count");
+
+    // 1 mGy = 1000 uGy
+    let source_8: Denomination17 = 1mGy;
+    let target_8: Denomination22 = 1000uGy;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_absorbed_dose/adjacent_mGy_uGy: forward");
+    std::test::assert(right_8 == left_8, "prefix_absorbed_dose/adjacent_mGy_uGy: reverse");
+    std::test::assert_eq_int(left_8 / 1uGy, k * 1000, "prefix_absorbed_dose/adjacent_mGy_uGy: target count");
+    std::test::assert_eq_int(right_8 / 1mGy, k * 1, "prefix_absorbed_dose/adjacent_mGy_uGy: source count");
+
+    // 1 cGy = 10 mGy
+    let source_9: Denomination11 = 1cGy;
+    let target_9: Denomination17 = 10mGy;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_absorbed_dose/adjacent_cGy_mGy: forward");
+    std::test::assert(right_9 == left_9, "prefix_absorbed_dose/adjacent_cGy_mGy: reverse");
+    std::test::assert_eq_int(left_9 / 1mGy, k * 10, "prefix_absorbed_dose/adjacent_cGy_mGy: target count");
+    std::test::assert_eq_int(right_9 / 1cGy, k * 1, "prefix_absorbed_dose/adjacent_cGy_mGy: source count");
+
+    // 1 dGy = 10 cGy
+    let source_10: Denomination12 = 1dGy;
+    let target_10: Denomination11 = 10cGy;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_absorbed_dose/adjacent_dGy_cGy: forward");
+    std::test::assert(right_10 == left_10, "prefix_absorbed_dose/adjacent_dGy_cGy: reverse");
+    std::test::assert_eq_int(left_10 / 1cGy, k * 10, "prefix_absorbed_dose/adjacent_dGy_cGy: target count");
+    std::test::assert_eq_int(right_10 / 1dGy, k * 1, "prefix_absorbed_dose/adjacent_dGy_cGy: source count");
+
+    // 1 Gy = 10 dGy
+    let source_11: Denomination2 = 1Gy;
+    let target_11: Denomination12 = 10dGy;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_absorbed_dose/adjacent_Gy_dGy: forward");
+    std::test::assert(right_11 == left_11, "prefix_absorbed_dose/adjacent_Gy_dGy: reverse");
+    std::test::assert_eq_int(left_11 / 1dGy, k * 10, "prefix_absorbed_dose/adjacent_Gy_dGy: target count");
+    std::test::assert_eq_int(right_11 / 1Gy, k * 1, "prefix_absorbed_dose/adjacent_Gy_dGy: source count");
+
+    // 1 daGy = 10 Gy
+    let source_12: Denomination13 = 1daGy;
+    let target_12: Denomination2 = 10Gy;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_absorbed_dose/adjacent_daGy_Gy: forward");
+    std::test::assert(right_12 == left_12, "prefix_absorbed_dose/adjacent_daGy_Gy: reverse");
+    std::test::assert_eq_int(left_12 / 1Gy, k * 10, "prefix_absorbed_dose/adjacent_daGy_Gy: target count");
+    std::test::assert_eq_int(right_12 / 1daGy, k * 1, "prefix_absorbed_dose/adjacent_daGy_Gy: source count");
+
+    // 1 hGy = 10 daGy
+    let source_13: Denomination15 = 1hGy;
+    let target_13: Denomination13 = 10daGy;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_absorbed_dose/adjacent_hGy_daGy: forward");
+    std::test::assert(right_13 == left_13, "prefix_absorbed_dose/adjacent_hGy_daGy: reverse");
+    std::test::assert_eq_int(left_13 / 1daGy, k * 10, "prefix_absorbed_dose/adjacent_hGy_daGy: target count");
+    std::test::assert_eq_int(right_13 / 1hGy, k * 1, "prefix_absorbed_dose/adjacent_hGy_daGy: source count");
+
+    // 1 kGy = 10 hGy
+    let source_14: Denomination16 = 1kGy;
+    let target_14: Denomination15 = 10hGy;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_absorbed_dose/adjacent_kGy_hGy: forward");
+    std::test::assert(right_14 == left_14, "prefix_absorbed_dose/adjacent_kGy_hGy: reverse");
+    std::test::assert_eq_int(left_14 / 1hGy, k * 10, "prefix_absorbed_dose/adjacent_kGy_hGy: target count");
+    std::test::assert_eq_int(right_14 / 1kGy, k * 1, "prefix_absorbed_dose/adjacent_kGy_hGy: source count");
+
+    // 1 MGy = 1000 kGy
+    let source_15: Denomination3 = 1MGy;
+    let target_15: Denomination16 = 1000kGy;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_absorbed_dose/adjacent_MGy_kGy: forward");
+    std::test::assert(right_15 == left_15, "prefix_absorbed_dose/adjacent_MGy_kGy: reverse");
+    std::test::assert_eq_int(left_15 / 1kGy, k * 1000, "prefix_absorbed_dose/adjacent_MGy_kGy: target count");
+    std::test::assert_eq_int(right_15 / 1MGy, k * 1, "prefix_absorbed_dose/adjacent_MGy_kGy: source count");
+
+    // 1 GGy = 1000 MGy
+    let source_16: Denomination1 = 1GGy;
+    let target_16: Denomination3 = 1000MGy;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_absorbed_dose/adjacent_GGy_MGy: forward");
+    std::test::assert(right_16 == left_16, "prefix_absorbed_dose/adjacent_GGy_MGy: reverse");
+    std::test::assert_eq_int(left_16 / 1MGy, k * 1000, "prefix_absorbed_dose/adjacent_GGy_MGy: target count");
+    std::test::assert_eq_int(right_16 / 1GGy, k * 1, "prefix_absorbed_dose/adjacent_GGy_MGy: source count");
+
+    // 1 TGy = 1000 GGy
+    let source_17: Denomination7 = 1TGy;
+    let target_17: Denomination1 = 1000GGy;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_absorbed_dose/adjacent_TGy_GGy: forward");
+    std::test::assert(right_17 == left_17, "prefix_absorbed_dose/adjacent_TGy_GGy: reverse");
+    std::test::assert_eq_int(left_17 / 1GGy, k * 1000, "prefix_absorbed_dose/adjacent_TGy_GGy: target count");
+    std::test::assert_eq_int(right_17 / 1TGy, k * 1, "prefix_absorbed_dose/adjacent_TGy_GGy: source count");
+
+    // 1 PGy = 1000 TGy
+    let source_18: Denomination4 = 1PGy;
+    let target_18: Denomination7 = 1000TGy;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_absorbed_dose/adjacent_PGy_TGy: forward");
+    std::test::assert(right_18 == left_18, "prefix_absorbed_dose/adjacent_PGy_TGy: reverse");
+    std::test::assert_eq_int(left_18 / 1TGy, k * 1000, "prefix_absorbed_dose/adjacent_PGy_TGy: target count");
+    std::test::assert_eq_int(right_18 / 1PGy, k * 1, "prefix_absorbed_dose/adjacent_PGy_TGy: source count");
+
+    // 1 EGy = 1000 PGy
+    let source_19: Denomination0 = 1EGy;
+    let target_19: Denomination4 = 1000PGy;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_absorbed_dose/adjacent_EGy_PGy: forward");
+    std::test::assert(right_19 == left_19, "prefix_absorbed_dose/adjacent_EGy_PGy: reverse");
+    std::test::assert_eq_int(left_19 / 1PGy, k * 1000, "prefix_absorbed_dose/adjacent_EGy_PGy: target count");
+    std::test::assert_eq_int(right_19 / 1EGy, k * 1, "prefix_absorbed_dose/adjacent_EGy_PGy: source count");
+
+    // 1 ZGy = 1000 EGy
+    let source_20: Denomination9 = 1ZGy;
+    let target_20: Denomination0 = 1000EGy;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_absorbed_dose/adjacent_ZGy_EGy: forward");
+    std::test::assert(right_20 == left_20, "prefix_absorbed_dose/adjacent_ZGy_EGy: reverse");
+    std::test::assert_eq_int(left_20 / 1EGy, k * 1000, "prefix_absorbed_dose/adjacent_ZGy_EGy: target count");
+    std::test::assert_eq_int(right_20 / 1ZGy, k * 1, "prefix_absorbed_dose/adjacent_ZGy_EGy: source count");
+
+    // 1 YGy = 1000 ZGy
+    let source_21: Denomination8 = 1YGy;
+    let target_21: Denomination9 = 1000ZGy;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_absorbed_dose/adjacent_YGy_ZGy: forward");
+    std::test::assert(right_21 == left_21, "prefix_absorbed_dose/adjacent_YGy_ZGy: reverse");
+    std::test::assert_eq_int(left_21 / 1ZGy, k * 1000, "prefix_absorbed_dose/adjacent_YGy_ZGy: target count");
+    std::test::assert_eq_int(right_21 / 1YGy, k * 1, "prefix_absorbed_dose/adjacent_YGy_ZGy: source count");
+
+    // 1 RGy = 1000 YGy
+    let source_22: Denomination6 = 1RGy;
+    let target_22: Denomination8 = 1000YGy;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_absorbed_dose/adjacent_RGy_YGy: forward");
+    std::test::assert(right_22 == left_22, "prefix_absorbed_dose/adjacent_RGy_YGy: reverse");
+    std::test::assert_eq_int(left_22 / 1YGy, k * 1000, "prefix_absorbed_dose/adjacent_RGy_YGy: target count");
+    std::test::assert_eq_int(right_22 / 1RGy, k * 1, "prefix_absorbed_dose/adjacent_RGy_YGy: source count");
+
+    // 1 QGy = 1000 RGy
+    let source_23: Denomination5 = 1QGy;
+    let target_23: Denomination6 = 1000RGy;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_absorbed_dose/adjacent_QGy_RGy: forward");
+    std::test::assert(right_23 == left_23, "prefix_absorbed_dose/adjacent_QGy_RGy: reverse");
+    std::test::assert_eq_int(left_23 / 1RGy, k * 1000, "prefix_absorbed_dose/adjacent_QGy_RGy: target count");
+    std::test::assert_eq_int(right_23 / 1QGy, k * 1, "prefix_absorbed_dose/adjacent_QGy_RGy: source count");
+
+    // 1000000000000000000 aGy = 1 Gy
+    let source_24: Denomination10 = 1000000000000000000aGy;
+    let target_24: Denomination2 = 1Gy;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_absorbed_dose/base_anchor_aGy: forward");
+    std::test::assert(right_24 == left_24, "prefix_absorbed_dose/base_anchor_aGy: reverse");
+    std::test::assert_eq_int(left_24 / 1Gy, k * 1, "prefix_absorbed_dose/base_anchor_aGy: target count");
+    std::test::assert_eq_int(right_24 / 1aGy, k * 1000000000000000000, "prefix_absorbed_dose/base_anchor_aGy: source count");
+
+    // 1000000000000000 fGy = 1 Gy
+    let source_25: Denomination14 = 1000000000000000fGy;
+    let target_25: Denomination2 = 1Gy;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_absorbed_dose/base_anchor_fGy: forward");
+    std::test::assert(right_25 == left_25, "prefix_absorbed_dose/base_anchor_fGy: reverse");
+    std::test::assert_eq_int(left_25 / 1Gy, k * 1, "prefix_absorbed_dose/base_anchor_fGy: target count");
+    std::test::assert_eq_int(right_25 / 1fGy, k * 1000000000000000, "prefix_absorbed_dose/base_anchor_fGy: source count");
+
+    // 1000000000000 pGy = 1 Gy
+    let source_26: Denomination19 = 1000000000000pGy;
+    let target_26: Denomination2 = 1Gy;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_absorbed_dose/base_anchor_pGy: forward");
+    std::test::assert(right_26 == left_26, "prefix_absorbed_dose/base_anchor_pGy: reverse");
+    std::test::assert_eq_int(left_26 / 1Gy, k * 1, "prefix_absorbed_dose/base_anchor_pGy: target count");
+    std::test::assert_eq_int(right_26 / 1pGy, k * 1000000000000, "prefix_absorbed_dose/base_anchor_pGy: source count");
+
+    // 1000000000 nGy = 1 Gy
+    let source_27: Denomination18 = 1000000000nGy;
+    let target_27: Denomination2 = 1Gy;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_absorbed_dose/base_anchor_nGy: forward");
+    std::test::assert(right_27 == left_27, "prefix_absorbed_dose/base_anchor_nGy: reverse");
+    std::test::assert_eq_int(left_27 / 1Gy, k * 1, "prefix_absorbed_dose/base_anchor_nGy: target count");
+    std::test::assert_eq_int(right_27 / 1nGy, k * 1000000000, "prefix_absorbed_dose/base_anchor_nGy: source count");
+
+    // 1000000 uGy = 1 Gy
+    let source_28: Denomination22 = 1000000uGy;
+    let target_28: Denomination2 = 1Gy;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_absorbed_dose/base_anchor_uGy: forward");
+    std::test::assert(right_28 == left_28, "prefix_absorbed_dose/base_anchor_uGy: reverse");
+    std::test::assert_eq_int(left_28 / 1Gy, k * 1, "prefix_absorbed_dose/base_anchor_uGy: target count");
+    std::test::assert_eq_int(right_28 / 1uGy, k * 1000000, "prefix_absorbed_dose/base_anchor_uGy: source count");
+
+    // 1000 mGy = 1 Gy
+    let source_29: Denomination17 = 1000mGy;
+    let target_29: Denomination2 = 1Gy;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_absorbed_dose/base_anchor_mGy: forward");
+    std::test::assert(right_29 == left_29, "prefix_absorbed_dose/base_anchor_mGy: reverse");
+    std::test::assert_eq_int(left_29 / 1Gy, k * 1, "prefix_absorbed_dose/base_anchor_mGy: target count");
+    std::test::assert_eq_int(right_29 / 1mGy, k * 1000, "prefix_absorbed_dose/base_anchor_mGy: source count");
+
+    // 100 cGy = 1 Gy
+    let source_30: Denomination11 = 100cGy;
+    let target_30: Denomination2 = 1Gy;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_absorbed_dose/base_anchor_cGy: forward");
+    std::test::assert(right_30 == left_30, "prefix_absorbed_dose/base_anchor_cGy: reverse");
+    std::test::assert_eq_int(left_30 / 1Gy, k * 1, "prefix_absorbed_dose/base_anchor_cGy: target count");
+    std::test::assert_eq_int(right_30 / 1cGy, k * 100, "prefix_absorbed_dose/base_anchor_cGy: source count");
+
+    // 1 hGy = 100 Gy
+    let source_31: Denomination15 = 1hGy;
+    let target_31: Denomination2 = 100Gy;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_absorbed_dose/base_anchor_hGy: forward");
+    std::test::assert(right_31 == left_31, "prefix_absorbed_dose/base_anchor_hGy: reverse");
+    std::test::assert_eq_int(left_31 / 1Gy, k * 100, "prefix_absorbed_dose/base_anchor_hGy: target count");
+    std::test::assert_eq_int(right_31 / 1hGy, k * 1, "prefix_absorbed_dose/base_anchor_hGy: source count");
+
+    // 1 kGy = 1000 Gy
+    let source_32: Denomination16 = 1kGy;
+    let target_32: Denomination2 = 1000Gy;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_absorbed_dose/base_anchor_kGy: forward");
+    std::test::assert(right_32 == left_32, "prefix_absorbed_dose/base_anchor_kGy: reverse");
+    std::test::assert_eq_int(left_32 / 1Gy, k * 1000, "prefix_absorbed_dose/base_anchor_kGy: target count");
+    std::test::assert_eq_int(right_32 / 1kGy, k * 1, "prefix_absorbed_dose/base_anchor_kGy: source count");
+
+    // 1 MGy = 1000000 Gy
+    let source_33: Denomination3 = 1MGy;
+    let target_33: Denomination2 = 1000000Gy;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_absorbed_dose/base_anchor_MGy: forward");
+    std::test::assert(right_33 == left_33, "prefix_absorbed_dose/base_anchor_MGy: reverse");
+    std::test::assert_eq_int(left_33 / 1Gy, k * 1000000, "prefix_absorbed_dose/base_anchor_MGy: target count");
+    std::test::assert_eq_int(right_33 / 1MGy, k * 1, "prefix_absorbed_dose/base_anchor_MGy: source count");
+
+    // 1 GGy = 1000000000 Gy
+    let source_34: Denomination1 = 1GGy;
+    let target_34: Denomination2 = 1000000000Gy;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_absorbed_dose/base_anchor_GGy: forward");
+    std::test::assert(right_34 == left_34, "prefix_absorbed_dose/base_anchor_GGy: reverse");
+    std::test::assert_eq_int(left_34 / 1Gy, k * 1000000000, "prefix_absorbed_dose/base_anchor_GGy: target count");
+    std::test::assert_eq_int(right_34 / 1GGy, k * 1, "prefix_absorbed_dose/base_anchor_GGy: source count");
+
+    // 1 TGy = 1000000000000 Gy
+    let source_35: Denomination7 = 1TGy;
+    let target_35: Denomination2 = 1000000000000Gy;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_absorbed_dose/base_anchor_TGy: forward");
+    std::test::assert(right_35 == left_35, "prefix_absorbed_dose/base_anchor_TGy: reverse");
+    std::test::assert_eq_int(left_35 / 1Gy, k * 1000000000000, "prefix_absorbed_dose/base_anchor_TGy: target count");
+    std::test::assert_eq_int(right_35 / 1TGy, k * 1, "prefix_absorbed_dose/base_anchor_TGy: source count");
+
+    // 1 PGy = 1000000000000000 Gy
+    let source_36: Denomination4 = 1PGy;
+    let target_36: Denomination2 = 1000000000000000Gy;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_absorbed_dose/base_anchor_PGy: forward");
+    std::test::assert(right_36 == left_36, "prefix_absorbed_dose/base_anchor_PGy: reverse");
+    std::test::assert_eq_int(left_36 / 1Gy, k * 1000000000000000, "prefix_absorbed_dose/base_anchor_PGy: target count");
+    std::test::assert_eq_int(right_36 / 1PGy, k * 1, "prefix_absorbed_dose/base_anchor_PGy: source count");
+
+    // 1 EGy = 1000000000000000000 Gy
+    let source_37: Denomination0 = 1EGy;
+    let target_37: Denomination2 = 1000000000000000000Gy;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_absorbed_dose/base_anchor_EGy: forward");
+    std::test::assert(right_37 == left_37, "prefix_absorbed_dose/base_anchor_EGy: reverse");
+    std::test::assert_eq_int(left_37 / 1Gy, k * 1000000000000000000, "prefix_absorbed_dose/base_anchor_EGy: target count");
+    std::test::assert_eq_int(right_37 / 1EGy, k * 1, "prefix_absorbed_dose/base_anchor_EGy: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

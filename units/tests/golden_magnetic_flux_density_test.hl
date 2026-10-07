@@ -1,0 +1,41 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// magnetic_flux_density: 2 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QT;
+
+type Denomination0 = GoldenQuantity in T;
+type Denomination1 = GoldenQuantity in gauss;
+type Denomination2 = GoldenQuantity in mT;
+
+fn check_runtime(k: Int) {
+    // 1 T = 10000 gauss
+    let source_0: Denomination0 = 1T;
+    let target_0: Denomination1 = 10000gauss;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "magnetic_flux_density/T_to_gauss: forward");
+    std::test::assert(right_0 == left_0, "magnetic_flux_density/T_to_gauss: reverse");
+    std::test::assert_eq_int(left_0 / 1gauss, k * 10000, "magnetic_flux_density/T_to_gauss: target count");
+    std::test::assert_eq_int(right_0 / 1T, k * 1, "magnetic_flux_density/T_to_gauss: source count");
+
+    // 1 mT = 10 gauss
+    let source_1: Denomination2 = 1mT;
+    let target_1: Denomination1 = 10gauss;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "magnetic_flux_density/mT_to_gauss: forward");
+    std::test::assert(right_1 == left_1, "magnetic_flux_density/mT_to_gauss: reverse");
+    std::test::assert_eq_int(left_1 / 1gauss, k * 10, "magnetic_flux_density/mT_to_gauss: target count");
+    std::test::assert_eq_int(right_1 / 1mT, k * 1, "magnetic_flux_density/mT_to_gauss: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

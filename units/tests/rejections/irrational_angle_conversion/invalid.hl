@@ -1,0 +1,2 @@
+import "../../../quantities" as q;
+fn main() { let angle = 180degree; let radians = angle.in(rad); }

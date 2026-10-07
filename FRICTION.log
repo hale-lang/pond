@@ -45,6 +45,7 @@ Sections:
   pond/term
   pond/tracing
   pond/tui
+  pond/units
   pond/websocket
 
 
@@ -5695,6 +5696,74 @@ bounded, unchanged) and `Screen::resize` ×2 (`screen.hl:58-59`
 — genuine growth, but per-resize-event, not per-frame). The
 dedicated pass is now scoped to class 1 + resize only; the
 per-frame cell-churn half of the concern is gone.
+
+======================================================================
+ pond/units
+======================================================================
+
+# pond/units — FRICTION
+
+## New catalogue and opt-in denominations — 2026-10-07
+
+This is a new public contract, documented in CONTRACTS.md and units/README.md.
+The catalogue is declarations, using the unit dialect, rather than a runtime
+namespace locus: wrapping unit declarations in helpers would obscure the
+compiler's graph. The optional quantities seed is a separate import, so an
+application can choose its principal denominations without fighting defaults.
+
+Compiler under test: Hale 0.22.0 @ 2027ab41c1d10b98c0b8baeceafb587ba2178b1a.
+The original 0.22.0 release predates this surface. No compiler code was changed.
+
+## Deferred language work is not approximated — 2026-10-07
+
+Named compound units such as mol_per_L and m_per_s have exact conversions
+inside their own component. The library does not synthesize derived dimensions
+from multiplication/division. Float quantities, custom rounding functions,
+calendar units, representation packing and reliable range checks on quantity
+conversions remain outside the promise. Degree/radian needs pi; Da/kg needs a
+measured constant; those components are intentionally disconnected. No fixed
+material-density, molar-mass or unspecified gas-condition conversion is added.
+
+Temperature points share a 1/9,000,000 K quantum so both microkelvin and
+microdegree-Fahrenheit increments and origins are exact. This is documented
+as an optional representation choice, with no absolute-zero range guarantee.
+
+## Integer headroom is separate from catalogue coverage — 2026-10-07
+
+The full quecto-to-quetta catalogue is a rational graph. It does not make i64
+values unbounded. In particular 1Qm under micrometre Length, 1EiB under bit
+Information, 1Ts under stdlib Duration, and the common denomination of 1eV
+and 1J are refused. The golden oracle uses exact rational graph checks for
+cases that native values cannot hold; those cases are explicitly labelled
+and never counted as passing native tests.
+
+## Imported scalar constructors and policies — OPEN 2026-10-07
+
+A qualified q::Celsius(25degC) passes check but fails native codegen; a plain
+alias also fails. A local scalar refinement works and preserves the origin:
+  type Celsius = q::Celsius in temperature_quantum;
+  let room = Celsius(25degC);
+Qualified imported scalar casts also fail to recognize the rounding-policy
+word. Use x.in(unit) or half_even and then assign the result to the imported
+type. Both are small supported spellings in the examples, not runtime
+conversion shims. Standalone upstream reproductions: COMPILER-BUGS.md §§10–11.
+
+## Exact negative literals and Duration refinements — OPEN 2026-10-07
+
+A positive literal's exact divisibility proof is lost under unary minus for
+some rational narrowings. Literal-conversion golden cases negate an already
+converted exact value; runtime signed tests remain active. A Duration and a
+Duration-in-ns refinement can pass checking but fail native lowering with
+mixed Duration/Int classes. Three golden time cases explicitly widen to ps;
+no ratio or expected count changes. Standalone reproductions are in
+COMPILER-BUGS.md §§12–13. Ordinary time cases and negative runtime rounding
+remain native tests; these compiler issues are not treated as language rules.
+
+## Equivalent-unit rendering — 2026-10-07
+
+Hale can print an equivalent symbol (for example uL as mm3). Where an example
+needs a particular label it prints quantity / 1uL and the label separately.
+This is presentation only; the library defines equal units as equal.
 
 ======================================================================
  pond/websocket

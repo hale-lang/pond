@@ -1,0 +1,64 @@
+// Exact unit catalogue. Source definitions and spelling policy: README.md.
+// No quantity types or rounding policies are imposed by this seed.
+
+// Compound spellings name independent components; no dimensional products.
+// Density is mass / mixture volume. Molality is amount / solvent mass.
+// No composition-dependent or empirical conversion is asserted.
+unit mol_per_m3;
+unit mol_per_L = 1000 mol_per_m3;
+unit mmol_per_L = 1 / 1000 mol_per_L;
+unit umol_per_L = 1 / 1000 mmol_per_L;
+unit nmol_per_L = 1 / 1000 umol_per_L;
+unit mmol_per_m3 = 1 / 1000 mol_per_m3;
+unit mol_per_mL = 1000 mol_per_L;
+unit mmol_per_mL = 1 / 1000 mol_per_mL;
+unit umol_per_mL = 1 / 1000 mmol_per_mL;
+unit kg_per_m3;
+unit g_per_L = 1 kg_per_m3;
+unit mg_per_mL = 1 g_per_L;
+unit g_per_cm3 = 1000 kg_per_m3;
+unit g_per_m3 = 1 / 1000 kg_per_m3;
+unit mg_per_L = 1 g_per_m3;
+unit ug_per_L = 1 / 1000 mg_per_L;
+unit lb_per_ft3 = 28349523125 / 1769802912 kg_per_m3;
+unit mol_per_kg;
+unit mmol_per_kg = 1 / 1000 mol_per_kg;
+unit umol_per_kg = 1 / 1000 mmol_per_kg;
+unit mol_per_g = 1000 mol_per_kg;
+unit mmol_per_g = 1 mol_per_kg;
+unit umol_per_g = 1 mmol_per_kg;
+unit kg_per_mol;
+unit g_per_mol = 1 / 1000 kg_per_mol;
+unit mg_per_mol = 1 / 1000 g_per_mol;
+unit kg_per_kmol = 1 g_per_mol;
+unit m3_per_mol;
+unit L_per_mol = 1 / 1000 m3_per_mol;
+unit mL_per_mol = 1 / 1000 L_per_mol;
+unit m3_per_kmol = 1 L_per_mol;
+unit enzyme_unit = 50 / 3 nkat;
+unit entity = 250000000 / 150553519 ymol;
+unit e_charge = 801088317 / 5000000000 aC;
+unit Da;
+unit kDa = 1000 Da;
+unit MDa = 1000 kDa;
+unit GDa = 1000 MDa;
+unit J_per_mol;
+unit kJ_per_mol = 1000 J_per_mol;
+unit cal_th_per_mol = 523 / 125 J_per_mol;
+unit J_per_K;
+unit kJ_per_K = 1000 J_per_K;
+unit J_per_kg_K;
+unit kJ_per_kg_K = 1000 J_per_kg_K;
+unit J_per_g_K = 1000 J_per_kg_K;
+unit cal_th_per_g_K = 4184 J_per_kg_K;
+unit J_per_mol_K;
+unit kJ_per_mol_K = 1000 J_per_mol_K;
+unit cal_th_per_mol_K = 523 / 125 J_per_mol_K;
+unit W_per_m_K;
+unit mW_per_m_K = 1 / 1000 W_per_m_K;
+unit W_per_cm_K = 100 W_per_m_K;
+unit S_per_m;
+unit mS_per_cm = 1 / 10 S_per_m;
+unit uS_per_cm = 1 / 1000 mS_per_cm;
+unit per_m;
+unit per_cm = 100 per_m;

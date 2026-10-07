@@ -1,0 +1,2 @@
+import "../../../quantities" as q;
+fn main() { let distance: q::Length = 1nm; }

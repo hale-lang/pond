@@ -1,0 +1,117 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// amount_concentration: 9 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in mol_per_mL;
+
+type Denomination0 = GoldenQuantity in mmol_per_L;
+type Denomination1 = GoldenQuantity in mmol_per_m3;
+type Denomination2 = GoldenQuantity in mmol_per_mL;
+type Denomination3 = GoldenQuantity in mol_per_L;
+type Denomination4 = GoldenQuantity in mol_per_m3;
+type Denomination5 = GoldenQuantity in mol_per_mL;
+type Denomination6 = GoldenQuantity in nmol_per_L;
+type Denomination7 = GoldenQuantity in umol_per_L;
+type Denomination8 = GoldenQuantity in umol_per_mL;
+
+fn check_runtime(k: Int) {
+    // 1 mol_per_L = 1000 mol_per_m3
+    let source_0: Denomination3 = 1mol_per_L;
+    let target_0: Denomination4 = 1000mol_per_m3;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "amount_concentration/mol_per_L_to_mol_per_m3: forward");
+    std::test::assert(right_0 == left_0, "amount_concentration/mol_per_L_to_mol_per_m3: reverse");
+    std::test::assert_eq_int(left_0 / 1mol_per_m3, k * 1000, "amount_concentration/mol_per_L_to_mol_per_m3: target count");
+    std::test::assert_eq_int(right_0 / 1mol_per_L, k * 1, "amount_concentration/mol_per_L_to_mol_per_m3: source count");
+
+    // 1 mmol_per_L = 1 mol_per_m3
+    let source_1: Denomination0 = 1mmol_per_L;
+    let target_1: Denomination4 = 1mol_per_m3;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "amount_concentration/mmol_per_L_to_mol_per_m3: forward");
+    std::test::assert(right_1 == left_1, "amount_concentration/mmol_per_L_to_mol_per_m3: reverse");
+    std::test::assert_eq_int(left_1 / 1mol_per_m3, k * 1, "amount_concentration/mmol_per_L_to_mol_per_m3: target count");
+    std::test::assert_eq_int(right_1 / 1mmol_per_L, k * 1, "amount_concentration/mmol_per_L_to_mol_per_m3: source count");
+
+    // 1 umol_per_L = 1 mmol_per_m3
+    let source_2: Denomination7 = 1umol_per_L;
+    let target_2: Denomination1 = 1mmol_per_m3;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "amount_concentration/umol_per_L_to_mmol_per_m3: forward");
+    std::test::assert(right_2 == left_2, "amount_concentration/umol_per_L_to_mmol_per_m3: reverse");
+    std::test::assert_eq_int(left_2 / 1mmol_per_m3, k * 1, "amount_concentration/umol_per_L_to_mmol_per_m3: target count");
+    std::test::assert_eq_int(right_2 / 1umol_per_L, k * 1, "amount_concentration/umol_per_L_to_mmol_per_m3: source count");
+
+    // 1 mol_per_L = 1 mmol_per_mL
+    let source_3: Denomination3 = 1mol_per_L;
+    let target_3: Denomination2 = 1mmol_per_mL;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "amount_concentration/mol_per_L_to_mmol_per_mL: forward");
+    std::test::assert(right_3 == left_3, "amount_concentration/mol_per_L_to_mmol_per_mL: reverse");
+    std::test::assert_eq_int(left_3 / 1mmol_per_mL, k * 1, "amount_concentration/mol_per_L_to_mmol_per_mL: target count");
+    std::test::assert_eq_int(right_3 / 1mol_per_L, k * 1, "amount_concentration/mol_per_L_to_mmol_per_mL: source count");
+
+    // 1 mmol_per_L = 1 umol_per_mL
+    let source_4: Denomination0 = 1mmol_per_L;
+    let target_4: Denomination8 = 1umol_per_mL;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "amount_concentration/mmol_per_L_to_umol_per_mL: forward");
+    std::test::assert(right_4 == left_4, "amount_concentration/mmol_per_L_to_umol_per_mL: reverse");
+    std::test::assert_eq_int(left_4 / 1umol_per_mL, k * 1, "amount_concentration/mmol_per_L_to_umol_per_mL: target count");
+    std::test::assert_eq_int(right_4 / 1mmol_per_L, k * 1, "amount_concentration/mmol_per_L_to_umol_per_mL: source count");
+
+    // 1 mol_per_mL = 1000 mol_per_L
+    let source_5: Denomination5 = 1mol_per_mL;
+    let target_5: Denomination3 = 1000mol_per_L;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "amount_concentration/mol_per_mL_to_mol_per_L: forward");
+    std::test::assert(right_5 == left_5, "amount_concentration/mol_per_mL_to_mol_per_L: reverse");
+    std::test::assert_eq_int(left_5 / 1mol_per_L, k * 1000, "amount_concentration/mol_per_mL_to_mol_per_L: target count");
+    std::test::assert_eq_int(right_5 / 1mol_per_mL, k * 1, "amount_concentration/mol_per_mL_to_mol_per_L: source count");
+
+    // 1 mol_per_L = 1000000000 nmol_per_L
+    let source_6: Denomination3 = 1mol_per_L;
+    let target_6: Denomination6 = 1000000000nmol_per_L;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "amount_concentration/mol_per_L_to_nmol_per_L: forward");
+    std::test::assert(right_6 == left_6, "amount_concentration/mol_per_L_to_nmol_per_L: reverse");
+    std::test::assert_eq_int(left_6 / 1nmol_per_L, k * 1000000000, "amount_concentration/mol_per_L_to_nmol_per_L: target count");
+    std::test::assert_eq_int(right_6 / 1mol_per_L, k * 1, "amount_concentration/mol_per_L_to_nmol_per_L: source count");
+
+    // 1 mol_per_m3 = 1000000 nmol_per_L
+    let source_7: Denomination4 = 1mol_per_m3;
+    let target_7: Denomination6 = 1000000nmol_per_L;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "amount_concentration/mol_per_m3_to_nmol_per_L: forward");
+    std::test::assert(right_7 == left_7, "amount_concentration/mol_per_m3_to_nmol_per_L: reverse");
+    std::test::assert_eq_int(left_7 / 1nmol_per_L, k * 1000000, "amount_concentration/mol_per_m3_to_nmol_per_L: target count");
+    std::test::assert_eq_int(right_7 / 1mol_per_m3, k * 1, "amount_concentration/mol_per_m3_to_nmol_per_L: source count");
+
+    // 1 mol_per_L = 1000000 umol_per_L
+    let source_8: Denomination3 = 1mol_per_L;
+    let target_8: Denomination7 = 1000000umol_per_L;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "amount_concentration/mol_per_L_to_umol_per_L: forward");
+    std::test::assert(right_8 == left_8, "amount_concentration/mol_per_L_to_umol_per_L: reverse");
+    std::test::assert_eq_int(left_8 / 1umol_per_L, k * 1000000, "amount_concentration/mol_per_L_to_umol_per_L: target count");
+    std::test::assert_eq_int(right_8 / 1mol_per_L, k * 1, "amount_concentration/mol_per_L_to_umol_per_L: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

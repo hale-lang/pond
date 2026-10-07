@@ -1,0 +1,74 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// fractions: 5 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in one;
+
+type Denomination0 = GoldenQuantity in bp;
+type Denomination1 = GoldenQuantity in one;
+type Denomination2 = GoldenQuantity in pct;
+type Denomination3 = GoldenQuantity in permille;
+type Denomination4 = GoldenQuantity in ppb;
+type Denomination5 = GoldenQuantity in ppm;
+
+fn check_runtime(k: Int) {
+    // 1 one = 100 pct
+    let source_0: Denomination1 = 1one;
+    let target_0: Denomination2 = 100pct;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "fractions/one_to_pct: forward");
+    std::test::assert(right_0 == left_0, "fractions/one_to_pct: reverse");
+    std::test::assert_eq_int(left_0 / 1pct, k * 100, "fractions/one_to_pct: target count");
+    std::test::assert_eq_int(right_0 / 1one, k * 1, "fractions/one_to_pct: source count");
+
+    // 1 pct = 100 bp
+    let source_1: Denomination2 = 1pct;
+    let target_1: Denomination0 = 100bp;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "fractions/pct_to_bp: forward");
+    std::test::assert(right_1 == left_1, "fractions/pct_to_bp: reverse");
+    std::test::assert_eq_int(left_1 / 1bp, k * 100, "fractions/pct_to_bp: target count");
+    std::test::assert_eq_int(right_1 / 1pct, k * 1, "fractions/pct_to_bp: source count");
+
+    // 1 permille = 1000 ppm
+    let source_2: Denomination3 = 1permille;
+    let target_2: Denomination5 = 1000ppm;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "fractions/permille_to_ppm: forward");
+    std::test::assert(right_2 == left_2, "fractions/permille_to_ppm: reverse");
+    std::test::assert_eq_int(left_2 / 1ppm, k * 1000, "fractions/permille_to_ppm: target count");
+    std::test::assert_eq_int(right_2 / 1permille, k * 1, "fractions/permille_to_ppm: source count");
+
+    // 1 bp = 100000 ppb
+    let source_3: Denomination0 = 1bp;
+    let target_3: Denomination4 = 100000ppb;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "fractions/bp_to_ppb: forward");
+    std::test::assert(right_3 == left_3, "fractions/bp_to_ppb: reverse");
+    std::test::assert_eq_int(left_3 / 1ppb, k * 100000, "fractions/bp_to_ppb: target count");
+    std::test::assert_eq_int(right_3 / 1bp, k * 1, "fractions/bp_to_ppb: source count");
+
+    // 1 ppm = 1000 ppb
+    let source_4: Denomination5 = 1ppm;
+    let target_4: Denomination4 = 1000ppb;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "fractions/ppm_to_ppb: forward");
+    std::test::assert(right_4 == left_4, "fractions/ppm_to_ppb: reverse");
+    std::test::assert_eq_int(left_4 / 1ppb, k * 1000, "fractions/ppm_to_ppb: target count");
+    std::test::assert_eq_int(right_4 / 1ppm, k * 1, "fractions/ppm_to_ppb: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

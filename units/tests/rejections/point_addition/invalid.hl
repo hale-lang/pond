@@ -1,0 +1,3 @@
+import "../../../quantities" as q;
+type Celsius = q::Celsius in temperature_quantum;
+fn main() { let impossible = Celsius(10degC) + Celsius(20degC); }

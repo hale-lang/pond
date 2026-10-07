@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_temperature: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QK;
+
+type Denomination0 = GoldenQuantity in EK;
+type Denomination1 = GoldenQuantity in GK;
+type Denomination2 = GoldenQuantity in K;
+type Denomination3 = GoldenQuantity in MK;
+type Denomination4 = GoldenQuantity in PK;
+type Denomination5 = GoldenQuantity in QK;
+type Denomination6 = GoldenQuantity in RK;
+type Denomination7 = GoldenQuantity in TK;
+type Denomination8 = GoldenQuantity in YK;
+type Denomination9 = GoldenQuantity in ZK;
+type Denomination10 = GoldenQuantity in aK;
+type Denomination11 = GoldenQuantity in cK;
+type Denomination12 = GoldenQuantity in dK;
+type Denomination13 = GoldenQuantity in daK;
+type Denomination14 = GoldenQuantity in fK;
+type Denomination15 = GoldenQuantity in hK;
+type Denomination16 = GoldenQuantity in kK;
+type Denomination17 = GoldenQuantity in mK;
+type Denomination18 = GoldenQuantity in nK;
+type Denomination19 = GoldenQuantity in pK;
+type Denomination20 = GoldenQuantity in qK;
+type Denomination21 = GoldenQuantity in rK;
+type Denomination22 = GoldenQuantity in uK;
+type Denomination23 = GoldenQuantity in yK;
+type Denomination24 = GoldenQuantity in zK;
+
+fn check_runtime(k: Int) {
+    // 1 rK = 1000 qK
+    let source_0: Denomination21 = 1rK;
+    let target_0: Denomination20 = 1000qK;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_temperature/adjacent_rK_qK: forward");
+    std::test::assert(right_0 == left_0, "prefix_temperature/adjacent_rK_qK: reverse");
+    std::test::assert_eq_int(left_0 / 1qK, k * 1000, "prefix_temperature/adjacent_rK_qK: target count");
+    std::test::assert_eq_int(right_0 / 1rK, k * 1, "prefix_temperature/adjacent_rK_qK: source count");
+
+    // 1 yK = 1000 rK
+    let source_1: Denomination23 = 1yK;
+    let target_1: Denomination21 = 1000rK;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_temperature/adjacent_yK_rK: forward");
+    std::test::assert(right_1 == left_1, "prefix_temperature/adjacent_yK_rK: reverse");
+    std::test::assert_eq_int(left_1 / 1rK, k * 1000, "prefix_temperature/adjacent_yK_rK: target count");
+    std::test::assert_eq_int(right_1 / 1yK, k * 1, "prefix_temperature/adjacent_yK_rK: source count");
+
+    // 1 zK = 1000 yK
+    let source_2: Denomination24 = 1zK;
+    let target_2: Denomination23 = 1000yK;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_temperature/adjacent_zK_yK: forward");
+    std::test::assert(right_2 == left_2, "prefix_temperature/adjacent_zK_yK: reverse");
+    std::test::assert_eq_int(left_2 / 1yK, k * 1000, "prefix_temperature/adjacent_zK_yK: target count");
+    std::test::assert_eq_int(right_2 / 1zK, k * 1, "prefix_temperature/adjacent_zK_yK: source count");
+
+    // 1 aK = 1000 zK
+    let source_3: Denomination10 = 1aK;
+    let target_3: Denomination24 = 1000zK;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_temperature/adjacent_aK_zK: forward");
+    std::test::assert(right_3 == left_3, "prefix_temperature/adjacent_aK_zK: reverse");
+    std::test::assert_eq_int(left_3 / 1zK, k * 1000, "prefix_temperature/adjacent_aK_zK: target count");
+    std::test::assert_eq_int(right_3 / 1aK, k * 1, "prefix_temperature/adjacent_aK_zK: source count");
+
+    // 1 fK = 1000 aK
+    let source_4: Denomination14 = 1fK;
+    let target_4: Denomination10 = 1000aK;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_temperature/adjacent_fK_aK: forward");
+    std::test::assert(right_4 == left_4, "prefix_temperature/adjacent_fK_aK: reverse");
+    std::test::assert_eq_int(left_4 / 1aK, k * 1000, "prefix_temperature/adjacent_fK_aK: target count");
+    std::test::assert_eq_int(right_4 / 1fK, k * 1, "prefix_temperature/adjacent_fK_aK: source count");
+
+    // 1 pK = 1000 fK
+    let source_5: Denomination19 = 1pK;
+    let target_5: Denomination14 = 1000fK;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_temperature/adjacent_pK_fK: forward");
+    std::test::assert(right_5 == left_5, "prefix_temperature/adjacent_pK_fK: reverse");
+    std::test::assert_eq_int(left_5 / 1fK, k * 1000, "prefix_temperature/adjacent_pK_fK: target count");
+    std::test::assert_eq_int(right_5 / 1pK, k * 1, "prefix_temperature/adjacent_pK_fK: source count");
+
+    // 1 nK = 1000 pK
+    let source_6: Denomination18 = 1nK;
+    let target_6: Denomination19 = 1000pK;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_temperature/adjacent_nK_pK: forward");
+    std::test::assert(right_6 == left_6, "prefix_temperature/adjacent_nK_pK: reverse");
+    std::test::assert_eq_int(left_6 / 1pK, k * 1000, "prefix_temperature/adjacent_nK_pK: target count");
+    std::test::assert_eq_int(right_6 / 1nK, k * 1, "prefix_temperature/adjacent_nK_pK: source count");
+
+    // 1 uK = 1000 nK
+    let source_7: Denomination22 = 1uK;
+    let target_7: Denomination18 = 1000nK;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_temperature/adjacent_uK_nK: forward");
+    std::test::assert(right_7 == left_7, "prefix_temperature/adjacent_uK_nK: reverse");
+    std::test::assert_eq_int(left_7 / 1nK, k * 1000, "prefix_temperature/adjacent_uK_nK: target count");
+    std::test::assert_eq_int(right_7 / 1uK, k * 1, "prefix_temperature/adjacent_uK_nK: source count");
+
+    // 1 mK = 1000 uK
+    let source_8: Denomination17 = 1mK;
+    let target_8: Denomination22 = 1000uK;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_temperature/adjacent_mK_uK: forward");
+    std::test::assert(right_8 == left_8, "prefix_temperature/adjacent_mK_uK: reverse");
+    std::test::assert_eq_int(left_8 / 1uK, k * 1000, "prefix_temperature/adjacent_mK_uK: target count");
+    std::test::assert_eq_int(right_8 / 1mK, k * 1, "prefix_temperature/adjacent_mK_uK: source count");
+
+    // 1 cK = 10 mK
+    let source_9: Denomination11 = 1cK;
+    let target_9: Denomination17 = 10mK;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_temperature/adjacent_cK_mK: forward");
+    std::test::assert(right_9 == left_9, "prefix_temperature/adjacent_cK_mK: reverse");
+    std::test::assert_eq_int(left_9 / 1mK, k * 10, "prefix_temperature/adjacent_cK_mK: target count");
+    std::test::assert_eq_int(right_9 / 1cK, k * 1, "prefix_temperature/adjacent_cK_mK: source count");
+
+    // 1 dK = 10 cK
+    let source_10: Denomination12 = 1dK;
+    let target_10: Denomination11 = 10cK;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_temperature/adjacent_dK_cK: forward");
+    std::test::assert(right_10 == left_10, "prefix_temperature/adjacent_dK_cK: reverse");
+    std::test::assert_eq_int(left_10 / 1cK, k * 10, "prefix_temperature/adjacent_dK_cK: target count");
+    std::test::assert_eq_int(right_10 / 1dK, k * 1, "prefix_temperature/adjacent_dK_cK: source count");
+
+    // 1 K = 10 dK
+    let source_11: Denomination2 = 1K;
+    let target_11: Denomination12 = 10dK;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_temperature/adjacent_K_dK: forward");
+    std::test::assert(right_11 == left_11, "prefix_temperature/adjacent_K_dK: reverse");
+    std::test::assert_eq_int(left_11 / 1dK, k * 10, "prefix_temperature/adjacent_K_dK: target count");
+    std::test::assert_eq_int(right_11 / 1K, k * 1, "prefix_temperature/adjacent_K_dK: source count");
+
+    // 1 daK = 10 K
+    let source_12: Denomination13 = 1daK;
+    let target_12: Denomination2 = 10K;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_temperature/adjacent_daK_K: forward");
+    std::test::assert(right_12 == left_12, "prefix_temperature/adjacent_daK_K: reverse");
+    std::test::assert_eq_int(left_12 / 1K, k * 10, "prefix_temperature/adjacent_daK_K: target count");
+    std::test::assert_eq_int(right_12 / 1daK, k * 1, "prefix_temperature/adjacent_daK_K: source count");
+
+    // 1 hK = 10 daK
+    let source_13: Denomination15 = 1hK;
+    let target_13: Denomination13 = 10daK;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_temperature/adjacent_hK_daK: forward");
+    std::test::assert(right_13 == left_13, "prefix_temperature/adjacent_hK_daK: reverse");
+    std::test::assert_eq_int(left_13 / 1daK, k * 10, "prefix_temperature/adjacent_hK_daK: target count");
+    std::test::assert_eq_int(right_13 / 1hK, k * 1, "prefix_temperature/adjacent_hK_daK: source count");
+
+    // 1 kK = 10 hK
+    let source_14: Denomination16 = 1kK;
+    let target_14: Denomination15 = 10hK;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_temperature/adjacent_kK_hK: forward");
+    std::test::assert(right_14 == left_14, "prefix_temperature/adjacent_kK_hK: reverse");
+    std::test::assert_eq_int(left_14 / 1hK, k * 10, "prefix_temperature/adjacent_kK_hK: target count");
+    std::test::assert_eq_int(right_14 / 1kK, k * 1, "prefix_temperature/adjacent_kK_hK: source count");
+
+    // 1 MK = 1000 kK
+    let source_15: Denomination3 = 1MK;
+    let target_15: Denomination16 = 1000kK;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_temperature/adjacent_MK_kK: forward");
+    std::test::assert(right_15 == left_15, "prefix_temperature/adjacent_MK_kK: reverse");
+    std::test::assert_eq_int(left_15 / 1kK, k * 1000, "prefix_temperature/adjacent_MK_kK: target count");
+    std::test::assert_eq_int(right_15 / 1MK, k * 1, "prefix_temperature/adjacent_MK_kK: source count");
+
+    // 1 GK = 1000 MK
+    let source_16: Denomination1 = 1GK;
+    let target_16: Denomination3 = 1000MK;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_temperature/adjacent_GK_MK: forward");
+    std::test::assert(right_16 == left_16, "prefix_temperature/adjacent_GK_MK: reverse");
+    std::test::assert_eq_int(left_16 / 1MK, k * 1000, "prefix_temperature/adjacent_GK_MK: target count");
+    std::test::assert_eq_int(right_16 / 1GK, k * 1, "prefix_temperature/adjacent_GK_MK: source count");
+
+    // 1 TK = 1000 GK
+    let source_17: Denomination7 = 1TK;
+    let target_17: Denomination1 = 1000GK;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_temperature/adjacent_TK_GK: forward");
+    std::test::assert(right_17 == left_17, "prefix_temperature/adjacent_TK_GK: reverse");
+    std::test::assert_eq_int(left_17 / 1GK, k * 1000, "prefix_temperature/adjacent_TK_GK: target count");
+    std::test::assert_eq_int(right_17 / 1TK, k * 1, "prefix_temperature/adjacent_TK_GK: source count");
+
+    // 1 PK = 1000 TK
+    let source_18: Denomination4 = 1PK;
+    let target_18: Denomination7 = 1000TK;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_temperature/adjacent_PK_TK: forward");
+    std::test::assert(right_18 == left_18, "prefix_temperature/adjacent_PK_TK: reverse");
+    std::test::assert_eq_int(left_18 / 1TK, k * 1000, "prefix_temperature/adjacent_PK_TK: target count");
+    std::test::assert_eq_int(right_18 / 1PK, k * 1, "prefix_temperature/adjacent_PK_TK: source count");
+
+    // 1 EK = 1000 PK
+    let source_19: Denomination0 = 1EK;
+    let target_19: Denomination4 = 1000PK;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_temperature/adjacent_EK_PK: forward");
+    std::test::assert(right_19 == left_19, "prefix_temperature/adjacent_EK_PK: reverse");
+    std::test::assert_eq_int(left_19 / 1PK, k * 1000, "prefix_temperature/adjacent_EK_PK: target count");
+    std::test::assert_eq_int(right_19 / 1EK, k * 1, "prefix_temperature/adjacent_EK_PK: source count");
+
+    // 1 ZK = 1000 EK
+    let source_20: Denomination9 = 1ZK;
+    let target_20: Denomination0 = 1000EK;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_temperature/adjacent_ZK_EK: forward");
+    std::test::assert(right_20 == left_20, "prefix_temperature/adjacent_ZK_EK: reverse");
+    std::test::assert_eq_int(left_20 / 1EK, k * 1000, "prefix_temperature/adjacent_ZK_EK: target count");
+    std::test::assert_eq_int(right_20 / 1ZK, k * 1, "prefix_temperature/adjacent_ZK_EK: source count");
+
+    // 1 YK = 1000 ZK
+    let source_21: Denomination8 = 1YK;
+    let target_21: Denomination9 = 1000ZK;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_temperature/adjacent_YK_ZK: forward");
+    std::test::assert(right_21 == left_21, "prefix_temperature/adjacent_YK_ZK: reverse");
+    std::test::assert_eq_int(left_21 / 1ZK, k * 1000, "prefix_temperature/adjacent_YK_ZK: target count");
+    std::test::assert_eq_int(right_21 / 1YK, k * 1, "prefix_temperature/adjacent_YK_ZK: source count");
+
+    // 1 RK = 1000 YK
+    let source_22: Denomination6 = 1RK;
+    let target_22: Denomination8 = 1000YK;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_temperature/adjacent_RK_YK: forward");
+    std::test::assert(right_22 == left_22, "prefix_temperature/adjacent_RK_YK: reverse");
+    std::test::assert_eq_int(left_22 / 1YK, k * 1000, "prefix_temperature/adjacent_RK_YK: target count");
+    std::test::assert_eq_int(right_22 / 1RK, k * 1, "prefix_temperature/adjacent_RK_YK: source count");
+
+    // 1 QK = 1000 RK
+    let source_23: Denomination5 = 1QK;
+    let target_23: Denomination6 = 1000RK;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_temperature/adjacent_QK_RK: forward");
+    std::test::assert(right_23 == left_23, "prefix_temperature/adjacent_QK_RK: reverse");
+    std::test::assert_eq_int(left_23 / 1RK, k * 1000, "prefix_temperature/adjacent_QK_RK: target count");
+    std::test::assert_eq_int(right_23 / 1QK, k * 1, "prefix_temperature/adjacent_QK_RK: source count");
+
+    // 1000000000000000000 aK = 1 K
+    let source_24: Denomination10 = 1000000000000000000aK;
+    let target_24: Denomination2 = 1K;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_temperature/base_anchor_aK: forward");
+    std::test::assert(right_24 == left_24, "prefix_temperature/base_anchor_aK: reverse");
+    std::test::assert_eq_int(left_24 / 1K, k * 1, "prefix_temperature/base_anchor_aK: target count");
+    std::test::assert_eq_int(right_24 / 1aK, k * 1000000000000000000, "prefix_temperature/base_anchor_aK: source count");
+
+    // 1000000000000000 fK = 1 K
+    let source_25: Denomination14 = 1000000000000000fK;
+    let target_25: Denomination2 = 1K;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_temperature/base_anchor_fK: forward");
+    std::test::assert(right_25 == left_25, "prefix_temperature/base_anchor_fK: reverse");
+    std::test::assert_eq_int(left_25 / 1K, k * 1, "prefix_temperature/base_anchor_fK: target count");
+    std::test::assert_eq_int(right_25 / 1fK, k * 1000000000000000, "prefix_temperature/base_anchor_fK: source count");
+
+    // 1000000000000 pK = 1 K
+    let source_26: Denomination19 = 1000000000000pK;
+    let target_26: Denomination2 = 1K;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_temperature/base_anchor_pK: forward");
+    std::test::assert(right_26 == left_26, "prefix_temperature/base_anchor_pK: reverse");
+    std::test::assert_eq_int(left_26 / 1K, k * 1, "prefix_temperature/base_anchor_pK: target count");
+    std::test::assert_eq_int(right_26 / 1pK, k * 1000000000000, "prefix_temperature/base_anchor_pK: source count");
+
+    // 1000000000 nK = 1 K
+    let source_27: Denomination18 = 1000000000nK;
+    let target_27: Denomination2 = 1K;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_temperature/base_anchor_nK: forward");
+    std::test::assert(right_27 == left_27, "prefix_temperature/base_anchor_nK: reverse");
+    std::test::assert_eq_int(left_27 / 1K, k * 1, "prefix_temperature/base_anchor_nK: target count");
+    std::test::assert_eq_int(right_27 / 1nK, k * 1000000000, "prefix_temperature/base_anchor_nK: source count");
+
+    // 1000000 uK = 1 K
+    let source_28: Denomination22 = 1000000uK;
+    let target_28: Denomination2 = 1K;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_temperature/base_anchor_uK: forward");
+    std::test::assert(right_28 == left_28, "prefix_temperature/base_anchor_uK: reverse");
+    std::test::assert_eq_int(left_28 / 1K, k * 1, "prefix_temperature/base_anchor_uK: target count");
+    std::test::assert_eq_int(right_28 / 1uK, k * 1000000, "prefix_temperature/base_anchor_uK: source count");
+
+    // 1000 mK = 1 K
+    let source_29: Denomination17 = 1000mK;
+    let target_29: Denomination2 = 1K;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_temperature/base_anchor_mK: forward");
+    std::test::assert(right_29 == left_29, "prefix_temperature/base_anchor_mK: reverse");
+    std::test::assert_eq_int(left_29 / 1K, k * 1, "prefix_temperature/base_anchor_mK: target count");
+    std::test::assert_eq_int(right_29 / 1mK, k * 1000, "prefix_temperature/base_anchor_mK: source count");
+
+    // 100 cK = 1 K
+    let source_30: Denomination11 = 100cK;
+    let target_30: Denomination2 = 1K;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_temperature/base_anchor_cK: forward");
+    std::test::assert(right_30 == left_30, "prefix_temperature/base_anchor_cK: reverse");
+    std::test::assert_eq_int(left_30 / 1K, k * 1, "prefix_temperature/base_anchor_cK: target count");
+    std::test::assert_eq_int(right_30 / 1cK, k * 100, "prefix_temperature/base_anchor_cK: source count");
+
+    // 1 hK = 100 K
+    let source_31: Denomination15 = 1hK;
+    let target_31: Denomination2 = 100K;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_temperature/base_anchor_hK: forward");
+    std::test::assert(right_31 == left_31, "prefix_temperature/base_anchor_hK: reverse");
+    std::test::assert_eq_int(left_31 / 1K, k * 100, "prefix_temperature/base_anchor_hK: target count");
+    std::test::assert_eq_int(right_31 / 1hK, k * 1, "prefix_temperature/base_anchor_hK: source count");
+
+    // 1 kK = 1000 K
+    let source_32: Denomination16 = 1kK;
+    let target_32: Denomination2 = 1000K;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_temperature/base_anchor_kK: forward");
+    std::test::assert(right_32 == left_32, "prefix_temperature/base_anchor_kK: reverse");
+    std::test::assert_eq_int(left_32 / 1K, k * 1000, "prefix_temperature/base_anchor_kK: target count");
+    std::test::assert_eq_int(right_32 / 1kK, k * 1, "prefix_temperature/base_anchor_kK: source count");
+
+    // 1 MK = 1000000 K
+    let source_33: Denomination3 = 1MK;
+    let target_33: Denomination2 = 1000000K;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_temperature/base_anchor_MK: forward");
+    std::test::assert(right_33 == left_33, "prefix_temperature/base_anchor_MK: reverse");
+    std::test::assert_eq_int(left_33 / 1K, k * 1000000, "prefix_temperature/base_anchor_MK: target count");
+    std::test::assert_eq_int(right_33 / 1MK, k * 1, "prefix_temperature/base_anchor_MK: source count");
+
+    // 1 GK = 1000000000 K
+    let source_34: Denomination1 = 1GK;
+    let target_34: Denomination2 = 1000000000K;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_temperature/base_anchor_GK: forward");
+    std::test::assert(right_34 == left_34, "prefix_temperature/base_anchor_GK: reverse");
+    std::test::assert_eq_int(left_34 / 1K, k * 1000000000, "prefix_temperature/base_anchor_GK: target count");
+    std::test::assert_eq_int(right_34 / 1GK, k * 1, "prefix_temperature/base_anchor_GK: source count");
+
+    // 1 TK = 1000000000000 K
+    let source_35: Denomination7 = 1TK;
+    let target_35: Denomination2 = 1000000000000K;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_temperature/base_anchor_TK: forward");
+    std::test::assert(right_35 == left_35, "prefix_temperature/base_anchor_TK: reverse");
+    std::test::assert_eq_int(left_35 / 1K, k * 1000000000000, "prefix_temperature/base_anchor_TK: target count");
+    std::test::assert_eq_int(right_35 / 1TK, k * 1, "prefix_temperature/base_anchor_TK: source count");
+
+    // 1 PK = 1000000000000000 K
+    let source_36: Denomination4 = 1PK;
+    let target_36: Denomination2 = 1000000000000000K;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_temperature/base_anchor_PK: forward");
+    std::test::assert(right_36 == left_36, "prefix_temperature/base_anchor_PK: reverse");
+    std::test::assert_eq_int(left_36 / 1K, k * 1000000000000000, "prefix_temperature/base_anchor_PK: target count");
+    std::test::assert_eq_int(right_36 / 1PK, k * 1, "prefix_temperature/base_anchor_PK: source count");
+
+    // 1 EK = 1000000000000000000 K
+    let source_37: Denomination0 = 1EK;
+    let target_37: Denomination2 = 1000000000000000000K;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_temperature/base_anchor_EK: forward");
+    std::test::assert(right_37 == left_37, "prefix_temperature/base_anchor_EK: reverse");
+    std::test::assert_eq_int(left_37 / 1K, k * 1000000000000000000, "prefix_temperature/base_anchor_EK: target count");
+    std::test::assert_eq_int(right_37 / 1EK, k * 1, "prefix_temperature/base_anchor_EK: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

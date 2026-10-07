@@ -1,0 +1,155 @@
+// Importing the facade and its catalogue directly exercises shared seed identity.
+import ".." as q;
+import "../.." as units;
+
+// Local boundary types inherit the catalogue's origins and exact denomination.
+type Celsius = q::Celsius in temperature_quantum;
+type Fahrenheit = q::Fahrenheit in temperature_quantum;
+type Kelvin = q::Kelvin in temperature_quantum;
+type Rankine = q::Rankine in temperature_quantum;
+
+type WholeMetres = q::Length in m { round: half_even; }
+
+fn measured_length(count: Int) -> q::Length {
+    return count * 1um;
+}
+
+fn shifted_temperature(count: Int) -> q::Celsius {
+    return Celsius(count * 1mdegC);
+}
+
+fn main() {
+    let length: q::Length = 1inch;
+    let mass: q::Mass = 1lb;
+    let force: q::Force = 1kgf;
+    let pressure: q::Pressure = 1atm;
+    let energy: q::Energy = 1Wh;
+    let charge: q::Charge = 1mAh;
+    let volume: q::Volume = 1L;
+    let concentration: q::Concentration = 15mmol_per_L;
+    let density: q::Density = 1g_per_cm3;
+    let molar_mass: q::MolarMass = 18g_per_mol;
+    let flow: q::VolumeFlow = 2L_per_min;
+    let information: q::Information = 1KiB;
+    std::test::assert_eq_int(length / 1um, 25400, "imported Length retains international inch conversion");
+    std::test::assert_eq_int(mass / 1ug, 453592370, "imported Mass retains international pound conversion");
+    std::test::assert_eq_int(force / 1uN, 9806650, "kilogram-force uses standard gravity");
+    std::test::assert_eq_int(pressure / 1mPa, 101325000, "standard atmosphere in millipascals");
+    std::test::assert_eq_int(energy / 1nJ, 3600000000000, "watt-hour in nanojoules");
+    std::test::assert_eq_int(charge / 1nC, 3600000000, "milliampere-hour in nanocoulombs");
+    std::test::assert_eq_int(volume / 1uL, 1000000, "litre in microlitres");
+    std::test::assert_eq_int(concentration / 1umol_per_L, 15000, "millimolar to micromolar");
+    std::test::assert_eq_int(density / 1ug_per_L, 1000000000, "gram per cubic centimetre in micrograms per litre");
+    std::test::assert_eq_int(molar_mass / 1mg_per_mol, 18000, "molar mass retains its independent quantity");
+    std::test::assert_eq_int(flow / 1mL_per_min, 2000, "volume flow retains its independent quantity");
+    std::test::assert_eq_int(information / 1bit, 8192, "binary byte quantities count bits");
+
+    let current: q::Current = 2mA;
+    std::test::assert_eq_int(current / 1uA, 2000, "milliamperes in microamperes");
+    let amount: q::Amount = 3umol;
+    std::test::assert_eq_int(amount / 1nmol, 3000, "micromoles in nanomoles");
+    let luminous_intensity: q::LuminousIntensity = 2mcd;
+    std::test::assert_eq_int(luminous_intensity / 1ucd, 2000, "millicandelas in microcandelas");
+    let frequency: q::Frequency = 2kHz;
+    std::test::assert_eq_int(frequency / 1mHz, 2000000, "kilohertz in millihertz");
+    let power: q::Power = 1hp_metric;
+    std::test::assert_eq_int(power / 1uW, 735498750, "metric horsepower in microwatts");
+    let voltage: q::Voltage = 12mV;
+    std::test::assert_eq_int(voltage / 1uV, 12000, "millivolts in microvolts");
+    let capacitance: q::Capacitance = 1uF;
+    std::test::assert_eq_int(capacitance / 1pF, 1000000, "microfarad in picofarads");
+    let resistance: q::Resistance = 1kohm;
+    std::test::assert_eq_int(resistance / 1uohm, 1000000000, "kiloohm in microohms");
+    let conductance: q::Conductance = 2mS;
+    std::test::assert_eq_int(conductance / 1nS, 2000000, "millisiemens in nanosiemens");
+    let magnetic_flux: q::MagneticFlux = 3nWb;
+    std::test::assert_eq_int(magnetic_flux / 1pWb, 3000, "nanowebers in picowebers");
+    let magnetic_flux_density: q::MagneticFluxDensity = 4uT;
+    std::test::assert_eq_int(magnetic_flux_density / 1nT, 4000, "microteslas in nanoteslas");
+    let inductance: q::Inductance = 5uH;
+    std::test::assert_eq_int(inductance / 1nH, 5000, "microhenries in nanohenries");
+    let luminous_flux: q::LuminousFlux = 6mlm;
+    std::test::assert_eq_int(luminous_flux / 1ulm, 6000, "millilumens in microlumens");
+    let illuminance: q::Illuminance = 7mlx;
+    std::test::assert_eq_int(illuminance / 1ulx, 7000, "millilux in microlux");
+    let activity: q::Activity = 1Ci;
+    std::test::assert_eq_int(activity / 1mBq, 37000000000000, "curie in millibecquerels");
+    let absorbed_dose: q::AbsorbedDose = 1radiation_rad;
+    std::test::assert_eq_int(absorbed_dose / 1nGy, 10000000, "radiation rad in nanograys");
+    let equivalent_dose: q::EquivalentDose = 1rem;
+    std::test::assert_eq_int(equivalent_dose / 1nSv, 10000000, "rem in nanosieverts");
+    let catalytic_activity: q::CatalyticActivity = 3enzyme_unit;
+    std::test::assert_eq_int(catalytic_activity / 1pkat, 50000, "three enzyme units in picokatals");
+    let radian_angle: q::RadianAngle = 2mrad;
+    std::test::assert_eq_int(radian_angle / 1urad, 2000, "milliradians in microradians");
+    let solid_angle: q::SolidAngle = 3msr;
+    std::test::assert_eq_int(solid_angle / 1usr, 3000, "millisteradians in microsteradians");
+    let area: q::Area = 25in2;
+    std::test::assert_eq_int(area / 1mm2, 16129, "twenty-five square inches in square millimetres");
+    let degree_angle: q::DegreeAngle = 1turn;
+    std::test::assert_eq_int(degree_angle / 1arcsec, 1296000, "full turn in arcseconds");
+    let atomic_mass: q::AtomicMass = 12kDa;
+    std::test::assert_eq_int(atomic_mass / 1Da, 12000, "kilodaltons in daltons");
+    let acceleration: q::Acceleration = 1g0;
+    std::test::assert_eq_int(acceleration / 1um_per_s2, 9806650, "standard gravity in micrometres per second squared");
+    let dynamic_viscosity: q::DynamicViscosity = 1P;
+    std::test::assert_eq_int(dynamic_viscosity / 1mPa_s, 100, "poise in millipascal seconds");
+    let kinematic_viscosity: q::KinematicViscosity = 1St;
+    std::test::assert_eq_int(kinematic_viscosity / 1mm2_per_s, 100, "stokes in square millimetres per second");
+    let surface_tension: q::SurfaceTension = 1dyn_per_cm;
+    std::test::assert_eq_int(surface_tension / 1mN_per_m, 1, "dyne per centimetre in millinewtons per metre");
+    let mass_flow: q::MassFlow = 3kg_per_h;
+    std::test::assert_eq_int(mass_flow / 1g_per_min, 50, "three kilograms per hour in grams per minute");
+    let torque: q::Torque = 2N_m;
+    std::test::assert_eq_int(torque / 1mN_m, 2000, "newton metres in millinewton metres");
+    let molality: q::Molality = 3mmol_per_g;
+    std::test::assert_eq_int(molality / 1umol_per_kg, 3000000, "millimoles per gram in micromoles per kilogram");
+    let molar_volume: q::MolarVolume = 2m3_per_kmol;
+    std::test::assert_eq_int(molar_volume / 1mL_per_mol, 2000, "cubic metres per kilomole in millilitres per mole");
+    let molar_energy: q::MolarEnergy = 3kJ_per_mol;
+    std::test::assert_eq_int(molar_energy / 1J_per_mol, 3000, "kilojoules per mole in joules per mole");
+    let heat_capacity: q::HeatCapacity = 2kJ_per_K;
+    std::test::assert_eq_int(heat_capacity / 1J_per_K, 2000, "kilojoules per kelvin in joules per kelvin");
+    let specific_heat: q::SpecificHeat = 1cal_th_per_g_K;
+    std::test::assert_eq_int(specific_heat / 1J_per_kg_K, 4184, "thermochemical calorie per gram kelvin in SI");
+    let molar_heat_capacity: q::MolarHeatCapacity = 125cal_th_per_mol_K;
+    std::test::assert_eq_int(molar_heat_capacity / 1J_per_mol_K, 523, "thermochemical molar heat capacity conversion");
+    let thermal_conductivity: q::ThermalConductivity = 1W_per_cm_K;
+    std::test::assert_eq_int(thermal_conductivity / 1mW_per_m_K, 100000, "watts per centimetre kelvin in milliwatts per metre kelvin");
+    let conductivity: q::Conductivity = 1mS_per_cm;
+    std::test::assert_eq_int(conductivity / 1uS_per_cm, 1000, "millisiemens per centimetre in microsiemens per centimetre");
+    let wavenumber: q::Wavenumber = 1per_cm;
+    std::test::assert_eq_int(wavenumber / 1per_m, 100, "reciprocal centimetre in reciprocal metres");
+    let ratio: q::Ratio = 1pct;
+    std::test::assert_eq_int(ratio / 1ppb, 10000000, "one percent in parts per billion");
+
+    let recorded: WholeMetres = measured_length(2500000);
+    std::test::assert(recorded == 2m, "consumer refinement of an imported principal quantity");
+    let speed: q::Speed = 36km_per_h;
+    std::test::assert_eq_int(speed / 1mm_per_s, 10000, "36 kilometres per hour in millimetres per second");
+    let low_speed = 1km_per_h;
+    let rounded_speed: q::Speed = low_speed.in(mm_per_s) or half_even;
+    std::test::assert(rounded_speed == 278mm_per_s, "fractional millimetres per second require explicit rounding");
+
+    let freeze = Celsius(0degC);
+    let boil = Celsius(100degC);
+    let cold_c = Celsius(-40degC);
+    let cold_f = Fahrenheit(-40degF);
+    std::test::assert(Fahrenheit(freeze) == Fahrenheit(32degF), "0 Celsius equals 32 Fahrenheit");
+    std::test::assert(Fahrenheit(boil) == Fahrenheit(212degF), "100 Celsius equals 212 Fahrenheit");
+    std::test::assert(Celsius(cold_f) == cold_c, "minus 40 Fahrenheit equals minus 40 Celsius");
+    std::test::assert(Kelvin(freeze) == Kelvin(273150mK), "Celsius origin is 273.15 kelvin");
+    std::test::assert(Kelvin(boil) == Kelvin(373150mK), "100 Celsius is 373.15 kelvin");
+    std::test::assert(Rankine(freeze) == Rankine(491670mdegF), "freezing is 491.67 degrees Rankine");
+    std::test::assert(Rankine(Kelvin(0K)) == Rankine(0degR), "Kelvin and Rankine share absolute zero");
+    std::test::assert(Kelvin(Rankine(540degR)) == Kelvin(300K), "540 Rankine equals 300 kelvin");
+    std::test::assert(Celsius(Fahrenheit(freeze)) == freeze, "temperature origin conversions round trip");
+
+    let rise: q::TemperatureDelta = boil - freeze;
+    std::test::assert_eq_int(rise / 1temperature_quantum, 900000000, "100 Celsius intervals in exact temperature quanta");
+    std::test::assert(Fahrenheit(boil) - Fahrenheit(freeze) == 180degF, "same point difference is 180 Fahrenheit intervals");
+    std::test::assert(Fahrenheit(freeze) + 18degF == Fahrenheit(Celsius(10degC)), "Fahrenheit intervals move points without adding an origin");
+    std::test::assert(9udegF == 5udegC, "microdegree intervals are exactly representable");
+    let room = shifted_temperature(25000);
+    std::test::assert(Fahrenheit(room) == Fahrenheit(77degF), "imported temperature point returned at runtime");
+}

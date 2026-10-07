@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_solid_angle: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in Qsr;
+
+type Denomination0 = GoldenQuantity in Esr;
+type Denomination1 = GoldenQuantity in Gsr;
+type Denomination2 = GoldenQuantity in Msr;
+type Denomination3 = GoldenQuantity in Psr;
+type Denomination4 = GoldenQuantity in Qsr;
+type Denomination5 = GoldenQuantity in Rsr;
+type Denomination6 = GoldenQuantity in Tsr;
+type Denomination7 = GoldenQuantity in Ysr;
+type Denomination8 = GoldenQuantity in Zsr;
+type Denomination9 = GoldenQuantity in asr;
+type Denomination10 = GoldenQuantity in csr;
+type Denomination11 = GoldenQuantity in dasr;
+type Denomination12 = GoldenQuantity in dsr;
+type Denomination13 = GoldenQuantity in fsr;
+type Denomination14 = GoldenQuantity in hsr;
+type Denomination15 = GoldenQuantity in ksr;
+type Denomination16 = GoldenQuantity in msr;
+type Denomination17 = GoldenQuantity in nsr;
+type Denomination18 = GoldenQuantity in psr;
+type Denomination19 = GoldenQuantity in qsr;
+type Denomination20 = GoldenQuantity in rsr;
+type Denomination21 = GoldenQuantity in sr;
+type Denomination22 = GoldenQuantity in usr;
+type Denomination23 = GoldenQuantity in ysr;
+type Denomination24 = GoldenQuantity in zsr;
+
+fn check_runtime(k: Int) {
+    // 1 rsr = 1000 qsr
+    let source_0: Denomination20 = 1rsr;
+    let target_0: Denomination19 = 1000qsr;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_solid_angle/adjacent_rsr_qsr: forward");
+    std::test::assert(right_0 == left_0, "prefix_solid_angle/adjacent_rsr_qsr: reverse");
+    std::test::assert_eq_int(left_0 / 1qsr, k * 1000, "prefix_solid_angle/adjacent_rsr_qsr: target count");
+    std::test::assert_eq_int(right_0 / 1rsr, k * 1, "prefix_solid_angle/adjacent_rsr_qsr: source count");
+
+    // 1 ysr = 1000 rsr
+    let source_1: Denomination23 = 1ysr;
+    let target_1: Denomination20 = 1000rsr;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_solid_angle/adjacent_ysr_rsr: forward");
+    std::test::assert(right_1 == left_1, "prefix_solid_angle/adjacent_ysr_rsr: reverse");
+    std::test::assert_eq_int(left_1 / 1rsr, k * 1000, "prefix_solid_angle/adjacent_ysr_rsr: target count");
+    std::test::assert_eq_int(right_1 / 1ysr, k * 1, "prefix_solid_angle/adjacent_ysr_rsr: source count");
+
+    // 1 zsr = 1000 ysr
+    let source_2: Denomination24 = 1zsr;
+    let target_2: Denomination23 = 1000ysr;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_solid_angle/adjacent_zsr_ysr: forward");
+    std::test::assert(right_2 == left_2, "prefix_solid_angle/adjacent_zsr_ysr: reverse");
+    std::test::assert_eq_int(left_2 / 1ysr, k * 1000, "prefix_solid_angle/adjacent_zsr_ysr: target count");
+    std::test::assert_eq_int(right_2 / 1zsr, k * 1, "prefix_solid_angle/adjacent_zsr_ysr: source count");
+
+    // 1 asr = 1000 zsr
+    let source_3: Denomination9 = 1asr;
+    let target_3: Denomination24 = 1000zsr;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_solid_angle/adjacent_asr_zsr: forward");
+    std::test::assert(right_3 == left_3, "prefix_solid_angle/adjacent_asr_zsr: reverse");
+    std::test::assert_eq_int(left_3 / 1zsr, k * 1000, "prefix_solid_angle/adjacent_asr_zsr: target count");
+    std::test::assert_eq_int(right_3 / 1asr, k * 1, "prefix_solid_angle/adjacent_asr_zsr: source count");
+
+    // 1 fsr = 1000 asr
+    let source_4: Denomination13 = 1fsr;
+    let target_4: Denomination9 = 1000asr;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_solid_angle/adjacent_fsr_asr: forward");
+    std::test::assert(right_4 == left_4, "prefix_solid_angle/adjacent_fsr_asr: reverse");
+    std::test::assert_eq_int(left_4 / 1asr, k * 1000, "prefix_solid_angle/adjacent_fsr_asr: target count");
+    std::test::assert_eq_int(right_4 / 1fsr, k * 1, "prefix_solid_angle/adjacent_fsr_asr: source count");
+
+    // 1 psr = 1000 fsr
+    let source_5: Denomination18 = 1psr;
+    let target_5: Denomination13 = 1000fsr;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_solid_angle/adjacent_psr_fsr: forward");
+    std::test::assert(right_5 == left_5, "prefix_solid_angle/adjacent_psr_fsr: reverse");
+    std::test::assert_eq_int(left_5 / 1fsr, k * 1000, "prefix_solid_angle/adjacent_psr_fsr: target count");
+    std::test::assert_eq_int(right_5 / 1psr, k * 1, "prefix_solid_angle/adjacent_psr_fsr: source count");
+
+    // 1 nsr = 1000 psr
+    let source_6: Denomination17 = 1nsr;
+    let target_6: Denomination18 = 1000psr;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_solid_angle/adjacent_nsr_psr: forward");
+    std::test::assert(right_6 == left_6, "prefix_solid_angle/adjacent_nsr_psr: reverse");
+    std::test::assert_eq_int(left_6 / 1psr, k * 1000, "prefix_solid_angle/adjacent_nsr_psr: target count");
+    std::test::assert_eq_int(right_6 / 1nsr, k * 1, "prefix_solid_angle/adjacent_nsr_psr: source count");
+
+    // 1 usr = 1000 nsr
+    let source_7: Denomination22 = 1usr;
+    let target_7: Denomination17 = 1000nsr;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_solid_angle/adjacent_usr_nsr: forward");
+    std::test::assert(right_7 == left_7, "prefix_solid_angle/adjacent_usr_nsr: reverse");
+    std::test::assert_eq_int(left_7 / 1nsr, k * 1000, "prefix_solid_angle/adjacent_usr_nsr: target count");
+    std::test::assert_eq_int(right_7 / 1usr, k * 1, "prefix_solid_angle/adjacent_usr_nsr: source count");
+
+    // 1 msr = 1000 usr
+    let source_8: Denomination16 = 1msr;
+    let target_8: Denomination22 = 1000usr;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_solid_angle/adjacent_msr_usr: forward");
+    std::test::assert(right_8 == left_8, "prefix_solid_angle/adjacent_msr_usr: reverse");
+    std::test::assert_eq_int(left_8 / 1usr, k * 1000, "prefix_solid_angle/adjacent_msr_usr: target count");
+    std::test::assert_eq_int(right_8 / 1msr, k * 1, "prefix_solid_angle/adjacent_msr_usr: source count");
+
+    // 1 csr = 10 msr
+    let source_9: Denomination10 = 1csr;
+    let target_9: Denomination16 = 10msr;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_solid_angle/adjacent_csr_msr: forward");
+    std::test::assert(right_9 == left_9, "prefix_solid_angle/adjacent_csr_msr: reverse");
+    std::test::assert_eq_int(left_9 / 1msr, k * 10, "prefix_solid_angle/adjacent_csr_msr: target count");
+    std::test::assert_eq_int(right_9 / 1csr, k * 1, "prefix_solid_angle/adjacent_csr_msr: source count");
+
+    // 1 dsr = 10 csr
+    let source_10: Denomination12 = 1dsr;
+    let target_10: Denomination10 = 10csr;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_solid_angle/adjacent_dsr_csr: forward");
+    std::test::assert(right_10 == left_10, "prefix_solid_angle/adjacent_dsr_csr: reverse");
+    std::test::assert_eq_int(left_10 / 1csr, k * 10, "prefix_solid_angle/adjacent_dsr_csr: target count");
+    std::test::assert_eq_int(right_10 / 1dsr, k * 1, "prefix_solid_angle/adjacent_dsr_csr: source count");
+
+    // 1 sr = 10 dsr
+    let source_11: Denomination21 = 1sr;
+    let target_11: Denomination12 = 10dsr;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_solid_angle/adjacent_sr_dsr: forward");
+    std::test::assert(right_11 == left_11, "prefix_solid_angle/adjacent_sr_dsr: reverse");
+    std::test::assert_eq_int(left_11 / 1dsr, k * 10, "prefix_solid_angle/adjacent_sr_dsr: target count");
+    std::test::assert_eq_int(right_11 / 1sr, k * 1, "prefix_solid_angle/adjacent_sr_dsr: source count");
+
+    // 1 dasr = 10 sr
+    let source_12: Denomination11 = 1dasr;
+    let target_12: Denomination21 = 10sr;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_solid_angle/adjacent_dasr_sr: forward");
+    std::test::assert(right_12 == left_12, "prefix_solid_angle/adjacent_dasr_sr: reverse");
+    std::test::assert_eq_int(left_12 / 1sr, k * 10, "prefix_solid_angle/adjacent_dasr_sr: target count");
+    std::test::assert_eq_int(right_12 / 1dasr, k * 1, "prefix_solid_angle/adjacent_dasr_sr: source count");
+
+    // 1 hsr = 10 dasr
+    let source_13: Denomination14 = 1hsr;
+    let target_13: Denomination11 = 10dasr;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_solid_angle/adjacent_hsr_dasr: forward");
+    std::test::assert(right_13 == left_13, "prefix_solid_angle/adjacent_hsr_dasr: reverse");
+    std::test::assert_eq_int(left_13 / 1dasr, k * 10, "prefix_solid_angle/adjacent_hsr_dasr: target count");
+    std::test::assert_eq_int(right_13 / 1hsr, k * 1, "prefix_solid_angle/adjacent_hsr_dasr: source count");
+
+    // 1 ksr = 10 hsr
+    let source_14: Denomination15 = 1ksr;
+    let target_14: Denomination14 = 10hsr;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_solid_angle/adjacent_ksr_hsr: forward");
+    std::test::assert(right_14 == left_14, "prefix_solid_angle/adjacent_ksr_hsr: reverse");
+    std::test::assert_eq_int(left_14 / 1hsr, k * 10, "prefix_solid_angle/adjacent_ksr_hsr: target count");
+    std::test::assert_eq_int(right_14 / 1ksr, k * 1, "prefix_solid_angle/adjacent_ksr_hsr: source count");
+
+    // 1 Msr = 1000 ksr
+    let source_15: Denomination2 = 1Msr;
+    let target_15: Denomination15 = 1000ksr;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_solid_angle/adjacent_Msr_ksr: forward");
+    std::test::assert(right_15 == left_15, "prefix_solid_angle/adjacent_Msr_ksr: reverse");
+    std::test::assert_eq_int(left_15 / 1ksr, k * 1000, "prefix_solid_angle/adjacent_Msr_ksr: target count");
+    std::test::assert_eq_int(right_15 / 1Msr, k * 1, "prefix_solid_angle/adjacent_Msr_ksr: source count");
+
+    // 1 Gsr = 1000 Msr
+    let source_16: Denomination1 = 1Gsr;
+    let target_16: Denomination2 = 1000Msr;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_solid_angle/adjacent_Gsr_Msr: forward");
+    std::test::assert(right_16 == left_16, "prefix_solid_angle/adjacent_Gsr_Msr: reverse");
+    std::test::assert_eq_int(left_16 / 1Msr, k * 1000, "prefix_solid_angle/adjacent_Gsr_Msr: target count");
+    std::test::assert_eq_int(right_16 / 1Gsr, k * 1, "prefix_solid_angle/adjacent_Gsr_Msr: source count");
+
+    // 1 Tsr = 1000 Gsr
+    let source_17: Denomination6 = 1Tsr;
+    let target_17: Denomination1 = 1000Gsr;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_solid_angle/adjacent_Tsr_Gsr: forward");
+    std::test::assert(right_17 == left_17, "prefix_solid_angle/adjacent_Tsr_Gsr: reverse");
+    std::test::assert_eq_int(left_17 / 1Gsr, k * 1000, "prefix_solid_angle/adjacent_Tsr_Gsr: target count");
+    std::test::assert_eq_int(right_17 / 1Tsr, k * 1, "prefix_solid_angle/adjacent_Tsr_Gsr: source count");
+
+    // 1 Psr = 1000 Tsr
+    let source_18: Denomination3 = 1Psr;
+    let target_18: Denomination6 = 1000Tsr;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_solid_angle/adjacent_Psr_Tsr: forward");
+    std::test::assert(right_18 == left_18, "prefix_solid_angle/adjacent_Psr_Tsr: reverse");
+    std::test::assert_eq_int(left_18 / 1Tsr, k * 1000, "prefix_solid_angle/adjacent_Psr_Tsr: target count");
+    std::test::assert_eq_int(right_18 / 1Psr, k * 1, "prefix_solid_angle/adjacent_Psr_Tsr: source count");
+
+    // 1 Esr = 1000 Psr
+    let source_19: Denomination0 = 1Esr;
+    let target_19: Denomination3 = 1000Psr;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_solid_angle/adjacent_Esr_Psr: forward");
+    std::test::assert(right_19 == left_19, "prefix_solid_angle/adjacent_Esr_Psr: reverse");
+    std::test::assert_eq_int(left_19 / 1Psr, k * 1000, "prefix_solid_angle/adjacent_Esr_Psr: target count");
+    std::test::assert_eq_int(right_19 / 1Esr, k * 1, "prefix_solid_angle/adjacent_Esr_Psr: source count");
+
+    // 1 Zsr = 1000 Esr
+    let source_20: Denomination8 = 1Zsr;
+    let target_20: Denomination0 = 1000Esr;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_solid_angle/adjacent_Zsr_Esr: forward");
+    std::test::assert(right_20 == left_20, "prefix_solid_angle/adjacent_Zsr_Esr: reverse");
+    std::test::assert_eq_int(left_20 / 1Esr, k * 1000, "prefix_solid_angle/adjacent_Zsr_Esr: target count");
+    std::test::assert_eq_int(right_20 / 1Zsr, k * 1, "prefix_solid_angle/adjacent_Zsr_Esr: source count");
+
+    // 1 Ysr = 1000 Zsr
+    let source_21: Denomination7 = 1Ysr;
+    let target_21: Denomination8 = 1000Zsr;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_solid_angle/adjacent_Ysr_Zsr: forward");
+    std::test::assert(right_21 == left_21, "prefix_solid_angle/adjacent_Ysr_Zsr: reverse");
+    std::test::assert_eq_int(left_21 / 1Zsr, k * 1000, "prefix_solid_angle/adjacent_Ysr_Zsr: target count");
+    std::test::assert_eq_int(right_21 / 1Ysr, k * 1, "prefix_solid_angle/adjacent_Ysr_Zsr: source count");
+
+    // 1 Rsr = 1000 Ysr
+    let source_22: Denomination5 = 1Rsr;
+    let target_22: Denomination7 = 1000Ysr;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_solid_angle/adjacent_Rsr_Ysr: forward");
+    std::test::assert(right_22 == left_22, "prefix_solid_angle/adjacent_Rsr_Ysr: reverse");
+    std::test::assert_eq_int(left_22 / 1Ysr, k * 1000, "prefix_solid_angle/adjacent_Rsr_Ysr: target count");
+    std::test::assert_eq_int(right_22 / 1Rsr, k * 1, "prefix_solid_angle/adjacent_Rsr_Ysr: source count");
+
+    // 1 Qsr = 1000 Rsr
+    let source_23: Denomination4 = 1Qsr;
+    let target_23: Denomination5 = 1000Rsr;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_solid_angle/adjacent_Qsr_Rsr: forward");
+    std::test::assert(right_23 == left_23, "prefix_solid_angle/adjacent_Qsr_Rsr: reverse");
+    std::test::assert_eq_int(left_23 / 1Rsr, k * 1000, "prefix_solid_angle/adjacent_Qsr_Rsr: target count");
+    std::test::assert_eq_int(right_23 / 1Qsr, k * 1, "prefix_solid_angle/adjacent_Qsr_Rsr: source count");
+
+    // 1000000000000000000 asr = 1 sr
+    let source_24: Denomination9 = 1000000000000000000asr;
+    let target_24: Denomination21 = 1sr;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_solid_angle/base_anchor_asr: forward");
+    std::test::assert(right_24 == left_24, "prefix_solid_angle/base_anchor_asr: reverse");
+    std::test::assert_eq_int(left_24 / 1sr, k * 1, "prefix_solid_angle/base_anchor_asr: target count");
+    std::test::assert_eq_int(right_24 / 1asr, k * 1000000000000000000, "prefix_solid_angle/base_anchor_asr: source count");
+
+    // 1000000000000000 fsr = 1 sr
+    let source_25: Denomination13 = 1000000000000000fsr;
+    let target_25: Denomination21 = 1sr;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_solid_angle/base_anchor_fsr: forward");
+    std::test::assert(right_25 == left_25, "prefix_solid_angle/base_anchor_fsr: reverse");
+    std::test::assert_eq_int(left_25 / 1sr, k * 1, "prefix_solid_angle/base_anchor_fsr: target count");
+    std::test::assert_eq_int(right_25 / 1fsr, k * 1000000000000000, "prefix_solid_angle/base_anchor_fsr: source count");
+
+    // 1000000000000 psr = 1 sr
+    let source_26: Denomination18 = 1000000000000psr;
+    let target_26: Denomination21 = 1sr;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_solid_angle/base_anchor_psr: forward");
+    std::test::assert(right_26 == left_26, "prefix_solid_angle/base_anchor_psr: reverse");
+    std::test::assert_eq_int(left_26 / 1sr, k * 1, "prefix_solid_angle/base_anchor_psr: target count");
+    std::test::assert_eq_int(right_26 / 1psr, k * 1000000000000, "prefix_solid_angle/base_anchor_psr: source count");
+
+    // 1000000000 nsr = 1 sr
+    let source_27: Denomination17 = 1000000000nsr;
+    let target_27: Denomination21 = 1sr;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_solid_angle/base_anchor_nsr: forward");
+    std::test::assert(right_27 == left_27, "prefix_solid_angle/base_anchor_nsr: reverse");
+    std::test::assert_eq_int(left_27 / 1sr, k * 1, "prefix_solid_angle/base_anchor_nsr: target count");
+    std::test::assert_eq_int(right_27 / 1nsr, k * 1000000000, "prefix_solid_angle/base_anchor_nsr: source count");
+
+    // 1000000 usr = 1 sr
+    let source_28: Denomination22 = 1000000usr;
+    let target_28: Denomination21 = 1sr;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_solid_angle/base_anchor_usr: forward");
+    std::test::assert(right_28 == left_28, "prefix_solid_angle/base_anchor_usr: reverse");
+    std::test::assert_eq_int(left_28 / 1sr, k * 1, "prefix_solid_angle/base_anchor_usr: target count");
+    std::test::assert_eq_int(right_28 / 1usr, k * 1000000, "prefix_solid_angle/base_anchor_usr: source count");
+
+    // 1000 msr = 1 sr
+    let source_29: Denomination16 = 1000msr;
+    let target_29: Denomination21 = 1sr;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_solid_angle/base_anchor_msr: forward");
+    std::test::assert(right_29 == left_29, "prefix_solid_angle/base_anchor_msr: reverse");
+    std::test::assert_eq_int(left_29 / 1sr, k * 1, "prefix_solid_angle/base_anchor_msr: target count");
+    std::test::assert_eq_int(right_29 / 1msr, k * 1000, "prefix_solid_angle/base_anchor_msr: source count");
+
+    // 100 csr = 1 sr
+    let source_30: Denomination10 = 100csr;
+    let target_30: Denomination21 = 1sr;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_solid_angle/base_anchor_csr: forward");
+    std::test::assert(right_30 == left_30, "prefix_solid_angle/base_anchor_csr: reverse");
+    std::test::assert_eq_int(left_30 / 1sr, k * 1, "prefix_solid_angle/base_anchor_csr: target count");
+    std::test::assert_eq_int(right_30 / 1csr, k * 100, "prefix_solid_angle/base_anchor_csr: source count");
+
+    // 1 hsr = 100 sr
+    let source_31: Denomination14 = 1hsr;
+    let target_31: Denomination21 = 100sr;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_solid_angle/base_anchor_hsr: forward");
+    std::test::assert(right_31 == left_31, "prefix_solid_angle/base_anchor_hsr: reverse");
+    std::test::assert_eq_int(left_31 / 1sr, k * 100, "prefix_solid_angle/base_anchor_hsr: target count");
+    std::test::assert_eq_int(right_31 / 1hsr, k * 1, "prefix_solid_angle/base_anchor_hsr: source count");
+
+    // 1 ksr = 1000 sr
+    let source_32: Denomination15 = 1ksr;
+    let target_32: Denomination21 = 1000sr;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_solid_angle/base_anchor_ksr: forward");
+    std::test::assert(right_32 == left_32, "prefix_solid_angle/base_anchor_ksr: reverse");
+    std::test::assert_eq_int(left_32 / 1sr, k * 1000, "prefix_solid_angle/base_anchor_ksr: target count");
+    std::test::assert_eq_int(right_32 / 1ksr, k * 1, "prefix_solid_angle/base_anchor_ksr: source count");
+
+    // 1 Msr = 1000000 sr
+    let source_33: Denomination2 = 1Msr;
+    let target_33: Denomination21 = 1000000sr;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_solid_angle/base_anchor_Msr: forward");
+    std::test::assert(right_33 == left_33, "prefix_solid_angle/base_anchor_Msr: reverse");
+    std::test::assert_eq_int(left_33 / 1sr, k * 1000000, "prefix_solid_angle/base_anchor_Msr: target count");
+    std::test::assert_eq_int(right_33 / 1Msr, k * 1, "prefix_solid_angle/base_anchor_Msr: source count");
+
+    // 1 Gsr = 1000000000 sr
+    let source_34: Denomination1 = 1Gsr;
+    let target_34: Denomination21 = 1000000000sr;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_solid_angle/base_anchor_Gsr: forward");
+    std::test::assert(right_34 == left_34, "prefix_solid_angle/base_anchor_Gsr: reverse");
+    std::test::assert_eq_int(left_34 / 1sr, k * 1000000000, "prefix_solid_angle/base_anchor_Gsr: target count");
+    std::test::assert_eq_int(right_34 / 1Gsr, k * 1, "prefix_solid_angle/base_anchor_Gsr: source count");
+
+    // 1 Tsr = 1000000000000 sr
+    let source_35: Denomination6 = 1Tsr;
+    let target_35: Denomination21 = 1000000000000sr;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_solid_angle/base_anchor_Tsr: forward");
+    std::test::assert(right_35 == left_35, "prefix_solid_angle/base_anchor_Tsr: reverse");
+    std::test::assert_eq_int(left_35 / 1sr, k * 1000000000000, "prefix_solid_angle/base_anchor_Tsr: target count");
+    std::test::assert_eq_int(right_35 / 1Tsr, k * 1, "prefix_solid_angle/base_anchor_Tsr: source count");
+
+    // 1 Psr = 1000000000000000 sr
+    let source_36: Denomination3 = 1Psr;
+    let target_36: Denomination21 = 1000000000000000sr;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_solid_angle/base_anchor_Psr: forward");
+    std::test::assert(right_36 == left_36, "prefix_solid_angle/base_anchor_Psr: reverse");
+    std::test::assert_eq_int(left_36 / 1sr, k * 1000000000000000, "prefix_solid_angle/base_anchor_Psr: target count");
+    std::test::assert_eq_int(right_36 / 1Psr, k * 1, "prefix_solid_angle/base_anchor_Psr: source count");
+
+    // 1 Esr = 1000000000000000000 sr
+    let source_37: Denomination0 = 1Esr;
+    let target_37: Denomination21 = 1000000000000000000sr;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_solid_angle/base_anchor_Esr: forward");
+    std::test::assert(right_37 == left_37, "prefix_solid_angle/base_anchor_Esr: reverse");
+    std::test::assert_eq_int(left_37 / 1sr, k * 1000000000000000000, "prefix_solid_angle/base_anchor_Esr: target count");
+    std::test::assert_eq_int(right_37 / 1Esr, k * 1, "prefix_solid_angle/base_anchor_Esr: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

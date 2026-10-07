@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_mass: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in Qg;
+
+type Denomination0 = GoldenQuantity in Eg;
+type Denomination1 = GoldenQuantity in Gg;
+type Denomination2 = GoldenQuantity in Mg;
+type Denomination3 = GoldenQuantity in Pg;
+type Denomination4 = GoldenQuantity in Qg;
+type Denomination5 = GoldenQuantity in Rg;
+type Denomination6 = GoldenQuantity in Tg;
+type Denomination7 = GoldenQuantity in Yg;
+type Denomination8 = GoldenQuantity in Zg;
+type Denomination9 = GoldenQuantity in ag;
+type Denomination10 = GoldenQuantity in cg;
+type Denomination11 = GoldenQuantity in dag;
+type Denomination12 = GoldenQuantity in dg;
+type Denomination13 = GoldenQuantity in fg;
+type Denomination14 = GoldenQuantity in g;
+type Denomination15 = GoldenQuantity in hg;
+type Denomination16 = GoldenQuantity in kg;
+type Denomination17 = GoldenQuantity in mg;
+type Denomination18 = GoldenQuantity in ng;
+type Denomination19 = GoldenQuantity in pg;
+type Denomination20 = GoldenQuantity in qg;
+type Denomination21 = GoldenQuantity in rg;
+type Denomination22 = GoldenQuantity in ug;
+type Denomination23 = GoldenQuantity in yg;
+type Denomination24 = GoldenQuantity in zg;
+
+fn check_runtime(k: Int) {
+    // 1 rg = 1000 qg
+    let source_0: Denomination21 = 1rg;
+    let target_0: Denomination20 = 1000qg;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_mass/adjacent_rg_qg: forward");
+    std::test::assert(right_0 == left_0, "prefix_mass/adjacent_rg_qg: reverse");
+    std::test::assert_eq_int(left_0 / 1qg, k * 1000, "prefix_mass/adjacent_rg_qg: target count");
+    std::test::assert_eq_int(right_0 / 1rg, k * 1, "prefix_mass/adjacent_rg_qg: source count");
+
+    // 1 yg = 1000 rg
+    let source_1: Denomination23 = 1yg;
+    let target_1: Denomination21 = 1000rg;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_mass/adjacent_yg_rg: forward");
+    std::test::assert(right_1 == left_1, "prefix_mass/adjacent_yg_rg: reverse");
+    std::test::assert_eq_int(left_1 / 1rg, k * 1000, "prefix_mass/adjacent_yg_rg: target count");
+    std::test::assert_eq_int(right_1 / 1yg, k * 1, "prefix_mass/adjacent_yg_rg: source count");
+
+    // 1 zg = 1000 yg
+    let source_2: Denomination24 = 1zg;
+    let target_2: Denomination23 = 1000yg;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_mass/adjacent_zg_yg: forward");
+    std::test::assert(right_2 == left_2, "prefix_mass/adjacent_zg_yg: reverse");
+    std::test::assert_eq_int(left_2 / 1yg, k * 1000, "prefix_mass/adjacent_zg_yg: target count");
+    std::test::assert_eq_int(right_2 / 1zg, k * 1, "prefix_mass/adjacent_zg_yg: source count");
+
+    // 1 ag = 1000 zg
+    let source_3: Denomination9 = 1ag;
+    let target_3: Denomination24 = 1000zg;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_mass/adjacent_ag_zg: forward");
+    std::test::assert(right_3 == left_3, "prefix_mass/adjacent_ag_zg: reverse");
+    std::test::assert_eq_int(left_3 / 1zg, k * 1000, "prefix_mass/adjacent_ag_zg: target count");
+    std::test::assert_eq_int(right_3 / 1ag, k * 1, "prefix_mass/adjacent_ag_zg: source count");
+
+    // 1 fg = 1000 ag
+    let source_4: Denomination13 = 1fg;
+    let target_4: Denomination9 = 1000ag;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_mass/adjacent_fg_ag: forward");
+    std::test::assert(right_4 == left_4, "prefix_mass/adjacent_fg_ag: reverse");
+    std::test::assert_eq_int(left_4 / 1ag, k * 1000, "prefix_mass/adjacent_fg_ag: target count");
+    std::test::assert_eq_int(right_4 / 1fg, k * 1, "prefix_mass/adjacent_fg_ag: source count");
+
+    // 1 pg = 1000 fg
+    let source_5: Denomination19 = 1pg;
+    let target_5: Denomination13 = 1000fg;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_mass/adjacent_pg_fg: forward");
+    std::test::assert(right_5 == left_5, "prefix_mass/adjacent_pg_fg: reverse");
+    std::test::assert_eq_int(left_5 / 1fg, k * 1000, "prefix_mass/adjacent_pg_fg: target count");
+    std::test::assert_eq_int(right_5 / 1pg, k * 1, "prefix_mass/adjacent_pg_fg: source count");
+
+    // 1 ng = 1000 pg
+    let source_6: Denomination18 = 1ng;
+    let target_6: Denomination19 = 1000pg;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_mass/adjacent_ng_pg: forward");
+    std::test::assert(right_6 == left_6, "prefix_mass/adjacent_ng_pg: reverse");
+    std::test::assert_eq_int(left_6 / 1pg, k * 1000, "prefix_mass/adjacent_ng_pg: target count");
+    std::test::assert_eq_int(right_6 / 1ng, k * 1, "prefix_mass/adjacent_ng_pg: source count");
+
+    // 1 ug = 1000 ng
+    let source_7: Denomination22 = 1ug;
+    let target_7: Denomination18 = 1000ng;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_mass/adjacent_ug_ng: forward");
+    std::test::assert(right_7 == left_7, "prefix_mass/adjacent_ug_ng: reverse");
+    std::test::assert_eq_int(left_7 / 1ng, k * 1000, "prefix_mass/adjacent_ug_ng: target count");
+    std::test::assert_eq_int(right_7 / 1ug, k * 1, "prefix_mass/adjacent_ug_ng: source count");
+
+    // 1 mg = 1000 ug
+    let source_8: Denomination17 = 1mg;
+    let target_8: Denomination22 = 1000ug;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_mass/adjacent_mg_ug: forward");
+    std::test::assert(right_8 == left_8, "prefix_mass/adjacent_mg_ug: reverse");
+    std::test::assert_eq_int(left_8 / 1ug, k * 1000, "prefix_mass/adjacent_mg_ug: target count");
+    std::test::assert_eq_int(right_8 / 1mg, k * 1, "prefix_mass/adjacent_mg_ug: source count");
+
+    // 1 cg = 10 mg
+    let source_9: Denomination10 = 1cg;
+    let target_9: Denomination17 = 10mg;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_mass/adjacent_cg_mg: forward");
+    std::test::assert(right_9 == left_9, "prefix_mass/adjacent_cg_mg: reverse");
+    std::test::assert_eq_int(left_9 / 1mg, k * 10, "prefix_mass/adjacent_cg_mg: target count");
+    std::test::assert_eq_int(right_9 / 1cg, k * 1, "prefix_mass/adjacent_cg_mg: source count");
+
+    // 1 dg = 10 cg
+    let source_10: Denomination12 = 1dg;
+    let target_10: Denomination10 = 10cg;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_mass/adjacent_dg_cg: forward");
+    std::test::assert(right_10 == left_10, "prefix_mass/adjacent_dg_cg: reverse");
+    std::test::assert_eq_int(left_10 / 1cg, k * 10, "prefix_mass/adjacent_dg_cg: target count");
+    std::test::assert_eq_int(right_10 / 1dg, k * 1, "prefix_mass/adjacent_dg_cg: source count");
+
+    // 1 g = 10 dg
+    let source_11: Denomination14 = 1g;
+    let target_11: Denomination12 = 10dg;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_mass/adjacent_g_dg: forward");
+    std::test::assert(right_11 == left_11, "prefix_mass/adjacent_g_dg: reverse");
+    std::test::assert_eq_int(left_11 / 1dg, k * 10, "prefix_mass/adjacent_g_dg: target count");
+    std::test::assert_eq_int(right_11 / 1g, k * 1, "prefix_mass/adjacent_g_dg: source count");
+
+    // 1 dag = 10 g
+    let source_12: Denomination11 = 1dag;
+    let target_12: Denomination14 = 10g;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_mass/adjacent_dag_g: forward");
+    std::test::assert(right_12 == left_12, "prefix_mass/adjacent_dag_g: reverse");
+    std::test::assert_eq_int(left_12 / 1g, k * 10, "prefix_mass/adjacent_dag_g: target count");
+    std::test::assert_eq_int(right_12 / 1dag, k * 1, "prefix_mass/adjacent_dag_g: source count");
+
+    // 1 hg = 10 dag
+    let source_13: Denomination15 = 1hg;
+    let target_13: Denomination11 = 10dag;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_mass/adjacent_hg_dag: forward");
+    std::test::assert(right_13 == left_13, "prefix_mass/adjacent_hg_dag: reverse");
+    std::test::assert_eq_int(left_13 / 1dag, k * 10, "prefix_mass/adjacent_hg_dag: target count");
+    std::test::assert_eq_int(right_13 / 1hg, k * 1, "prefix_mass/adjacent_hg_dag: source count");
+
+    // 1 kg = 10 hg
+    let source_14: Denomination16 = 1kg;
+    let target_14: Denomination15 = 10hg;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_mass/adjacent_kg_hg: forward");
+    std::test::assert(right_14 == left_14, "prefix_mass/adjacent_kg_hg: reverse");
+    std::test::assert_eq_int(left_14 / 1hg, k * 10, "prefix_mass/adjacent_kg_hg: target count");
+    std::test::assert_eq_int(right_14 / 1kg, k * 1, "prefix_mass/adjacent_kg_hg: source count");
+
+    // 1 Mg = 1000 kg
+    let source_15: Denomination2 = 1Mg;
+    let target_15: Denomination16 = 1000kg;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_mass/adjacent_Mg_kg: forward");
+    std::test::assert(right_15 == left_15, "prefix_mass/adjacent_Mg_kg: reverse");
+    std::test::assert_eq_int(left_15 / 1kg, k * 1000, "prefix_mass/adjacent_Mg_kg: target count");
+    std::test::assert_eq_int(right_15 / 1Mg, k * 1, "prefix_mass/adjacent_Mg_kg: source count");
+
+    // 1 Gg = 1000 Mg
+    let source_16: Denomination1 = 1Gg;
+    let target_16: Denomination2 = 1000Mg;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_mass/adjacent_Gg_Mg: forward");
+    std::test::assert(right_16 == left_16, "prefix_mass/adjacent_Gg_Mg: reverse");
+    std::test::assert_eq_int(left_16 / 1Mg, k * 1000, "prefix_mass/adjacent_Gg_Mg: target count");
+    std::test::assert_eq_int(right_16 / 1Gg, k * 1, "prefix_mass/adjacent_Gg_Mg: source count");
+
+    // 1 Tg = 1000 Gg
+    let source_17: Denomination6 = 1Tg;
+    let target_17: Denomination1 = 1000Gg;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_mass/adjacent_Tg_Gg: forward");
+    std::test::assert(right_17 == left_17, "prefix_mass/adjacent_Tg_Gg: reverse");
+    std::test::assert_eq_int(left_17 / 1Gg, k * 1000, "prefix_mass/adjacent_Tg_Gg: target count");
+    std::test::assert_eq_int(right_17 / 1Tg, k * 1, "prefix_mass/adjacent_Tg_Gg: source count");
+
+    // 1 Pg = 1000 Tg
+    let source_18: Denomination3 = 1Pg;
+    let target_18: Denomination6 = 1000Tg;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_mass/adjacent_Pg_Tg: forward");
+    std::test::assert(right_18 == left_18, "prefix_mass/adjacent_Pg_Tg: reverse");
+    std::test::assert_eq_int(left_18 / 1Tg, k * 1000, "prefix_mass/adjacent_Pg_Tg: target count");
+    std::test::assert_eq_int(right_18 / 1Pg, k * 1, "prefix_mass/adjacent_Pg_Tg: source count");
+
+    // 1 Eg = 1000 Pg
+    let source_19: Denomination0 = 1Eg;
+    let target_19: Denomination3 = 1000Pg;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_mass/adjacent_Eg_Pg: forward");
+    std::test::assert(right_19 == left_19, "prefix_mass/adjacent_Eg_Pg: reverse");
+    std::test::assert_eq_int(left_19 / 1Pg, k * 1000, "prefix_mass/adjacent_Eg_Pg: target count");
+    std::test::assert_eq_int(right_19 / 1Eg, k * 1, "prefix_mass/adjacent_Eg_Pg: source count");
+
+    // 1 Zg = 1000 Eg
+    let source_20: Denomination8 = 1Zg;
+    let target_20: Denomination0 = 1000Eg;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_mass/adjacent_Zg_Eg: forward");
+    std::test::assert(right_20 == left_20, "prefix_mass/adjacent_Zg_Eg: reverse");
+    std::test::assert_eq_int(left_20 / 1Eg, k * 1000, "prefix_mass/adjacent_Zg_Eg: target count");
+    std::test::assert_eq_int(right_20 / 1Zg, k * 1, "prefix_mass/adjacent_Zg_Eg: source count");
+
+    // 1 Yg = 1000 Zg
+    let source_21: Denomination7 = 1Yg;
+    let target_21: Denomination8 = 1000Zg;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_mass/adjacent_Yg_Zg: forward");
+    std::test::assert(right_21 == left_21, "prefix_mass/adjacent_Yg_Zg: reverse");
+    std::test::assert_eq_int(left_21 / 1Zg, k * 1000, "prefix_mass/adjacent_Yg_Zg: target count");
+    std::test::assert_eq_int(right_21 / 1Yg, k * 1, "prefix_mass/adjacent_Yg_Zg: source count");
+
+    // 1 Rg = 1000 Yg
+    let source_22: Denomination5 = 1Rg;
+    let target_22: Denomination7 = 1000Yg;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_mass/adjacent_Rg_Yg: forward");
+    std::test::assert(right_22 == left_22, "prefix_mass/adjacent_Rg_Yg: reverse");
+    std::test::assert_eq_int(left_22 / 1Yg, k * 1000, "prefix_mass/adjacent_Rg_Yg: target count");
+    std::test::assert_eq_int(right_22 / 1Rg, k * 1, "prefix_mass/adjacent_Rg_Yg: source count");
+
+    // 1 Qg = 1000 Rg
+    let source_23: Denomination4 = 1Qg;
+    let target_23: Denomination5 = 1000Rg;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_mass/adjacent_Qg_Rg: forward");
+    std::test::assert(right_23 == left_23, "prefix_mass/adjacent_Qg_Rg: reverse");
+    std::test::assert_eq_int(left_23 / 1Rg, k * 1000, "prefix_mass/adjacent_Qg_Rg: target count");
+    std::test::assert_eq_int(right_23 / 1Qg, k * 1, "prefix_mass/adjacent_Qg_Rg: source count");
+
+    // 1000000000000000000 ag = 1 g
+    let source_24: Denomination9 = 1000000000000000000ag;
+    let target_24: Denomination14 = 1g;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_mass/base_anchor_ag: forward");
+    std::test::assert(right_24 == left_24, "prefix_mass/base_anchor_ag: reverse");
+    std::test::assert_eq_int(left_24 / 1g, k * 1, "prefix_mass/base_anchor_ag: target count");
+    std::test::assert_eq_int(right_24 / 1ag, k * 1000000000000000000, "prefix_mass/base_anchor_ag: source count");
+
+    // 1000000000000000 fg = 1 g
+    let source_25: Denomination13 = 1000000000000000fg;
+    let target_25: Denomination14 = 1g;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_mass/base_anchor_fg: forward");
+    std::test::assert(right_25 == left_25, "prefix_mass/base_anchor_fg: reverse");
+    std::test::assert_eq_int(left_25 / 1g, k * 1, "prefix_mass/base_anchor_fg: target count");
+    std::test::assert_eq_int(right_25 / 1fg, k * 1000000000000000, "prefix_mass/base_anchor_fg: source count");
+
+    // 1000000000000 pg = 1 g
+    let source_26: Denomination19 = 1000000000000pg;
+    let target_26: Denomination14 = 1g;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_mass/base_anchor_pg: forward");
+    std::test::assert(right_26 == left_26, "prefix_mass/base_anchor_pg: reverse");
+    std::test::assert_eq_int(left_26 / 1g, k * 1, "prefix_mass/base_anchor_pg: target count");
+    std::test::assert_eq_int(right_26 / 1pg, k * 1000000000000, "prefix_mass/base_anchor_pg: source count");
+
+    // 1000000000 ng = 1 g
+    let source_27: Denomination18 = 1000000000ng;
+    let target_27: Denomination14 = 1g;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_mass/base_anchor_ng: forward");
+    std::test::assert(right_27 == left_27, "prefix_mass/base_anchor_ng: reverse");
+    std::test::assert_eq_int(left_27 / 1g, k * 1, "prefix_mass/base_anchor_ng: target count");
+    std::test::assert_eq_int(right_27 / 1ng, k * 1000000000, "prefix_mass/base_anchor_ng: source count");
+
+    // 1000000 ug = 1 g
+    let source_28: Denomination22 = 1000000ug;
+    let target_28: Denomination14 = 1g;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_mass/base_anchor_ug: forward");
+    std::test::assert(right_28 == left_28, "prefix_mass/base_anchor_ug: reverse");
+    std::test::assert_eq_int(left_28 / 1g, k * 1, "prefix_mass/base_anchor_ug: target count");
+    std::test::assert_eq_int(right_28 / 1ug, k * 1000000, "prefix_mass/base_anchor_ug: source count");
+
+    // 1000 mg = 1 g
+    let source_29: Denomination17 = 1000mg;
+    let target_29: Denomination14 = 1g;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_mass/base_anchor_mg: forward");
+    std::test::assert(right_29 == left_29, "prefix_mass/base_anchor_mg: reverse");
+    std::test::assert_eq_int(left_29 / 1g, k * 1, "prefix_mass/base_anchor_mg: target count");
+    std::test::assert_eq_int(right_29 / 1mg, k * 1000, "prefix_mass/base_anchor_mg: source count");
+
+    // 100 cg = 1 g
+    let source_30: Denomination10 = 100cg;
+    let target_30: Denomination14 = 1g;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_mass/base_anchor_cg: forward");
+    std::test::assert(right_30 == left_30, "prefix_mass/base_anchor_cg: reverse");
+    std::test::assert_eq_int(left_30 / 1g, k * 1, "prefix_mass/base_anchor_cg: target count");
+    std::test::assert_eq_int(right_30 / 1cg, k * 100, "prefix_mass/base_anchor_cg: source count");
+
+    // 1 hg = 100 g
+    let source_31: Denomination15 = 1hg;
+    let target_31: Denomination14 = 100g;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_mass/base_anchor_hg: forward");
+    std::test::assert(right_31 == left_31, "prefix_mass/base_anchor_hg: reverse");
+    std::test::assert_eq_int(left_31 / 1g, k * 100, "prefix_mass/base_anchor_hg: target count");
+    std::test::assert_eq_int(right_31 / 1hg, k * 1, "prefix_mass/base_anchor_hg: source count");
+
+    // 1 kg = 1000 g
+    let source_32: Denomination16 = 1kg;
+    let target_32: Denomination14 = 1000g;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_mass/base_anchor_kg: forward");
+    std::test::assert(right_32 == left_32, "prefix_mass/base_anchor_kg: reverse");
+    std::test::assert_eq_int(left_32 / 1g, k * 1000, "prefix_mass/base_anchor_kg: target count");
+    std::test::assert_eq_int(right_32 / 1kg, k * 1, "prefix_mass/base_anchor_kg: source count");
+
+    // 1 Mg = 1000000 g
+    let source_33: Denomination2 = 1Mg;
+    let target_33: Denomination14 = 1000000g;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_mass/base_anchor_Mg: forward");
+    std::test::assert(right_33 == left_33, "prefix_mass/base_anchor_Mg: reverse");
+    std::test::assert_eq_int(left_33 / 1g, k * 1000000, "prefix_mass/base_anchor_Mg: target count");
+    std::test::assert_eq_int(right_33 / 1Mg, k * 1, "prefix_mass/base_anchor_Mg: source count");
+
+    // 1 Gg = 1000000000 g
+    let source_34: Denomination1 = 1Gg;
+    let target_34: Denomination14 = 1000000000g;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_mass/base_anchor_Gg: forward");
+    std::test::assert(right_34 == left_34, "prefix_mass/base_anchor_Gg: reverse");
+    std::test::assert_eq_int(left_34 / 1g, k * 1000000000, "prefix_mass/base_anchor_Gg: target count");
+    std::test::assert_eq_int(right_34 / 1Gg, k * 1, "prefix_mass/base_anchor_Gg: source count");
+
+    // 1 Tg = 1000000000000 g
+    let source_35: Denomination6 = 1Tg;
+    let target_35: Denomination14 = 1000000000000g;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_mass/base_anchor_Tg: forward");
+    std::test::assert(right_35 == left_35, "prefix_mass/base_anchor_Tg: reverse");
+    std::test::assert_eq_int(left_35 / 1g, k * 1000000000000, "prefix_mass/base_anchor_Tg: target count");
+    std::test::assert_eq_int(right_35 / 1Tg, k * 1, "prefix_mass/base_anchor_Tg: source count");
+
+    // 1 Pg = 1000000000000000 g
+    let source_36: Denomination3 = 1Pg;
+    let target_36: Denomination14 = 1000000000000000g;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_mass/base_anchor_Pg: forward");
+    std::test::assert(right_36 == left_36, "prefix_mass/base_anchor_Pg: reverse");
+    std::test::assert_eq_int(left_36 / 1g, k * 1000000000000000, "prefix_mass/base_anchor_Pg: target count");
+    std::test::assert_eq_int(right_36 / 1Pg, k * 1, "prefix_mass/base_anchor_Pg: source count");
+
+    // 1 Eg = 1000000000000000000 g
+    let source_37: Denomination0 = 1Eg;
+    let target_37: Denomination14 = 1000000000000000000g;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_mass/base_anchor_Eg: forward");
+    std::test::assert(right_37 == left_37, "prefix_mass/base_anchor_Eg: reverse");
+    std::test::assert_eq_int(left_37 / 1g, k * 1000000000000000000, "prefix_mass/base_anchor_Eg: target count");
+    std::test::assert_eq_int(right_37 / 1Eg, k * 1, "prefix_mass/base_anchor_Eg: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

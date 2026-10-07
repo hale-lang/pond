@@ -1,0 +1,30 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// heat_capacity: 1 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in kJ_per_K;
+
+type Denomination0 = GoldenQuantity in J_per_K;
+type Denomination1 = GoldenQuantity in kJ_per_K;
+
+fn check_runtime(k: Int) {
+    // 1 kJ_per_K = 1000 J_per_K
+    let source_0: Denomination1 = 1kJ_per_K;
+    let target_0: Denomination0 = 1000J_per_K;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "heat_capacity/kJ_per_K_to_J_per_K: forward");
+    std::test::assert(right_0 == left_0, "heat_capacity/kJ_per_K_to_J_per_K: reverse");
+    std::test::assert_eq_int(left_0 / 1J_per_K, k * 1000, "heat_capacity/kJ_per_K_to_J_per_K: target count");
+    std::test::assert_eq_int(right_0 / 1kJ_per_K, k * 1, "heat_capacity/kJ_per_K_to_J_per_K: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

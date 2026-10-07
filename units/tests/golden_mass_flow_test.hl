@@ -1,0 +1,62 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// mass_flow: 4 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in kg_per_s;
+
+type Denomination0 = GoldenQuantity in g_per_min;
+type Denomination1 = GoldenQuantity in g_per_s;
+type Denomination2 = GoldenQuantity in kg_per_h;
+type Denomination3 = GoldenQuantity in kg_per_s;
+
+fn check_runtime(k: Int) {
+    // 1 kg_per_s = 1000 g_per_s
+    let source_0: Denomination3 = 1kg_per_s;
+    let target_0: Denomination1 = 1000g_per_s;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "mass_flow/kg_per_s_to_g_per_s: forward");
+    std::test::assert(right_0 == left_0, "mass_flow/kg_per_s_to_g_per_s: reverse");
+    std::test::assert_eq_int(left_0 / 1g_per_s, k * 1000, "mass_flow/kg_per_s_to_g_per_s: target count");
+    std::test::assert_eq_int(right_0 / 1kg_per_s, k * 1, "mass_flow/kg_per_s_to_g_per_s: source count");
+
+    // 1 kg_per_s = 3600 kg_per_h
+    let source_1: Denomination3 = 1kg_per_s;
+    let target_1: Denomination2 = 3600kg_per_h;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "mass_flow/kg_per_s_to_kg_per_h: forward");
+    std::test::assert(right_1 == left_1, "mass_flow/kg_per_s_to_kg_per_h: reverse");
+    std::test::assert_eq_int(left_1 / 1kg_per_h, k * 3600, "mass_flow/kg_per_s_to_kg_per_h: target count");
+    std::test::assert_eq_int(right_1 / 1kg_per_s, k * 1, "mass_flow/kg_per_s_to_kg_per_h: source count");
+
+    // 3 kg_per_h = 50 g_per_min
+    let source_2: Denomination2 = 3kg_per_h;
+    let target_2: Denomination0 = 50g_per_min;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "mass_flow/kg_per_h_to_g_per_min: forward");
+    std::test::assert(right_2 == left_2, "mass_flow/kg_per_h_to_g_per_min: reverse");
+    std::test::assert_eq_int(left_2 / 1g_per_min, k * 50, "mass_flow/kg_per_h_to_g_per_min: target count");
+    std::test::assert_eq_int(right_2 / 1kg_per_h, k * 3, "mass_flow/kg_per_h_to_g_per_min: source count");
+
+    // 60 g_per_min = 1 g_per_s
+    let source_3: Denomination0 = 60g_per_min;
+    let target_3: Denomination1 = 1g_per_s;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "mass_flow/g_per_min_to_g_per_s: forward");
+    std::test::assert(right_3 == left_3, "mass_flow/g_per_min_to_g_per_s: reverse");
+    std::test::assert_eq_int(left_3 / 1g_per_s, k * 1, "mass_flow/g_per_min_to_g_per_s: target count");
+    std::test::assert_eq_int(right_3 / 1g_per_min, k * 60, "mass_flow/g_per_min_to_g_per_s: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

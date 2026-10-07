@@ -1,0 +1,97 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// time: 6 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type Denomination0 = Duration in day;
+type Denomination1 = Duration in h;
+type Denomination2 = Duration in min;
+type Denomination3 = Duration in ms;
+type Denomination4 = Duration in ns;
+type Denomination5 = Duration in s;
+type Denomination6 = Duration in us;
+type Denomination7 = Duration in week;
+
+fn check_runtime(k: Int) {
+    // 1 week = 10080 min
+    let source_0: Denomination7 = 1week;
+    let target_0: Denomination2 = 10080min;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "time/week_to_min: forward");
+    std::test::assert(right_0 == left_0, "time/week_to_min: reverse");
+    let source_unit_0: Denomination7 = 1week;
+    let target_unit_0: Denomination2 = 1min;
+    std::test::assert_eq_int(left_0 / target_unit_0, k * 10080, "time/week_to_min: target count");
+    std::test::assert_eq_int(right_0 / source_unit_0, k * 1, "time/week_to_min: source count");
+
+    // 1 day = 86400 s
+    let source_1: Denomination0 = 1day;
+    let target_1: Denomination5 = 86400s;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "time/day_to_s: forward");
+    std::test::assert(right_1 == left_1, "time/day_to_s: reverse");
+    let source_unit_1: Denomination0 = 1day;
+    let target_unit_1: Denomination5 = 1s;
+    std::test::assert_eq_int(left_1 / target_unit_1, k * 86400, "time/day_to_s: target count");
+    std::test::assert_eq_int(right_1 / source_unit_1, k * 1, "time/day_to_s: source count");
+
+    // 1 h = 3600000 ms
+    let source_2: Denomination1 = 1h;
+    let target_2: Denomination3 = 3600000ms;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "time/h_to_ms: forward");
+    std::test::assert(right_2 == left_2, "time/h_to_ms: reverse");
+    let source_unit_2: Denomination1 = 1h;
+    let target_unit_2: Denomination3 = 1ms;
+    std::test::assert_eq_int(left_2 / target_unit_2, k * 3600000, "time/h_to_ms: target count");
+    std::test::assert_eq_int(right_2 / source_unit_2, k * 1, "time/h_to_ms: source count");
+
+    // 1 min = 60000000 us
+    let source_3: Denomination2 = 1min;
+    let target_3: Denomination6 = 60000000us;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "time/min_to_us: forward");
+    std::test::assert(right_3 == left_3, "time/min_to_us: reverse");
+    let source_unit_3: Denomination2 = 1min;
+    let target_unit_3: Denomination6 = 1us;
+    std::test::assert_eq_int(left_3 / target_unit_3, k * 60000000, "time/min_to_us: target count");
+    std::test::assert_eq_int(right_3 / source_unit_3, k * 1, "time/min_to_us: source count");
+
+    // Exact widening to picoseconds avoids Hale codegen mixing its primitive Duration class with an Int-backed boundary at the canonical nanosecond meet; the signed ratio and both quotient counts are still checked at runtime.
+    // 1 s = 1000000000 ns
+    let source_4: Denomination5 = 1s;
+    let target_4: Denomination4 = 1000000000ns;
+    let left_4 = (k * source_4).in(ps);
+    let right_4 = (k * target_4).in(ps);
+    std::test::assert(left_4 == right_4, "time/s_to_ns: forward");
+    std::test::assert(right_4 == left_4, "time/s_to_ns: reverse");
+    let source_unit_4: Denomination5 = 1s;
+    let target_unit_4: Denomination4 = 1ns;
+    std::test::assert_eq_int(left_4 / target_unit_4, k * 1000000000, "time/s_to_ns: target count");
+    std::test::assert_eq_int(right_4 / source_unit_4, k * 1, "time/s_to_ns: source count");
+
+    // 1 week = 7 day
+    let source_5: Denomination7 = 1week;
+    let target_5: Denomination0 = 7day;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "time/week_to_day: forward");
+    std::test::assert(right_5 == left_5, "time/week_to_day: reverse");
+    let source_unit_5: Denomination7 = 1week;
+    let target_unit_5: Denomination0 = 1day;
+    std::test::assert_eq_int(left_5 / target_unit_5, k * 7, "time/week_to_day: target count");
+    std::test::assert_eq_int(right_5 / source_unit_5, k * 1, "time/week_to_day: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

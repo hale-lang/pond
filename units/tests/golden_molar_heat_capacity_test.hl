@@ -1,0 +1,41 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// molar_heat_capacity: 2 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in kJ_per_mol_K;
+
+type Denomination0 = GoldenQuantity in J_per_mol_K;
+type Denomination1 = GoldenQuantity in cal_th_per_mol_K;
+type Denomination2 = GoldenQuantity in kJ_per_mol_K;
+
+fn check_runtime(k: Int) {
+    // 1 kJ_per_mol_K = 1000 J_per_mol_K
+    let source_0: Denomination2 = 1kJ_per_mol_K;
+    let target_0: Denomination0 = 1000J_per_mol_K;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "molar_heat_capacity/kJ_per_mol_K_to_J_per_mol_K: forward");
+    std::test::assert(right_0 == left_0, "molar_heat_capacity/kJ_per_mol_K_to_J_per_mol_K: reverse");
+    std::test::assert_eq_int(left_0 / 1J_per_mol_K, k * 1000, "molar_heat_capacity/kJ_per_mol_K_to_J_per_mol_K: target count");
+    std::test::assert_eq_int(right_0 / 1kJ_per_mol_K, k * 1, "molar_heat_capacity/kJ_per_mol_K_to_J_per_mol_K: source count");
+
+    // 125 cal_th_per_mol_K = 523 J_per_mol_K
+    let source_1: Denomination1 = 125cal_th_per_mol_K;
+    let target_1: Denomination0 = 523J_per_mol_K;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "molar_heat_capacity/cal_th_per_mol_K_to_J_per_mol_K: forward");
+    std::test::assert(right_1 == left_1, "molar_heat_capacity/cal_th_per_mol_K_to_J_per_mol_K: reverse");
+    std::test::assert_eq_int(left_1 / 1J_per_mol_K, k * 523, "molar_heat_capacity/cal_th_per_mol_K_to_J_per_mol_K: target count");
+    std::test::assert_eq_int(right_1 / 1cal_th_per_mol_K, k * 125, "molar_heat_capacity/cal_th_per_mol_K_to_J_per_mol_K: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_pressure: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QPa;
+
+type Denomination0 = GoldenQuantity in EPa;
+type Denomination1 = GoldenQuantity in GPa;
+type Denomination2 = GoldenQuantity in MPa;
+type Denomination3 = GoldenQuantity in PPa;
+type Denomination4 = GoldenQuantity in Pa;
+type Denomination5 = GoldenQuantity in QPa;
+type Denomination6 = GoldenQuantity in RPa;
+type Denomination7 = GoldenQuantity in TPa;
+type Denomination8 = GoldenQuantity in YPa;
+type Denomination9 = GoldenQuantity in ZPa;
+type Denomination10 = GoldenQuantity in aPa;
+type Denomination11 = GoldenQuantity in cPa;
+type Denomination12 = GoldenQuantity in dPa;
+type Denomination13 = GoldenQuantity in daPa;
+type Denomination14 = GoldenQuantity in fPa;
+type Denomination15 = GoldenQuantity in hPa;
+type Denomination16 = GoldenQuantity in kPa;
+type Denomination17 = GoldenQuantity in mPa;
+type Denomination18 = GoldenQuantity in nPa;
+type Denomination19 = GoldenQuantity in pPa;
+type Denomination20 = GoldenQuantity in qPa;
+type Denomination21 = GoldenQuantity in rPa;
+type Denomination22 = GoldenQuantity in uPa;
+type Denomination23 = GoldenQuantity in yPa;
+type Denomination24 = GoldenQuantity in zPa;
+
+fn check_runtime(k: Int) {
+    // 1 rPa = 1000 qPa
+    let source_0: Denomination21 = 1rPa;
+    let target_0: Denomination20 = 1000qPa;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_pressure/adjacent_rPa_qPa: forward");
+    std::test::assert(right_0 == left_0, "prefix_pressure/adjacent_rPa_qPa: reverse");
+    std::test::assert_eq_int(left_0 / 1qPa, k * 1000, "prefix_pressure/adjacent_rPa_qPa: target count");
+    std::test::assert_eq_int(right_0 / 1rPa, k * 1, "prefix_pressure/adjacent_rPa_qPa: source count");
+
+    // 1 yPa = 1000 rPa
+    let source_1: Denomination23 = 1yPa;
+    let target_1: Denomination21 = 1000rPa;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_pressure/adjacent_yPa_rPa: forward");
+    std::test::assert(right_1 == left_1, "prefix_pressure/adjacent_yPa_rPa: reverse");
+    std::test::assert_eq_int(left_1 / 1rPa, k * 1000, "prefix_pressure/adjacent_yPa_rPa: target count");
+    std::test::assert_eq_int(right_1 / 1yPa, k * 1, "prefix_pressure/adjacent_yPa_rPa: source count");
+
+    // 1 zPa = 1000 yPa
+    let source_2: Denomination24 = 1zPa;
+    let target_2: Denomination23 = 1000yPa;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_pressure/adjacent_zPa_yPa: forward");
+    std::test::assert(right_2 == left_2, "prefix_pressure/adjacent_zPa_yPa: reverse");
+    std::test::assert_eq_int(left_2 / 1yPa, k * 1000, "prefix_pressure/adjacent_zPa_yPa: target count");
+    std::test::assert_eq_int(right_2 / 1zPa, k * 1, "prefix_pressure/adjacent_zPa_yPa: source count");
+
+    // 1 aPa = 1000 zPa
+    let source_3: Denomination10 = 1aPa;
+    let target_3: Denomination24 = 1000zPa;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_pressure/adjacent_aPa_zPa: forward");
+    std::test::assert(right_3 == left_3, "prefix_pressure/adjacent_aPa_zPa: reverse");
+    std::test::assert_eq_int(left_3 / 1zPa, k * 1000, "prefix_pressure/adjacent_aPa_zPa: target count");
+    std::test::assert_eq_int(right_3 / 1aPa, k * 1, "prefix_pressure/adjacent_aPa_zPa: source count");
+
+    // 1 fPa = 1000 aPa
+    let source_4: Denomination14 = 1fPa;
+    let target_4: Denomination10 = 1000aPa;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_pressure/adjacent_fPa_aPa: forward");
+    std::test::assert(right_4 == left_4, "prefix_pressure/adjacent_fPa_aPa: reverse");
+    std::test::assert_eq_int(left_4 / 1aPa, k * 1000, "prefix_pressure/adjacent_fPa_aPa: target count");
+    std::test::assert_eq_int(right_4 / 1fPa, k * 1, "prefix_pressure/adjacent_fPa_aPa: source count");
+
+    // 1 pPa = 1000 fPa
+    let source_5: Denomination19 = 1pPa;
+    let target_5: Denomination14 = 1000fPa;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_pressure/adjacent_pPa_fPa: forward");
+    std::test::assert(right_5 == left_5, "prefix_pressure/adjacent_pPa_fPa: reverse");
+    std::test::assert_eq_int(left_5 / 1fPa, k * 1000, "prefix_pressure/adjacent_pPa_fPa: target count");
+    std::test::assert_eq_int(right_5 / 1pPa, k * 1, "prefix_pressure/adjacent_pPa_fPa: source count");
+
+    // 1 nPa = 1000 pPa
+    let source_6: Denomination18 = 1nPa;
+    let target_6: Denomination19 = 1000pPa;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_pressure/adjacent_nPa_pPa: forward");
+    std::test::assert(right_6 == left_6, "prefix_pressure/adjacent_nPa_pPa: reverse");
+    std::test::assert_eq_int(left_6 / 1pPa, k * 1000, "prefix_pressure/adjacent_nPa_pPa: target count");
+    std::test::assert_eq_int(right_6 / 1nPa, k * 1, "prefix_pressure/adjacent_nPa_pPa: source count");
+
+    // 1 uPa = 1000 nPa
+    let source_7: Denomination22 = 1uPa;
+    let target_7: Denomination18 = 1000nPa;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_pressure/adjacent_uPa_nPa: forward");
+    std::test::assert(right_7 == left_7, "prefix_pressure/adjacent_uPa_nPa: reverse");
+    std::test::assert_eq_int(left_7 / 1nPa, k * 1000, "prefix_pressure/adjacent_uPa_nPa: target count");
+    std::test::assert_eq_int(right_7 / 1uPa, k * 1, "prefix_pressure/adjacent_uPa_nPa: source count");
+
+    // 1 mPa = 1000 uPa
+    let source_8: Denomination17 = 1mPa;
+    let target_8: Denomination22 = 1000uPa;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_pressure/adjacent_mPa_uPa: forward");
+    std::test::assert(right_8 == left_8, "prefix_pressure/adjacent_mPa_uPa: reverse");
+    std::test::assert_eq_int(left_8 / 1uPa, k * 1000, "prefix_pressure/adjacent_mPa_uPa: target count");
+    std::test::assert_eq_int(right_8 / 1mPa, k * 1, "prefix_pressure/adjacent_mPa_uPa: source count");
+
+    // 1 cPa = 10 mPa
+    let source_9: Denomination11 = 1cPa;
+    let target_9: Denomination17 = 10mPa;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_pressure/adjacent_cPa_mPa: forward");
+    std::test::assert(right_9 == left_9, "prefix_pressure/adjacent_cPa_mPa: reverse");
+    std::test::assert_eq_int(left_9 / 1mPa, k * 10, "prefix_pressure/adjacent_cPa_mPa: target count");
+    std::test::assert_eq_int(right_9 / 1cPa, k * 1, "prefix_pressure/adjacent_cPa_mPa: source count");
+
+    // 1 dPa = 10 cPa
+    let source_10: Denomination12 = 1dPa;
+    let target_10: Denomination11 = 10cPa;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_pressure/adjacent_dPa_cPa: forward");
+    std::test::assert(right_10 == left_10, "prefix_pressure/adjacent_dPa_cPa: reverse");
+    std::test::assert_eq_int(left_10 / 1cPa, k * 10, "prefix_pressure/adjacent_dPa_cPa: target count");
+    std::test::assert_eq_int(right_10 / 1dPa, k * 1, "prefix_pressure/adjacent_dPa_cPa: source count");
+
+    // 1 Pa = 10 dPa
+    let source_11: Denomination4 = 1Pa;
+    let target_11: Denomination12 = 10dPa;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_pressure/adjacent_Pa_dPa: forward");
+    std::test::assert(right_11 == left_11, "prefix_pressure/adjacent_Pa_dPa: reverse");
+    std::test::assert_eq_int(left_11 / 1dPa, k * 10, "prefix_pressure/adjacent_Pa_dPa: target count");
+    std::test::assert_eq_int(right_11 / 1Pa, k * 1, "prefix_pressure/adjacent_Pa_dPa: source count");
+
+    // 1 daPa = 10 Pa
+    let source_12: Denomination13 = 1daPa;
+    let target_12: Denomination4 = 10Pa;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_pressure/adjacent_daPa_Pa: forward");
+    std::test::assert(right_12 == left_12, "prefix_pressure/adjacent_daPa_Pa: reverse");
+    std::test::assert_eq_int(left_12 / 1Pa, k * 10, "prefix_pressure/adjacent_daPa_Pa: target count");
+    std::test::assert_eq_int(right_12 / 1daPa, k * 1, "prefix_pressure/adjacent_daPa_Pa: source count");
+
+    // 1 hPa = 10 daPa
+    let source_13: Denomination15 = 1hPa;
+    let target_13: Denomination13 = 10daPa;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_pressure/adjacent_hPa_daPa: forward");
+    std::test::assert(right_13 == left_13, "prefix_pressure/adjacent_hPa_daPa: reverse");
+    std::test::assert_eq_int(left_13 / 1daPa, k * 10, "prefix_pressure/adjacent_hPa_daPa: target count");
+    std::test::assert_eq_int(right_13 / 1hPa, k * 1, "prefix_pressure/adjacent_hPa_daPa: source count");
+
+    // 1 kPa = 10 hPa
+    let source_14: Denomination16 = 1kPa;
+    let target_14: Denomination15 = 10hPa;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_pressure/adjacent_kPa_hPa: forward");
+    std::test::assert(right_14 == left_14, "prefix_pressure/adjacent_kPa_hPa: reverse");
+    std::test::assert_eq_int(left_14 / 1hPa, k * 10, "prefix_pressure/adjacent_kPa_hPa: target count");
+    std::test::assert_eq_int(right_14 / 1kPa, k * 1, "prefix_pressure/adjacent_kPa_hPa: source count");
+
+    // 1 MPa = 1000 kPa
+    let source_15: Denomination2 = 1MPa;
+    let target_15: Denomination16 = 1000kPa;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_pressure/adjacent_MPa_kPa: forward");
+    std::test::assert(right_15 == left_15, "prefix_pressure/adjacent_MPa_kPa: reverse");
+    std::test::assert_eq_int(left_15 / 1kPa, k * 1000, "prefix_pressure/adjacent_MPa_kPa: target count");
+    std::test::assert_eq_int(right_15 / 1MPa, k * 1, "prefix_pressure/adjacent_MPa_kPa: source count");
+
+    // 1 GPa = 1000 MPa
+    let source_16: Denomination1 = 1GPa;
+    let target_16: Denomination2 = 1000MPa;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_pressure/adjacent_GPa_MPa: forward");
+    std::test::assert(right_16 == left_16, "prefix_pressure/adjacent_GPa_MPa: reverse");
+    std::test::assert_eq_int(left_16 / 1MPa, k * 1000, "prefix_pressure/adjacent_GPa_MPa: target count");
+    std::test::assert_eq_int(right_16 / 1GPa, k * 1, "prefix_pressure/adjacent_GPa_MPa: source count");
+
+    // 1 TPa = 1000 GPa
+    let source_17: Denomination7 = 1TPa;
+    let target_17: Denomination1 = 1000GPa;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_pressure/adjacent_TPa_GPa: forward");
+    std::test::assert(right_17 == left_17, "prefix_pressure/adjacent_TPa_GPa: reverse");
+    std::test::assert_eq_int(left_17 / 1GPa, k * 1000, "prefix_pressure/adjacent_TPa_GPa: target count");
+    std::test::assert_eq_int(right_17 / 1TPa, k * 1, "prefix_pressure/adjacent_TPa_GPa: source count");
+
+    // 1 PPa = 1000 TPa
+    let source_18: Denomination3 = 1PPa;
+    let target_18: Denomination7 = 1000TPa;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_pressure/adjacent_PPa_TPa: forward");
+    std::test::assert(right_18 == left_18, "prefix_pressure/adjacent_PPa_TPa: reverse");
+    std::test::assert_eq_int(left_18 / 1TPa, k * 1000, "prefix_pressure/adjacent_PPa_TPa: target count");
+    std::test::assert_eq_int(right_18 / 1PPa, k * 1, "prefix_pressure/adjacent_PPa_TPa: source count");
+
+    // 1 EPa = 1000 PPa
+    let source_19: Denomination0 = 1EPa;
+    let target_19: Denomination3 = 1000PPa;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_pressure/adjacent_EPa_PPa: forward");
+    std::test::assert(right_19 == left_19, "prefix_pressure/adjacent_EPa_PPa: reverse");
+    std::test::assert_eq_int(left_19 / 1PPa, k * 1000, "prefix_pressure/adjacent_EPa_PPa: target count");
+    std::test::assert_eq_int(right_19 / 1EPa, k * 1, "prefix_pressure/adjacent_EPa_PPa: source count");
+
+    // 1 ZPa = 1000 EPa
+    let source_20: Denomination9 = 1ZPa;
+    let target_20: Denomination0 = 1000EPa;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_pressure/adjacent_ZPa_EPa: forward");
+    std::test::assert(right_20 == left_20, "prefix_pressure/adjacent_ZPa_EPa: reverse");
+    std::test::assert_eq_int(left_20 / 1EPa, k * 1000, "prefix_pressure/adjacent_ZPa_EPa: target count");
+    std::test::assert_eq_int(right_20 / 1ZPa, k * 1, "prefix_pressure/adjacent_ZPa_EPa: source count");
+
+    // 1 YPa = 1000 ZPa
+    let source_21: Denomination8 = 1YPa;
+    let target_21: Denomination9 = 1000ZPa;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_pressure/adjacent_YPa_ZPa: forward");
+    std::test::assert(right_21 == left_21, "prefix_pressure/adjacent_YPa_ZPa: reverse");
+    std::test::assert_eq_int(left_21 / 1ZPa, k * 1000, "prefix_pressure/adjacent_YPa_ZPa: target count");
+    std::test::assert_eq_int(right_21 / 1YPa, k * 1, "prefix_pressure/adjacent_YPa_ZPa: source count");
+
+    // 1 RPa = 1000 YPa
+    let source_22: Denomination6 = 1RPa;
+    let target_22: Denomination8 = 1000YPa;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_pressure/adjacent_RPa_YPa: forward");
+    std::test::assert(right_22 == left_22, "prefix_pressure/adjacent_RPa_YPa: reverse");
+    std::test::assert_eq_int(left_22 / 1YPa, k * 1000, "prefix_pressure/adjacent_RPa_YPa: target count");
+    std::test::assert_eq_int(right_22 / 1RPa, k * 1, "prefix_pressure/adjacent_RPa_YPa: source count");
+
+    // 1 QPa = 1000 RPa
+    let source_23: Denomination5 = 1QPa;
+    let target_23: Denomination6 = 1000RPa;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_pressure/adjacent_QPa_RPa: forward");
+    std::test::assert(right_23 == left_23, "prefix_pressure/adjacent_QPa_RPa: reverse");
+    std::test::assert_eq_int(left_23 / 1RPa, k * 1000, "prefix_pressure/adjacent_QPa_RPa: target count");
+    std::test::assert_eq_int(right_23 / 1QPa, k * 1, "prefix_pressure/adjacent_QPa_RPa: source count");
+
+    // 1000000000000000000 aPa = 1 Pa
+    let source_24: Denomination10 = 1000000000000000000aPa;
+    let target_24: Denomination4 = 1Pa;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_pressure/base_anchor_aPa: forward");
+    std::test::assert(right_24 == left_24, "prefix_pressure/base_anchor_aPa: reverse");
+    std::test::assert_eq_int(left_24 / 1Pa, k * 1, "prefix_pressure/base_anchor_aPa: target count");
+    std::test::assert_eq_int(right_24 / 1aPa, k * 1000000000000000000, "prefix_pressure/base_anchor_aPa: source count");
+
+    // 1000000000000000 fPa = 1 Pa
+    let source_25: Denomination14 = 1000000000000000fPa;
+    let target_25: Denomination4 = 1Pa;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_pressure/base_anchor_fPa: forward");
+    std::test::assert(right_25 == left_25, "prefix_pressure/base_anchor_fPa: reverse");
+    std::test::assert_eq_int(left_25 / 1Pa, k * 1, "prefix_pressure/base_anchor_fPa: target count");
+    std::test::assert_eq_int(right_25 / 1fPa, k * 1000000000000000, "prefix_pressure/base_anchor_fPa: source count");
+
+    // 1000000000000 pPa = 1 Pa
+    let source_26: Denomination19 = 1000000000000pPa;
+    let target_26: Denomination4 = 1Pa;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_pressure/base_anchor_pPa: forward");
+    std::test::assert(right_26 == left_26, "prefix_pressure/base_anchor_pPa: reverse");
+    std::test::assert_eq_int(left_26 / 1Pa, k * 1, "prefix_pressure/base_anchor_pPa: target count");
+    std::test::assert_eq_int(right_26 / 1pPa, k * 1000000000000, "prefix_pressure/base_anchor_pPa: source count");
+
+    // 1000000000 nPa = 1 Pa
+    let source_27: Denomination18 = 1000000000nPa;
+    let target_27: Denomination4 = 1Pa;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_pressure/base_anchor_nPa: forward");
+    std::test::assert(right_27 == left_27, "prefix_pressure/base_anchor_nPa: reverse");
+    std::test::assert_eq_int(left_27 / 1Pa, k * 1, "prefix_pressure/base_anchor_nPa: target count");
+    std::test::assert_eq_int(right_27 / 1nPa, k * 1000000000, "prefix_pressure/base_anchor_nPa: source count");
+
+    // 1000000 uPa = 1 Pa
+    let source_28: Denomination22 = 1000000uPa;
+    let target_28: Denomination4 = 1Pa;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_pressure/base_anchor_uPa: forward");
+    std::test::assert(right_28 == left_28, "prefix_pressure/base_anchor_uPa: reverse");
+    std::test::assert_eq_int(left_28 / 1Pa, k * 1, "prefix_pressure/base_anchor_uPa: target count");
+    std::test::assert_eq_int(right_28 / 1uPa, k * 1000000, "prefix_pressure/base_anchor_uPa: source count");
+
+    // 1000 mPa = 1 Pa
+    let source_29: Denomination17 = 1000mPa;
+    let target_29: Denomination4 = 1Pa;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_pressure/base_anchor_mPa: forward");
+    std::test::assert(right_29 == left_29, "prefix_pressure/base_anchor_mPa: reverse");
+    std::test::assert_eq_int(left_29 / 1Pa, k * 1, "prefix_pressure/base_anchor_mPa: target count");
+    std::test::assert_eq_int(right_29 / 1mPa, k * 1000, "prefix_pressure/base_anchor_mPa: source count");
+
+    // 100 cPa = 1 Pa
+    let source_30: Denomination11 = 100cPa;
+    let target_30: Denomination4 = 1Pa;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_pressure/base_anchor_cPa: forward");
+    std::test::assert(right_30 == left_30, "prefix_pressure/base_anchor_cPa: reverse");
+    std::test::assert_eq_int(left_30 / 1Pa, k * 1, "prefix_pressure/base_anchor_cPa: target count");
+    std::test::assert_eq_int(right_30 / 1cPa, k * 100, "prefix_pressure/base_anchor_cPa: source count");
+
+    // 1 hPa = 100 Pa
+    let source_31: Denomination15 = 1hPa;
+    let target_31: Denomination4 = 100Pa;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_pressure/base_anchor_hPa: forward");
+    std::test::assert(right_31 == left_31, "prefix_pressure/base_anchor_hPa: reverse");
+    std::test::assert_eq_int(left_31 / 1Pa, k * 100, "prefix_pressure/base_anchor_hPa: target count");
+    std::test::assert_eq_int(right_31 / 1hPa, k * 1, "prefix_pressure/base_anchor_hPa: source count");
+
+    // 1 kPa = 1000 Pa
+    let source_32: Denomination16 = 1kPa;
+    let target_32: Denomination4 = 1000Pa;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_pressure/base_anchor_kPa: forward");
+    std::test::assert(right_32 == left_32, "prefix_pressure/base_anchor_kPa: reverse");
+    std::test::assert_eq_int(left_32 / 1Pa, k * 1000, "prefix_pressure/base_anchor_kPa: target count");
+    std::test::assert_eq_int(right_32 / 1kPa, k * 1, "prefix_pressure/base_anchor_kPa: source count");
+
+    // 1 MPa = 1000000 Pa
+    let source_33: Denomination2 = 1MPa;
+    let target_33: Denomination4 = 1000000Pa;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_pressure/base_anchor_MPa: forward");
+    std::test::assert(right_33 == left_33, "prefix_pressure/base_anchor_MPa: reverse");
+    std::test::assert_eq_int(left_33 / 1Pa, k * 1000000, "prefix_pressure/base_anchor_MPa: target count");
+    std::test::assert_eq_int(right_33 / 1MPa, k * 1, "prefix_pressure/base_anchor_MPa: source count");
+
+    // 1 GPa = 1000000000 Pa
+    let source_34: Denomination1 = 1GPa;
+    let target_34: Denomination4 = 1000000000Pa;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_pressure/base_anchor_GPa: forward");
+    std::test::assert(right_34 == left_34, "prefix_pressure/base_anchor_GPa: reverse");
+    std::test::assert_eq_int(left_34 / 1Pa, k * 1000000000, "prefix_pressure/base_anchor_GPa: target count");
+    std::test::assert_eq_int(right_34 / 1GPa, k * 1, "prefix_pressure/base_anchor_GPa: source count");
+
+    // 1 TPa = 1000000000000 Pa
+    let source_35: Denomination7 = 1TPa;
+    let target_35: Denomination4 = 1000000000000Pa;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_pressure/base_anchor_TPa: forward");
+    std::test::assert(right_35 == left_35, "prefix_pressure/base_anchor_TPa: reverse");
+    std::test::assert_eq_int(left_35 / 1Pa, k * 1000000000000, "prefix_pressure/base_anchor_TPa: target count");
+    std::test::assert_eq_int(right_35 / 1TPa, k * 1, "prefix_pressure/base_anchor_TPa: source count");
+
+    // 1 PPa = 1000000000000000 Pa
+    let source_36: Denomination3 = 1PPa;
+    let target_36: Denomination4 = 1000000000000000Pa;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_pressure/base_anchor_PPa: forward");
+    std::test::assert(right_36 == left_36, "prefix_pressure/base_anchor_PPa: reverse");
+    std::test::assert_eq_int(left_36 / 1Pa, k * 1000000000000000, "prefix_pressure/base_anchor_PPa: target count");
+    std::test::assert_eq_int(right_36 / 1PPa, k * 1, "prefix_pressure/base_anchor_PPa: source count");
+
+    // 1 EPa = 1000000000000000000 Pa
+    let source_37: Denomination0 = 1EPa;
+    let target_37: Denomination4 = 1000000000000000000Pa;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_pressure/base_anchor_EPa: forward");
+    std::test::assert(right_37 == left_37, "prefix_pressure/base_anchor_EPa: reverse");
+    std::test::assert_eq_int(left_37 / 1Pa, k * 1000000000000000000, "prefix_pressure/base_anchor_EPa: target count");
+    std::test::assert_eq_int(right_37 / 1EPa, k * 1, "prefix_pressure/base_anchor_EPa: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

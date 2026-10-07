@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_illuminance: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in Qlx;
+
+type Denomination0 = GoldenQuantity in Elx;
+type Denomination1 = GoldenQuantity in Glx;
+type Denomination2 = GoldenQuantity in Mlx;
+type Denomination3 = GoldenQuantity in Plx;
+type Denomination4 = GoldenQuantity in Qlx;
+type Denomination5 = GoldenQuantity in Rlx;
+type Denomination6 = GoldenQuantity in Tlx;
+type Denomination7 = GoldenQuantity in Ylx;
+type Denomination8 = GoldenQuantity in Zlx;
+type Denomination9 = GoldenQuantity in alx;
+type Denomination10 = GoldenQuantity in clx;
+type Denomination11 = GoldenQuantity in dalx;
+type Denomination12 = GoldenQuantity in dlx;
+type Denomination13 = GoldenQuantity in flx;
+type Denomination14 = GoldenQuantity in hlx;
+type Denomination15 = GoldenQuantity in klx;
+type Denomination16 = GoldenQuantity in lx;
+type Denomination17 = GoldenQuantity in mlx;
+type Denomination18 = GoldenQuantity in nlx;
+type Denomination19 = GoldenQuantity in plx;
+type Denomination20 = GoldenQuantity in qlx;
+type Denomination21 = GoldenQuantity in rlx;
+type Denomination22 = GoldenQuantity in ulx;
+type Denomination23 = GoldenQuantity in ylx;
+type Denomination24 = GoldenQuantity in zlx;
+
+fn check_runtime(k: Int) {
+    // 1 rlx = 1000 qlx
+    let source_0: Denomination21 = 1rlx;
+    let target_0: Denomination20 = 1000qlx;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_illuminance/adjacent_rlx_qlx: forward");
+    std::test::assert(right_0 == left_0, "prefix_illuminance/adjacent_rlx_qlx: reverse");
+    std::test::assert_eq_int(left_0 / 1qlx, k * 1000, "prefix_illuminance/adjacent_rlx_qlx: target count");
+    std::test::assert_eq_int(right_0 / 1rlx, k * 1, "prefix_illuminance/adjacent_rlx_qlx: source count");
+
+    // 1 ylx = 1000 rlx
+    let source_1: Denomination23 = 1ylx;
+    let target_1: Denomination21 = 1000rlx;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_illuminance/adjacent_ylx_rlx: forward");
+    std::test::assert(right_1 == left_1, "prefix_illuminance/adjacent_ylx_rlx: reverse");
+    std::test::assert_eq_int(left_1 / 1rlx, k * 1000, "prefix_illuminance/adjacent_ylx_rlx: target count");
+    std::test::assert_eq_int(right_1 / 1ylx, k * 1, "prefix_illuminance/adjacent_ylx_rlx: source count");
+
+    // 1 zlx = 1000 ylx
+    let source_2: Denomination24 = 1zlx;
+    let target_2: Denomination23 = 1000ylx;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_illuminance/adjacent_zlx_ylx: forward");
+    std::test::assert(right_2 == left_2, "prefix_illuminance/adjacent_zlx_ylx: reverse");
+    std::test::assert_eq_int(left_2 / 1ylx, k * 1000, "prefix_illuminance/adjacent_zlx_ylx: target count");
+    std::test::assert_eq_int(right_2 / 1zlx, k * 1, "prefix_illuminance/adjacent_zlx_ylx: source count");
+
+    // 1 alx = 1000 zlx
+    let source_3: Denomination9 = 1alx;
+    let target_3: Denomination24 = 1000zlx;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_illuminance/adjacent_alx_zlx: forward");
+    std::test::assert(right_3 == left_3, "prefix_illuminance/adjacent_alx_zlx: reverse");
+    std::test::assert_eq_int(left_3 / 1zlx, k * 1000, "prefix_illuminance/adjacent_alx_zlx: target count");
+    std::test::assert_eq_int(right_3 / 1alx, k * 1, "prefix_illuminance/adjacent_alx_zlx: source count");
+
+    // 1 flx = 1000 alx
+    let source_4: Denomination13 = 1flx;
+    let target_4: Denomination9 = 1000alx;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_illuminance/adjacent_flx_alx: forward");
+    std::test::assert(right_4 == left_4, "prefix_illuminance/adjacent_flx_alx: reverse");
+    std::test::assert_eq_int(left_4 / 1alx, k * 1000, "prefix_illuminance/adjacent_flx_alx: target count");
+    std::test::assert_eq_int(right_4 / 1flx, k * 1, "prefix_illuminance/adjacent_flx_alx: source count");
+
+    // 1 plx = 1000 flx
+    let source_5: Denomination19 = 1plx;
+    let target_5: Denomination13 = 1000flx;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_illuminance/adjacent_plx_flx: forward");
+    std::test::assert(right_5 == left_5, "prefix_illuminance/adjacent_plx_flx: reverse");
+    std::test::assert_eq_int(left_5 / 1flx, k * 1000, "prefix_illuminance/adjacent_plx_flx: target count");
+    std::test::assert_eq_int(right_5 / 1plx, k * 1, "prefix_illuminance/adjacent_plx_flx: source count");
+
+    // 1 nlx = 1000 plx
+    let source_6: Denomination18 = 1nlx;
+    let target_6: Denomination19 = 1000plx;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_illuminance/adjacent_nlx_plx: forward");
+    std::test::assert(right_6 == left_6, "prefix_illuminance/adjacent_nlx_plx: reverse");
+    std::test::assert_eq_int(left_6 / 1plx, k * 1000, "prefix_illuminance/adjacent_nlx_plx: target count");
+    std::test::assert_eq_int(right_6 / 1nlx, k * 1, "prefix_illuminance/adjacent_nlx_plx: source count");
+
+    // 1 ulx = 1000 nlx
+    let source_7: Denomination22 = 1ulx;
+    let target_7: Denomination18 = 1000nlx;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_illuminance/adjacent_ulx_nlx: forward");
+    std::test::assert(right_7 == left_7, "prefix_illuminance/adjacent_ulx_nlx: reverse");
+    std::test::assert_eq_int(left_7 / 1nlx, k * 1000, "prefix_illuminance/adjacent_ulx_nlx: target count");
+    std::test::assert_eq_int(right_7 / 1ulx, k * 1, "prefix_illuminance/adjacent_ulx_nlx: source count");
+
+    // 1 mlx = 1000 ulx
+    let source_8: Denomination17 = 1mlx;
+    let target_8: Denomination22 = 1000ulx;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_illuminance/adjacent_mlx_ulx: forward");
+    std::test::assert(right_8 == left_8, "prefix_illuminance/adjacent_mlx_ulx: reverse");
+    std::test::assert_eq_int(left_8 / 1ulx, k * 1000, "prefix_illuminance/adjacent_mlx_ulx: target count");
+    std::test::assert_eq_int(right_8 / 1mlx, k * 1, "prefix_illuminance/adjacent_mlx_ulx: source count");
+
+    // 1 clx = 10 mlx
+    let source_9: Denomination10 = 1clx;
+    let target_9: Denomination17 = 10mlx;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_illuminance/adjacent_clx_mlx: forward");
+    std::test::assert(right_9 == left_9, "prefix_illuminance/adjacent_clx_mlx: reverse");
+    std::test::assert_eq_int(left_9 / 1mlx, k * 10, "prefix_illuminance/adjacent_clx_mlx: target count");
+    std::test::assert_eq_int(right_9 / 1clx, k * 1, "prefix_illuminance/adjacent_clx_mlx: source count");
+
+    // 1 dlx = 10 clx
+    let source_10: Denomination12 = 1dlx;
+    let target_10: Denomination10 = 10clx;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_illuminance/adjacent_dlx_clx: forward");
+    std::test::assert(right_10 == left_10, "prefix_illuminance/adjacent_dlx_clx: reverse");
+    std::test::assert_eq_int(left_10 / 1clx, k * 10, "prefix_illuminance/adjacent_dlx_clx: target count");
+    std::test::assert_eq_int(right_10 / 1dlx, k * 1, "prefix_illuminance/adjacent_dlx_clx: source count");
+
+    // 1 lx = 10 dlx
+    let source_11: Denomination16 = 1lx;
+    let target_11: Denomination12 = 10dlx;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_illuminance/adjacent_lx_dlx: forward");
+    std::test::assert(right_11 == left_11, "prefix_illuminance/adjacent_lx_dlx: reverse");
+    std::test::assert_eq_int(left_11 / 1dlx, k * 10, "prefix_illuminance/adjacent_lx_dlx: target count");
+    std::test::assert_eq_int(right_11 / 1lx, k * 1, "prefix_illuminance/adjacent_lx_dlx: source count");
+
+    // 1 dalx = 10 lx
+    let source_12: Denomination11 = 1dalx;
+    let target_12: Denomination16 = 10lx;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_illuminance/adjacent_dalx_lx: forward");
+    std::test::assert(right_12 == left_12, "prefix_illuminance/adjacent_dalx_lx: reverse");
+    std::test::assert_eq_int(left_12 / 1lx, k * 10, "prefix_illuminance/adjacent_dalx_lx: target count");
+    std::test::assert_eq_int(right_12 / 1dalx, k * 1, "prefix_illuminance/adjacent_dalx_lx: source count");
+
+    // 1 hlx = 10 dalx
+    let source_13: Denomination14 = 1hlx;
+    let target_13: Denomination11 = 10dalx;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_illuminance/adjacent_hlx_dalx: forward");
+    std::test::assert(right_13 == left_13, "prefix_illuminance/adjacent_hlx_dalx: reverse");
+    std::test::assert_eq_int(left_13 / 1dalx, k * 10, "prefix_illuminance/adjacent_hlx_dalx: target count");
+    std::test::assert_eq_int(right_13 / 1hlx, k * 1, "prefix_illuminance/adjacent_hlx_dalx: source count");
+
+    // 1 klx = 10 hlx
+    let source_14: Denomination15 = 1klx;
+    let target_14: Denomination14 = 10hlx;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_illuminance/adjacent_klx_hlx: forward");
+    std::test::assert(right_14 == left_14, "prefix_illuminance/adjacent_klx_hlx: reverse");
+    std::test::assert_eq_int(left_14 / 1hlx, k * 10, "prefix_illuminance/adjacent_klx_hlx: target count");
+    std::test::assert_eq_int(right_14 / 1klx, k * 1, "prefix_illuminance/adjacent_klx_hlx: source count");
+
+    // 1 Mlx = 1000 klx
+    let source_15: Denomination2 = 1Mlx;
+    let target_15: Denomination15 = 1000klx;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_illuminance/adjacent_Mlx_klx: forward");
+    std::test::assert(right_15 == left_15, "prefix_illuminance/adjacent_Mlx_klx: reverse");
+    std::test::assert_eq_int(left_15 / 1klx, k * 1000, "prefix_illuminance/adjacent_Mlx_klx: target count");
+    std::test::assert_eq_int(right_15 / 1Mlx, k * 1, "prefix_illuminance/adjacent_Mlx_klx: source count");
+
+    // 1 Glx = 1000 Mlx
+    let source_16: Denomination1 = 1Glx;
+    let target_16: Denomination2 = 1000Mlx;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_illuminance/adjacent_Glx_Mlx: forward");
+    std::test::assert(right_16 == left_16, "prefix_illuminance/adjacent_Glx_Mlx: reverse");
+    std::test::assert_eq_int(left_16 / 1Mlx, k * 1000, "prefix_illuminance/adjacent_Glx_Mlx: target count");
+    std::test::assert_eq_int(right_16 / 1Glx, k * 1, "prefix_illuminance/adjacent_Glx_Mlx: source count");
+
+    // 1 Tlx = 1000 Glx
+    let source_17: Denomination6 = 1Tlx;
+    let target_17: Denomination1 = 1000Glx;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_illuminance/adjacent_Tlx_Glx: forward");
+    std::test::assert(right_17 == left_17, "prefix_illuminance/adjacent_Tlx_Glx: reverse");
+    std::test::assert_eq_int(left_17 / 1Glx, k * 1000, "prefix_illuminance/adjacent_Tlx_Glx: target count");
+    std::test::assert_eq_int(right_17 / 1Tlx, k * 1, "prefix_illuminance/adjacent_Tlx_Glx: source count");
+
+    // 1 Plx = 1000 Tlx
+    let source_18: Denomination3 = 1Plx;
+    let target_18: Denomination6 = 1000Tlx;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_illuminance/adjacent_Plx_Tlx: forward");
+    std::test::assert(right_18 == left_18, "prefix_illuminance/adjacent_Plx_Tlx: reverse");
+    std::test::assert_eq_int(left_18 / 1Tlx, k * 1000, "prefix_illuminance/adjacent_Plx_Tlx: target count");
+    std::test::assert_eq_int(right_18 / 1Plx, k * 1, "prefix_illuminance/adjacent_Plx_Tlx: source count");
+
+    // 1 Elx = 1000 Plx
+    let source_19: Denomination0 = 1Elx;
+    let target_19: Denomination3 = 1000Plx;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_illuminance/adjacent_Elx_Plx: forward");
+    std::test::assert(right_19 == left_19, "prefix_illuminance/adjacent_Elx_Plx: reverse");
+    std::test::assert_eq_int(left_19 / 1Plx, k * 1000, "prefix_illuminance/adjacent_Elx_Plx: target count");
+    std::test::assert_eq_int(right_19 / 1Elx, k * 1, "prefix_illuminance/adjacent_Elx_Plx: source count");
+
+    // 1 Zlx = 1000 Elx
+    let source_20: Denomination8 = 1Zlx;
+    let target_20: Denomination0 = 1000Elx;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_illuminance/adjacent_Zlx_Elx: forward");
+    std::test::assert(right_20 == left_20, "prefix_illuminance/adjacent_Zlx_Elx: reverse");
+    std::test::assert_eq_int(left_20 / 1Elx, k * 1000, "prefix_illuminance/adjacent_Zlx_Elx: target count");
+    std::test::assert_eq_int(right_20 / 1Zlx, k * 1, "prefix_illuminance/adjacent_Zlx_Elx: source count");
+
+    // 1 Ylx = 1000 Zlx
+    let source_21: Denomination7 = 1Ylx;
+    let target_21: Denomination8 = 1000Zlx;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_illuminance/adjacent_Ylx_Zlx: forward");
+    std::test::assert(right_21 == left_21, "prefix_illuminance/adjacent_Ylx_Zlx: reverse");
+    std::test::assert_eq_int(left_21 / 1Zlx, k * 1000, "prefix_illuminance/adjacent_Ylx_Zlx: target count");
+    std::test::assert_eq_int(right_21 / 1Ylx, k * 1, "prefix_illuminance/adjacent_Ylx_Zlx: source count");
+
+    // 1 Rlx = 1000 Ylx
+    let source_22: Denomination5 = 1Rlx;
+    let target_22: Denomination7 = 1000Ylx;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_illuminance/adjacent_Rlx_Ylx: forward");
+    std::test::assert(right_22 == left_22, "prefix_illuminance/adjacent_Rlx_Ylx: reverse");
+    std::test::assert_eq_int(left_22 / 1Ylx, k * 1000, "prefix_illuminance/adjacent_Rlx_Ylx: target count");
+    std::test::assert_eq_int(right_22 / 1Rlx, k * 1, "prefix_illuminance/adjacent_Rlx_Ylx: source count");
+
+    // 1 Qlx = 1000 Rlx
+    let source_23: Denomination4 = 1Qlx;
+    let target_23: Denomination5 = 1000Rlx;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_illuminance/adjacent_Qlx_Rlx: forward");
+    std::test::assert(right_23 == left_23, "prefix_illuminance/adjacent_Qlx_Rlx: reverse");
+    std::test::assert_eq_int(left_23 / 1Rlx, k * 1000, "prefix_illuminance/adjacent_Qlx_Rlx: target count");
+    std::test::assert_eq_int(right_23 / 1Qlx, k * 1, "prefix_illuminance/adjacent_Qlx_Rlx: source count");
+
+    // 1000000000000000000 alx = 1 lx
+    let source_24: Denomination9 = 1000000000000000000alx;
+    let target_24: Denomination16 = 1lx;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_illuminance/base_anchor_alx: forward");
+    std::test::assert(right_24 == left_24, "prefix_illuminance/base_anchor_alx: reverse");
+    std::test::assert_eq_int(left_24 / 1lx, k * 1, "prefix_illuminance/base_anchor_alx: target count");
+    std::test::assert_eq_int(right_24 / 1alx, k * 1000000000000000000, "prefix_illuminance/base_anchor_alx: source count");
+
+    // 1000000000000000 flx = 1 lx
+    let source_25: Denomination13 = 1000000000000000flx;
+    let target_25: Denomination16 = 1lx;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_illuminance/base_anchor_flx: forward");
+    std::test::assert(right_25 == left_25, "prefix_illuminance/base_anchor_flx: reverse");
+    std::test::assert_eq_int(left_25 / 1lx, k * 1, "prefix_illuminance/base_anchor_flx: target count");
+    std::test::assert_eq_int(right_25 / 1flx, k * 1000000000000000, "prefix_illuminance/base_anchor_flx: source count");
+
+    // 1000000000000 plx = 1 lx
+    let source_26: Denomination19 = 1000000000000plx;
+    let target_26: Denomination16 = 1lx;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_illuminance/base_anchor_plx: forward");
+    std::test::assert(right_26 == left_26, "prefix_illuminance/base_anchor_plx: reverse");
+    std::test::assert_eq_int(left_26 / 1lx, k * 1, "prefix_illuminance/base_anchor_plx: target count");
+    std::test::assert_eq_int(right_26 / 1plx, k * 1000000000000, "prefix_illuminance/base_anchor_plx: source count");
+
+    // 1000000000 nlx = 1 lx
+    let source_27: Denomination18 = 1000000000nlx;
+    let target_27: Denomination16 = 1lx;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_illuminance/base_anchor_nlx: forward");
+    std::test::assert(right_27 == left_27, "prefix_illuminance/base_anchor_nlx: reverse");
+    std::test::assert_eq_int(left_27 / 1lx, k * 1, "prefix_illuminance/base_anchor_nlx: target count");
+    std::test::assert_eq_int(right_27 / 1nlx, k * 1000000000, "prefix_illuminance/base_anchor_nlx: source count");
+
+    // 1000000 ulx = 1 lx
+    let source_28: Denomination22 = 1000000ulx;
+    let target_28: Denomination16 = 1lx;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_illuminance/base_anchor_ulx: forward");
+    std::test::assert(right_28 == left_28, "prefix_illuminance/base_anchor_ulx: reverse");
+    std::test::assert_eq_int(left_28 / 1lx, k * 1, "prefix_illuminance/base_anchor_ulx: target count");
+    std::test::assert_eq_int(right_28 / 1ulx, k * 1000000, "prefix_illuminance/base_anchor_ulx: source count");
+
+    // 1000 mlx = 1 lx
+    let source_29: Denomination17 = 1000mlx;
+    let target_29: Denomination16 = 1lx;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_illuminance/base_anchor_mlx: forward");
+    std::test::assert(right_29 == left_29, "prefix_illuminance/base_anchor_mlx: reverse");
+    std::test::assert_eq_int(left_29 / 1lx, k * 1, "prefix_illuminance/base_anchor_mlx: target count");
+    std::test::assert_eq_int(right_29 / 1mlx, k * 1000, "prefix_illuminance/base_anchor_mlx: source count");
+
+    // 100 clx = 1 lx
+    let source_30: Denomination10 = 100clx;
+    let target_30: Denomination16 = 1lx;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_illuminance/base_anchor_clx: forward");
+    std::test::assert(right_30 == left_30, "prefix_illuminance/base_anchor_clx: reverse");
+    std::test::assert_eq_int(left_30 / 1lx, k * 1, "prefix_illuminance/base_anchor_clx: target count");
+    std::test::assert_eq_int(right_30 / 1clx, k * 100, "prefix_illuminance/base_anchor_clx: source count");
+
+    // 1 hlx = 100 lx
+    let source_31: Denomination14 = 1hlx;
+    let target_31: Denomination16 = 100lx;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_illuminance/base_anchor_hlx: forward");
+    std::test::assert(right_31 == left_31, "prefix_illuminance/base_anchor_hlx: reverse");
+    std::test::assert_eq_int(left_31 / 1lx, k * 100, "prefix_illuminance/base_anchor_hlx: target count");
+    std::test::assert_eq_int(right_31 / 1hlx, k * 1, "prefix_illuminance/base_anchor_hlx: source count");
+
+    // 1 klx = 1000 lx
+    let source_32: Denomination15 = 1klx;
+    let target_32: Denomination16 = 1000lx;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_illuminance/base_anchor_klx: forward");
+    std::test::assert(right_32 == left_32, "prefix_illuminance/base_anchor_klx: reverse");
+    std::test::assert_eq_int(left_32 / 1lx, k * 1000, "prefix_illuminance/base_anchor_klx: target count");
+    std::test::assert_eq_int(right_32 / 1klx, k * 1, "prefix_illuminance/base_anchor_klx: source count");
+
+    // 1 Mlx = 1000000 lx
+    let source_33: Denomination2 = 1Mlx;
+    let target_33: Denomination16 = 1000000lx;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_illuminance/base_anchor_Mlx: forward");
+    std::test::assert(right_33 == left_33, "prefix_illuminance/base_anchor_Mlx: reverse");
+    std::test::assert_eq_int(left_33 / 1lx, k * 1000000, "prefix_illuminance/base_anchor_Mlx: target count");
+    std::test::assert_eq_int(right_33 / 1Mlx, k * 1, "prefix_illuminance/base_anchor_Mlx: source count");
+
+    // 1 Glx = 1000000000 lx
+    let source_34: Denomination1 = 1Glx;
+    let target_34: Denomination16 = 1000000000lx;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_illuminance/base_anchor_Glx: forward");
+    std::test::assert(right_34 == left_34, "prefix_illuminance/base_anchor_Glx: reverse");
+    std::test::assert_eq_int(left_34 / 1lx, k * 1000000000, "prefix_illuminance/base_anchor_Glx: target count");
+    std::test::assert_eq_int(right_34 / 1Glx, k * 1, "prefix_illuminance/base_anchor_Glx: source count");
+
+    // 1 Tlx = 1000000000000 lx
+    let source_35: Denomination6 = 1Tlx;
+    let target_35: Denomination16 = 1000000000000lx;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_illuminance/base_anchor_Tlx: forward");
+    std::test::assert(right_35 == left_35, "prefix_illuminance/base_anchor_Tlx: reverse");
+    std::test::assert_eq_int(left_35 / 1lx, k * 1000000000000, "prefix_illuminance/base_anchor_Tlx: target count");
+    std::test::assert_eq_int(right_35 / 1Tlx, k * 1, "prefix_illuminance/base_anchor_Tlx: source count");
+
+    // 1 Plx = 1000000000000000 lx
+    let source_36: Denomination3 = 1Plx;
+    let target_36: Denomination16 = 1000000000000000lx;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_illuminance/base_anchor_Plx: forward");
+    std::test::assert(right_36 == left_36, "prefix_illuminance/base_anchor_Plx: reverse");
+    std::test::assert_eq_int(left_36 / 1lx, k * 1000000000000000, "prefix_illuminance/base_anchor_Plx: target count");
+    std::test::assert_eq_int(right_36 / 1Plx, k * 1, "prefix_illuminance/base_anchor_Plx: source count");
+
+    // 1 Elx = 1000000000000000000 lx
+    let source_37: Denomination0 = 1Elx;
+    let target_37: Denomination16 = 1000000000000000000lx;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_illuminance/base_anchor_Elx: forward");
+    std::test::assert(right_37 == left_37, "prefix_illuminance/base_anchor_Elx: reverse");
+    std::test::assert_eq_int(left_37 / 1lx, k * 1000000000000000000, "prefix_illuminance/base_anchor_Elx: target count");
+    std::test::assert_eq_int(right_37 / 1Elx, k * 1, "prefix_illuminance/base_anchor_Elx: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

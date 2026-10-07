@@ -1,0 +1,109 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// temperature_intervals: 8 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QK;
+
+type Denomination0 = GoldenQuantity in K;
+type Denomination1 = GoldenQuantity in degC;
+type Denomination2 = GoldenQuantity in degF;
+type Denomination3 = GoldenQuantity in degR;
+type Denomination4 = GoldenQuantity in mK;
+type Denomination5 = GoldenQuantity in mdegC;
+type Denomination6 = GoldenQuantity in mdegF;
+type Denomination7 = GoldenQuantity in temperature_quantum;
+type Denomination8 = GoldenQuantity in uK;
+type Denomination9 = GoldenQuantity in udegC;
+type Denomination10 = GoldenQuantity in udegF;
+
+fn check_runtime(k: Int) {
+    // 1 K = 1 degC
+    let source_0: Denomination0 = 1K;
+    let target_0: Denomination1 = 1degC;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "temperature_intervals/K_to_degC: forward");
+    std::test::assert(right_0 == left_0, "temperature_intervals/K_to_degC: reverse");
+    std::test::assert_eq_int(left_0 / 1degC, k * 1, "temperature_intervals/K_to_degC: target count");
+    std::test::assert_eq_int(right_0 / 1K, k * 1, "temperature_intervals/K_to_degC: source count");
+
+    // 5 degC = 9 degF
+    let source_1: Denomination1 = 5degC;
+    let target_1: Denomination2 = 9degF;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "temperature_intervals/degC_to_degF: forward");
+    std::test::assert(right_1 == left_1, "temperature_intervals/degC_to_degF: reverse");
+    std::test::assert_eq_int(left_1 / 1degF, k * 9, "temperature_intervals/degC_to_degF: target count");
+    std::test::assert_eq_int(right_1 / 1degC, k * 5, "temperature_intervals/degC_to_degF: source count");
+
+    // 1 degF = 1 degR
+    let source_2: Denomination2 = 1degF;
+    let target_2: Denomination3 = 1degR;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "temperature_intervals/degF_to_degR: forward");
+    std::test::assert(right_2 == left_2, "temperature_intervals/degF_to_degR: reverse");
+    std::test::assert_eq_int(left_2 / 1degR, k * 1, "temperature_intervals/degF_to_degR: target count");
+    std::test::assert_eq_int(right_2 / 1degF, k * 1, "temperature_intervals/degF_to_degR: source count");
+
+    // 1 mdegC = 1 mK
+    let source_3: Denomination5 = 1mdegC;
+    let target_3: Denomination4 = 1mK;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "temperature_intervals/mdegC_to_mK: forward");
+    std::test::assert(right_3 == left_3, "temperature_intervals/mdegC_to_mK: reverse");
+    std::test::assert_eq_int(left_3 / 1mK, k * 1, "temperature_intervals/mdegC_to_mK: target count");
+    std::test::assert_eq_int(right_3 / 1mdegC, k * 1, "temperature_intervals/mdegC_to_mK: source count");
+
+    // 1 udegC = 1 uK
+    let source_4: Denomination9 = 1udegC;
+    let target_4: Denomination8 = 1uK;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "temperature_intervals/udegC_to_uK: forward");
+    std::test::assert(right_4 == left_4, "temperature_intervals/udegC_to_uK: reverse");
+    std::test::assert_eq_int(left_4 / 1uK, k * 1, "temperature_intervals/udegC_to_uK: target count");
+    std::test::assert_eq_int(right_4 / 1udegC, k * 1, "temperature_intervals/udegC_to_uK: source count");
+
+    // 1 mdegF = 5000 temperature_quantum
+    let source_5: Denomination6 = 1mdegF;
+    let target_5: Denomination7 = 5000temperature_quantum;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "temperature_intervals/mdegF_to_temperature_quantum: forward");
+    std::test::assert(right_5 == left_5, "temperature_intervals/mdegF_to_temperature_quantum: reverse");
+    std::test::assert_eq_int(left_5 / 1temperature_quantum, k * 5000, "temperature_intervals/mdegF_to_temperature_quantum: target count");
+    std::test::assert_eq_int(right_5 / 1mdegF, k * 1, "temperature_intervals/mdegF_to_temperature_quantum: source count");
+
+    // 1 udegF = 5 temperature_quantum
+    let source_6: Denomination10 = 1udegF;
+    let target_6: Denomination7 = 5temperature_quantum;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "temperature_intervals/udegF_to_temperature_quantum: forward");
+    std::test::assert(right_6 == left_6, "temperature_intervals/udegF_to_temperature_quantum: reverse");
+    std::test::assert_eq_int(left_6 / 1temperature_quantum, k * 5, "temperature_intervals/udegF_to_temperature_quantum: target count");
+    std::test::assert_eq_int(right_6 / 1udegF, k * 1, "temperature_intervals/udegF_to_temperature_quantum: source count");
+
+    // 1 degC = 1800000 udegF
+    let source_7: Denomination1 = 1degC;
+    let target_7: Denomination10 = 1800000udegF;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "temperature_intervals/degC_to_udegF: forward");
+    std::test::assert(right_7 == left_7, "temperature_intervals/degC_to_udegF: reverse");
+    std::test::assert_eq_int(left_7 / 1udegF, k * 1800000, "temperature_intervals/degC_to_udegF: target count");
+    std::test::assert_eq_int(right_7 / 1degC, k * 1, "temperature_intervals/degC_to_udegF: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_frequency: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QHz;
+
+type Denomination0 = GoldenQuantity in EHz;
+type Denomination1 = GoldenQuantity in GHz;
+type Denomination2 = GoldenQuantity in Hz;
+type Denomination3 = GoldenQuantity in MHz;
+type Denomination4 = GoldenQuantity in PHz;
+type Denomination5 = GoldenQuantity in QHz;
+type Denomination6 = GoldenQuantity in RHz;
+type Denomination7 = GoldenQuantity in THz;
+type Denomination8 = GoldenQuantity in YHz;
+type Denomination9 = GoldenQuantity in ZHz;
+type Denomination10 = GoldenQuantity in aHz;
+type Denomination11 = GoldenQuantity in cHz;
+type Denomination12 = GoldenQuantity in dHz;
+type Denomination13 = GoldenQuantity in daHz;
+type Denomination14 = GoldenQuantity in fHz;
+type Denomination15 = GoldenQuantity in hHz;
+type Denomination16 = GoldenQuantity in kHz;
+type Denomination17 = GoldenQuantity in mHz;
+type Denomination18 = GoldenQuantity in nHz;
+type Denomination19 = GoldenQuantity in pHz;
+type Denomination20 = GoldenQuantity in qHz;
+type Denomination21 = GoldenQuantity in rHz;
+type Denomination22 = GoldenQuantity in uHz;
+type Denomination23 = GoldenQuantity in yHz;
+type Denomination24 = GoldenQuantity in zHz;
+
+fn check_runtime(k: Int) {
+    // 1 rHz = 1000 qHz
+    let source_0: Denomination21 = 1rHz;
+    let target_0: Denomination20 = 1000qHz;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_frequency/adjacent_rHz_qHz: forward");
+    std::test::assert(right_0 == left_0, "prefix_frequency/adjacent_rHz_qHz: reverse");
+    std::test::assert_eq_int(left_0 / 1qHz, k * 1000, "prefix_frequency/adjacent_rHz_qHz: target count");
+    std::test::assert_eq_int(right_0 / 1rHz, k * 1, "prefix_frequency/adjacent_rHz_qHz: source count");
+
+    // 1 yHz = 1000 rHz
+    let source_1: Denomination23 = 1yHz;
+    let target_1: Denomination21 = 1000rHz;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_frequency/adjacent_yHz_rHz: forward");
+    std::test::assert(right_1 == left_1, "prefix_frequency/adjacent_yHz_rHz: reverse");
+    std::test::assert_eq_int(left_1 / 1rHz, k * 1000, "prefix_frequency/adjacent_yHz_rHz: target count");
+    std::test::assert_eq_int(right_1 / 1yHz, k * 1, "prefix_frequency/adjacent_yHz_rHz: source count");
+
+    // 1 zHz = 1000 yHz
+    let source_2: Denomination24 = 1zHz;
+    let target_2: Denomination23 = 1000yHz;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_frequency/adjacent_zHz_yHz: forward");
+    std::test::assert(right_2 == left_2, "prefix_frequency/adjacent_zHz_yHz: reverse");
+    std::test::assert_eq_int(left_2 / 1yHz, k * 1000, "prefix_frequency/adjacent_zHz_yHz: target count");
+    std::test::assert_eq_int(right_2 / 1zHz, k * 1, "prefix_frequency/adjacent_zHz_yHz: source count");
+
+    // 1 aHz = 1000 zHz
+    let source_3: Denomination10 = 1aHz;
+    let target_3: Denomination24 = 1000zHz;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_frequency/adjacent_aHz_zHz: forward");
+    std::test::assert(right_3 == left_3, "prefix_frequency/adjacent_aHz_zHz: reverse");
+    std::test::assert_eq_int(left_3 / 1zHz, k * 1000, "prefix_frequency/adjacent_aHz_zHz: target count");
+    std::test::assert_eq_int(right_3 / 1aHz, k * 1, "prefix_frequency/adjacent_aHz_zHz: source count");
+
+    // 1 fHz = 1000 aHz
+    let source_4: Denomination14 = 1fHz;
+    let target_4: Denomination10 = 1000aHz;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_frequency/adjacent_fHz_aHz: forward");
+    std::test::assert(right_4 == left_4, "prefix_frequency/adjacent_fHz_aHz: reverse");
+    std::test::assert_eq_int(left_4 / 1aHz, k * 1000, "prefix_frequency/adjacent_fHz_aHz: target count");
+    std::test::assert_eq_int(right_4 / 1fHz, k * 1, "prefix_frequency/adjacent_fHz_aHz: source count");
+
+    // 1 pHz = 1000 fHz
+    let source_5: Denomination19 = 1pHz;
+    let target_5: Denomination14 = 1000fHz;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_frequency/adjacent_pHz_fHz: forward");
+    std::test::assert(right_5 == left_5, "prefix_frequency/adjacent_pHz_fHz: reverse");
+    std::test::assert_eq_int(left_5 / 1fHz, k * 1000, "prefix_frequency/adjacent_pHz_fHz: target count");
+    std::test::assert_eq_int(right_5 / 1pHz, k * 1, "prefix_frequency/adjacent_pHz_fHz: source count");
+
+    // 1 nHz = 1000 pHz
+    let source_6: Denomination18 = 1nHz;
+    let target_6: Denomination19 = 1000pHz;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_frequency/adjacent_nHz_pHz: forward");
+    std::test::assert(right_6 == left_6, "prefix_frequency/adjacent_nHz_pHz: reverse");
+    std::test::assert_eq_int(left_6 / 1pHz, k * 1000, "prefix_frequency/adjacent_nHz_pHz: target count");
+    std::test::assert_eq_int(right_6 / 1nHz, k * 1, "prefix_frequency/adjacent_nHz_pHz: source count");
+
+    // 1 uHz = 1000 nHz
+    let source_7: Denomination22 = 1uHz;
+    let target_7: Denomination18 = 1000nHz;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_frequency/adjacent_uHz_nHz: forward");
+    std::test::assert(right_7 == left_7, "prefix_frequency/adjacent_uHz_nHz: reverse");
+    std::test::assert_eq_int(left_7 / 1nHz, k * 1000, "prefix_frequency/adjacent_uHz_nHz: target count");
+    std::test::assert_eq_int(right_7 / 1uHz, k * 1, "prefix_frequency/adjacent_uHz_nHz: source count");
+
+    // 1 mHz = 1000 uHz
+    let source_8: Denomination17 = 1mHz;
+    let target_8: Denomination22 = 1000uHz;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_frequency/adjacent_mHz_uHz: forward");
+    std::test::assert(right_8 == left_8, "prefix_frequency/adjacent_mHz_uHz: reverse");
+    std::test::assert_eq_int(left_8 / 1uHz, k * 1000, "prefix_frequency/adjacent_mHz_uHz: target count");
+    std::test::assert_eq_int(right_8 / 1mHz, k * 1, "prefix_frequency/adjacent_mHz_uHz: source count");
+
+    // 1 cHz = 10 mHz
+    let source_9: Denomination11 = 1cHz;
+    let target_9: Denomination17 = 10mHz;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_frequency/adjacent_cHz_mHz: forward");
+    std::test::assert(right_9 == left_9, "prefix_frequency/adjacent_cHz_mHz: reverse");
+    std::test::assert_eq_int(left_9 / 1mHz, k * 10, "prefix_frequency/adjacent_cHz_mHz: target count");
+    std::test::assert_eq_int(right_9 / 1cHz, k * 1, "prefix_frequency/adjacent_cHz_mHz: source count");
+
+    // 1 dHz = 10 cHz
+    let source_10: Denomination12 = 1dHz;
+    let target_10: Denomination11 = 10cHz;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_frequency/adjacent_dHz_cHz: forward");
+    std::test::assert(right_10 == left_10, "prefix_frequency/adjacent_dHz_cHz: reverse");
+    std::test::assert_eq_int(left_10 / 1cHz, k * 10, "prefix_frequency/adjacent_dHz_cHz: target count");
+    std::test::assert_eq_int(right_10 / 1dHz, k * 1, "prefix_frequency/adjacent_dHz_cHz: source count");
+
+    // 1 Hz = 10 dHz
+    let source_11: Denomination2 = 1Hz;
+    let target_11: Denomination12 = 10dHz;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_frequency/adjacent_Hz_dHz: forward");
+    std::test::assert(right_11 == left_11, "prefix_frequency/adjacent_Hz_dHz: reverse");
+    std::test::assert_eq_int(left_11 / 1dHz, k * 10, "prefix_frequency/adjacent_Hz_dHz: target count");
+    std::test::assert_eq_int(right_11 / 1Hz, k * 1, "prefix_frequency/adjacent_Hz_dHz: source count");
+
+    // 1 daHz = 10 Hz
+    let source_12: Denomination13 = 1daHz;
+    let target_12: Denomination2 = 10Hz;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_frequency/adjacent_daHz_Hz: forward");
+    std::test::assert(right_12 == left_12, "prefix_frequency/adjacent_daHz_Hz: reverse");
+    std::test::assert_eq_int(left_12 / 1Hz, k * 10, "prefix_frequency/adjacent_daHz_Hz: target count");
+    std::test::assert_eq_int(right_12 / 1daHz, k * 1, "prefix_frequency/adjacent_daHz_Hz: source count");
+
+    // 1 hHz = 10 daHz
+    let source_13: Denomination15 = 1hHz;
+    let target_13: Denomination13 = 10daHz;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_frequency/adjacent_hHz_daHz: forward");
+    std::test::assert(right_13 == left_13, "prefix_frequency/adjacent_hHz_daHz: reverse");
+    std::test::assert_eq_int(left_13 / 1daHz, k * 10, "prefix_frequency/adjacent_hHz_daHz: target count");
+    std::test::assert_eq_int(right_13 / 1hHz, k * 1, "prefix_frequency/adjacent_hHz_daHz: source count");
+
+    // 1 kHz = 10 hHz
+    let source_14: Denomination16 = 1kHz;
+    let target_14: Denomination15 = 10hHz;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_frequency/adjacent_kHz_hHz: forward");
+    std::test::assert(right_14 == left_14, "prefix_frequency/adjacent_kHz_hHz: reverse");
+    std::test::assert_eq_int(left_14 / 1hHz, k * 10, "prefix_frequency/adjacent_kHz_hHz: target count");
+    std::test::assert_eq_int(right_14 / 1kHz, k * 1, "prefix_frequency/adjacent_kHz_hHz: source count");
+
+    // 1 MHz = 1000 kHz
+    let source_15: Denomination3 = 1MHz;
+    let target_15: Denomination16 = 1000kHz;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_frequency/adjacent_MHz_kHz: forward");
+    std::test::assert(right_15 == left_15, "prefix_frequency/adjacent_MHz_kHz: reverse");
+    std::test::assert_eq_int(left_15 / 1kHz, k * 1000, "prefix_frequency/adjacent_MHz_kHz: target count");
+    std::test::assert_eq_int(right_15 / 1MHz, k * 1, "prefix_frequency/adjacent_MHz_kHz: source count");
+
+    // 1 GHz = 1000 MHz
+    let source_16: Denomination1 = 1GHz;
+    let target_16: Denomination3 = 1000MHz;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_frequency/adjacent_GHz_MHz: forward");
+    std::test::assert(right_16 == left_16, "prefix_frequency/adjacent_GHz_MHz: reverse");
+    std::test::assert_eq_int(left_16 / 1MHz, k * 1000, "prefix_frequency/adjacent_GHz_MHz: target count");
+    std::test::assert_eq_int(right_16 / 1GHz, k * 1, "prefix_frequency/adjacent_GHz_MHz: source count");
+
+    // 1 THz = 1000 GHz
+    let source_17: Denomination7 = 1THz;
+    let target_17: Denomination1 = 1000GHz;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_frequency/adjacent_THz_GHz: forward");
+    std::test::assert(right_17 == left_17, "prefix_frequency/adjacent_THz_GHz: reverse");
+    std::test::assert_eq_int(left_17 / 1GHz, k * 1000, "prefix_frequency/adjacent_THz_GHz: target count");
+    std::test::assert_eq_int(right_17 / 1THz, k * 1, "prefix_frequency/adjacent_THz_GHz: source count");
+
+    // 1 PHz = 1000 THz
+    let source_18: Denomination4 = 1PHz;
+    let target_18: Denomination7 = 1000THz;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_frequency/adjacent_PHz_THz: forward");
+    std::test::assert(right_18 == left_18, "prefix_frequency/adjacent_PHz_THz: reverse");
+    std::test::assert_eq_int(left_18 / 1THz, k * 1000, "prefix_frequency/adjacent_PHz_THz: target count");
+    std::test::assert_eq_int(right_18 / 1PHz, k * 1, "prefix_frequency/adjacent_PHz_THz: source count");
+
+    // 1 EHz = 1000 PHz
+    let source_19: Denomination0 = 1EHz;
+    let target_19: Denomination4 = 1000PHz;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_frequency/adjacent_EHz_PHz: forward");
+    std::test::assert(right_19 == left_19, "prefix_frequency/adjacent_EHz_PHz: reverse");
+    std::test::assert_eq_int(left_19 / 1PHz, k * 1000, "prefix_frequency/adjacent_EHz_PHz: target count");
+    std::test::assert_eq_int(right_19 / 1EHz, k * 1, "prefix_frequency/adjacent_EHz_PHz: source count");
+
+    // 1 ZHz = 1000 EHz
+    let source_20: Denomination9 = 1ZHz;
+    let target_20: Denomination0 = 1000EHz;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_frequency/adjacent_ZHz_EHz: forward");
+    std::test::assert(right_20 == left_20, "prefix_frequency/adjacent_ZHz_EHz: reverse");
+    std::test::assert_eq_int(left_20 / 1EHz, k * 1000, "prefix_frequency/adjacent_ZHz_EHz: target count");
+    std::test::assert_eq_int(right_20 / 1ZHz, k * 1, "prefix_frequency/adjacent_ZHz_EHz: source count");
+
+    // 1 YHz = 1000 ZHz
+    let source_21: Denomination8 = 1YHz;
+    let target_21: Denomination9 = 1000ZHz;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_frequency/adjacent_YHz_ZHz: forward");
+    std::test::assert(right_21 == left_21, "prefix_frequency/adjacent_YHz_ZHz: reverse");
+    std::test::assert_eq_int(left_21 / 1ZHz, k * 1000, "prefix_frequency/adjacent_YHz_ZHz: target count");
+    std::test::assert_eq_int(right_21 / 1YHz, k * 1, "prefix_frequency/adjacent_YHz_ZHz: source count");
+
+    // 1 RHz = 1000 YHz
+    let source_22: Denomination6 = 1RHz;
+    let target_22: Denomination8 = 1000YHz;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_frequency/adjacent_RHz_YHz: forward");
+    std::test::assert(right_22 == left_22, "prefix_frequency/adjacent_RHz_YHz: reverse");
+    std::test::assert_eq_int(left_22 / 1YHz, k * 1000, "prefix_frequency/adjacent_RHz_YHz: target count");
+    std::test::assert_eq_int(right_22 / 1RHz, k * 1, "prefix_frequency/adjacent_RHz_YHz: source count");
+
+    // 1 QHz = 1000 RHz
+    let source_23: Denomination5 = 1QHz;
+    let target_23: Denomination6 = 1000RHz;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_frequency/adjacent_QHz_RHz: forward");
+    std::test::assert(right_23 == left_23, "prefix_frequency/adjacent_QHz_RHz: reverse");
+    std::test::assert_eq_int(left_23 / 1RHz, k * 1000, "prefix_frequency/adjacent_QHz_RHz: target count");
+    std::test::assert_eq_int(right_23 / 1QHz, k * 1, "prefix_frequency/adjacent_QHz_RHz: source count");
+
+    // 1000000000000000000 aHz = 1 Hz
+    let source_24: Denomination10 = 1000000000000000000aHz;
+    let target_24: Denomination2 = 1Hz;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_frequency/base_anchor_aHz: forward");
+    std::test::assert(right_24 == left_24, "prefix_frequency/base_anchor_aHz: reverse");
+    std::test::assert_eq_int(left_24 / 1Hz, k * 1, "prefix_frequency/base_anchor_aHz: target count");
+    std::test::assert_eq_int(right_24 / 1aHz, k * 1000000000000000000, "prefix_frequency/base_anchor_aHz: source count");
+
+    // 1000000000000000 fHz = 1 Hz
+    let source_25: Denomination14 = 1000000000000000fHz;
+    let target_25: Denomination2 = 1Hz;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_frequency/base_anchor_fHz: forward");
+    std::test::assert(right_25 == left_25, "prefix_frequency/base_anchor_fHz: reverse");
+    std::test::assert_eq_int(left_25 / 1Hz, k * 1, "prefix_frequency/base_anchor_fHz: target count");
+    std::test::assert_eq_int(right_25 / 1fHz, k * 1000000000000000, "prefix_frequency/base_anchor_fHz: source count");
+
+    // 1000000000000 pHz = 1 Hz
+    let source_26: Denomination19 = 1000000000000pHz;
+    let target_26: Denomination2 = 1Hz;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_frequency/base_anchor_pHz: forward");
+    std::test::assert(right_26 == left_26, "prefix_frequency/base_anchor_pHz: reverse");
+    std::test::assert_eq_int(left_26 / 1Hz, k * 1, "prefix_frequency/base_anchor_pHz: target count");
+    std::test::assert_eq_int(right_26 / 1pHz, k * 1000000000000, "prefix_frequency/base_anchor_pHz: source count");
+
+    // 1000000000 nHz = 1 Hz
+    let source_27: Denomination18 = 1000000000nHz;
+    let target_27: Denomination2 = 1Hz;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_frequency/base_anchor_nHz: forward");
+    std::test::assert(right_27 == left_27, "prefix_frequency/base_anchor_nHz: reverse");
+    std::test::assert_eq_int(left_27 / 1Hz, k * 1, "prefix_frequency/base_anchor_nHz: target count");
+    std::test::assert_eq_int(right_27 / 1nHz, k * 1000000000, "prefix_frequency/base_anchor_nHz: source count");
+
+    // 1000000 uHz = 1 Hz
+    let source_28: Denomination22 = 1000000uHz;
+    let target_28: Denomination2 = 1Hz;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_frequency/base_anchor_uHz: forward");
+    std::test::assert(right_28 == left_28, "prefix_frequency/base_anchor_uHz: reverse");
+    std::test::assert_eq_int(left_28 / 1Hz, k * 1, "prefix_frequency/base_anchor_uHz: target count");
+    std::test::assert_eq_int(right_28 / 1uHz, k * 1000000, "prefix_frequency/base_anchor_uHz: source count");
+
+    // 1000 mHz = 1 Hz
+    let source_29: Denomination17 = 1000mHz;
+    let target_29: Denomination2 = 1Hz;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_frequency/base_anchor_mHz: forward");
+    std::test::assert(right_29 == left_29, "prefix_frequency/base_anchor_mHz: reverse");
+    std::test::assert_eq_int(left_29 / 1Hz, k * 1, "prefix_frequency/base_anchor_mHz: target count");
+    std::test::assert_eq_int(right_29 / 1mHz, k * 1000, "prefix_frequency/base_anchor_mHz: source count");
+
+    // 100 cHz = 1 Hz
+    let source_30: Denomination11 = 100cHz;
+    let target_30: Denomination2 = 1Hz;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_frequency/base_anchor_cHz: forward");
+    std::test::assert(right_30 == left_30, "prefix_frequency/base_anchor_cHz: reverse");
+    std::test::assert_eq_int(left_30 / 1Hz, k * 1, "prefix_frequency/base_anchor_cHz: target count");
+    std::test::assert_eq_int(right_30 / 1cHz, k * 100, "prefix_frequency/base_anchor_cHz: source count");
+
+    // 1 hHz = 100 Hz
+    let source_31: Denomination15 = 1hHz;
+    let target_31: Denomination2 = 100Hz;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_frequency/base_anchor_hHz: forward");
+    std::test::assert(right_31 == left_31, "prefix_frequency/base_anchor_hHz: reverse");
+    std::test::assert_eq_int(left_31 / 1Hz, k * 100, "prefix_frequency/base_anchor_hHz: target count");
+    std::test::assert_eq_int(right_31 / 1hHz, k * 1, "prefix_frequency/base_anchor_hHz: source count");
+
+    // 1 kHz = 1000 Hz
+    let source_32: Denomination16 = 1kHz;
+    let target_32: Denomination2 = 1000Hz;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_frequency/base_anchor_kHz: forward");
+    std::test::assert(right_32 == left_32, "prefix_frequency/base_anchor_kHz: reverse");
+    std::test::assert_eq_int(left_32 / 1Hz, k * 1000, "prefix_frequency/base_anchor_kHz: target count");
+    std::test::assert_eq_int(right_32 / 1kHz, k * 1, "prefix_frequency/base_anchor_kHz: source count");
+
+    // 1 MHz = 1000000 Hz
+    let source_33: Denomination3 = 1MHz;
+    let target_33: Denomination2 = 1000000Hz;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_frequency/base_anchor_MHz: forward");
+    std::test::assert(right_33 == left_33, "prefix_frequency/base_anchor_MHz: reverse");
+    std::test::assert_eq_int(left_33 / 1Hz, k * 1000000, "prefix_frequency/base_anchor_MHz: target count");
+    std::test::assert_eq_int(right_33 / 1MHz, k * 1, "prefix_frequency/base_anchor_MHz: source count");
+
+    // 1 GHz = 1000000000 Hz
+    let source_34: Denomination1 = 1GHz;
+    let target_34: Denomination2 = 1000000000Hz;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_frequency/base_anchor_GHz: forward");
+    std::test::assert(right_34 == left_34, "prefix_frequency/base_anchor_GHz: reverse");
+    std::test::assert_eq_int(left_34 / 1Hz, k * 1000000000, "prefix_frequency/base_anchor_GHz: target count");
+    std::test::assert_eq_int(right_34 / 1GHz, k * 1, "prefix_frequency/base_anchor_GHz: source count");
+
+    // 1 THz = 1000000000000 Hz
+    let source_35: Denomination7 = 1THz;
+    let target_35: Denomination2 = 1000000000000Hz;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_frequency/base_anchor_THz: forward");
+    std::test::assert(right_35 == left_35, "prefix_frequency/base_anchor_THz: reverse");
+    std::test::assert_eq_int(left_35 / 1Hz, k * 1000000000000, "prefix_frequency/base_anchor_THz: target count");
+    std::test::assert_eq_int(right_35 / 1THz, k * 1, "prefix_frequency/base_anchor_THz: source count");
+
+    // 1 PHz = 1000000000000000 Hz
+    let source_36: Denomination4 = 1PHz;
+    let target_36: Denomination2 = 1000000000000000Hz;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_frequency/base_anchor_PHz: forward");
+    std::test::assert(right_36 == left_36, "prefix_frequency/base_anchor_PHz: reverse");
+    std::test::assert_eq_int(left_36 / 1Hz, k * 1000000000000000, "prefix_frequency/base_anchor_PHz: target count");
+    std::test::assert_eq_int(right_36 / 1PHz, k * 1, "prefix_frequency/base_anchor_PHz: source count");
+
+    // 1 EHz = 1000000000000000000 Hz
+    let source_37: Denomination0 = 1EHz;
+    let target_37: Denomination2 = 1000000000000000000Hz;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_frequency/base_anchor_EHz: forward");
+    std::test::assert(right_37 == left_37, "prefix_frequency/base_anchor_EHz: reverse");
+    std::test::assert_eq_int(left_37 / 1Hz, k * 1000000000000000000, "prefix_frequency/base_anchor_EHz: target count");
+    std::test::assert_eq_int(right_37 / 1EHz, k * 1, "prefix_frequency/base_anchor_EHz: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

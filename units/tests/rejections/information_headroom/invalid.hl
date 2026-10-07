@@ -1,0 +1,5 @@
+import "../../../quantities" as q;
+
+fn main() {
+    let information = 1EiB;
+}

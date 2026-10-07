@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_radioactivity: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QBq;
+
+type Denomination0 = GoldenQuantity in Bq;
+type Denomination1 = GoldenQuantity in EBq;
+type Denomination2 = GoldenQuantity in GBq;
+type Denomination3 = GoldenQuantity in MBq;
+type Denomination4 = GoldenQuantity in PBq;
+type Denomination5 = GoldenQuantity in QBq;
+type Denomination6 = GoldenQuantity in RBq;
+type Denomination7 = GoldenQuantity in TBq;
+type Denomination8 = GoldenQuantity in YBq;
+type Denomination9 = GoldenQuantity in ZBq;
+type Denomination10 = GoldenQuantity in aBq;
+type Denomination11 = GoldenQuantity in cBq;
+type Denomination12 = GoldenQuantity in dBq;
+type Denomination13 = GoldenQuantity in daBq;
+type Denomination14 = GoldenQuantity in fBq;
+type Denomination15 = GoldenQuantity in hBq;
+type Denomination16 = GoldenQuantity in kBq;
+type Denomination17 = GoldenQuantity in mBq;
+type Denomination18 = GoldenQuantity in nBq;
+type Denomination19 = GoldenQuantity in pBq;
+type Denomination20 = GoldenQuantity in qBq;
+type Denomination21 = GoldenQuantity in rBq;
+type Denomination22 = GoldenQuantity in uBq;
+type Denomination23 = GoldenQuantity in yBq;
+type Denomination24 = GoldenQuantity in zBq;
+
+fn check_runtime(k: Int) {
+    // 1 rBq = 1000 qBq
+    let source_0: Denomination21 = 1rBq;
+    let target_0: Denomination20 = 1000qBq;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_radioactivity/adjacent_rBq_qBq: forward");
+    std::test::assert(right_0 == left_0, "prefix_radioactivity/adjacent_rBq_qBq: reverse");
+    std::test::assert_eq_int(left_0 / 1qBq, k * 1000, "prefix_radioactivity/adjacent_rBq_qBq: target count");
+    std::test::assert_eq_int(right_0 / 1rBq, k * 1, "prefix_radioactivity/adjacent_rBq_qBq: source count");
+
+    // 1 yBq = 1000 rBq
+    let source_1: Denomination23 = 1yBq;
+    let target_1: Denomination21 = 1000rBq;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_radioactivity/adjacent_yBq_rBq: forward");
+    std::test::assert(right_1 == left_1, "prefix_radioactivity/adjacent_yBq_rBq: reverse");
+    std::test::assert_eq_int(left_1 / 1rBq, k * 1000, "prefix_radioactivity/adjacent_yBq_rBq: target count");
+    std::test::assert_eq_int(right_1 / 1yBq, k * 1, "prefix_radioactivity/adjacent_yBq_rBq: source count");
+
+    // 1 zBq = 1000 yBq
+    let source_2: Denomination24 = 1zBq;
+    let target_2: Denomination23 = 1000yBq;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_radioactivity/adjacent_zBq_yBq: forward");
+    std::test::assert(right_2 == left_2, "prefix_radioactivity/adjacent_zBq_yBq: reverse");
+    std::test::assert_eq_int(left_2 / 1yBq, k * 1000, "prefix_radioactivity/adjacent_zBq_yBq: target count");
+    std::test::assert_eq_int(right_2 / 1zBq, k * 1, "prefix_radioactivity/adjacent_zBq_yBq: source count");
+
+    // 1 aBq = 1000 zBq
+    let source_3: Denomination10 = 1aBq;
+    let target_3: Denomination24 = 1000zBq;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_radioactivity/adjacent_aBq_zBq: forward");
+    std::test::assert(right_3 == left_3, "prefix_radioactivity/adjacent_aBq_zBq: reverse");
+    std::test::assert_eq_int(left_3 / 1zBq, k * 1000, "prefix_radioactivity/adjacent_aBq_zBq: target count");
+    std::test::assert_eq_int(right_3 / 1aBq, k * 1, "prefix_radioactivity/adjacent_aBq_zBq: source count");
+
+    // 1 fBq = 1000 aBq
+    let source_4: Denomination14 = 1fBq;
+    let target_4: Denomination10 = 1000aBq;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_radioactivity/adjacent_fBq_aBq: forward");
+    std::test::assert(right_4 == left_4, "prefix_radioactivity/adjacent_fBq_aBq: reverse");
+    std::test::assert_eq_int(left_4 / 1aBq, k * 1000, "prefix_radioactivity/adjacent_fBq_aBq: target count");
+    std::test::assert_eq_int(right_4 / 1fBq, k * 1, "prefix_radioactivity/adjacent_fBq_aBq: source count");
+
+    // 1 pBq = 1000 fBq
+    let source_5: Denomination19 = 1pBq;
+    let target_5: Denomination14 = 1000fBq;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_radioactivity/adjacent_pBq_fBq: forward");
+    std::test::assert(right_5 == left_5, "prefix_radioactivity/adjacent_pBq_fBq: reverse");
+    std::test::assert_eq_int(left_5 / 1fBq, k * 1000, "prefix_radioactivity/adjacent_pBq_fBq: target count");
+    std::test::assert_eq_int(right_5 / 1pBq, k * 1, "prefix_radioactivity/adjacent_pBq_fBq: source count");
+
+    // 1 nBq = 1000 pBq
+    let source_6: Denomination18 = 1nBq;
+    let target_6: Denomination19 = 1000pBq;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_radioactivity/adjacent_nBq_pBq: forward");
+    std::test::assert(right_6 == left_6, "prefix_radioactivity/adjacent_nBq_pBq: reverse");
+    std::test::assert_eq_int(left_6 / 1pBq, k * 1000, "prefix_radioactivity/adjacent_nBq_pBq: target count");
+    std::test::assert_eq_int(right_6 / 1nBq, k * 1, "prefix_radioactivity/adjacent_nBq_pBq: source count");
+
+    // 1 uBq = 1000 nBq
+    let source_7: Denomination22 = 1uBq;
+    let target_7: Denomination18 = 1000nBq;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_radioactivity/adjacent_uBq_nBq: forward");
+    std::test::assert(right_7 == left_7, "prefix_radioactivity/adjacent_uBq_nBq: reverse");
+    std::test::assert_eq_int(left_7 / 1nBq, k * 1000, "prefix_radioactivity/adjacent_uBq_nBq: target count");
+    std::test::assert_eq_int(right_7 / 1uBq, k * 1, "prefix_radioactivity/adjacent_uBq_nBq: source count");
+
+    // 1 mBq = 1000 uBq
+    let source_8: Denomination17 = 1mBq;
+    let target_8: Denomination22 = 1000uBq;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_radioactivity/adjacent_mBq_uBq: forward");
+    std::test::assert(right_8 == left_8, "prefix_radioactivity/adjacent_mBq_uBq: reverse");
+    std::test::assert_eq_int(left_8 / 1uBq, k * 1000, "prefix_radioactivity/adjacent_mBq_uBq: target count");
+    std::test::assert_eq_int(right_8 / 1mBq, k * 1, "prefix_radioactivity/adjacent_mBq_uBq: source count");
+
+    // 1 cBq = 10 mBq
+    let source_9: Denomination11 = 1cBq;
+    let target_9: Denomination17 = 10mBq;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_radioactivity/adjacent_cBq_mBq: forward");
+    std::test::assert(right_9 == left_9, "prefix_radioactivity/adjacent_cBq_mBq: reverse");
+    std::test::assert_eq_int(left_9 / 1mBq, k * 10, "prefix_radioactivity/adjacent_cBq_mBq: target count");
+    std::test::assert_eq_int(right_9 / 1cBq, k * 1, "prefix_radioactivity/adjacent_cBq_mBq: source count");
+
+    // 1 dBq = 10 cBq
+    let source_10: Denomination12 = 1dBq;
+    let target_10: Denomination11 = 10cBq;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_radioactivity/adjacent_dBq_cBq: forward");
+    std::test::assert(right_10 == left_10, "prefix_radioactivity/adjacent_dBq_cBq: reverse");
+    std::test::assert_eq_int(left_10 / 1cBq, k * 10, "prefix_radioactivity/adjacent_dBq_cBq: target count");
+    std::test::assert_eq_int(right_10 / 1dBq, k * 1, "prefix_radioactivity/adjacent_dBq_cBq: source count");
+
+    // 1 Bq = 10 dBq
+    let source_11: Denomination0 = 1Bq;
+    let target_11: Denomination12 = 10dBq;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_radioactivity/adjacent_Bq_dBq: forward");
+    std::test::assert(right_11 == left_11, "prefix_radioactivity/adjacent_Bq_dBq: reverse");
+    std::test::assert_eq_int(left_11 / 1dBq, k * 10, "prefix_radioactivity/adjacent_Bq_dBq: target count");
+    std::test::assert_eq_int(right_11 / 1Bq, k * 1, "prefix_radioactivity/adjacent_Bq_dBq: source count");
+
+    // 1 daBq = 10 Bq
+    let source_12: Denomination13 = 1daBq;
+    let target_12: Denomination0 = 10Bq;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_radioactivity/adjacent_daBq_Bq: forward");
+    std::test::assert(right_12 == left_12, "prefix_radioactivity/adjacent_daBq_Bq: reverse");
+    std::test::assert_eq_int(left_12 / 1Bq, k * 10, "prefix_radioactivity/adjacent_daBq_Bq: target count");
+    std::test::assert_eq_int(right_12 / 1daBq, k * 1, "prefix_radioactivity/adjacent_daBq_Bq: source count");
+
+    // 1 hBq = 10 daBq
+    let source_13: Denomination15 = 1hBq;
+    let target_13: Denomination13 = 10daBq;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_radioactivity/adjacent_hBq_daBq: forward");
+    std::test::assert(right_13 == left_13, "prefix_radioactivity/adjacent_hBq_daBq: reverse");
+    std::test::assert_eq_int(left_13 / 1daBq, k * 10, "prefix_radioactivity/adjacent_hBq_daBq: target count");
+    std::test::assert_eq_int(right_13 / 1hBq, k * 1, "prefix_radioactivity/adjacent_hBq_daBq: source count");
+
+    // 1 kBq = 10 hBq
+    let source_14: Denomination16 = 1kBq;
+    let target_14: Denomination15 = 10hBq;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_radioactivity/adjacent_kBq_hBq: forward");
+    std::test::assert(right_14 == left_14, "prefix_radioactivity/adjacent_kBq_hBq: reverse");
+    std::test::assert_eq_int(left_14 / 1hBq, k * 10, "prefix_radioactivity/adjacent_kBq_hBq: target count");
+    std::test::assert_eq_int(right_14 / 1kBq, k * 1, "prefix_radioactivity/adjacent_kBq_hBq: source count");
+
+    // 1 MBq = 1000 kBq
+    let source_15: Denomination3 = 1MBq;
+    let target_15: Denomination16 = 1000kBq;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_radioactivity/adjacent_MBq_kBq: forward");
+    std::test::assert(right_15 == left_15, "prefix_radioactivity/adjacent_MBq_kBq: reverse");
+    std::test::assert_eq_int(left_15 / 1kBq, k * 1000, "prefix_radioactivity/adjacent_MBq_kBq: target count");
+    std::test::assert_eq_int(right_15 / 1MBq, k * 1, "prefix_radioactivity/adjacent_MBq_kBq: source count");
+
+    // 1 GBq = 1000 MBq
+    let source_16: Denomination2 = 1GBq;
+    let target_16: Denomination3 = 1000MBq;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_radioactivity/adjacent_GBq_MBq: forward");
+    std::test::assert(right_16 == left_16, "prefix_radioactivity/adjacent_GBq_MBq: reverse");
+    std::test::assert_eq_int(left_16 / 1MBq, k * 1000, "prefix_radioactivity/adjacent_GBq_MBq: target count");
+    std::test::assert_eq_int(right_16 / 1GBq, k * 1, "prefix_radioactivity/adjacent_GBq_MBq: source count");
+
+    // 1 TBq = 1000 GBq
+    let source_17: Denomination7 = 1TBq;
+    let target_17: Denomination2 = 1000GBq;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_radioactivity/adjacent_TBq_GBq: forward");
+    std::test::assert(right_17 == left_17, "prefix_radioactivity/adjacent_TBq_GBq: reverse");
+    std::test::assert_eq_int(left_17 / 1GBq, k * 1000, "prefix_radioactivity/adjacent_TBq_GBq: target count");
+    std::test::assert_eq_int(right_17 / 1TBq, k * 1, "prefix_radioactivity/adjacent_TBq_GBq: source count");
+
+    // 1 PBq = 1000 TBq
+    let source_18: Denomination4 = 1PBq;
+    let target_18: Denomination7 = 1000TBq;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_radioactivity/adjacent_PBq_TBq: forward");
+    std::test::assert(right_18 == left_18, "prefix_radioactivity/adjacent_PBq_TBq: reverse");
+    std::test::assert_eq_int(left_18 / 1TBq, k * 1000, "prefix_radioactivity/adjacent_PBq_TBq: target count");
+    std::test::assert_eq_int(right_18 / 1PBq, k * 1, "prefix_radioactivity/adjacent_PBq_TBq: source count");
+
+    // 1 EBq = 1000 PBq
+    let source_19: Denomination1 = 1EBq;
+    let target_19: Denomination4 = 1000PBq;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_radioactivity/adjacent_EBq_PBq: forward");
+    std::test::assert(right_19 == left_19, "prefix_radioactivity/adjacent_EBq_PBq: reverse");
+    std::test::assert_eq_int(left_19 / 1PBq, k * 1000, "prefix_radioactivity/adjacent_EBq_PBq: target count");
+    std::test::assert_eq_int(right_19 / 1EBq, k * 1, "prefix_radioactivity/adjacent_EBq_PBq: source count");
+
+    // 1 ZBq = 1000 EBq
+    let source_20: Denomination9 = 1ZBq;
+    let target_20: Denomination1 = 1000EBq;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_radioactivity/adjacent_ZBq_EBq: forward");
+    std::test::assert(right_20 == left_20, "prefix_radioactivity/adjacent_ZBq_EBq: reverse");
+    std::test::assert_eq_int(left_20 / 1EBq, k * 1000, "prefix_radioactivity/adjacent_ZBq_EBq: target count");
+    std::test::assert_eq_int(right_20 / 1ZBq, k * 1, "prefix_radioactivity/adjacent_ZBq_EBq: source count");
+
+    // 1 YBq = 1000 ZBq
+    let source_21: Denomination8 = 1YBq;
+    let target_21: Denomination9 = 1000ZBq;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_radioactivity/adjacent_YBq_ZBq: forward");
+    std::test::assert(right_21 == left_21, "prefix_radioactivity/adjacent_YBq_ZBq: reverse");
+    std::test::assert_eq_int(left_21 / 1ZBq, k * 1000, "prefix_radioactivity/adjacent_YBq_ZBq: target count");
+    std::test::assert_eq_int(right_21 / 1YBq, k * 1, "prefix_radioactivity/adjacent_YBq_ZBq: source count");
+
+    // 1 RBq = 1000 YBq
+    let source_22: Denomination6 = 1RBq;
+    let target_22: Denomination8 = 1000YBq;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_radioactivity/adjacent_RBq_YBq: forward");
+    std::test::assert(right_22 == left_22, "prefix_radioactivity/adjacent_RBq_YBq: reverse");
+    std::test::assert_eq_int(left_22 / 1YBq, k * 1000, "prefix_radioactivity/adjacent_RBq_YBq: target count");
+    std::test::assert_eq_int(right_22 / 1RBq, k * 1, "prefix_radioactivity/adjacent_RBq_YBq: source count");
+
+    // 1 QBq = 1000 RBq
+    let source_23: Denomination5 = 1QBq;
+    let target_23: Denomination6 = 1000RBq;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_radioactivity/adjacent_QBq_RBq: forward");
+    std::test::assert(right_23 == left_23, "prefix_radioactivity/adjacent_QBq_RBq: reverse");
+    std::test::assert_eq_int(left_23 / 1RBq, k * 1000, "prefix_radioactivity/adjacent_QBq_RBq: target count");
+    std::test::assert_eq_int(right_23 / 1QBq, k * 1, "prefix_radioactivity/adjacent_QBq_RBq: source count");
+
+    // 1000000000000000000 aBq = 1 Bq
+    let source_24: Denomination10 = 1000000000000000000aBq;
+    let target_24: Denomination0 = 1Bq;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_radioactivity/base_anchor_aBq: forward");
+    std::test::assert(right_24 == left_24, "prefix_radioactivity/base_anchor_aBq: reverse");
+    std::test::assert_eq_int(left_24 / 1Bq, k * 1, "prefix_radioactivity/base_anchor_aBq: target count");
+    std::test::assert_eq_int(right_24 / 1aBq, k * 1000000000000000000, "prefix_radioactivity/base_anchor_aBq: source count");
+
+    // 1000000000000000 fBq = 1 Bq
+    let source_25: Denomination14 = 1000000000000000fBq;
+    let target_25: Denomination0 = 1Bq;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_radioactivity/base_anchor_fBq: forward");
+    std::test::assert(right_25 == left_25, "prefix_radioactivity/base_anchor_fBq: reverse");
+    std::test::assert_eq_int(left_25 / 1Bq, k * 1, "prefix_radioactivity/base_anchor_fBq: target count");
+    std::test::assert_eq_int(right_25 / 1fBq, k * 1000000000000000, "prefix_radioactivity/base_anchor_fBq: source count");
+
+    // 1000000000000 pBq = 1 Bq
+    let source_26: Denomination19 = 1000000000000pBq;
+    let target_26: Denomination0 = 1Bq;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_radioactivity/base_anchor_pBq: forward");
+    std::test::assert(right_26 == left_26, "prefix_radioactivity/base_anchor_pBq: reverse");
+    std::test::assert_eq_int(left_26 / 1Bq, k * 1, "prefix_radioactivity/base_anchor_pBq: target count");
+    std::test::assert_eq_int(right_26 / 1pBq, k * 1000000000000, "prefix_radioactivity/base_anchor_pBq: source count");
+
+    // 1000000000 nBq = 1 Bq
+    let source_27: Denomination18 = 1000000000nBq;
+    let target_27: Denomination0 = 1Bq;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_radioactivity/base_anchor_nBq: forward");
+    std::test::assert(right_27 == left_27, "prefix_radioactivity/base_anchor_nBq: reverse");
+    std::test::assert_eq_int(left_27 / 1Bq, k * 1, "prefix_radioactivity/base_anchor_nBq: target count");
+    std::test::assert_eq_int(right_27 / 1nBq, k * 1000000000, "prefix_radioactivity/base_anchor_nBq: source count");
+
+    // 1000000 uBq = 1 Bq
+    let source_28: Denomination22 = 1000000uBq;
+    let target_28: Denomination0 = 1Bq;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_radioactivity/base_anchor_uBq: forward");
+    std::test::assert(right_28 == left_28, "prefix_radioactivity/base_anchor_uBq: reverse");
+    std::test::assert_eq_int(left_28 / 1Bq, k * 1, "prefix_radioactivity/base_anchor_uBq: target count");
+    std::test::assert_eq_int(right_28 / 1uBq, k * 1000000, "prefix_radioactivity/base_anchor_uBq: source count");
+
+    // 1000 mBq = 1 Bq
+    let source_29: Denomination17 = 1000mBq;
+    let target_29: Denomination0 = 1Bq;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_radioactivity/base_anchor_mBq: forward");
+    std::test::assert(right_29 == left_29, "prefix_radioactivity/base_anchor_mBq: reverse");
+    std::test::assert_eq_int(left_29 / 1Bq, k * 1, "prefix_radioactivity/base_anchor_mBq: target count");
+    std::test::assert_eq_int(right_29 / 1mBq, k * 1000, "prefix_radioactivity/base_anchor_mBq: source count");
+
+    // 100 cBq = 1 Bq
+    let source_30: Denomination11 = 100cBq;
+    let target_30: Denomination0 = 1Bq;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_radioactivity/base_anchor_cBq: forward");
+    std::test::assert(right_30 == left_30, "prefix_radioactivity/base_anchor_cBq: reverse");
+    std::test::assert_eq_int(left_30 / 1Bq, k * 1, "prefix_radioactivity/base_anchor_cBq: target count");
+    std::test::assert_eq_int(right_30 / 1cBq, k * 100, "prefix_radioactivity/base_anchor_cBq: source count");
+
+    // 1 hBq = 100 Bq
+    let source_31: Denomination15 = 1hBq;
+    let target_31: Denomination0 = 100Bq;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_radioactivity/base_anchor_hBq: forward");
+    std::test::assert(right_31 == left_31, "prefix_radioactivity/base_anchor_hBq: reverse");
+    std::test::assert_eq_int(left_31 / 1Bq, k * 100, "prefix_radioactivity/base_anchor_hBq: target count");
+    std::test::assert_eq_int(right_31 / 1hBq, k * 1, "prefix_radioactivity/base_anchor_hBq: source count");
+
+    // 1 kBq = 1000 Bq
+    let source_32: Denomination16 = 1kBq;
+    let target_32: Denomination0 = 1000Bq;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_radioactivity/base_anchor_kBq: forward");
+    std::test::assert(right_32 == left_32, "prefix_radioactivity/base_anchor_kBq: reverse");
+    std::test::assert_eq_int(left_32 / 1Bq, k * 1000, "prefix_radioactivity/base_anchor_kBq: target count");
+    std::test::assert_eq_int(right_32 / 1kBq, k * 1, "prefix_radioactivity/base_anchor_kBq: source count");
+
+    // 1 MBq = 1000000 Bq
+    let source_33: Denomination3 = 1MBq;
+    let target_33: Denomination0 = 1000000Bq;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_radioactivity/base_anchor_MBq: forward");
+    std::test::assert(right_33 == left_33, "prefix_radioactivity/base_anchor_MBq: reverse");
+    std::test::assert_eq_int(left_33 / 1Bq, k * 1000000, "prefix_radioactivity/base_anchor_MBq: target count");
+    std::test::assert_eq_int(right_33 / 1MBq, k * 1, "prefix_radioactivity/base_anchor_MBq: source count");
+
+    // 1 GBq = 1000000000 Bq
+    let source_34: Denomination2 = 1GBq;
+    let target_34: Denomination0 = 1000000000Bq;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_radioactivity/base_anchor_GBq: forward");
+    std::test::assert(right_34 == left_34, "prefix_radioactivity/base_anchor_GBq: reverse");
+    std::test::assert_eq_int(left_34 / 1Bq, k * 1000000000, "prefix_radioactivity/base_anchor_GBq: target count");
+    std::test::assert_eq_int(right_34 / 1GBq, k * 1, "prefix_radioactivity/base_anchor_GBq: source count");
+
+    // 1 TBq = 1000000000000 Bq
+    let source_35: Denomination7 = 1TBq;
+    let target_35: Denomination0 = 1000000000000Bq;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_radioactivity/base_anchor_TBq: forward");
+    std::test::assert(right_35 == left_35, "prefix_radioactivity/base_anchor_TBq: reverse");
+    std::test::assert_eq_int(left_35 / 1Bq, k * 1000000000000, "prefix_radioactivity/base_anchor_TBq: target count");
+    std::test::assert_eq_int(right_35 / 1TBq, k * 1, "prefix_radioactivity/base_anchor_TBq: source count");
+
+    // 1 PBq = 1000000000000000 Bq
+    let source_36: Denomination4 = 1PBq;
+    let target_36: Denomination0 = 1000000000000000Bq;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_radioactivity/base_anchor_PBq: forward");
+    std::test::assert(right_36 == left_36, "prefix_radioactivity/base_anchor_PBq: reverse");
+    std::test::assert_eq_int(left_36 / 1Bq, k * 1000000000000000, "prefix_radioactivity/base_anchor_PBq: target count");
+    std::test::assert_eq_int(right_36 / 1PBq, k * 1, "prefix_radioactivity/base_anchor_PBq: source count");
+
+    // 1 EBq = 1000000000000000000 Bq
+    let source_37: Denomination1 = 1EBq;
+    let target_37: Denomination0 = 1000000000000000000Bq;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_radioactivity/base_anchor_EBq: forward");
+    std::test::assert(right_37 == left_37, "prefix_radioactivity/base_anchor_EBq: reverse");
+    std::test::assert_eq_int(left_37 / 1Bq, k * 1000000000000000000, "prefix_radioactivity/base_anchor_EBq: target count");
+    std::test::assert_eq_int(right_37 / 1EBq, k * 1, "prefix_radioactivity/base_anchor_EBq: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

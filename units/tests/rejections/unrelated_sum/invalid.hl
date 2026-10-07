@@ -1,0 +1,2 @@
+import "../../../quantities" as q;
+fn main() { let mixed = 1m + 1s; }

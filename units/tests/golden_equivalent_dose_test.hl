@@ -1,0 +1,41 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// equivalent_dose: 2 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QSv;
+
+type Denomination0 = GoldenQuantity in Sv;
+type Denomination1 = GoldenQuantity in mSv;
+type Denomination2 = GoldenQuantity in rem;
+
+fn check_runtime(k: Int) {
+    // 1 Sv = 100 rem
+    let source_0: Denomination0 = 1Sv;
+    let target_0: Denomination2 = 100rem;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "equivalent_dose/Sv_to_rem: forward");
+    std::test::assert(right_0 == left_0, "equivalent_dose/Sv_to_rem: reverse");
+    std::test::assert_eq_int(left_0 / 1rem, k * 100, "equivalent_dose/Sv_to_rem: target count");
+    std::test::assert_eq_int(right_0 / 1Sv, k * 1, "equivalent_dose/Sv_to_rem: source count");
+
+    // 1 rem = 10 mSv
+    let source_1: Denomination2 = 1rem;
+    let target_1: Denomination1 = 10mSv;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "equivalent_dose/rem_to_mSv: forward");
+    std::test::assert(right_1 == left_1, "equivalent_dose/rem_to_mSv: reverse");
+    std::test::assert_eq_int(left_1 / 1mSv, k * 10, "equivalent_dose/rem_to_mSv: target count");
+    std::test::assert_eq_int(right_1 / 1rem, k * 1, "equivalent_dose/rem_to_mSv: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

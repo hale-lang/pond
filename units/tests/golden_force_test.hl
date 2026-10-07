@@ -1,0 +1,81 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// force: 3 runtime ratios, 2 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QN;
+
+type Denomination0 = GoldenQuantity in N;
+type Denomination1 = GoldenQuantity in dyn;
+type Denomination2 = GoldenQuantity in kgf;
+type Denomination3 = GoldenQuantity in lbf;
+type Denomination4 = GoldenQuantity in mN;
+
+fn check_runtime(k: Int) {
+    // 45359237 kgf = 100000000 lbf
+    let source_0: Denomination2 = 45359237kgf;
+    let target_0: Denomination3 = 100000000lbf;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "force/kgf_to_lbf: forward");
+    std::test::assert(right_0 == left_0, "force/kgf_to_lbf: reverse");
+    std::test::assert_eq_int(left_0 / 1lbf, k * 100000000, "force/kgf_to_lbf: target count");
+    std::test::assert_eq_int(right_0 / 1kgf, k * 45359237, "force/kgf_to_lbf: source count");
+
+    // 1 N = 100000 dyn
+    let source_1: Denomination0 = 1N;
+    let target_1: Denomination1 = 100000dyn;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "force/N_to_dyn: forward");
+    std::test::assert(right_1 == left_1, "force/N_to_dyn: reverse");
+    std::test::assert_eq_int(left_1 / 1dyn, k * 100000, "force/N_to_dyn: target count");
+    std::test::assert_eq_int(right_1 / 1N, k * 1, "force/N_to_dyn: source count");
+
+    // 20 kgf = 196133 mN
+    let source_2: Denomination2 = 20kgf;
+    let target_2: Denomination4 = 196133mN;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "force/kgf_to_mN: forward");
+    std::test::assert(right_2 == left_2, "force/kgf_to_mN: reverse");
+    std::test::assert_eq_int(left_2 / 1mN, k * 196133, "force/kgf_to_mN: target count");
+    std::test::assert_eq_int(right_2 / 1kgf, k * 20, "force/kgf_to_mN: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_0_forward_positive: Denomination0 = 2000000000000lbf;
+    let expected_0_forward_positive: Denomination0 = 8896443230521N;
+    std::test::assert(actual_0_forward_positive == expected_0_forward_positive, "force/lbf_to_N: literal forward positive");
+    let actual_0_forward_negative: Denomination0 = -actual_0_forward_positive;
+    let expected_0_forward_negative: Denomination0 = -expected_0_forward_positive;
+    std::test::assert(actual_0_forward_negative == expected_0_forward_negative, "force/lbf_to_N: literal forward negative");
+    let actual_0_reverse_positive: Denomination3 = 8896443230521N;
+    let expected_0_reverse_positive: Denomination3 = 2000000000000lbf;
+    std::test::assert(actual_0_reverse_positive == expected_0_reverse_positive, "force/lbf_to_N: literal reverse positive");
+    let actual_0_reverse_negative: Denomination3 = -actual_0_reverse_positive;
+    let expected_0_reverse_negative: Denomination3 = -expected_0_reverse_positive;
+    std::test::assert(actual_0_reverse_negative == expected_0_reverse_negative, "force/lbf_to_N: literal reverse negative");
+
+    // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
+    let actual_1_forward_positive: Denomination1 = 20000000lbf;
+    let expected_1_forward_positive: Denomination1 = 8896443230521dyn;
+    std::test::assert(actual_1_forward_positive == expected_1_forward_positive, "force/lbf_to_dyn: literal forward positive");
+    let actual_1_forward_negative: Denomination1 = -actual_1_forward_positive;
+    let expected_1_forward_negative: Denomination1 = -expected_1_forward_positive;
+    std::test::assert(actual_1_forward_negative == expected_1_forward_negative, "force/lbf_to_dyn: literal forward negative");
+    let actual_1_reverse_positive: Denomination3 = 8896443230521dyn;
+    let expected_1_reverse_positive: Denomination3 = 20000000lbf;
+    std::test::assert(actual_1_reverse_positive == expected_1_reverse_positive, "force/lbf_to_dyn: literal reverse positive");
+    let actual_1_reverse_negative: Denomination3 = -actual_1_reverse_positive;
+    let expected_1_reverse_negative: Denomination3 = -expected_1_reverse_positive;
+    std::test::assert(actual_1_reverse_negative == expected_1_reverse_negative, "force/lbf_to_dyn: literal reverse negative");
+}

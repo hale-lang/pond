@@ -1,0 +1,3 @@
+import "../../../quantities" as q;
+type AnotherLength = quantity Int in mm;
+fn main() { }

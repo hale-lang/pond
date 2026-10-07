@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_electronvolt_energy: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QeV;
+
+type Denomination0 = GoldenQuantity in EeV;
+type Denomination1 = GoldenQuantity in GeV;
+type Denomination2 = GoldenQuantity in MeV;
+type Denomination3 = GoldenQuantity in PeV;
+type Denomination4 = GoldenQuantity in QeV;
+type Denomination5 = GoldenQuantity in ReV;
+type Denomination6 = GoldenQuantity in TeV;
+type Denomination7 = GoldenQuantity in YeV;
+type Denomination8 = GoldenQuantity in ZeV;
+type Denomination9 = GoldenQuantity in aeV;
+type Denomination10 = GoldenQuantity in ceV;
+type Denomination11 = GoldenQuantity in daeV;
+type Denomination12 = GoldenQuantity in deV;
+type Denomination13 = GoldenQuantity in eV;
+type Denomination14 = GoldenQuantity in feV;
+type Denomination15 = GoldenQuantity in heV;
+type Denomination16 = GoldenQuantity in keV;
+type Denomination17 = GoldenQuantity in meV;
+type Denomination18 = GoldenQuantity in neV;
+type Denomination19 = GoldenQuantity in peV;
+type Denomination20 = GoldenQuantity in qeV;
+type Denomination21 = GoldenQuantity in reV;
+type Denomination22 = GoldenQuantity in ueV;
+type Denomination23 = GoldenQuantity in yeV;
+type Denomination24 = GoldenQuantity in zeV;
+
+fn check_runtime(k: Int) {
+    // 1 reV = 1000 qeV
+    let source_0: Denomination21 = 1reV;
+    let target_0: Denomination20 = 1000qeV;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_electronvolt_energy/adjacent_reV_qeV: forward");
+    std::test::assert(right_0 == left_0, "prefix_electronvolt_energy/adjacent_reV_qeV: reverse");
+    std::test::assert_eq_int(left_0 / 1qeV, k * 1000, "prefix_electronvolt_energy/adjacent_reV_qeV: target count");
+    std::test::assert_eq_int(right_0 / 1reV, k * 1, "prefix_electronvolt_energy/adjacent_reV_qeV: source count");
+
+    // 1 yeV = 1000 reV
+    let source_1: Denomination23 = 1yeV;
+    let target_1: Denomination21 = 1000reV;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_electronvolt_energy/adjacent_yeV_reV: forward");
+    std::test::assert(right_1 == left_1, "prefix_electronvolt_energy/adjacent_yeV_reV: reverse");
+    std::test::assert_eq_int(left_1 / 1reV, k * 1000, "prefix_electronvolt_energy/adjacent_yeV_reV: target count");
+    std::test::assert_eq_int(right_1 / 1yeV, k * 1, "prefix_electronvolt_energy/adjacent_yeV_reV: source count");
+
+    // 1 zeV = 1000 yeV
+    let source_2: Denomination24 = 1zeV;
+    let target_2: Denomination23 = 1000yeV;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_electronvolt_energy/adjacent_zeV_yeV: forward");
+    std::test::assert(right_2 == left_2, "prefix_electronvolt_energy/adjacent_zeV_yeV: reverse");
+    std::test::assert_eq_int(left_2 / 1yeV, k * 1000, "prefix_electronvolt_energy/adjacent_zeV_yeV: target count");
+    std::test::assert_eq_int(right_2 / 1zeV, k * 1, "prefix_electronvolt_energy/adjacent_zeV_yeV: source count");
+
+    // 1 aeV = 1000 zeV
+    let source_3: Denomination9 = 1aeV;
+    let target_3: Denomination24 = 1000zeV;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_electronvolt_energy/adjacent_aeV_zeV: forward");
+    std::test::assert(right_3 == left_3, "prefix_electronvolt_energy/adjacent_aeV_zeV: reverse");
+    std::test::assert_eq_int(left_3 / 1zeV, k * 1000, "prefix_electronvolt_energy/adjacent_aeV_zeV: target count");
+    std::test::assert_eq_int(right_3 / 1aeV, k * 1, "prefix_electronvolt_energy/adjacent_aeV_zeV: source count");
+
+    // 1 feV = 1000 aeV
+    let source_4: Denomination14 = 1feV;
+    let target_4: Denomination9 = 1000aeV;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_electronvolt_energy/adjacent_feV_aeV: forward");
+    std::test::assert(right_4 == left_4, "prefix_electronvolt_energy/adjacent_feV_aeV: reverse");
+    std::test::assert_eq_int(left_4 / 1aeV, k * 1000, "prefix_electronvolt_energy/adjacent_feV_aeV: target count");
+    std::test::assert_eq_int(right_4 / 1feV, k * 1, "prefix_electronvolt_energy/adjacent_feV_aeV: source count");
+
+    // 1 peV = 1000 feV
+    let source_5: Denomination19 = 1peV;
+    let target_5: Denomination14 = 1000feV;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_electronvolt_energy/adjacent_peV_feV: forward");
+    std::test::assert(right_5 == left_5, "prefix_electronvolt_energy/adjacent_peV_feV: reverse");
+    std::test::assert_eq_int(left_5 / 1feV, k * 1000, "prefix_electronvolt_energy/adjacent_peV_feV: target count");
+    std::test::assert_eq_int(right_5 / 1peV, k * 1, "prefix_electronvolt_energy/adjacent_peV_feV: source count");
+
+    // 1 neV = 1000 peV
+    let source_6: Denomination18 = 1neV;
+    let target_6: Denomination19 = 1000peV;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_electronvolt_energy/adjacent_neV_peV: forward");
+    std::test::assert(right_6 == left_6, "prefix_electronvolt_energy/adjacent_neV_peV: reverse");
+    std::test::assert_eq_int(left_6 / 1peV, k * 1000, "prefix_electronvolt_energy/adjacent_neV_peV: target count");
+    std::test::assert_eq_int(right_6 / 1neV, k * 1, "prefix_electronvolt_energy/adjacent_neV_peV: source count");
+
+    // 1 ueV = 1000 neV
+    let source_7: Denomination22 = 1ueV;
+    let target_7: Denomination18 = 1000neV;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_electronvolt_energy/adjacent_ueV_neV: forward");
+    std::test::assert(right_7 == left_7, "prefix_electronvolt_energy/adjacent_ueV_neV: reverse");
+    std::test::assert_eq_int(left_7 / 1neV, k * 1000, "prefix_electronvolt_energy/adjacent_ueV_neV: target count");
+    std::test::assert_eq_int(right_7 / 1ueV, k * 1, "prefix_electronvolt_energy/adjacent_ueV_neV: source count");
+
+    // 1 meV = 1000 ueV
+    let source_8: Denomination17 = 1meV;
+    let target_8: Denomination22 = 1000ueV;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_electronvolt_energy/adjacent_meV_ueV: forward");
+    std::test::assert(right_8 == left_8, "prefix_electronvolt_energy/adjacent_meV_ueV: reverse");
+    std::test::assert_eq_int(left_8 / 1ueV, k * 1000, "prefix_electronvolt_energy/adjacent_meV_ueV: target count");
+    std::test::assert_eq_int(right_8 / 1meV, k * 1, "prefix_electronvolt_energy/adjacent_meV_ueV: source count");
+
+    // 1 ceV = 10 meV
+    let source_9: Denomination10 = 1ceV;
+    let target_9: Denomination17 = 10meV;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_electronvolt_energy/adjacent_ceV_meV: forward");
+    std::test::assert(right_9 == left_9, "prefix_electronvolt_energy/adjacent_ceV_meV: reverse");
+    std::test::assert_eq_int(left_9 / 1meV, k * 10, "prefix_electronvolt_energy/adjacent_ceV_meV: target count");
+    std::test::assert_eq_int(right_9 / 1ceV, k * 1, "prefix_electronvolt_energy/adjacent_ceV_meV: source count");
+
+    // 1 deV = 10 ceV
+    let source_10: Denomination12 = 1deV;
+    let target_10: Denomination10 = 10ceV;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_electronvolt_energy/adjacent_deV_ceV: forward");
+    std::test::assert(right_10 == left_10, "prefix_electronvolt_energy/adjacent_deV_ceV: reverse");
+    std::test::assert_eq_int(left_10 / 1ceV, k * 10, "prefix_electronvolt_energy/adjacent_deV_ceV: target count");
+    std::test::assert_eq_int(right_10 / 1deV, k * 1, "prefix_electronvolt_energy/adjacent_deV_ceV: source count");
+
+    // 1 eV = 10 deV
+    let source_11: Denomination13 = 1eV;
+    let target_11: Denomination12 = 10deV;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_electronvolt_energy/adjacent_eV_deV: forward");
+    std::test::assert(right_11 == left_11, "prefix_electronvolt_energy/adjacent_eV_deV: reverse");
+    std::test::assert_eq_int(left_11 / 1deV, k * 10, "prefix_electronvolt_energy/adjacent_eV_deV: target count");
+    std::test::assert_eq_int(right_11 / 1eV, k * 1, "prefix_electronvolt_energy/adjacent_eV_deV: source count");
+
+    // 1 daeV = 10 eV
+    let source_12: Denomination11 = 1daeV;
+    let target_12: Denomination13 = 10eV;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_electronvolt_energy/adjacent_daeV_eV: forward");
+    std::test::assert(right_12 == left_12, "prefix_electronvolt_energy/adjacent_daeV_eV: reverse");
+    std::test::assert_eq_int(left_12 / 1eV, k * 10, "prefix_electronvolt_energy/adjacent_daeV_eV: target count");
+    std::test::assert_eq_int(right_12 / 1daeV, k * 1, "prefix_electronvolt_energy/adjacent_daeV_eV: source count");
+
+    // 1 heV = 10 daeV
+    let source_13: Denomination15 = 1heV;
+    let target_13: Denomination11 = 10daeV;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_electronvolt_energy/adjacent_heV_daeV: forward");
+    std::test::assert(right_13 == left_13, "prefix_electronvolt_energy/adjacent_heV_daeV: reverse");
+    std::test::assert_eq_int(left_13 / 1daeV, k * 10, "prefix_electronvolt_energy/adjacent_heV_daeV: target count");
+    std::test::assert_eq_int(right_13 / 1heV, k * 1, "prefix_electronvolt_energy/adjacent_heV_daeV: source count");
+
+    // 1 keV = 10 heV
+    let source_14: Denomination16 = 1keV;
+    let target_14: Denomination15 = 10heV;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_electronvolt_energy/adjacent_keV_heV: forward");
+    std::test::assert(right_14 == left_14, "prefix_electronvolt_energy/adjacent_keV_heV: reverse");
+    std::test::assert_eq_int(left_14 / 1heV, k * 10, "prefix_electronvolt_energy/adjacent_keV_heV: target count");
+    std::test::assert_eq_int(right_14 / 1keV, k * 1, "prefix_electronvolt_energy/adjacent_keV_heV: source count");
+
+    // 1 MeV = 1000 keV
+    let source_15: Denomination2 = 1MeV;
+    let target_15: Denomination16 = 1000keV;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_electronvolt_energy/adjacent_MeV_keV: forward");
+    std::test::assert(right_15 == left_15, "prefix_electronvolt_energy/adjacent_MeV_keV: reverse");
+    std::test::assert_eq_int(left_15 / 1keV, k * 1000, "prefix_electronvolt_energy/adjacent_MeV_keV: target count");
+    std::test::assert_eq_int(right_15 / 1MeV, k * 1, "prefix_electronvolt_energy/adjacent_MeV_keV: source count");
+
+    // 1 GeV = 1000 MeV
+    let source_16: Denomination1 = 1GeV;
+    let target_16: Denomination2 = 1000MeV;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_electronvolt_energy/adjacent_GeV_MeV: forward");
+    std::test::assert(right_16 == left_16, "prefix_electronvolt_energy/adjacent_GeV_MeV: reverse");
+    std::test::assert_eq_int(left_16 / 1MeV, k * 1000, "prefix_electronvolt_energy/adjacent_GeV_MeV: target count");
+    std::test::assert_eq_int(right_16 / 1GeV, k * 1, "prefix_electronvolt_energy/adjacent_GeV_MeV: source count");
+
+    // 1 TeV = 1000 GeV
+    let source_17: Denomination6 = 1TeV;
+    let target_17: Denomination1 = 1000GeV;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_electronvolt_energy/adjacent_TeV_GeV: forward");
+    std::test::assert(right_17 == left_17, "prefix_electronvolt_energy/adjacent_TeV_GeV: reverse");
+    std::test::assert_eq_int(left_17 / 1GeV, k * 1000, "prefix_electronvolt_energy/adjacent_TeV_GeV: target count");
+    std::test::assert_eq_int(right_17 / 1TeV, k * 1, "prefix_electronvolt_energy/adjacent_TeV_GeV: source count");
+
+    // 1 PeV = 1000 TeV
+    let source_18: Denomination3 = 1PeV;
+    let target_18: Denomination6 = 1000TeV;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_electronvolt_energy/adjacent_PeV_TeV: forward");
+    std::test::assert(right_18 == left_18, "prefix_electronvolt_energy/adjacent_PeV_TeV: reverse");
+    std::test::assert_eq_int(left_18 / 1TeV, k * 1000, "prefix_electronvolt_energy/adjacent_PeV_TeV: target count");
+    std::test::assert_eq_int(right_18 / 1PeV, k * 1, "prefix_electronvolt_energy/adjacent_PeV_TeV: source count");
+
+    // 1 EeV = 1000 PeV
+    let source_19: Denomination0 = 1EeV;
+    let target_19: Denomination3 = 1000PeV;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_electronvolt_energy/adjacent_EeV_PeV: forward");
+    std::test::assert(right_19 == left_19, "prefix_electronvolt_energy/adjacent_EeV_PeV: reverse");
+    std::test::assert_eq_int(left_19 / 1PeV, k * 1000, "prefix_electronvolt_energy/adjacent_EeV_PeV: target count");
+    std::test::assert_eq_int(right_19 / 1EeV, k * 1, "prefix_electronvolt_energy/adjacent_EeV_PeV: source count");
+
+    // 1 ZeV = 1000 EeV
+    let source_20: Denomination8 = 1ZeV;
+    let target_20: Denomination0 = 1000EeV;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_electronvolt_energy/adjacent_ZeV_EeV: forward");
+    std::test::assert(right_20 == left_20, "prefix_electronvolt_energy/adjacent_ZeV_EeV: reverse");
+    std::test::assert_eq_int(left_20 / 1EeV, k * 1000, "prefix_electronvolt_energy/adjacent_ZeV_EeV: target count");
+    std::test::assert_eq_int(right_20 / 1ZeV, k * 1, "prefix_electronvolt_energy/adjacent_ZeV_EeV: source count");
+
+    // 1 YeV = 1000 ZeV
+    let source_21: Denomination7 = 1YeV;
+    let target_21: Denomination8 = 1000ZeV;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_electronvolt_energy/adjacent_YeV_ZeV: forward");
+    std::test::assert(right_21 == left_21, "prefix_electronvolt_energy/adjacent_YeV_ZeV: reverse");
+    std::test::assert_eq_int(left_21 / 1ZeV, k * 1000, "prefix_electronvolt_energy/adjacent_YeV_ZeV: target count");
+    std::test::assert_eq_int(right_21 / 1YeV, k * 1, "prefix_electronvolt_energy/adjacent_YeV_ZeV: source count");
+
+    // 1 ReV = 1000 YeV
+    let source_22: Denomination5 = 1ReV;
+    let target_22: Denomination7 = 1000YeV;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_electronvolt_energy/adjacent_ReV_YeV: forward");
+    std::test::assert(right_22 == left_22, "prefix_electronvolt_energy/adjacent_ReV_YeV: reverse");
+    std::test::assert_eq_int(left_22 / 1YeV, k * 1000, "prefix_electronvolt_energy/adjacent_ReV_YeV: target count");
+    std::test::assert_eq_int(right_22 / 1ReV, k * 1, "prefix_electronvolt_energy/adjacent_ReV_YeV: source count");
+
+    // 1 QeV = 1000 ReV
+    let source_23: Denomination4 = 1QeV;
+    let target_23: Denomination5 = 1000ReV;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_electronvolt_energy/adjacent_QeV_ReV: forward");
+    std::test::assert(right_23 == left_23, "prefix_electronvolt_energy/adjacent_QeV_ReV: reverse");
+    std::test::assert_eq_int(left_23 / 1ReV, k * 1000, "prefix_electronvolt_energy/adjacent_QeV_ReV: target count");
+    std::test::assert_eq_int(right_23 / 1QeV, k * 1, "prefix_electronvolt_energy/adjacent_QeV_ReV: source count");
+
+    // 1000000000000000000 aeV = 1 eV
+    let source_24: Denomination9 = 1000000000000000000aeV;
+    let target_24: Denomination13 = 1eV;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_electronvolt_energy/base_anchor_aeV: forward");
+    std::test::assert(right_24 == left_24, "prefix_electronvolt_energy/base_anchor_aeV: reverse");
+    std::test::assert_eq_int(left_24 / 1eV, k * 1, "prefix_electronvolt_energy/base_anchor_aeV: target count");
+    std::test::assert_eq_int(right_24 / 1aeV, k * 1000000000000000000, "prefix_electronvolt_energy/base_anchor_aeV: source count");
+
+    // 1000000000000000 feV = 1 eV
+    let source_25: Denomination14 = 1000000000000000feV;
+    let target_25: Denomination13 = 1eV;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_electronvolt_energy/base_anchor_feV: forward");
+    std::test::assert(right_25 == left_25, "prefix_electronvolt_energy/base_anchor_feV: reverse");
+    std::test::assert_eq_int(left_25 / 1eV, k * 1, "prefix_electronvolt_energy/base_anchor_feV: target count");
+    std::test::assert_eq_int(right_25 / 1feV, k * 1000000000000000, "prefix_electronvolt_energy/base_anchor_feV: source count");
+
+    // 1000000000000 peV = 1 eV
+    let source_26: Denomination19 = 1000000000000peV;
+    let target_26: Denomination13 = 1eV;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_electronvolt_energy/base_anchor_peV: forward");
+    std::test::assert(right_26 == left_26, "prefix_electronvolt_energy/base_anchor_peV: reverse");
+    std::test::assert_eq_int(left_26 / 1eV, k * 1, "prefix_electronvolt_energy/base_anchor_peV: target count");
+    std::test::assert_eq_int(right_26 / 1peV, k * 1000000000000, "prefix_electronvolt_energy/base_anchor_peV: source count");
+
+    // 1000000000 neV = 1 eV
+    let source_27: Denomination18 = 1000000000neV;
+    let target_27: Denomination13 = 1eV;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_electronvolt_energy/base_anchor_neV: forward");
+    std::test::assert(right_27 == left_27, "prefix_electronvolt_energy/base_anchor_neV: reverse");
+    std::test::assert_eq_int(left_27 / 1eV, k * 1, "prefix_electronvolt_energy/base_anchor_neV: target count");
+    std::test::assert_eq_int(right_27 / 1neV, k * 1000000000, "prefix_electronvolt_energy/base_anchor_neV: source count");
+
+    // 1000000 ueV = 1 eV
+    let source_28: Denomination22 = 1000000ueV;
+    let target_28: Denomination13 = 1eV;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_electronvolt_energy/base_anchor_ueV: forward");
+    std::test::assert(right_28 == left_28, "prefix_electronvolt_energy/base_anchor_ueV: reverse");
+    std::test::assert_eq_int(left_28 / 1eV, k * 1, "prefix_electronvolt_energy/base_anchor_ueV: target count");
+    std::test::assert_eq_int(right_28 / 1ueV, k * 1000000, "prefix_electronvolt_energy/base_anchor_ueV: source count");
+
+    // 1000 meV = 1 eV
+    let source_29: Denomination17 = 1000meV;
+    let target_29: Denomination13 = 1eV;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_electronvolt_energy/base_anchor_meV: forward");
+    std::test::assert(right_29 == left_29, "prefix_electronvolt_energy/base_anchor_meV: reverse");
+    std::test::assert_eq_int(left_29 / 1eV, k * 1, "prefix_electronvolt_energy/base_anchor_meV: target count");
+    std::test::assert_eq_int(right_29 / 1meV, k * 1000, "prefix_electronvolt_energy/base_anchor_meV: source count");
+
+    // 100 ceV = 1 eV
+    let source_30: Denomination10 = 100ceV;
+    let target_30: Denomination13 = 1eV;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_electronvolt_energy/base_anchor_ceV: forward");
+    std::test::assert(right_30 == left_30, "prefix_electronvolt_energy/base_anchor_ceV: reverse");
+    std::test::assert_eq_int(left_30 / 1eV, k * 1, "prefix_electronvolt_energy/base_anchor_ceV: target count");
+    std::test::assert_eq_int(right_30 / 1ceV, k * 100, "prefix_electronvolt_energy/base_anchor_ceV: source count");
+
+    // 1 heV = 100 eV
+    let source_31: Denomination15 = 1heV;
+    let target_31: Denomination13 = 100eV;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_electronvolt_energy/base_anchor_heV: forward");
+    std::test::assert(right_31 == left_31, "prefix_electronvolt_energy/base_anchor_heV: reverse");
+    std::test::assert_eq_int(left_31 / 1eV, k * 100, "prefix_electronvolt_energy/base_anchor_heV: target count");
+    std::test::assert_eq_int(right_31 / 1heV, k * 1, "prefix_electronvolt_energy/base_anchor_heV: source count");
+
+    // 1 keV = 1000 eV
+    let source_32: Denomination16 = 1keV;
+    let target_32: Denomination13 = 1000eV;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_electronvolt_energy/base_anchor_keV: forward");
+    std::test::assert(right_32 == left_32, "prefix_electronvolt_energy/base_anchor_keV: reverse");
+    std::test::assert_eq_int(left_32 / 1eV, k * 1000, "prefix_electronvolt_energy/base_anchor_keV: target count");
+    std::test::assert_eq_int(right_32 / 1keV, k * 1, "prefix_electronvolt_energy/base_anchor_keV: source count");
+
+    // 1 MeV = 1000000 eV
+    let source_33: Denomination2 = 1MeV;
+    let target_33: Denomination13 = 1000000eV;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_electronvolt_energy/base_anchor_MeV: forward");
+    std::test::assert(right_33 == left_33, "prefix_electronvolt_energy/base_anchor_MeV: reverse");
+    std::test::assert_eq_int(left_33 / 1eV, k * 1000000, "prefix_electronvolt_energy/base_anchor_MeV: target count");
+    std::test::assert_eq_int(right_33 / 1MeV, k * 1, "prefix_electronvolt_energy/base_anchor_MeV: source count");
+
+    // 1 GeV = 1000000000 eV
+    let source_34: Denomination1 = 1GeV;
+    let target_34: Denomination13 = 1000000000eV;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_electronvolt_energy/base_anchor_GeV: forward");
+    std::test::assert(right_34 == left_34, "prefix_electronvolt_energy/base_anchor_GeV: reverse");
+    std::test::assert_eq_int(left_34 / 1eV, k * 1000000000, "prefix_electronvolt_energy/base_anchor_GeV: target count");
+    std::test::assert_eq_int(right_34 / 1GeV, k * 1, "prefix_electronvolt_energy/base_anchor_GeV: source count");
+
+    // 1 TeV = 1000000000000 eV
+    let source_35: Denomination6 = 1TeV;
+    let target_35: Denomination13 = 1000000000000eV;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_electronvolt_energy/base_anchor_TeV: forward");
+    std::test::assert(right_35 == left_35, "prefix_electronvolt_energy/base_anchor_TeV: reverse");
+    std::test::assert_eq_int(left_35 / 1eV, k * 1000000000000, "prefix_electronvolt_energy/base_anchor_TeV: target count");
+    std::test::assert_eq_int(right_35 / 1TeV, k * 1, "prefix_electronvolt_energy/base_anchor_TeV: source count");
+
+    // 1 PeV = 1000000000000000 eV
+    let source_36: Denomination3 = 1PeV;
+    let target_36: Denomination13 = 1000000000000000eV;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_electronvolt_energy/base_anchor_PeV: forward");
+    std::test::assert(right_36 == left_36, "prefix_electronvolt_energy/base_anchor_PeV: reverse");
+    std::test::assert_eq_int(left_36 / 1eV, k * 1000000000000000, "prefix_electronvolt_energy/base_anchor_PeV: target count");
+    std::test::assert_eq_int(right_36 / 1PeV, k * 1, "prefix_electronvolt_energy/base_anchor_PeV: source count");
+
+    // 1 EeV = 1000000000000000000 eV
+    let source_37: Denomination0 = 1EeV;
+    let target_37: Denomination13 = 1000000000000000000eV;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_electronvolt_energy/base_anchor_EeV: forward");
+    std::test::assert(right_37 == left_37, "prefix_electronvolt_energy/base_anchor_EeV: reverse");
+    std::test::assert_eq_int(left_37 / 1eV, k * 1000000000000000000, "prefix_electronvolt_energy/base_anchor_EeV: target count");
+    std::test::assert_eq_int(right_37 / 1EeV, k * 1, "prefix_electronvolt_energy/base_anchor_EeV: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

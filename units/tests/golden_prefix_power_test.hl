@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_power: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QW;
+
+type Denomination0 = GoldenQuantity in EW;
+type Denomination1 = GoldenQuantity in GW;
+type Denomination2 = GoldenQuantity in MW;
+type Denomination3 = GoldenQuantity in PW;
+type Denomination4 = GoldenQuantity in QW;
+type Denomination5 = GoldenQuantity in RW;
+type Denomination6 = GoldenQuantity in TW;
+type Denomination7 = GoldenQuantity in W;
+type Denomination8 = GoldenQuantity in YW;
+type Denomination9 = GoldenQuantity in ZW;
+type Denomination10 = GoldenQuantity in aW;
+type Denomination11 = GoldenQuantity in cW;
+type Denomination12 = GoldenQuantity in dW;
+type Denomination13 = GoldenQuantity in daW;
+type Denomination14 = GoldenQuantity in fW;
+type Denomination15 = GoldenQuantity in hW;
+type Denomination16 = GoldenQuantity in kW;
+type Denomination17 = GoldenQuantity in mW;
+type Denomination18 = GoldenQuantity in nW;
+type Denomination19 = GoldenQuantity in pW;
+type Denomination20 = GoldenQuantity in qW;
+type Denomination21 = GoldenQuantity in rW;
+type Denomination22 = GoldenQuantity in uW;
+type Denomination23 = GoldenQuantity in yW;
+type Denomination24 = GoldenQuantity in zW;
+
+fn check_runtime(k: Int) {
+    // 1 rW = 1000 qW
+    let source_0: Denomination21 = 1rW;
+    let target_0: Denomination20 = 1000qW;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_power/adjacent_rW_qW: forward");
+    std::test::assert(right_0 == left_0, "prefix_power/adjacent_rW_qW: reverse");
+    std::test::assert_eq_int(left_0 / 1qW, k * 1000, "prefix_power/adjacent_rW_qW: target count");
+    std::test::assert_eq_int(right_0 / 1rW, k * 1, "prefix_power/adjacent_rW_qW: source count");
+
+    // 1 yW = 1000 rW
+    let source_1: Denomination23 = 1yW;
+    let target_1: Denomination21 = 1000rW;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_power/adjacent_yW_rW: forward");
+    std::test::assert(right_1 == left_1, "prefix_power/adjacent_yW_rW: reverse");
+    std::test::assert_eq_int(left_1 / 1rW, k * 1000, "prefix_power/adjacent_yW_rW: target count");
+    std::test::assert_eq_int(right_1 / 1yW, k * 1, "prefix_power/adjacent_yW_rW: source count");
+
+    // 1 zW = 1000 yW
+    let source_2: Denomination24 = 1zW;
+    let target_2: Denomination23 = 1000yW;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_power/adjacent_zW_yW: forward");
+    std::test::assert(right_2 == left_2, "prefix_power/adjacent_zW_yW: reverse");
+    std::test::assert_eq_int(left_2 / 1yW, k * 1000, "prefix_power/adjacent_zW_yW: target count");
+    std::test::assert_eq_int(right_2 / 1zW, k * 1, "prefix_power/adjacent_zW_yW: source count");
+
+    // 1 aW = 1000 zW
+    let source_3: Denomination10 = 1aW;
+    let target_3: Denomination24 = 1000zW;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_power/adjacent_aW_zW: forward");
+    std::test::assert(right_3 == left_3, "prefix_power/adjacent_aW_zW: reverse");
+    std::test::assert_eq_int(left_3 / 1zW, k * 1000, "prefix_power/adjacent_aW_zW: target count");
+    std::test::assert_eq_int(right_3 / 1aW, k * 1, "prefix_power/adjacent_aW_zW: source count");
+
+    // 1 fW = 1000 aW
+    let source_4: Denomination14 = 1fW;
+    let target_4: Denomination10 = 1000aW;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_power/adjacent_fW_aW: forward");
+    std::test::assert(right_4 == left_4, "prefix_power/adjacent_fW_aW: reverse");
+    std::test::assert_eq_int(left_4 / 1aW, k * 1000, "prefix_power/adjacent_fW_aW: target count");
+    std::test::assert_eq_int(right_4 / 1fW, k * 1, "prefix_power/adjacent_fW_aW: source count");
+
+    // 1 pW = 1000 fW
+    let source_5: Denomination19 = 1pW;
+    let target_5: Denomination14 = 1000fW;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_power/adjacent_pW_fW: forward");
+    std::test::assert(right_5 == left_5, "prefix_power/adjacent_pW_fW: reverse");
+    std::test::assert_eq_int(left_5 / 1fW, k * 1000, "prefix_power/adjacent_pW_fW: target count");
+    std::test::assert_eq_int(right_5 / 1pW, k * 1, "prefix_power/adjacent_pW_fW: source count");
+
+    // 1 nW = 1000 pW
+    let source_6: Denomination18 = 1nW;
+    let target_6: Denomination19 = 1000pW;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_power/adjacent_nW_pW: forward");
+    std::test::assert(right_6 == left_6, "prefix_power/adjacent_nW_pW: reverse");
+    std::test::assert_eq_int(left_6 / 1pW, k * 1000, "prefix_power/adjacent_nW_pW: target count");
+    std::test::assert_eq_int(right_6 / 1nW, k * 1, "prefix_power/adjacent_nW_pW: source count");
+
+    // 1 uW = 1000 nW
+    let source_7: Denomination22 = 1uW;
+    let target_7: Denomination18 = 1000nW;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_power/adjacent_uW_nW: forward");
+    std::test::assert(right_7 == left_7, "prefix_power/adjacent_uW_nW: reverse");
+    std::test::assert_eq_int(left_7 / 1nW, k * 1000, "prefix_power/adjacent_uW_nW: target count");
+    std::test::assert_eq_int(right_7 / 1uW, k * 1, "prefix_power/adjacent_uW_nW: source count");
+
+    // 1 mW = 1000 uW
+    let source_8: Denomination17 = 1mW;
+    let target_8: Denomination22 = 1000uW;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_power/adjacent_mW_uW: forward");
+    std::test::assert(right_8 == left_8, "prefix_power/adjacent_mW_uW: reverse");
+    std::test::assert_eq_int(left_8 / 1uW, k * 1000, "prefix_power/adjacent_mW_uW: target count");
+    std::test::assert_eq_int(right_8 / 1mW, k * 1, "prefix_power/adjacent_mW_uW: source count");
+
+    // 1 cW = 10 mW
+    let source_9: Denomination11 = 1cW;
+    let target_9: Denomination17 = 10mW;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_power/adjacent_cW_mW: forward");
+    std::test::assert(right_9 == left_9, "prefix_power/adjacent_cW_mW: reverse");
+    std::test::assert_eq_int(left_9 / 1mW, k * 10, "prefix_power/adjacent_cW_mW: target count");
+    std::test::assert_eq_int(right_9 / 1cW, k * 1, "prefix_power/adjacent_cW_mW: source count");
+
+    // 1 dW = 10 cW
+    let source_10: Denomination12 = 1dW;
+    let target_10: Denomination11 = 10cW;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_power/adjacent_dW_cW: forward");
+    std::test::assert(right_10 == left_10, "prefix_power/adjacent_dW_cW: reverse");
+    std::test::assert_eq_int(left_10 / 1cW, k * 10, "prefix_power/adjacent_dW_cW: target count");
+    std::test::assert_eq_int(right_10 / 1dW, k * 1, "prefix_power/adjacent_dW_cW: source count");
+
+    // 1 W = 10 dW
+    let source_11: Denomination7 = 1W;
+    let target_11: Denomination12 = 10dW;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_power/adjacent_W_dW: forward");
+    std::test::assert(right_11 == left_11, "prefix_power/adjacent_W_dW: reverse");
+    std::test::assert_eq_int(left_11 / 1dW, k * 10, "prefix_power/adjacent_W_dW: target count");
+    std::test::assert_eq_int(right_11 / 1W, k * 1, "prefix_power/adjacent_W_dW: source count");
+
+    // 1 daW = 10 W
+    let source_12: Denomination13 = 1daW;
+    let target_12: Denomination7 = 10W;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_power/adjacent_daW_W: forward");
+    std::test::assert(right_12 == left_12, "prefix_power/adjacent_daW_W: reverse");
+    std::test::assert_eq_int(left_12 / 1W, k * 10, "prefix_power/adjacent_daW_W: target count");
+    std::test::assert_eq_int(right_12 / 1daW, k * 1, "prefix_power/adjacent_daW_W: source count");
+
+    // 1 hW = 10 daW
+    let source_13: Denomination15 = 1hW;
+    let target_13: Denomination13 = 10daW;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_power/adjacent_hW_daW: forward");
+    std::test::assert(right_13 == left_13, "prefix_power/adjacent_hW_daW: reverse");
+    std::test::assert_eq_int(left_13 / 1daW, k * 10, "prefix_power/adjacent_hW_daW: target count");
+    std::test::assert_eq_int(right_13 / 1hW, k * 1, "prefix_power/adjacent_hW_daW: source count");
+
+    // 1 kW = 10 hW
+    let source_14: Denomination16 = 1kW;
+    let target_14: Denomination15 = 10hW;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_power/adjacent_kW_hW: forward");
+    std::test::assert(right_14 == left_14, "prefix_power/adjacent_kW_hW: reverse");
+    std::test::assert_eq_int(left_14 / 1hW, k * 10, "prefix_power/adjacent_kW_hW: target count");
+    std::test::assert_eq_int(right_14 / 1kW, k * 1, "prefix_power/adjacent_kW_hW: source count");
+
+    // 1 MW = 1000 kW
+    let source_15: Denomination2 = 1MW;
+    let target_15: Denomination16 = 1000kW;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_power/adjacent_MW_kW: forward");
+    std::test::assert(right_15 == left_15, "prefix_power/adjacent_MW_kW: reverse");
+    std::test::assert_eq_int(left_15 / 1kW, k * 1000, "prefix_power/adjacent_MW_kW: target count");
+    std::test::assert_eq_int(right_15 / 1MW, k * 1, "prefix_power/adjacent_MW_kW: source count");
+
+    // 1 GW = 1000 MW
+    let source_16: Denomination1 = 1GW;
+    let target_16: Denomination2 = 1000MW;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_power/adjacent_GW_MW: forward");
+    std::test::assert(right_16 == left_16, "prefix_power/adjacent_GW_MW: reverse");
+    std::test::assert_eq_int(left_16 / 1MW, k * 1000, "prefix_power/adjacent_GW_MW: target count");
+    std::test::assert_eq_int(right_16 / 1GW, k * 1, "prefix_power/adjacent_GW_MW: source count");
+
+    // 1 TW = 1000 GW
+    let source_17: Denomination6 = 1TW;
+    let target_17: Denomination1 = 1000GW;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_power/adjacent_TW_GW: forward");
+    std::test::assert(right_17 == left_17, "prefix_power/adjacent_TW_GW: reverse");
+    std::test::assert_eq_int(left_17 / 1GW, k * 1000, "prefix_power/adjacent_TW_GW: target count");
+    std::test::assert_eq_int(right_17 / 1TW, k * 1, "prefix_power/adjacent_TW_GW: source count");
+
+    // 1 PW = 1000 TW
+    let source_18: Denomination3 = 1PW;
+    let target_18: Denomination6 = 1000TW;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_power/adjacent_PW_TW: forward");
+    std::test::assert(right_18 == left_18, "prefix_power/adjacent_PW_TW: reverse");
+    std::test::assert_eq_int(left_18 / 1TW, k * 1000, "prefix_power/adjacent_PW_TW: target count");
+    std::test::assert_eq_int(right_18 / 1PW, k * 1, "prefix_power/adjacent_PW_TW: source count");
+
+    // 1 EW = 1000 PW
+    let source_19: Denomination0 = 1EW;
+    let target_19: Denomination3 = 1000PW;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_power/adjacent_EW_PW: forward");
+    std::test::assert(right_19 == left_19, "prefix_power/adjacent_EW_PW: reverse");
+    std::test::assert_eq_int(left_19 / 1PW, k * 1000, "prefix_power/adjacent_EW_PW: target count");
+    std::test::assert_eq_int(right_19 / 1EW, k * 1, "prefix_power/adjacent_EW_PW: source count");
+
+    // 1 ZW = 1000 EW
+    let source_20: Denomination9 = 1ZW;
+    let target_20: Denomination0 = 1000EW;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_power/adjacent_ZW_EW: forward");
+    std::test::assert(right_20 == left_20, "prefix_power/adjacent_ZW_EW: reverse");
+    std::test::assert_eq_int(left_20 / 1EW, k * 1000, "prefix_power/adjacent_ZW_EW: target count");
+    std::test::assert_eq_int(right_20 / 1ZW, k * 1, "prefix_power/adjacent_ZW_EW: source count");
+
+    // 1 YW = 1000 ZW
+    let source_21: Denomination8 = 1YW;
+    let target_21: Denomination9 = 1000ZW;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_power/adjacent_YW_ZW: forward");
+    std::test::assert(right_21 == left_21, "prefix_power/adjacent_YW_ZW: reverse");
+    std::test::assert_eq_int(left_21 / 1ZW, k * 1000, "prefix_power/adjacent_YW_ZW: target count");
+    std::test::assert_eq_int(right_21 / 1YW, k * 1, "prefix_power/adjacent_YW_ZW: source count");
+
+    // 1 RW = 1000 YW
+    let source_22: Denomination5 = 1RW;
+    let target_22: Denomination8 = 1000YW;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_power/adjacent_RW_YW: forward");
+    std::test::assert(right_22 == left_22, "prefix_power/adjacent_RW_YW: reverse");
+    std::test::assert_eq_int(left_22 / 1YW, k * 1000, "prefix_power/adjacent_RW_YW: target count");
+    std::test::assert_eq_int(right_22 / 1RW, k * 1, "prefix_power/adjacent_RW_YW: source count");
+
+    // 1 QW = 1000 RW
+    let source_23: Denomination4 = 1QW;
+    let target_23: Denomination5 = 1000RW;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_power/adjacent_QW_RW: forward");
+    std::test::assert(right_23 == left_23, "prefix_power/adjacent_QW_RW: reverse");
+    std::test::assert_eq_int(left_23 / 1RW, k * 1000, "prefix_power/adjacent_QW_RW: target count");
+    std::test::assert_eq_int(right_23 / 1QW, k * 1, "prefix_power/adjacent_QW_RW: source count");
+
+    // 1000000000000000000 aW = 1 W
+    let source_24: Denomination10 = 1000000000000000000aW;
+    let target_24: Denomination7 = 1W;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_power/base_anchor_aW: forward");
+    std::test::assert(right_24 == left_24, "prefix_power/base_anchor_aW: reverse");
+    std::test::assert_eq_int(left_24 / 1W, k * 1, "prefix_power/base_anchor_aW: target count");
+    std::test::assert_eq_int(right_24 / 1aW, k * 1000000000000000000, "prefix_power/base_anchor_aW: source count");
+
+    // 1000000000000000 fW = 1 W
+    let source_25: Denomination14 = 1000000000000000fW;
+    let target_25: Denomination7 = 1W;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_power/base_anchor_fW: forward");
+    std::test::assert(right_25 == left_25, "prefix_power/base_anchor_fW: reverse");
+    std::test::assert_eq_int(left_25 / 1W, k * 1, "prefix_power/base_anchor_fW: target count");
+    std::test::assert_eq_int(right_25 / 1fW, k * 1000000000000000, "prefix_power/base_anchor_fW: source count");
+
+    // 1000000000000 pW = 1 W
+    let source_26: Denomination19 = 1000000000000pW;
+    let target_26: Denomination7 = 1W;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_power/base_anchor_pW: forward");
+    std::test::assert(right_26 == left_26, "prefix_power/base_anchor_pW: reverse");
+    std::test::assert_eq_int(left_26 / 1W, k * 1, "prefix_power/base_anchor_pW: target count");
+    std::test::assert_eq_int(right_26 / 1pW, k * 1000000000000, "prefix_power/base_anchor_pW: source count");
+
+    // 1000000000 nW = 1 W
+    let source_27: Denomination18 = 1000000000nW;
+    let target_27: Denomination7 = 1W;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_power/base_anchor_nW: forward");
+    std::test::assert(right_27 == left_27, "prefix_power/base_anchor_nW: reverse");
+    std::test::assert_eq_int(left_27 / 1W, k * 1, "prefix_power/base_anchor_nW: target count");
+    std::test::assert_eq_int(right_27 / 1nW, k * 1000000000, "prefix_power/base_anchor_nW: source count");
+
+    // 1000000 uW = 1 W
+    let source_28: Denomination22 = 1000000uW;
+    let target_28: Denomination7 = 1W;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_power/base_anchor_uW: forward");
+    std::test::assert(right_28 == left_28, "prefix_power/base_anchor_uW: reverse");
+    std::test::assert_eq_int(left_28 / 1W, k * 1, "prefix_power/base_anchor_uW: target count");
+    std::test::assert_eq_int(right_28 / 1uW, k * 1000000, "prefix_power/base_anchor_uW: source count");
+
+    // 1000 mW = 1 W
+    let source_29: Denomination17 = 1000mW;
+    let target_29: Denomination7 = 1W;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_power/base_anchor_mW: forward");
+    std::test::assert(right_29 == left_29, "prefix_power/base_anchor_mW: reverse");
+    std::test::assert_eq_int(left_29 / 1W, k * 1, "prefix_power/base_anchor_mW: target count");
+    std::test::assert_eq_int(right_29 / 1mW, k * 1000, "prefix_power/base_anchor_mW: source count");
+
+    // 100 cW = 1 W
+    let source_30: Denomination11 = 100cW;
+    let target_30: Denomination7 = 1W;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_power/base_anchor_cW: forward");
+    std::test::assert(right_30 == left_30, "prefix_power/base_anchor_cW: reverse");
+    std::test::assert_eq_int(left_30 / 1W, k * 1, "prefix_power/base_anchor_cW: target count");
+    std::test::assert_eq_int(right_30 / 1cW, k * 100, "prefix_power/base_anchor_cW: source count");
+
+    // 1 hW = 100 W
+    let source_31: Denomination15 = 1hW;
+    let target_31: Denomination7 = 100W;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_power/base_anchor_hW: forward");
+    std::test::assert(right_31 == left_31, "prefix_power/base_anchor_hW: reverse");
+    std::test::assert_eq_int(left_31 / 1W, k * 100, "prefix_power/base_anchor_hW: target count");
+    std::test::assert_eq_int(right_31 / 1hW, k * 1, "prefix_power/base_anchor_hW: source count");
+
+    // 1 kW = 1000 W
+    let source_32: Denomination16 = 1kW;
+    let target_32: Denomination7 = 1000W;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_power/base_anchor_kW: forward");
+    std::test::assert(right_32 == left_32, "prefix_power/base_anchor_kW: reverse");
+    std::test::assert_eq_int(left_32 / 1W, k * 1000, "prefix_power/base_anchor_kW: target count");
+    std::test::assert_eq_int(right_32 / 1kW, k * 1, "prefix_power/base_anchor_kW: source count");
+
+    // 1 MW = 1000000 W
+    let source_33: Denomination2 = 1MW;
+    let target_33: Denomination7 = 1000000W;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_power/base_anchor_MW: forward");
+    std::test::assert(right_33 == left_33, "prefix_power/base_anchor_MW: reverse");
+    std::test::assert_eq_int(left_33 / 1W, k * 1000000, "prefix_power/base_anchor_MW: target count");
+    std::test::assert_eq_int(right_33 / 1MW, k * 1, "prefix_power/base_anchor_MW: source count");
+
+    // 1 GW = 1000000000 W
+    let source_34: Denomination1 = 1GW;
+    let target_34: Denomination7 = 1000000000W;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_power/base_anchor_GW: forward");
+    std::test::assert(right_34 == left_34, "prefix_power/base_anchor_GW: reverse");
+    std::test::assert_eq_int(left_34 / 1W, k * 1000000000, "prefix_power/base_anchor_GW: target count");
+    std::test::assert_eq_int(right_34 / 1GW, k * 1, "prefix_power/base_anchor_GW: source count");
+
+    // 1 TW = 1000000000000 W
+    let source_35: Denomination6 = 1TW;
+    let target_35: Denomination7 = 1000000000000W;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_power/base_anchor_TW: forward");
+    std::test::assert(right_35 == left_35, "prefix_power/base_anchor_TW: reverse");
+    std::test::assert_eq_int(left_35 / 1W, k * 1000000000000, "prefix_power/base_anchor_TW: target count");
+    std::test::assert_eq_int(right_35 / 1TW, k * 1, "prefix_power/base_anchor_TW: source count");
+
+    // 1 PW = 1000000000000000 W
+    let source_36: Denomination3 = 1PW;
+    let target_36: Denomination7 = 1000000000000000W;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_power/base_anchor_PW: forward");
+    std::test::assert(right_36 == left_36, "prefix_power/base_anchor_PW: reverse");
+    std::test::assert_eq_int(left_36 / 1W, k * 1000000000000000, "prefix_power/base_anchor_PW: target count");
+    std::test::assert_eq_int(right_36 / 1PW, k * 1, "prefix_power/base_anchor_PW: source count");
+
+    // 1 EW = 1000000000000000000 W
+    let source_37: Denomination0 = 1EW;
+    let target_37: Denomination7 = 1000000000000000000W;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_power/base_anchor_EW: forward");
+    std::test::assert(right_37 == left_37, "prefix_power/base_anchor_EW: reverse");
+    std::test::assert_eq_int(left_37 / 1W, k * 1000000000000000000, "prefix_power/base_anchor_EW: target count");
+    std::test::assert_eq_int(right_37 / 1EW, k * 1, "prefix_power/base_anchor_EW: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

@@ -1,0 +1,41 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// radioactivity: 2 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QBq;
+
+type Denomination0 = GoldenQuantity in Bq;
+type Denomination1 = GoldenQuantity in Ci;
+type Denomination2 = GoldenQuantity in GBq;
+
+fn check_runtime(k: Int) {
+    // 1 Ci = 37000000000 Bq
+    let source_0: Denomination1 = 1Ci;
+    let target_0: Denomination0 = 37000000000Bq;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "radioactivity/Ci_to_Bq: forward");
+    std::test::assert(right_0 == left_0, "radioactivity/Ci_to_Bq: reverse");
+    std::test::assert_eq_int(left_0 / 1Bq, k * 37000000000, "radioactivity/Ci_to_Bq: target count");
+    std::test::assert_eq_int(right_0 / 1Ci, k * 1, "radioactivity/Ci_to_Bq: source count");
+
+    // 1 Ci = 37 GBq
+    let source_1: Denomination1 = 1Ci;
+    let target_1: Denomination2 = 37GBq;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "radioactivity/Ci_to_GBq: forward");
+    std::test::assert(right_1 == left_1, "radioactivity/Ci_to_GBq: reverse");
+    std::test::assert_eq_int(left_1 / 1GBq, k * 37, "radioactivity/Ci_to_GBq: target count");
+    std::test::assert_eq_int(right_1 / 1Ci, k * 1, "radioactivity/Ci_to_GBq: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

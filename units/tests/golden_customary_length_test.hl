@@ -1,0 +1,141 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// customary_length: 11 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in Qm;
+
+type Denomination0 = GoldenQuantity in angstrom;
+type Denomination1 = GoldenQuantity in au;
+type Denomination2 = GoldenQuantity in cm;
+type Denomination3 = GoldenQuantity in fathom;
+type Denomination4 = GoldenQuantity in ft;
+type Denomination5 = GoldenQuantity in inch;
+type Denomination6 = GoldenQuantity in km;
+type Denomination7 = GoldenQuantity in m;
+type Denomination8 = GoldenQuantity in mi;
+type Denomination9 = GoldenQuantity in mm;
+type Denomination10 = GoldenQuantity in nmi;
+type Denomination11 = GoldenQuantity in pm;
+type Denomination12 = GoldenQuantity in yd;
+
+fn check_runtime(k: Int) {
+    // 50 inch = 127 cm
+    let source_0: Denomination5 = 50inch;
+    let target_0: Denomination2 = 127cm;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "customary_length/inch_to_cm: forward");
+    std::test::assert(right_0 == left_0, "customary_length/inch_to_cm: reverse");
+    std::test::assert_eq_int(left_0 / 1cm, k * 127, "customary_length/inch_to_cm: target count");
+    std::test::assert_eq_int(right_0 / 1inch, k * 50, "customary_length/inch_to_cm: source count");
+
+    // 5 ft = 1524 mm
+    let source_1: Denomination4 = 5ft;
+    let target_1: Denomination9 = 1524mm;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "customary_length/ft_to_mm: forward");
+    std::test::assert(right_1 == left_1, "customary_length/ft_to_mm: reverse");
+    std::test::assert_eq_int(left_1 / 1mm, k * 1524, "customary_length/ft_to_mm: target count");
+    std::test::assert_eq_int(right_1 / 1ft, k * 5, "customary_length/ft_to_mm: source count");
+
+    // 15625 mi = 25146 km
+    let source_2: Denomination8 = 15625mi;
+    let target_2: Denomination6 = 25146km;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "customary_length/mi_to_km: forward");
+    std::test::assert(right_2 == left_2, "customary_length/mi_to_km: reverse");
+    std::test::assert_eq_int(left_2 / 1km, k * 25146, "customary_length/mi_to_km: target count");
+    std::test::assert_eq_int(right_2 / 1mi, k * 15625, "customary_length/mi_to_km: source count");
+
+    // 381 nmi = 2315000 ft
+    let source_3: Denomination10 = 381nmi;
+    let target_3: Denomination4 = 2315000ft;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "customary_length/nmi_to_ft: forward");
+    std::test::assert(right_3 == left_3, "customary_length/nmi_to_ft: reverse");
+    std::test::assert_eq_int(left_3 / 1ft, k * 2315000, "customary_length/nmi_to_ft: target count");
+    std::test::assert_eq_int(right_3 / 1nmi, k * 381, "customary_length/nmi_to_ft: source count");
+
+    // 25 fathom = 4572 cm
+    let source_4: Denomination3 = 25fathom;
+    let target_4: Denomination2 = 4572cm;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "customary_length/fathom_to_cm: forward");
+    std::test::assert(right_4 == left_4, "customary_length/fathom_to_cm: reverse");
+    std::test::assert_eq_int(left_4 / 1cm, k * 4572, "customary_length/fathom_to_cm: target count");
+    std::test::assert_eq_int(right_4 / 1fathom, k * 25, "customary_length/fathom_to_cm: source count");
+
+    // 1 mi = 1760 yd
+    let source_5: Denomination8 = 1mi;
+    let target_5: Denomination12 = 1760yd;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "customary_length/mi_to_yd: forward");
+    std::test::assert(right_5 == left_5, "customary_length/mi_to_yd: reverse");
+    std::test::assert_eq_int(left_5 / 1yd, k * 1760, "customary_length/mi_to_yd: target count");
+    std::test::assert_eq_int(right_5 / 1mi, k * 1, "customary_length/mi_to_yd: source count");
+
+    // 1 yd = 36 inch
+    let source_6: Denomination12 = 1yd;
+    let target_6: Denomination5 = 36inch;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "customary_length/yd_to_inch: forward");
+    std::test::assert(right_6 == left_6, "customary_length/yd_to_inch: reverse");
+    std::test::assert_eq_int(left_6 / 1inch, k * 36, "customary_length/yd_to_inch: target count");
+    std::test::assert_eq_int(right_6 / 1yd, k * 1, "customary_length/yd_to_inch: source count");
+
+    // 1 fathom = 72 inch
+    let source_7: Denomination3 = 1fathom;
+    let target_7: Denomination5 = 72inch;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "customary_length/fathom_to_inch: forward");
+    std::test::assert(right_7 == left_7, "customary_length/fathom_to_inch: reverse");
+    std::test::assert_eq_int(left_7 / 1inch, k * 72, "customary_length/fathom_to_inch: target count");
+    std::test::assert_eq_int(right_7 / 1fathom, k * 1, "customary_length/fathom_to_inch: source count");
+
+    // 1 nmi = 1852 m
+    let source_8: Denomination10 = 1nmi;
+    let target_8: Denomination7 = 1852m;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "customary_length/nmi_to_m: forward");
+    std::test::assert(right_8 == left_8, "customary_length/nmi_to_m: reverse");
+    std::test::assert_eq_int(left_8 / 1m, k * 1852, "customary_length/nmi_to_m: target count");
+    std::test::assert_eq_int(right_8 / 1nmi, k * 1, "customary_length/nmi_to_m: source count");
+
+    // 1 angstrom = 100 pm
+    let source_9: Denomination0 = 1angstrom;
+    let target_9: Denomination11 = 100pm;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "customary_length/angstrom_to_pm: forward");
+    std::test::assert(right_9 == left_9, "customary_length/angstrom_to_pm: reverse");
+    std::test::assert_eq_int(left_9 / 1pm, k * 100, "customary_length/angstrom_to_pm: target count");
+    std::test::assert_eq_int(right_9 / 1angstrom, k * 1, "customary_length/angstrom_to_pm: source count");
+
+    // 1 au = 149597870700 m
+    let source_10: Denomination1 = 1au;
+    let target_10: Denomination7 = 149597870700m;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "customary_length/au_to_m: forward");
+    std::test::assert(right_10 == left_10, "customary_length/au_to_m: reverse");
+    std::test::assert_eq_int(left_10 / 1m, k * 149597870700, "customary_length/au_to_m: target count");
+    std::test::assert_eq_int(right_10 / 1au, k * 1, "customary_length/au_to_m: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

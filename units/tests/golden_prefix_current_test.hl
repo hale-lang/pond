@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_current: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in QA;
+
+type Denomination0 = GoldenQuantity in A;
+type Denomination1 = GoldenQuantity in EA;
+type Denomination2 = GoldenQuantity in GA;
+type Denomination3 = GoldenQuantity in MA;
+type Denomination4 = GoldenQuantity in PA;
+type Denomination5 = GoldenQuantity in QA;
+type Denomination6 = GoldenQuantity in RA;
+type Denomination7 = GoldenQuantity in TA;
+type Denomination8 = GoldenQuantity in YA;
+type Denomination9 = GoldenQuantity in ZA;
+type Denomination10 = GoldenQuantity in aA;
+type Denomination11 = GoldenQuantity in cA;
+type Denomination12 = GoldenQuantity in dA;
+type Denomination13 = GoldenQuantity in daA;
+type Denomination14 = GoldenQuantity in fA;
+type Denomination15 = GoldenQuantity in hA;
+type Denomination16 = GoldenQuantity in kA;
+type Denomination17 = GoldenQuantity in mA;
+type Denomination18 = GoldenQuantity in nA;
+type Denomination19 = GoldenQuantity in pA;
+type Denomination20 = GoldenQuantity in qA;
+type Denomination21 = GoldenQuantity in rA;
+type Denomination22 = GoldenQuantity in uA;
+type Denomination23 = GoldenQuantity in yA;
+type Denomination24 = GoldenQuantity in zA;
+
+fn check_runtime(k: Int) {
+    // 1 rA = 1000 qA
+    let source_0: Denomination21 = 1rA;
+    let target_0: Denomination20 = 1000qA;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_current/adjacent_rA_qA: forward");
+    std::test::assert(right_0 == left_0, "prefix_current/adjacent_rA_qA: reverse");
+    std::test::assert_eq_int(left_0 / 1qA, k * 1000, "prefix_current/adjacent_rA_qA: target count");
+    std::test::assert_eq_int(right_0 / 1rA, k * 1, "prefix_current/adjacent_rA_qA: source count");
+
+    // 1 yA = 1000 rA
+    let source_1: Denomination23 = 1yA;
+    let target_1: Denomination21 = 1000rA;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_current/adjacent_yA_rA: forward");
+    std::test::assert(right_1 == left_1, "prefix_current/adjacent_yA_rA: reverse");
+    std::test::assert_eq_int(left_1 / 1rA, k * 1000, "prefix_current/adjacent_yA_rA: target count");
+    std::test::assert_eq_int(right_1 / 1yA, k * 1, "prefix_current/adjacent_yA_rA: source count");
+
+    // 1 zA = 1000 yA
+    let source_2: Denomination24 = 1zA;
+    let target_2: Denomination23 = 1000yA;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_current/adjacent_zA_yA: forward");
+    std::test::assert(right_2 == left_2, "prefix_current/adjacent_zA_yA: reverse");
+    std::test::assert_eq_int(left_2 / 1yA, k * 1000, "prefix_current/adjacent_zA_yA: target count");
+    std::test::assert_eq_int(right_2 / 1zA, k * 1, "prefix_current/adjacent_zA_yA: source count");
+
+    // 1 aA = 1000 zA
+    let source_3: Denomination10 = 1aA;
+    let target_3: Denomination24 = 1000zA;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_current/adjacent_aA_zA: forward");
+    std::test::assert(right_3 == left_3, "prefix_current/adjacent_aA_zA: reverse");
+    std::test::assert_eq_int(left_3 / 1zA, k * 1000, "prefix_current/adjacent_aA_zA: target count");
+    std::test::assert_eq_int(right_3 / 1aA, k * 1, "prefix_current/adjacent_aA_zA: source count");
+
+    // 1 fA = 1000 aA
+    let source_4: Denomination14 = 1fA;
+    let target_4: Denomination10 = 1000aA;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_current/adjacent_fA_aA: forward");
+    std::test::assert(right_4 == left_4, "prefix_current/adjacent_fA_aA: reverse");
+    std::test::assert_eq_int(left_4 / 1aA, k * 1000, "prefix_current/adjacent_fA_aA: target count");
+    std::test::assert_eq_int(right_4 / 1fA, k * 1, "prefix_current/adjacent_fA_aA: source count");
+
+    // 1 pA = 1000 fA
+    let source_5: Denomination19 = 1pA;
+    let target_5: Denomination14 = 1000fA;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_current/adjacent_pA_fA: forward");
+    std::test::assert(right_5 == left_5, "prefix_current/adjacent_pA_fA: reverse");
+    std::test::assert_eq_int(left_5 / 1fA, k * 1000, "prefix_current/adjacent_pA_fA: target count");
+    std::test::assert_eq_int(right_5 / 1pA, k * 1, "prefix_current/adjacent_pA_fA: source count");
+
+    // 1 nA = 1000 pA
+    let source_6: Denomination18 = 1nA;
+    let target_6: Denomination19 = 1000pA;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_current/adjacent_nA_pA: forward");
+    std::test::assert(right_6 == left_6, "prefix_current/adjacent_nA_pA: reverse");
+    std::test::assert_eq_int(left_6 / 1pA, k * 1000, "prefix_current/adjacent_nA_pA: target count");
+    std::test::assert_eq_int(right_6 / 1nA, k * 1, "prefix_current/adjacent_nA_pA: source count");
+
+    // 1 uA = 1000 nA
+    let source_7: Denomination22 = 1uA;
+    let target_7: Denomination18 = 1000nA;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_current/adjacent_uA_nA: forward");
+    std::test::assert(right_7 == left_7, "prefix_current/adjacent_uA_nA: reverse");
+    std::test::assert_eq_int(left_7 / 1nA, k * 1000, "prefix_current/adjacent_uA_nA: target count");
+    std::test::assert_eq_int(right_7 / 1uA, k * 1, "prefix_current/adjacent_uA_nA: source count");
+
+    // 1 mA = 1000 uA
+    let source_8: Denomination17 = 1mA;
+    let target_8: Denomination22 = 1000uA;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_current/adjacent_mA_uA: forward");
+    std::test::assert(right_8 == left_8, "prefix_current/adjacent_mA_uA: reverse");
+    std::test::assert_eq_int(left_8 / 1uA, k * 1000, "prefix_current/adjacent_mA_uA: target count");
+    std::test::assert_eq_int(right_8 / 1mA, k * 1, "prefix_current/adjacent_mA_uA: source count");
+
+    // 1 cA = 10 mA
+    let source_9: Denomination11 = 1cA;
+    let target_9: Denomination17 = 10mA;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_current/adjacent_cA_mA: forward");
+    std::test::assert(right_9 == left_9, "prefix_current/adjacent_cA_mA: reverse");
+    std::test::assert_eq_int(left_9 / 1mA, k * 10, "prefix_current/adjacent_cA_mA: target count");
+    std::test::assert_eq_int(right_9 / 1cA, k * 1, "prefix_current/adjacent_cA_mA: source count");
+
+    // 1 dA = 10 cA
+    let source_10: Denomination12 = 1dA;
+    let target_10: Denomination11 = 10cA;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_current/adjacent_dA_cA: forward");
+    std::test::assert(right_10 == left_10, "prefix_current/adjacent_dA_cA: reverse");
+    std::test::assert_eq_int(left_10 / 1cA, k * 10, "prefix_current/adjacent_dA_cA: target count");
+    std::test::assert_eq_int(right_10 / 1dA, k * 1, "prefix_current/adjacent_dA_cA: source count");
+
+    // 1 A = 10 dA
+    let source_11: Denomination0 = 1A;
+    let target_11: Denomination12 = 10dA;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_current/adjacent_A_dA: forward");
+    std::test::assert(right_11 == left_11, "prefix_current/adjacent_A_dA: reverse");
+    std::test::assert_eq_int(left_11 / 1dA, k * 10, "prefix_current/adjacent_A_dA: target count");
+    std::test::assert_eq_int(right_11 / 1A, k * 1, "prefix_current/adjacent_A_dA: source count");
+
+    // 1 daA = 10 A
+    let source_12: Denomination13 = 1daA;
+    let target_12: Denomination0 = 10A;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_current/adjacent_daA_A: forward");
+    std::test::assert(right_12 == left_12, "prefix_current/adjacent_daA_A: reverse");
+    std::test::assert_eq_int(left_12 / 1A, k * 10, "prefix_current/adjacent_daA_A: target count");
+    std::test::assert_eq_int(right_12 / 1daA, k * 1, "prefix_current/adjacent_daA_A: source count");
+
+    // 1 hA = 10 daA
+    let source_13: Denomination15 = 1hA;
+    let target_13: Denomination13 = 10daA;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_current/adjacent_hA_daA: forward");
+    std::test::assert(right_13 == left_13, "prefix_current/adjacent_hA_daA: reverse");
+    std::test::assert_eq_int(left_13 / 1daA, k * 10, "prefix_current/adjacent_hA_daA: target count");
+    std::test::assert_eq_int(right_13 / 1hA, k * 1, "prefix_current/adjacent_hA_daA: source count");
+
+    // 1 kA = 10 hA
+    let source_14: Denomination16 = 1kA;
+    let target_14: Denomination15 = 10hA;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_current/adjacent_kA_hA: forward");
+    std::test::assert(right_14 == left_14, "prefix_current/adjacent_kA_hA: reverse");
+    std::test::assert_eq_int(left_14 / 1hA, k * 10, "prefix_current/adjacent_kA_hA: target count");
+    std::test::assert_eq_int(right_14 / 1kA, k * 1, "prefix_current/adjacent_kA_hA: source count");
+
+    // 1 MA = 1000 kA
+    let source_15: Denomination3 = 1MA;
+    let target_15: Denomination16 = 1000kA;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_current/adjacent_MA_kA: forward");
+    std::test::assert(right_15 == left_15, "prefix_current/adjacent_MA_kA: reverse");
+    std::test::assert_eq_int(left_15 / 1kA, k * 1000, "prefix_current/adjacent_MA_kA: target count");
+    std::test::assert_eq_int(right_15 / 1MA, k * 1, "prefix_current/adjacent_MA_kA: source count");
+
+    // 1 GA = 1000 MA
+    let source_16: Denomination2 = 1GA;
+    let target_16: Denomination3 = 1000MA;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_current/adjacent_GA_MA: forward");
+    std::test::assert(right_16 == left_16, "prefix_current/adjacent_GA_MA: reverse");
+    std::test::assert_eq_int(left_16 / 1MA, k * 1000, "prefix_current/adjacent_GA_MA: target count");
+    std::test::assert_eq_int(right_16 / 1GA, k * 1, "prefix_current/adjacent_GA_MA: source count");
+
+    // 1 TA = 1000 GA
+    let source_17: Denomination7 = 1TA;
+    let target_17: Denomination2 = 1000GA;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_current/adjacent_TA_GA: forward");
+    std::test::assert(right_17 == left_17, "prefix_current/adjacent_TA_GA: reverse");
+    std::test::assert_eq_int(left_17 / 1GA, k * 1000, "prefix_current/adjacent_TA_GA: target count");
+    std::test::assert_eq_int(right_17 / 1TA, k * 1, "prefix_current/adjacent_TA_GA: source count");
+
+    // 1 PA = 1000 TA
+    let source_18: Denomination4 = 1PA;
+    let target_18: Denomination7 = 1000TA;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_current/adjacent_PA_TA: forward");
+    std::test::assert(right_18 == left_18, "prefix_current/adjacent_PA_TA: reverse");
+    std::test::assert_eq_int(left_18 / 1TA, k * 1000, "prefix_current/adjacent_PA_TA: target count");
+    std::test::assert_eq_int(right_18 / 1PA, k * 1, "prefix_current/adjacent_PA_TA: source count");
+
+    // 1 EA = 1000 PA
+    let source_19: Denomination1 = 1EA;
+    let target_19: Denomination4 = 1000PA;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_current/adjacent_EA_PA: forward");
+    std::test::assert(right_19 == left_19, "prefix_current/adjacent_EA_PA: reverse");
+    std::test::assert_eq_int(left_19 / 1PA, k * 1000, "prefix_current/adjacent_EA_PA: target count");
+    std::test::assert_eq_int(right_19 / 1EA, k * 1, "prefix_current/adjacent_EA_PA: source count");
+
+    // 1 ZA = 1000 EA
+    let source_20: Denomination9 = 1ZA;
+    let target_20: Denomination1 = 1000EA;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_current/adjacent_ZA_EA: forward");
+    std::test::assert(right_20 == left_20, "prefix_current/adjacent_ZA_EA: reverse");
+    std::test::assert_eq_int(left_20 / 1EA, k * 1000, "prefix_current/adjacent_ZA_EA: target count");
+    std::test::assert_eq_int(right_20 / 1ZA, k * 1, "prefix_current/adjacent_ZA_EA: source count");
+
+    // 1 YA = 1000 ZA
+    let source_21: Denomination8 = 1YA;
+    let target_21: Denomination9 = 1000ZA;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_current/adjacent_YA_ZA: forward");
+    std::test::assert(right_21 == left_21, "prefix_current/adjacent_YA_ZA: reverse");
+    std::test::assert_eq_int(left_21 / 1ZA, k * 1000, "prefix_current/adjacent_YA_ZA: target count");
+    std::test::assert_eq_int(right_21 / 1YA, k * 1, "prefix_current/adjacent_YA_ZA: source count");
+
+    // 1 RA = 1000 YA
+    let source_22: Denomination6 = 1RA;
+    let target_22: Denomination8 = 1000YA;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_current/adjacent_RA_YA: forward");
+    std::test::assert(right_22 == left_22, "prefix_current/adjacent_RA_YA: reverse");
+    std::test::assert_eq_int(left_22 / 1YA, k * 1000, "prefix_current/adjacent_RA_YA: target count");
+    std::test::assert_eq_int(right_22 / 1RA, k * 1, "prefix_current/adjacent_RA_YA: source count");
+
+    // 1 QA = 1000 RA
+    let source_23: Denomination5 = 1QA;
+    let target_23: Denomination6 = 1000RA;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_current/adjacent_QA_RA: forward");
+    std::test::assert(right_23 == left_23, "prefix_current/adjacent_QA_RA: reverse");
+    std::test::assert_eq_int(left_23 / 1RA, k * 1000, "prefix_current/adjacent_QA_RA: target count");
+    std::test::assert_eq_int(right_23 / 1QA, k * 1, "prefix_current/adjacent_QA_RA: source count");
+
+    // 1000000000000000000 aA = 1 A
+    let source_24: Denomination10 = 1000000000000000000aA;
+    let target_24: Denomination0 = 1A;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_current/base_anchor_aA: forward");
+    std::test::assert(right_24 == left_24, "prefix_current/base_anchor_aA: reverse");
+    std::test::assert_eq_int(left_24 / 1A, k * 1, "prefix_current/base_anchor_aA: target count");
+    std::test::assert_eq_int(right_24 / 1aA, k * 1000000000000000000, "prefix_current/base_anchor_aA: source count");
+
+    // 1000000000000000 fA = 1 A
+    let source_25: Denomination14 = 1000000000000000fA;
+    let target_25: Denomination0 = 1A;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_current/base_anchor_fA: forward");
+    std::test::assert(right_25 == left_25, "prefix_current/base_anchor_fA: reverse");
+    std::test::assert_eq_int(left_25 / 1A, k * 1, "prefix_current/base_anchor_fA: target count");
+    std::test::assert_eq_int(right_25 / 1fA, k * 1000000000000000, "prefix_current/base_anchor_fA: source count");
+
+    // 1000000000000 pA = 1 A
+    let source_26: Denomination19 = 1000000000000pA;
+    let target_26: Denomination0 = 1A;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_current/base_anchor_pA: forward");
+    std::test::assert(right_26 == left_26, "prefix_current/base_anchor_pA: reverse");
+    std::test::assert_eq_int(left_26 / 1A, k * 1, "prefix_current/base_anchor_pA: target count");
+    std::test::assert_eq_int(right_26 / 1pA, k * 1000000000000, "prefix_current/base_anchor_pA: source count");
+
+    // 1000000000 nA = 1 A
+    let source_27: Denomination18 = 1000000000nA;
+    let target_27: Denomination0 = 1A;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_current/base_anchor_nA: forward");
+    std::test::assert(right_27 == left_27, "prefix_current/base_anchor_nA: reverse");
+    std::test::assert_eq_int(left_27 / 1A, k * 1, "prefix_current/base_anchor_nA: target count");
+    std::test::assert_eq_int(right_27 / 1nA, k * 1000000000, "prefix_current/base_anchor_nA: source count");
+
+    // 1000000 uA = 1 A
+    let source_28: Denomination22 = 1000000uA;
+    let target_28: Denomination0 = 1A;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_current/base_anchor_uA: forward");
+    std::test::assert(right_28 == left_28, "prefix_current/base_anchor_uA: reverse");
+    std::test::assert_eq_int(left_28 / 1A, k * 1, "prefix_current/base_anchor_uA: target count");
+    std::test::assert_eq_int(right_28 / 1uA, k * 1000000, "prefix_current/base_anchor_uA: source count");
+
+    // 1000 mA = 1 A
+    let source_29: Denomination17 = 1000mA;
+    let target_29: Denomination0 = 1A;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_current/base_anchor_mA: forward");
+    std::test::assert(right_29 == left_29, "prefix_current/base_anchor_mA: reverse");
+    std::test::assert_eq_int(left_29 / 1A, k * 1, "prefix_current/base_anchor_mA: target count");
+    std::test::assert_eq_int(right_29 / 1mA, k * 1000, "prefix_current/base_anchor_mA: source count");
+
+    // 100 cA = 1 A
+    let source_30: Denomination11 = 100cA;
+    let target_30: Denomination0 = 1A;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_current/base_anchor_cA: forward");
+    std::test::assert(right_30 == left_30, "prefix_current/base_anchor_cA: reverse");
+    std::test::assert_eq_int(left_30 / 1A, k * 1, "prefix_current/base_anchor_cA: target count");
+    std::test::assert_eq_int(right_30 / 1cA, k * 100, "prefix_current/base_anchor_cA: source count");
+
+    // 1 hA = 100 A
+    let source_31: Denomination15 = 1hA;
+    let target_31: Denomination0 = 100A;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_current/base_anchor_hA: forward");
+    std::test::assert(right_31 == left_31, "prefix_current/base_anchor_hA: reverse");
+    std::test::assert_eq_int(left_31 / 1A, k * 100, "prefix_current/base_anchor_hA: target count");
+    std::test::assert_eq_int(right_31 / 1hA, k * 1, "prefix_current/base_anchor_hA: source count");
+
+    // 1 kA = 1000 A
+    let source_32: Denomination16 = 1kA;
+    let target_32: Denomination0 = 1000A;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_current/base_anchor_kA: forward");
+    std::test::assert(right_32 == left_32, "prefix_current/base_anchor_kA: reverse");
+    std::test::assert_eq_int(left_32 / 1A, k * 1000, "prefix_current/base_anchor_kA: target count");
+    std::test::assert_eq_int(right_32 / 1kA, k * 1, "prefix_current/base_anchor_kA: source count");
+
+    // 1 MA = 1000000 A
+    let source_33: Denomination3 = 1MA;
+    let target_33: Denomination0 = 1000000A;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_current/base_anchor_MA: forward");
+    std::test::assert(right_33 == left_33, "prefix_current/base_anchor_MA: reverse");
+    std::test::assert_eq_int(left_33 / 1A, k * 1000000, "prefix_current/base_anchor_MA: target count");
+    std::test::assert_eq_int(right_33 / 1MA, k * 1, "prefix_current/base_anchor_MA: source count");
+
+    // 1 GA = 1000000000 A
+    let source_34: Denomination2 = 1GA;
+    let target_34: Denomination0 = 1000000000A;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_current/base_anchor_GA: forward");
+    std::test::assert(right_34 == left_34, "prefix_current/base_anchor_GA: reverse");
+    std::test::assert_eq_int(left_34 / 1A, k * 1000000000, "prefix_current/base_anchor_GA: target count");
+    std::test::assert_eq_int(right_34 / 1GA, k * 1, "prefix_current/base_anchor_GA: source count");
+
+    // 1 TA = 1000000000000 A
+    let source_35: Denomination7 = 1TA;
+    let target_35: Denomination0 = 1000000000000A;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_current/base_anchor_TA: forward");
+    std::test::assert(right_35 == left_35, "prefix_current/base_anchor_TA: reverse");
+    std::test::assert_eq_int(left_35 / 1A, k * 1000000000000, "prefix_current/base_anchor_TA: target count");
+    std::test::assert_eq_int(right_35 / 1TA, k * 1, "prefix_current/base_anchor_TA: source count");
+
+    // 1 PA = 1000000000000000 A
+    let source_36: Denomination4 = 1PA;
+    let target_36: Denomination0 = 1000000000000000A;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_current/base_anchor_PA: forward");
+    std::test::assert(right_36 == left_36, "prefix_current/base_anchor_PA: reverse");
+    std::test::assert_eq_int(left_36 / 1A, k * 1000000000000000, "prefix_current/base_anchor_PA: target count");
+    std::test::assert_eq_int(right_36 / 1PA, k * 1, "prefix_current/base_anchor_PA: source count");
+
+    // 1 EA = 1000000000000000000 A
+    let source_37: Denomination1 = 1EA;
+    let target_37: Denomination0 = 1000000000000000000A;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_current/base_anchor_EA: forward");
+    std::test::assert(right_37 == left_37, "prefix_current/base_anchor_EA: reverse");
+    std::test::assert_eq_int(left_37 / 1A, k * 1000000000000000000, "prefix_current/base_anchor_EA: target count");
+    std::test::assert_eq_int(right_37 / 1EA, k * 1, "prefix_current/base_anchor_EA: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}

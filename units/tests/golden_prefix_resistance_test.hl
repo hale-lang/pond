@@ -1,0 +1,423 @@
+// Generated from independent golden.json by generate_golden.py; do not edit.
+// prefix_resistance: 38 runtime ratios, 0 literal-conversion ratios.
+// Each runtime ratio checks signed multiples 1, -1 and 3 in both directions.
+// Source references and graph-only limitations are recorded in golden.json.
+
+import ".." as units;
+
+type GoldenQuantity = quantity Int in Qohm;
+
+type Denomination0 = GoldenQuantity in Eohm;
+type Denomination1 = GoldenQuantity in Gohm;
+type Denomination2 = GoldenQuantity in Mohm;
+type Denomination3 = GoldenQuantity in Pohm;
+type Denomination4 = GoldenQuantity in Qohm;
+type Denomination5 = GoldenQuantity in Rohm;
+type Denomination6 = GoldenQuantity in Tohm;
+type Denomination7 = GoldenQuantity in Yohm;
+type Denomination8 = GoldenQuantity in Zohm;
+type Denomination9 = GoldenQuantity in aohm;
+type Denomination10 = GoldenQuantity in cohm;
+type Denomination11 = GoldenQuantity in daohm;
+type Denomination12 = GoldenQuantity in dohm;
+type Denomination13 = GoldenQuantity in fohm;
+type Denomination14 = GoldenQuantity in hohm;
+type Denomination15 = GoldenQuantity in kohm;
+type Denomination16 = GoldenQuantity in mohm;
+type Denomination17 = GoldenQuantity in nohm;
+type Denomination18 = GoldenQuantity in ohm;
+type Denomination19 = GoldenQuantity in pohm;
+type Denomination20 = GoldenQuantity in qohm;
+type Denomination21 = GoldenQuantity in rohm;
+type Denomination22 = GoldenQuantity in uohm;
+type Denomination23 = GoldenQuantity in yohm;
+type Denomination24 = GoldenQuantity in zohm;
+
+fn check_runtime(k: Int) {
+    // 1 rohm = 1000 qohm
+    let source_0: Denomination21 = 1rohm;
+    let target_0: Denomination20 = 1000qohm;
+    let left_0 = k * source_0;
+    let right_0 = k * target_0;
+    std::test::assert(left_0 == right_0, "prefix_resistance/adjacent_rohm_qohm: forward");
+    std::test::assert(right_0 == left_0, "prefix_resistance/adjacent_rohm_qohm: reverse");
+    std::test::assert_eq_int(left_0 / 1qohm, k * 1000, "prefix_resistance/adjacent_rohm_qohm: target count");
+    std::test::assert_eq_int(right_0 / 1rohm, k * 1, "prefix_resistance/adjacent_rohm_qohm: source count");
+
+    // 1 yohm = 1000 rohm
+    let source_1: Denomination23 = 1yohm;
+    let target_1: Denomination21 = 1000rohm;
+    let left_1 = k * source_1;
+    let right_1 = k * target_1;
+    std::test::assert(left_1 == right_1, "prefix_resistance/adjacent_yohm_rohm: forward");
+    std::test::assert(right_1 == left_1, "prefix_resistance/adjacent_yohm_rohm: reverse");
+    std::test::assert_eq_int(left_1 / 1rohm, k * 1000, "prefix_resistance/adjacent_yohm_rohm: target count");
+    std::test::assert_eq_int(right_1 / 1yohm, k * 1, "prefix_resistance/adjacent_yohm_rohm: source count");
+
+    // 1 zohm = 1000 yohm
+    let source_2: Denomination24 = 1zohm;
+    let target_2: Denomination23 = 1000yohm;
+    let left_2 = k * source_2;
+    let right_2 = k * target_2;
+    std::test::assert(left_2 == right_2, "prefix_resistance/adjacent_zohm_yohm: forward");
+    std::test::assert(right_2 == left_2, "prefix_resistance/adjacent_zohm_yohm: reverse");
+    std::test::assert_eq_int(left_2 / 1yohm, k * 1000, "prefix_resistance/adjacent_zohm_yohm: target count");
+    std::test::assert_eq_int(right_2 / 1zohm, k * 1, "prefix_resistance/adjacent_zohm_yohm: source count");
+
+    // 1 aohm = 1000 zohm
+    let source_3: Denomination9 = 1aohm;
+    let target_3: Denomination24 = 1000zohm;
+    let left_3 = k * source_3;
+    let right_3 = k * target_3;
+    std::test::assert(left_3 == right_3, "prefix_resistance/adjacent_aohm_zohm: forward");
+    std::test::assert(right_3 == left_3, "prefix_resistance/adjacent_aohm_zohm: reverse");
+    std::test::assert_eq_int(left_3 / 1zohm, k * 1000, "prefix_resistance/adjacent_aohm_zohm: target count");
+    std::test::assert_eq_int(right_3 / 1aohm, k * 1, "prefix_resistance/adjacent_aohm_zohm: source count");
+
+    // 1 fohm = 1000 aohm
+    let source_4: Denomination13 = 1fohm;
+    let target_4: Denomination9 = 1000aohm;
+    let left_4 = k * source_4;
+    let right_4 = k * target_4;
+    std::test::assert(left_4 == right_4, "prefix_resistance/adjacent_fohm_aohm: forward");
+    std::test::assert(right_4 == left_4, "prefix_resistance/adjacent_fohm_aohm: reverse");
+    std::test::assert_eq_int(left_4 / 1aohm, k * 1000, "prefix_resistance/adjacent_fohm_aohm: target count");
+    std::test::assert_eq_int(right_4 / 1fohm, k * 1, "prefix_resistance/adjacent_fohm_aohm: source count");
+
+    // 1 pohm = 1000 fohm
+    let source_5: Denomination19 = 1pohm;
+    let target_5: Denomination13 = 1000fohm;
+    let left_5 = k * source_5;
+    let right_5 = k * target_5;
+    std::test::assert(left_5 == right_5, "prefix_resistance/adjacent_pohm_fohm: forward");
+    std::test::assert(right_5 == left_5, "prefix_resistance/adjacent_pohm_fohm: reverse");
+    std::test::assert_eq_int(left_5 / 1fohm, k * 1000, "prefix_resistance/adjacent_pohm_fohm: target count");
+    std::test::assert_eq_int(right_5 / 1pohm, k * 1, "prefix_resistance/adjacent_pohm_fohm: source count");
+
+    // 1 nohm = 1000 pohm
+    let source_6: Denomination17 = 1nohm;
+    let target_6: Denomination19 = 1000pohm;
+    let left_6 = k * source_6;
+    let right_6 = k * target_6;
+    std::test::assert(left_6 == right_6, "prefix_resistance/adjacent_nohm_pohm: forward");
+    std::test::assert(right_6 == left_6, "prefix_resistance/adjacent_nohm_pohm: reverse");
+    std::test::assert_eq_int(left_6 / 1pohm, k * 1000, "prefix_resistance/adjacent_nohm_pohm: target count");
+    std::test::assert_eq_int(right_6 / 1nohm, k * 1, "prefix_resistance/adjacent_nohm_pohm: source count");
+
+    // 1 uohm = 1000 nohm
+    let source_7: Denomination22 = 1uohm;
+    let target_7: Denomination17 = 1000nohm;
+    let left_7 = k * source_7;
+    let right_7 = k * target_7;
+    std::test::assert(left_7 == right_7, "prefix_resistance/adjacent_uohm_nohm: forward");
+    std::test::assert(right_7 == left_7, "prefix_resistance/adjacent_uohm_nohm: reverse");
+    std::test::assert_eq_int(left_7 / 1nohm, k * 1000, "prefix_resistance/adjacent_uohm_nohm: target count");
+    std::test::assert_eq_int(right_7 / 1uohm, k * 1, "prefix_resistance/adjacent_uohm_nohm: source count");
+
+    // 1 mohm = 1000 uohm
+    let source_8: Denomination16 = 1mohm;
+    let target_8: Denomination22 = 1000uohm;
+    let left_8 = k * source_8;
+    let right_8 = k * target_8;
+    std::test::assert(left_8 == right_8, "prefix_resistance/adjacent_mohm_uohm: forward");
+    std::test::assert(right_8 == left_8, "prefix_resistance/adjacent_mohm_uohm: reverse");
+    std::test::assert_eq_int(left_8 / 1uohm, k * 1000, "prefix_resistance/adjacent_mohm_uohm: target count");
+    std::test::assert_eq_int(right_8 / 1mohm, k * 1, "prefix_resistance/adjacent_mohm_uohm: source count");
+
+    // 1 cohm = 10 mohm
+    let source_9: Denomination10 = 1cohm;
+    let target_9: Denomination16 = 10mohm;
+    let left_9 = k * source_9;
+    let right_9 = k * target_9;
+    std::test::assert(left_9 == right_9, "prefix_resistance/adjacent_cohm_mohm: forward");
+    std::test::assert(right_9 == left_9, "prefix_resistance/adjacent_cohm_mohm: reverse");
+    std::test::assert_eq_int(left_9 / 1mohm, k * 10, "prefix_resistance/adjacent_cohm_mohm: target count");
+    std::test::assert_eq_int(right_9 / 1cohm, k * 1, "prefix_resistance/adjacent_cohm_mohm: source count");
+
+    // 1 dohm = 10 cohm
+    let source_10: Denomination12 = 1dohm;
+    let target_10: Denomination10 = 10cohm;
+    let left_10 = k * source_10;
+    let right_10 = k * target_10;
+    std::test::assert(left_10 == right_10, "prefix_resistance/adjacent_dohm_cohm: forward");
+    std::test::assert(right_10 == left_10, "prefix_resistance/adjacent_dohm_cohm: reverse");
+    std::test::assert_eq_int(left_10 / 1cohm, k * 10, "prefix_resistance/adjacent_dohm_cohm: target count");
+    std::test::assert_eq_int(right_10 / 1dohm, k * 1, "prefix_resistance/adjacent_dohm_cohm: source count");
+
+    // 1 ohm = 10 dohm
+    let source_11: Denomination18 = 1ohm;
+    let target_11: Denomination12 = 10dohm;
+    let left_11 = k * source_11;
+    let right_11 = k * target_11;
+    std::test::assert(left_11 == right_11, "prefix_resistance/adjacent_ohm_dohm: forward");
+    std::test::assert(right_11 == left_11, "prefix_resistance/adjacent_ohm_dohm: reverse");
+    std::test::assert_eq_int(left_11 / 1dohm, k * 10, "prefix_resistance/adjacent_ohm_dohm: target count");
+    std::test::assert_eq_int(right_11 / 1ohm, k * 1, "prefix_resistance/adjacent_ohm_dohm: source count");
+
+    // 1 daohm = 10 ohm
+    let source_12: Denomination11 = 1daohm;
+    let target_12: Denomination18 = 10ohm;
+    let left_12 = k * source_12;
+    let right_12 = k * target_12;
+    std::test::assert(left_12 == right_12, "prefix_resistance/adjacent_daohm_ohm: forward");
+    std::test::assert(right_12 == left_12, "prefix_resistance/adjacent_daohm_ohm: reverse");
+    std::test::assert_eq_int(left_12 / 1ohm, k * 10, "prefix_resistance/adjacent_daohm_ohm: target count");
+    std::test::assert_eq_int(right_12 / 1daohm, k * 1, "prefix_resistance/adjacent_daohm_ohm: source count");
+
+    // 1 hohm = 10 daohm
+    let source_13: Denomination14 = 1hohm;
+    let target_13: Denomination11 = 10daohm;
+    let left_13 = k * source_13;
+    let right_13 = k * target_13;
+    std::test::assert(left_13 == right_13, "prefix_resistance/adjacent_hohm_daohm: forward");
+    std::test::assert(right_13 == left_13, "prefix_resistance/adjacent_hohm_daohm: reverse");
+    std::test::assert_eq_int(left_13 / 1daohm, k * 10, "prefix_resistance/adjacent_hohm_daohm: target count");
+    std::test::assert_eq_int(right_13 / 1hohm, k * 1, "prefix_resistance/adjacent_hohm_daohm: source count");
+
+    // 1 kohm = 10 hohm
+    let source_14: Denomination15 = 1kohm;
+    let target_14: Denomination14 = 10hohm;
+    let left_14 = k * source_14;
+    let right_14 = k * target_14;
+    std::test::assert(left_14 == right_14, "prefix_resistance/adjacent_kohm_hohm: forward");
+    std::test::assert(right_14 == left_14, "prefix_resistance/adjacent_kohm_hohm: reverse");
+    std::test::assert_eq_int(left_14 / 1hohm, k * 10, "prefix_resistance/adjacent_kohm_hohm: target count");
+    std::test::assert_eq_int(right_14 / 1kohm, k * 1, "prefix_resistance/adjacent_kohm_hohm: source count");
+
+    // 1 Mohm = 1000 kohm
+    let source_15: Denomination2 = 1Mohm;
+    let target_15: Denomination15 = 1000kohm;
+    let left_15 = k * source_15;
+    let right_15 = k * target_15;
+    std::test::assert(left_15 == right_15, "prefix_resistance/adjacent_Mohm_kohm: forward");
+    std::test::assert(right_15 == left_15, "prefix_resistance/adjacent_Mohm_kohm: reverse");
+    std::test::assert_eq_int(left_15 / 1kohm, k * 1000, "prefix_resistance/adjacent_Mohm_kohm: target count");
+    std::test::assert_eq_int(right_15 / 1Mohm, k * 1, "prefix_resistance/adjacent_Mohm_kohm: source count");
+
+    // 1 Gohm = 1000 Mohm
+    let source_16: Denomination1 = 1Gohm;
+    let target_16: Denomination2 = 1000Mohm;
+    let left_16 = k * source_16;
+    let right_16 = k * target_16;
+    std::test::assert(left_16 == right_16, "prefix_resistance/adjacent_Gohm_Mohm: forward");
+    std::test::assert(right_16 == left_16, "prefix_resistance/adjacent_Gohm_Mohm: reverse");
+    std::test::assert_eq_int(left_16 / 1Mohm, k * 1000, "prefix_resistance/adjacent_Gohm_Mohm: target count");
+    std::test::assert_eq_int(right_16 / 1Gohm, k * 1, "prefix_resistance/adjacent_Gohm_Mohm: source count");
+
+    // 1 Tohm = 1000 Gohm
+    let source_17: Denomination6 = 1Tohm;
+    let target_17: Denomination1 = 1000Gohm;
+    let left_17 = k * source_17;
+    let right_17 = k * target_17;
+    std::test::assert(left_17 == right_17, "prefix_resistance/adjacent_Tohm_Gohm: forward");
+    std::test::assert(right_17 == left_17, "prefix_resistance/adjacent_Tohm_Gohm: reverse");
+    std::test::assert_eq_int(left_17 / 1Gohm, k * 1000, "prefix_resistance/adjacent_Tohm_Gohm: target count");
+    std::test::assert_eq_int(right_17 / 1Tohm, k * 1, "prefix_resistance/adjacent_Tohm_Gohm: source count");
+
+    // 1 Pohm = 1000 Tohm
+    let source_18: Denomination3 = 1Pohm;
+    let target_18: Denomination6 = 1000Tohm;
+    let left_18 = k * source_18;
+    let right_18 = k * target_18;
+    std::test::assert(left_18 == right_18, "prefix_resistance/adjacent_Pohm_Tohm: forward");
+    std::test::assert(right_18 == left_18, "prefix_resistance/adjacent_Pohm_Tohm: reverse");
+    std::test::assert_eq_int(left_18 / 1Tohm, k * 1000, "prefix_resistance/adjacent_Pohm_Tohm: target count");
+    std::test::assert_eq_int(right_18 / 1Pohm, k * 1, "prefix_resistance/adjacent_Pohm_Tohm: source count");
+
+    // 1 Eohm = 1000 Pohm
+    let source_19: Denomination0 = 1Eohm;
+    let target_19: Denomination3 = 1000Pohm;
+    let left_19 = k * source_19;
+    let right_19 = k * target_19;
+    std::test::assert(left_19 == right_19, "prefix_resistance/adjacent_Eohm_Pohm: forward");
+    std::test::assert(right_19 == left_19, "prefix_resistance/adjacent_Eohm_Pohm: reverse");
+    std::test::assert_eq_int(left_19 / 1Pohm, k * 1000, "prefix_resistance/adjacent_Eohm_Pohm: target count");
+    std::test::assert_eq_int(right_19 / 1Eohm, k * 1, "prefix_resistance/adjacent_Eohm_Pohm: source count");
+
+    // 1 Zohm = 1000 Eohm
+    let source_20: Denomination8 = 1Zohm;
+    let target_20: Denomination0 = 1000Eohm;
+    let left_20 = k * source_20;
+    let right_20 = k * target_20;
+    std::test::assert(left_20 == right_20, "prefix_resistance/adjacent_Zohm_Eohm: forward");
+    std::test::assert(right_20 == left_20, "prefix_resistance/adjacent_Zohm_Eohm: reverse");
+    std::test::assert_eq_int(left_20 / 1Eohm, k * 1000, "prefix_resistance/adjacent_Zohm_Eohm: target count");
+    std::test::assert_eq_int(right_20 / 1Zohm, k * 1, "prefix_resistance/adjacent_Zohm_Eohm: source count");
+
+    // 1 Yohm = 1000 Zohm
+    let source_21: Denomination7 = 1Yohm;
+    let target_21: Denomination8 = 1000Zohm;
+    let left_21 = k * source_21;
+    let right_21 = k * target_21;
+    std::test::assert(left_21 == right_21, "prefix_resistance/adjacent_Yohm_Zohm: forward");
+    std::test::assert(right_21 == left_21, "prefix_resistance/adjacent_Yohm_Zohm: reverse");
+    std::test::assert_eq_int(left_21 / 1Zohm, k * 1000, "prefix_resistance/adjacent_Yohm_Zohm: target count");
+    std::test::assert_eq_int(right_21 / 1Yohm, k * 1, "prefix_resistance/adjacent_Yohm_Zohm: source count");
+
+    // 1 Rohm = 1000 Yohm
+    let source_22: Denomination5 = 1Rohm;
+    let target_22: Denomination7 = 1000Yohm;
+    let left_22 = k * source_22;
+    let right_22 = k * target_22;
+    std::test::assert(left_22 == right_22, "prefix_resistance/adjacent_Rohm_Yohm: forward");
+    std::test::assert(right_22 == left_22, "prefix_resistance/adjacent_Rohm_Yohm: reverse");
+    std::test::assert_eq_int(left_22 / 1Yohm, k * 1000, "prefix_resistance/adjacent_Rohm_Yohm: target count");
+    std::test::assert_eq_int(right_22 / 1Rohm, k * 1, "prefix_resistance/adjacent_Rohm_Yohm: source count");
+
+    // 1 Qohm = 1000 Rohm
+    let source_23: Denomination4 = 1Qohm;
+    let target_23: Denomination5 = 1000Rohm;
+    let left_23 = k * source_23;
+    let right_23 = k * target_23;
+    std::test::assert(left_23 == right_23, "prefix_resistance/adjacent_Qohm_Rohm: forward");
+    std::test::assert(right_23 == left_23, "prefix_resistance/adjacent_Qohm_Rohm: reverse");
+    std::test::assert_eq_int(left_23 / 1Rohm, k * 1000, "prefix_resistance/adjacent_Qohm_Rohm: target count");
+    std::test::assert_eq_int(right_23 / 1Qohm, k * 1, "prefix_resistance/adjacent_Qohm_Rohm: source count");
+
+    // 1000000000000000000 aohm = 1 ohm
+    let source_24: Denomination9 = 1000000000000000000aohm;
+    let target_24: Denomination18 = 1ohm;
+    let left_24 = k * source_24;
+    let right_24 = k * target_24;
+    std::test::assert(left_24 == right_24, "prefix_resistance/base_anchor_aohm: forward");
+    std::test::assert(right_24 == left_24, "prefix_resistance/base_anchor_aohm: reverse");
+    std::test::assert_eq_int(left_24 / 1ohm, k * 1, "prefix_resistance/base_anchor_aohm: target count");
+    std::test::assert_eq_int(right_24 / 1aohm, k * 1000000000000000000, "prefix_resistance/base_anchor_aohm: source count");
+
+    // 1000000000000000 fohm = 1 ohm
+    let source_25: Denomination13 = 1000000000000000fohm;
+    let target_25: Denomination18 = 1ohm;
+    let left_25 = k * source_25;
+    let right_25 = k * target_25;
+    std::test::assert(left_25 == right_25, "prefix_resistance/base_anchor_fohm: forward");
+    std::test::assert(right_25 == left_25, "prefix_resistance/base_anchor_fohm: reverse");
+    std::test::assert_eq_int(left_25 / 1ohm, k * 1, "prefix_resistance/base_anchor_fohm: target count");
+    std::test::assert_eq_int(right_25 / 1fohm, k * 1000000000000000, "prefix_resistance/base_anchor_fohm: source count");
+
+    // 1000000000000 pohm = 1 ohm
+    let source_26: Denomination19 = 1000000000000pohm;
+    let target_26: Denomination18 = 1ohm;
+    let left_26 = k * source_26;
+    let right_26 = k * target_26;
+    std::test::assert(left_26 == right_26, "prefix_resistance/base_anchor_pohm: forward");
+    std::test::assert(right_26 == left_26, "prefix_resistance/base_anchor_pohm: reverse");
+    std::test::assert_eq_int(left_26 / 1ohm, k * 1, "prefix_resistance/base_anchor_pohm: target count");
+    std::test::assert_eq_int(right_26 / 1pohm, k * 1000000000000, "prefix_resistance/base_anchor_pohm: source count");
+
+    // 1000000000 nohm = 1 ohm
+    let source_27: Denomination17 = 1000000000nohm;
+    let target_27: Denomination18 = 1ohm;
+    let left_27 = k * source_27;
+    let right_27 = k * target_27;
+    std::test::assert(left_27 == right_27, "prefix_resistance/base_anchor_nohm: forward");
+    std::test::assert(right_27 == left_27, "prefix_resistance/base_anchor_nohm: reverse");
+    std::test::assert_eq_int(left_27 / 1ohm, k * 1, "prefix_resistance/base_anchor_nohm: target count");
+    std::test::assert_eq_int(right_27 / 1nohm, k * 1000000000, "prefix_resistance/base_anchor_nohm: source count");
+
+    // 1000000 uohm = 1 ohm
+    let source_28: Denomination22 = 1000000uohm;
+    let target_28: Denomination18 = 1ohm;
+    let left_28 = k * source_28;
+    let right_28 = k * target_28;
+    std::test::assert(left_28 == right_28, "prefix_resistance/base_anchor_uohm: forward");
+    std::test::assert(right_28 == left_28, "prefix_resistance/base_anchor_uohm: reverse");
+    std::test::assert_eq_int(left_28 / 1ohm, k * 1, "prefix_resistance/base_anchor_uohm: target count");
+    std::test::assert_eq_int(right_28 / 1uohm, k * 1000000, "prefix_resistance/base_anchor_uohm: source count");
+
+    // 1000 mohm = 1 ohm
+    let source_29: Denomination16 = 1000mohm;
+    let target_29: Denomination18 = 1ohm;
+    let left_29 = k * source_29;
+    let right_29 = k * target_29;
+    std::test::assert(left_29 == right_29, "prefix_resistance/base_anchor_mohm: forward");
+    std::test::assert(right_29 == left_29, "prefix_resistance/base_anchor_mohm: reverse");
+    std::test::assert_eq_int(left_29 / 1ohm, k * 1, "prefix_resistance/base_anchor_mohm: target count");
+    std::test::assert_eq_int(right_29 / 1mohm, k * 1000, "prefix_resistance/base_anchor_mohm: source count");
+
+    // 100 cohm = 1 ohm
+    let source_30: Denomination10 = 100cohm;
+    let target_30: Denomination18 = 1ohm;
+    let left_30 = k * source_30;
+    let right_30 = k * target_30;
+    std::test::assert(left_30 == right_30, "prefix_resistance/base_anchor_cohm: forward");
+    std::test::assert(right_30 == left_30, "prefix_resistance/base_anchor_cohm: reverse");
+    std::test::assert_eq_int(left_30 / 1ohm, k * 1, "prefix_resistance/base_anchor_cohm: target count");
+    std::test::assert_eq_int(right_30 / 1cohm, k * 100, "prefix_resistance/base_anchor_cohm: source count");
+
+    // 1 hohm = 100 ohm
+    let source_31: Denomination14 = 1hohm;
+    let target_31: Denomination18 = 100ohm;
+    let left_31 = k * source_31;
+    let right_31 = k * target_31;
+    std::test::assert(left_31 == right_31, "prefix_resistance/base_anchor_hohm: forward");
+    std::test::assert(right_31 == left_31, "prefix_resistance/base_anchor_hohm: reverse");
+    std::test::assert_eq_int(left_31 / 1ohm, k * 100, "prefix_resistance/base_anchor_hohm: target count");
+    std::test::assert_eq_int(right_31 / 1hohm, k * 1, "prefix_resistance/base_anchor_hohm: source count");
+
+    // 1 kohm = 1000 ohm
+    let source_32: Denomination15 = 1kohm;
+    let target_32: Denomination18 = 1000ohm;
+    let left_32 = k * source_32;
+    let right_32 = k * target_32;
+    std::test::assert(left_32 == right_32, "prefix_resistance/base_anchor_kohm: forward");
+    std::test::assert(right_32 == left_32, "prefix_resistance/base_anchor_kohm: reverse");
+    std::test::assert_eq_int(left_32 / 1ohm, k * 1000, "prefix_resistance/base_anchor_kohm: target count");
+    std::test::assert_eq_int(right_32 / 1kohm, k * 1, "prefix_resistance/base_anchor_kohm: source count");
+
+    // 1 Mohm = 1000000 ohm
+    let source_33: Denomination2 = 1Mohm;
+    let target_33: Denomination18 = 1000000ohm;
+    let left_33 = k * source_33;
+    let right_33 = k * target_33;
+    std::test::assert(left_33 == right_33, "prefix_resistance/base_anchor_Mohm: forward");
+    std::test::assert(right_33 == left_33, "prefix_resistance/base_anchor_Mohm: reverse");
+    std::test::assert_eq_int(left_33 / 1ohm, k * 1000000, "prefix_resistance/base_anchor_Mohm: target count");
+    std::test::assert_eq_int(right_33 / 1Mohm, k * 1, "prefix_resistance/base_anchor_Mohm: source count");
+
+    // 1 Gohm = 1000000000 ohm
+    let source_34: Denomination1 = 1Gohm;
+    let target_34: Denomination18 = 1000000000ohm;
+    let left_34 = k * source_34;
+    let right_34 = k * target_34;
+    std::test::assert(left_34 == right_34, "prefix_resistance/base_anchor_Gohm: forward");
+    std::test::assert(right_34 == left_34, "prefix_resistance/base_anchor_Gohm: reverse");
+    std::test::assert_eq_int(left_34 / 1ohm, k * 1000000000, "prefix_resistance/base_anchor_Gohm: target count");
+    std::test::assert_eq_int(right_34 / 1Gohm, k * 1, "prefix_resistance/base_anchor_Gohm: source count");
+
+    // 1 Tohm = 1000000000000 ohm
+    let source_35: Denomination6 = 1Tohm;
+    let target_35: Denomination18 = 1000000000000ohm;
+    let left_35 = k * source_35;
+    let right_35 = k * target_35;
+    std::test::assert(left_35 == right_35, "prefix_resistance/base_anchor_Tohm: forward");
+    std::test::assert(right_35 == left_35, "prefix_resistance/base_anchor_Tohm: reverse");
+    std::test::assert_eq_int(left_35 / 1ohm, k * 1000000000000, "prefix_resistance/base_anchor_Tohm: target count");
+    std::test::assert_eq_int(right_35 / 1Tohm, k * 1, "prefix_resistance/base_anchor_Tohm: source count");
+
+    // 1 Pohm = 1000000000000000 ohm
+    let source_36: Denomination3 = 1Pohm;
+    let target_36: Denomination18 = 1000000000000000ohm;
+    let left_36 = k * source_36;
+    let right_36 = k * target_36;
+    std::test::assert(left_36 == right_36, "prefix_resistance/base_anchor_Pohm: forward");
+    std::test::assert(right_36 == left_36, "prefix_resistance/base_anchor_Pohm: reverse");
+    std::test::assert_eq_int(left_36 / 1ohm, k * 1000000000000000, "prefix_resistance/base_anchor_Pohm: target count");
+    std::test::assert_eq_int(right_36 / 1Pohm, k * 1, "prefix_resistance/base_anchor_Pohm: source count");
+
+    // 1 Eohm = 1000000000000000000 ohm
+    let source_37: Denomination0 = 1Eohm;
+    let target_37: Denomination18 = 1000000000000000000ohm;
+    let left_37 = k * source_37;
+    let right_37 = k * target_37;
+    std::test::assert(left_37 == right_37, "prefix_resistance/base_anchor_Eohm: forward");
+    std::test::assert(right_37 == left_37, "prefix_resistance/base_anchor_Eohm: reverse");
+    std::test::assert_eq_int(left_37 / 1ohm, k * 1000000000000000000, "prefix_resistance/base_anchor_Eohm: target count");
+    std::test::assert_eq_int(right_37 / 1Eohm, k * 1, "prefix_resistance/base_anchor_Eohm: source count");
+
+}
+
+fn main() {
+    check_runtime(1);
+    check_runtime(-1);
+    check_runtime(3);
+}
