@@ -266,7 +266,7 @@ fn emit_frame(fin: Bool, opcode: Int, payload: Bytes, mask_seed: Int) -> Bytes {
     // (masked[i] = payload[i] ^ key[i % 4]).
     bldr.xor_mask(payload, pack_mask_key(mk0, mk1, mk2, mk3));
 
-    return bldr.finish();
+    return bldr.finish() or raise;
 }
 
 // emit_server_frame — serialize one outbound frame for server-
@@ -311,7 +311,7 @@ fn emit_server_frame(fin: Bool, opcode: Int, payload: Bytes) -> Bytes {
 
     // Unmasked payload, copied verbatim.
     bldr.append(payload);
-    return bldr.finish();
+    return bldr.finish() or raise;
 }
 
 // byte_at — wrapper around std::bytes::at that surfaces a 0 on

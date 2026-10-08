@@ -52,7 +52,7 @@ fn main() {
     bin.append_str("a\r\n");
     bin.append(std::bytes::from_int(0));
     bin.append_str("z\r\n");
-    f.feed(bin.finish());
+    f.feed(bin.finish() or raise);
     std::test::assert(f.next() && len(f.frame.data) == 5, "a sized payload is not split at its CRLF");
 
     // HMSG: headers, a status line, and a payload

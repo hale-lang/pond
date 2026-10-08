@@ -203,5 +203,5 @@ fn render_histogram(ns: String, h: HistogramData) -> String {
     let lab_total = render_labels(h.labels);
     b.append(std::bytes::from_string(full + "_sum" + lab_total + " " + to_string(h.sum) + "\n"));
     b.append(std::bytes::from_string(full + "_count" + lab_total + " " + to_string(h.count) + "\n"));
-    return std::str::from_bytes(b.finish());
+    return std::str::from_bytes(b.finish() or raise);
 }

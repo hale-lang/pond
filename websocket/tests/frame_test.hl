@@ -38,7 +38,7 @@ fn main() {
     let dest = std::bytes::BytesBuilder { initial_cap: 16 };
     ws::unmask_into(dest, frame, hdr.payload_off, hdr.payload_len, hdr.masked,
         hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
-    let out = dest.finish();
+    let out = dest.finish() or raise;
     std::test::assert_eq_int(len(out), 5, "unmasked payload length");
     std::test::assert_eq_str(std::str::from_bytes(out), "hello", "masked payload round-trips");
 
@@ -61,7 +61,7 @@ fn main() {
     let sdest = std::bytes::BytesBuilder { initial_cap: 16 };
     ws::unmask_into(sdest, sframe, shdr.payload_off, shdr.payload_len, shdr.masked,
         shdr.mk0, shdr.mk1, shdr.mk2, shdr.mk3);
-    std::test::assert_eq_str(std::str::from_bytes(sdest.finish()), "hello",
+    std::test::assert_eq_str(std::str::from_bytes(sdest.finish() or raise), "hello",
         "server payload round-trips");
 
     // ---- 200-byte payload: 2-byte extended length path ---------
@@ -90,7 +90,7 @@ fn main() {
     let bdest = std::bytes::BytesBuilder { initial_cap: 256 };
     ws::unmask_into(bdest, big_frame, bhdr.payload_off, bhdr.payload_len, bhdr.masked,
         bhdr.mk0, bhdr.mk1, bhdr.mk2, bhdr.mk3);
-    let bout = bdest.finish();
+    let bout = bdest.finish() or raise;
     std::test::assert_eq_int(len(bout), 200, "200-byte payload length round-trips");
     std::test::assert(std::str::from_bytes(bout) == big, "200-byte payload content round-trips");
 
@@ -125,7 +125,7 @@ fn main() {
     let buf = std::bytes::BytesBuilder { initial_cap: 64 };
     buf.append(ws::emit_server_frame(true, 1, std::bytes::from_string("abc")));
     buf.append(ws::emit_server_frame(true, 1, std::bytes::from_string("defg")));
-    let two = buf.finish();
+    let two = buf.finish() or raise;
     let h1 = ws::peek_header(two, 0) or hdr_err(err);
     std::test::assert_eq_int(h1.total, 5, "first frame total 2+3");
     let h2 = ws::peek_header(two, h1.total) or hdr_err(err);
@@ -133,7 +133,7 @@ fn main() {
     let d2 = std::bytes::BytesBuilder { initial_cap: 16 };
     ws::unmask_into(d2, two, h2.payload_off, h2.payload_len, h2.masked,
         h2.mk0, h2.mk1, h2.mk2, h2.mk3);
-    std::test::assert_eq_str(std::str::from_bytes(d2.finish()), "defg",
+    std::test::assert_eq_str(std::str::from_bytes(d2.finish() or raise), "defg",
         "second frame payload extracted at offset");
 
     // ---- helpers: mask-key packing + opcode maps ----------------
