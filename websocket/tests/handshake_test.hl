@@ -69,7 +69,7 @@ fn main() {
     let with_tail = std::bytes::BytesBuilder { initial_cap: 256 };
     with_tail.append(resp101);
     with_tail.append(std::bytes::from_string("FRAMEBYTES"));
-    let consumed_tail = ws::parse_response(with_tail.finish(), rfc_accept()) or hs_err(err);
+    let consumed_tail = ws::parse_response(with_tail.finish() or raise, rfc_accept()) or hs_err(err);
     std::test::assert_eq_int(consumed_tail, len(resp101), "tail after handshake not consumed");
 
     // Empty expected_accept skips the accept check.

@@ -29,7 +29,7 @@ fn main() {
     // ---- big-endian helpers round-trip ----
     let b32 = std::bytes::BytesBuilder { initial_cap: 8 };
     wire::be32_append(b32, 16909060); // 0x01020304
-    let raw32 = b32.finish();
+    let raw32 = b32.finish() or raise;
     std::test::assert_eq_int(len(raw32), 4, "be32_append writes 4 bytes");
     std::test::assert_eq_int(wire::byte_at(raw32, 0), 1, "be32 byte 0");
     std::test::assert_eq_int(wire::byte_at(raw32, 1), 2, "be32 byte 1");
@@ -39,7 +39,7 @@ fn main() {
 
     let b16 = std::bytes::BytesBuilder { initial_cap: 4 };
     wire::be16_append(b16, 43981); // 0xABCD
-    let raw16 = b16.finish();
+    let raw16 = b16.finish() or raise;
     std::test::assert_eq_int(len(raw16), 2, "be16_append writes 2 bytes");
     std::test::assert_eq_int(wire::read_be16(raw16, 0), 43981, "be16 round trip");
 
@@ -122,7 +122,7 @@ fn main() {
     wire::be32_append(rmsg, 8 + len(stb)); // len field: itself(4) + code(4) + text
     wire::be32_append(rmsg, 11); // sub-code 11 = SASLContinue
     rmsg.append(stb);
-    let rbytes = rmsg.finish();
+    let rbytes = rmsg.finish() or raise;
     let rtotal = 9 + len(stb); // type(1) + len(4) + code(4) + text
     std::test::assert_eq_int(wire::sasl_r_code(rbytes), 11, "sasl_r_code reads the R sub-code");
     std::test::assert_eq_str(wire::sasl_r_text(rbytes, rtotal), stext,
@@ -137,7 +137,7 @@ fn main() {
     wire::be32_append(vmsg, 8 + len(vtb)); // len field: itself(4) + code(4) + text
     wire::be32_append(vmsg, 12); // sub-code 12 = SASLFinal
     vmsg.append(vtb);
-    let vbytes = vmsg.finish();
+    let vbytes = vmsg.finish() or raise;
     let vtotal = 9 + len(vtb);
     std::test::assert_eq_int(wire::sasl_r_code(vbytes), 12, "sasl_r_code reads the SASLFinal sub-code (12)");
     std::test::assert_eq_str(wire::sasl_r_text(vbytes, vtotal), vtext,
@@ -147,7 +147,7 @@ fn main() {
     okmsg.append(std::bytes::from_int(82)); // 'R'
     wire::be32_append(okmsg, 8); // len field: itself(4) + code(4), no text
     wire::be32_append(okmsg, 0); // sub-code 0 = AuthenticationOk
-    let okbytes = okmsg.finish();
+    let okbytes = okmsg.finish() or raise;
     std::test::assert_eq_int(wire::sasl_r_code(okbytes), 0, "sasl_r_code reads the AuthenticationOk sub-code (0)");
     std::test::assert_eq_str(wire::sasl_r_text(okbytes, 9), "",
         "sasl_r_text is empty on a code-0 AuthenticationOk frame (no payload after the sub-code)");
@@ -172,13 +172,13 @@ fn main() {
     wire::__append_cstr(mechs_both, "SCRAM-SHA-256");
     wire::__append_cstr(mechs_both, "SCRAM-SHA-256-PLUS");
     mechs_both.append(std::bytes::from_int(0)); // list terminator (empty string)
-    let mb = mechs_both.snapshot();
+    let mb = mechs_both.snapshot() or raise;
     let sasl_both = std::bytes::BytesBuilder { initial_cap: 64 };
     sasl_both.append(std::bytes::from_int(82)); // 'R'
     wire::be32_append(sasl_both, 8 + len(mb)); // len: itself(4) + code(4) + mechs
     wire::be32_append(sasl_both, 10); // sub-code 10 = AuthenticationSASL
     sasl_both.append(mb);
-    let sb = sasl_both.finish();
+    let sb = sasl_both.finish() or raise;
     let sb_total = 9 + len(mb);
     std::test::assert_eq_int(wire::sasl_r_code(sb), 10, "code 10 = AuthenticationSASL");
     std::test::assert(wire::sasl_offers_scram_sha256(sb, sb_total),
@@ -192,13 +192,13 @@ fn main() {
     let mechs_plus = std::bytes::BytesBuilder { initial_cap: 64 };
     wire::__append_cstr(mechs_plus, "SCRAM-SHA-256-PLUS");
     mechs_plus.append(std::bytes::from_int(0)); // list terminator
-    let mp = mechs_plus.snapshot();
+    let mp = mechs_plus.snapshot() or raise;
     let sasl_plus = std::bytes::BytesBuilder { initial_cap: 64 };
     sasl_plus.append(std::bytes::from_int(82)); // 'R'
     wire::be32_append(sasl_plus, 8 + len(mp));
     wire::be32_append(sasl_plus, 10);
     sasl_plus.append(mp);
-    let sp = sasl_plus.finish();
+    let sp = sasl_plus.finish() or raise;
     let sp_total = 9 + len(mp);
     std::test::assert(!wire::sasl_offers_scram_sha256(sp, sp_total),
         "sasl_offers_scram_sha256 is FALSE when only SCRAM-SHA-256-PLUS is offered "
@@ -213,7 +213,7 @@ fn main() {
     let cs = std::bytes::from_string("ab");
     let csb = std::bytes::BytesBuilder { initial_cap: 8 };
     csb.append(cs); csb.append(std::bytes::from_int(0)); csb.append(std::bytes::from_string("cd"));
-    let csbytes = csb.finish();
+    let csbytes = csb.finish() or raise;
     std::test::assert_eq_int(wire::cstr_end(csbytes, 0, len(csbytes)), 2,
         "cstr_end finds the NUL index (byte-length advance, no String round-trip)");
     std::test::assert_eq_int(wire::cstr_end(csbytes, 3, len(csbytes)), len(csbytes),

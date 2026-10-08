@@ -114,13 +114,13 @@ fn __recv_response_bytes(s: __HttpConn, max_total: Int) -> Bytes {
         let n = len(piece);
         if n <= 0 {
             // Peer closed (or error). Done.
-            return buf.snapshot();
+            return buf.snapshot() or raise;
         }
         // Append the raw Bytes chunk; embedded NULs preserved.
         buf.append(piece);
         total = total + n;
     }
-    return buf.snapshot();
+    return buf.snapshot() or raise;
 }
 
 // Parse status line "HTTP/1.1 NNN PHRASE\r\n" — returns the

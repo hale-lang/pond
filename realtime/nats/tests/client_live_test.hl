@@ -19,7 +19,7 @@ fn main() {
     let payload = std::bytes::BytesBuilder { };
     payload.append_str("a\r\nb");
     payload.append(std::bytes::from_int(0));
-    let sent = payload.finish();
+    let sent = payload.finish() or raise;
     c.pub_msg(subject, "re.ply", sent) or discard;
     std::test::assert(c.read_msg(2s), "the message arrives: " + c.last_error);
     std::test::assert(c.last.subject == subject && c.last.sid == sid && c.last.reply == "re.ply", "its subject, sid and reply");

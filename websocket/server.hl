@@ -145,14 +145,14 @@ locus WsServerConn {
                 return false;
             }
             total = total + got;
-            let snap = self.rx_buf.snapshot();
+            let snap = self.rx_buf.snapshot() or raise;
             let s = std::str::from_bytes(snap);
             if std::str::contains(s, "\r\n\r\n") {
                 total = cap; // exit loop
             }
         }
 
-        let req_bytes = self.rx_buf.snapshot();
+        let req_bytes = self.rx_buf.snapshot() or raise;
         let req = parse_request(req_bytes);
         self.logger.on_event(WsLogEvent {
             phase: "handshake",
@@ -214,7 +214,7 @@ locus WsServerConn {
                 }
             }
 
-            let buf = self.rx_buf.snapshot();
+            let buf = self.rx_buf.snapshot() or raise;
             let hdr = peek_header(buf, 0) or __raise_framing(err, self);
             if hdr.total <= 0 {
                 return false;
@@ -227,7 +227,7 @@ locus WsServerConn {
                 }
             }
 
-            let full = self.rx_buf.snapshot();
+            let full = self.rx_buf.snapshot() or raise;
             self.frames_received = self.frames_received + 1;
 
             // Unmask payload into scratch (client-to-server is
@@ -237,7 +237,7 @@ locus WsServerConn {
                 hdr.payload_off, hdr.payload_len,
                 hdr.masked,
                 hdr.mk0, hdr.mk1, hdr.mk2, hdr.mk3);
-            let payload = self.scratch_buf.snapshot();
+            let payload = self.scratch_buf.snapshot() or raise;
 
             // Consume the frame from rx_buf.
             self.rx_buf.shift_front(hdr.total);
