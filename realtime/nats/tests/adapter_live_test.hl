@@ -17,7 +17,9 @@ topic In { payload: Note; subject: "adapter_test.in"; }
 // NatsAdapter is spelled here: publish onto the library's queue.
 locus Nats {
     bus { publish nats::NatsOutbound; }
-    fn send(subject: String, bytes: Bytes) { nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes }; }
+    fn send(subject: String, bytes: Bytes) {
+        nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes };
+    }
 }
 
 // Copies what arrives on one subject to another.
@@ -37,7 +39,9 @@ locus Relay {
         self.c.flush() or discard;
         let started = std::time::monotonic_ns();
         while std::time::monotonic_ns() - started < self.run_for_ms * 1000000 {
-            if self.c.read_msg(20ms) { self.c.pub_msg("pond.nats.adapter_test.in", "", self.c.last.data) or discard; }
+            if self.c.read_msg(20ms) {
+                self.c.pub_msg("pond.nats.adapter_test.in", "", self.c.last.data) or discard;
+            }
         }
         self.c.close();
     }
@@ -46,7 +50,11 @@ locus Relay {
 main locus App {
     params {
         url: String = "";
-        conn: nats::NatsConn = nats::NatsConn { subjects: "adapter_test.in", subject_prefix: "pond.nats.", run_for_ms: 3000 };
+        conn: nats::NatsConn = nats::NatsConn {
+            subjects: "adapter_test.in",
+            subject_prefix: "pond.nats.",
+            run_for_ms: 3000,
+        };
         relay: Relay = Relay { run_for_ms: 3000 };
         got: Int = 0;
         sum: Int = 0;
@@ -76,12 +84,24 @@ main locus App {
             waited = waited + 1;
         }
         std::test::assert(self.got == 50, "every message came back in: " + to_string(self.got));
-        std::test::assert(self.sum == 1275 && self.last_text == "note 50", "whole and in order: " + to_string(self.sum) + " " + self.last_text);
+        std::test::assert(
+            self.sum == 1275 && self.last_text == "note 50",
+            "whole and in order: " + to_string(self.sum) + " " + self.last_text,
+        );
     }
 }
 
 fn main() {
     let url = std::env::var("NATS_URL");
     if len(url) == 0 { eprintln("adapter_live_test: NATS_URL unset, skipped"); return; }
-    App { url: url, conn: nats::NatsConn { url: url, subjects: "adapter_test.in", subject_prefix: "pond.nats.", run_for_ms: 3000 }, relay: Relay { url: url, run_for_ms: 3000 } };
+    App {
+        url: url,
+        conn: nats::NatsConn {
+            url: url,
+            subjects: "adapter_test.in",
+            subject_prefix: "pond.nats.",
+            run_for_ms: 3000,
+        },
+        relay: Relay { url: url, run_for_ms: 3000 },
+    };
 }

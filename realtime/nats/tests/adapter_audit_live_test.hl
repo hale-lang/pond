@@ -12,14 +12,21 @@ topic Lost { payload: Note; subject: "pond.nats.adapter_audit.nowhere"; }
 // hale#1034: the program declares the adapter it binds.
 locus Nats {
     bus { publish nats::NatsOutbound; }
-    fn send(subject: String, bytes: Bytes) { nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes }; }
+    fn send(subject: String, bytes: Bytes) {
+        nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes };
+    }
 }
 
 main locus App {
     params {
         // built here, not passed in from main(): a child passed in has
         // no parent handler for its violation (COMPILER-BUGS.md #4)
-        conn: nats::NatsConn = nats::NatsConn { url: std::env::var("NATS_URL"), jetstream: true, ack_window_ms: 500, run_for_ms: 5000 };
+        conn: nats::NatsConn = nats::NatsConn {
+            url: std::env::var("NATS_URL"),
+            jetstream: true,
+            ack_window_ms: 500,
+            run_for_ms: 5000,
+        };
         failed: Bool = false;
         why: String = "";
     }
@@ -29,7 +36,7 @@ main locus App {
 
     on_failure(c: nats::NatsConn, err: ClosureViolation) {
         self.failed = true;
-        self.why = err.closure +": " + c.last_error;
+        self.why = err.closure + ": " + c.last_error;
     }
 
     run() {
@@ -41,8 +48,17 @@ main locus App {
             waited = waited + 1;
         }
         std::test::assert(self.failed, "the conn collapsed to its owner");
-        std::test::assert(std::str::starts_with(self.why, "delivery: message 1 on pond.nats.adapter_audit.nowhere unacknowledged"), "which message: " + self.why);
-        std::test::assert(std::str::contains(self.why, "no stream takes it"), "and why: " + self.why);
+        std::test::assert(
+            std::str::starts_with(
+                self.why,
+                "delivery: message 1 on pond.nats.adapter_audit.nowhere unacknowledged",
+            ),
+            "which message: " + self.why,
+        );
+        std::test::assert(
+            std::str::contains(self.why, "no stream takes it"),
+            "and why: " + self.why,
+        );
     }
 }
 

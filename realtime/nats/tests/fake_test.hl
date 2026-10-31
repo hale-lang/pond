@@ -10,7 +10,9 @@ topic In { payload: Note; subject: "pond.nats.fake_test.in"; }
 // hale#1034: the program declares the adapter it binds.
 locus Nats {
     bus { publish nats::NatsOutbound; }
-    fn send(subject: String, bytes: Bytes) { nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes }; }
+    fn send(subject: String, bytes: Bytes) {
+        nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes };
+    }
 }
 
 main locus App {
@@ -36,12 +38,22 @@ main locus App {
             i = i + 1;
         }
         std::time::sleep(20ms);
-        std::test::assert(self.fake.sent == 6 && self.fake.acked == 6, "sent and acknowledged: " + to_string(self.fake.sent) + " " + to_string(self.fake.acked));
-        std::test::assert(self.fake.count("pond.nats.fake_test.out") == 4, "the log keeps the last `keep`");
+        std::test::assert(
+            self.fake.sent == 6 && self.fake.acked == 6,
+            "sent and acknowledged: " + to_string(self.fake.sent) + " "
+                + to_string(self.fake.acked),
+        );
+        std::test::assert(
+            self.fake.count("pond.nats.fake_test.out") == 4,
+            "the log keeps the last `keep`",
+        );
         let n = self.fake.replay("pond.nats.fake_test.out", "pond.nats.fake_test.in");
         std::time::sleep(20ms);
         std::test::assert(n == 4 && self.got == 4, "replayed in as In: " + to_string(self.got));
-        std::test::assert(self.sum == 3 + 4 + 5 + 6 && self.last_text == "note 6", "whole and in order: " + to_string(self.sum) + " " + self.last_text);
+        std::test::assert(
+            self.sum == 3 + 4 + 5 + 6 && self.last_text == "note 6",
+            "whole and in order: " + to_string(self.sum) + " " + self.last_text,
+        );
     }
 }
 

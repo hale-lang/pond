@@ -145,8 +145,16 @@ locus NatsConn {
         while self.written_to < n {
             let i = self.written_to;
             if (self.acks.get(i) or 1) == 0 {
-                let reply = if self.jetstream { self.inbox + ".ack." + to_string(self.base_id + i) } else { "" };
-                self.client.pub_msg(self.subject_prefix + self.pending.subject_at(i), reply, self.pending.data_at(i)) or discard;
+                let reply = if self.jetstream {
+                    self.inbox + ".ack." + to_string(self.base_id + i)
+                } else {
+                    ""
+                };
+                self.client.pub_msg(
+                    self.subject_prefix + self.pending.subject_at(i),
+                    reply,
+                    self.pending.data_at(i),
+                ) or discard;
                 if !self.client.connected { return; }
                 self.sent = self.sent + 1;
             }
@@ -204,10 +212,18 @@ locus NatsConn {
     fn on_pub_ack(f: NatsFrame) {
         // `<inbox>.ack.<id>`
         let at = len(self.inbox) + 5;
-        let id = if len(f.subject) > at { std::str::parse_int(f.subject[at..len(f.subject)]) or 0 } else { 0 };
+        let id = if len(f.subject) > at {
+            std::str::parse_int(f.subject[at..len(f.subject)]) or 0
+        } else {
+            0
+        };
         // a 503 status: no stream takes the subject
         let status = if f.op == "HMSG" { header_status(f.headers) } else { "" };
-        let refused = if len(status) > 0 { "no stream takes it (" + status + ")" } else { js_error_of(std::str::from_bytes(f.data)) };
+        let refused = if len(status) > 0 {
+            "no stream takes it (" + status + ")"
+        } else {
+            js_error_of(std::str::from_bytes(f.data))
+        };
         if len(refused) > 0 {
             // left unacknowledged: written again after a reconnect, and
             // the audit fires if it never lands
@@ -221,7 +237,11 @@ locus NatsConn {
 
     fn pull() {
         let body = "{\"batch\":" + to_string(self.pull_batch) + ",\"expires\":1000000000}";
-        self.client.pub_msg("$JS.API.CONSUMER.MSG.NEXT." + self.stream + "." + self.consumer.durable, self.inbox + ".pull", std::bytes::from_string(body)) or discard;
+        self.client.pub_msg(
+            "$JS.API.CONSUMER.MSG.NEXT." + self.stream + "." + self.consumer.durable,
+            self.inbox + ".pull",
+            std::bytes::from_string(body),
+        ) or discard;
         self.pull_open = true;
         self.pull_left = self.pull_batch;
         self.pull_deadline_ns = std::time::monotonic_ns() + 1500000000;
@@ -239,7 +259,9 @@ locus NatsConn {
         }
         std::bus::__local_dispatch(self.local_subject(f.subject), f.data);
         self.received = self.received + 1;
-        if len(f.reply) > 0 { self.client.pub_msg(f.reply, "", std::bytes::from_string("+ACK")) or discard; }
+        if len(f.reply) > 0 {
+            self.client.pub_msg(f.reply, "", std::bytes::from_string("+ACK")) or discard;
+        }
         self.pull_left = self.pull_left - 1;
         if self.pull_left <= 0 { self.pull_open = false; }
     }
@@ -275,7 +297,9 @@ locus NatsConn {
         if len(self.stream) > 0 && len(self.consumer.durable) > 0 {
             js_consumer_create(self.client, self.stream, self.consumer) or discard;
             if !self.client.connected { self.last_error = self.client.last_error; return false; }
-            if std::str::starts_with(self.client.last_error, "jetstream") { self.last_error = self.client.last_error; }
+            if std::str::starts_with(self.client.last_error, "jetstream") {
+                self.last_error = self.client.last_error;
+            }
             self.pull_sid = self.client.sub_to(self.inbox + ".pull", "") or 0;
             self.pull_open = false;
         }
@@ -284,7 +308,9 @@ locus NatsConn {
             let comma = std::str::index_of(rest, ",");
             let one = std::str::trim(if comma < 0 { rest } else { rest[0..comma] });
             rest = if comma < 0 { "" } else { rest[(comma + 1)..len(rest)] };
-            if len(one) > 0 { let sid = self.client.sub_to(self.subject_prefix + one, self.queue) or 0; }
+            if len(one) > 0 {
+                let sid = self.client.sub_to(self.subject_prefix + one, self.queue) or 0;
+            }
         }
         self.client.set_read_timeout(10ms);
         self.barrier = -1;
@@ -299,7 +325,12 @@ locus NatsConn {
         let queued = self.queued.get(self.head) or now;
         if now - queued < self.ack_window_ms * 1000000 { return; }
         let why = if len(self.last_error) > 0 { self.last_error } else { "no acknowledgement" };
-        self.note("message " + to_string(self.base_id + self.head) + " on " + self.pending.subject_at(self.head) + " unacknowledged after " + to_string(self.ack_window_ms) + " ms: ", why);
+        self.note(
+            "message " + to_string(self.base_id + self.head) + " on "
+                + self.pending.subject_at(self.head) + " unacknowledged after "
+                + to_string(self.ack_window_ms) + " ms: ",
+            why,
+        );
         violate delivery;
     }
 
@@ -311,7 +342,9 @@ locus NatsConn {
                 self.backoff_ms = 0;
             } else {
                 self.backoff_ms = if self.backoff_ms == 0 { 50 } else { self.backoff_ms * 2 };
-                if self.backoff_ms > self.reconnect_max_ms { self.backoff_ms = self.reconnect_max_ms; }
+                if self.backoff_ms > self.reconnect_max_ms {
+                    self.backoff_ms = self.reconnect_max_ms;
+                }
                 self.retry_at_ns = now + self.backoff_ms * 1000000;
                 return;
             }
