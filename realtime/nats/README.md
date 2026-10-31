@@ -12,21 +12,19 @@ import "vendor/pond/realtime/nats" as nats;
 
 ```hale
 type Order { id: Int = 0; }
+type Version { version: Int = 0; }
 topic Orders { payload: Order; subject: "orders.new"; }
 topic Fills { payload: Order; subject: "orders.filled"; }
-
-// The adapter `bindings` names (hale#1034: a binding cannot name an
-// adapter through an import alias yet, so it is spelled here).
-locus Nats {
-    bus { publish nats::NatsOutbound; }
-    fn send(subject: String, bytes: Bytes) { nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes }; }
-}
+topic RouteWritten { payload: Version; subject: "route"; }
 
 main locus App {
     params { nats: nats::NatsConn = nats::NatsConn { url: "nats://127.0.0.1:4222", subjects: "orders.filled" }; }
     placement { nats: pinned; }
-    bindings { Orders: Nats { }; }
-    bus { publish Orders; subscribe Fills as on_fill; }
+    bindings {
+        Orders: nats::NatsAdapter { };                                         // at least once
+        RouteWritten: nats::NatsAdapter { delivery: nats::Delivery::Latest };  // the newest value
+    }
+    bus { publish Orders; publish RouteWritten; subscribe Fills as on_fill; }
     fn on_fill(o: Order) { ... }
     on_failure(c: nats::NatsConn, err: ClosureViolation) { ... c.last_error ... }
 }
@@ -52,14 +50,20 @@ main locus App {
 
 Why two loci: a bound adapter's subscriptions run on the publishing
 thread, not the adapter's (hale#1032), so an adapter that owned the
-socket would write it from every publisher's thread. The conn must
-also be declared as the owner's param default, not built in `main()`
-and passed in: a child passed in loses its owner's `on_failure`
-(hale#1035).
+socket would write it from every publisher's thread. (Programs written
+before hale#1034 closed declare a four-line local adapter that
+publishes `nats::NatsOutbound`; it still works, and binds at least
+once. A conn built in `main()` and passed in keeps its owner's
+`on_failure` now that hale#1035 is closed: `latest_outage_test` does
+that.)
 
 ### Delivery
 
-At least once. `send` cannot fail, so the conn keeps every message
+Chosen per binding: `NatsAdapter { delivery: nats::Delivery::… }`.
+`AtLeastOnce` is the default; `Latest` is for a latest-value signal
+(below). One conn carries both.
+
+**At least once.** `send` cannot fail, so the conn keeps every message
 until the server has it:
 
 - **Core mode:** the PONG of a PING written after the message.
@@ -77,6 +81,33 @@ A lost connection is retried with backoff (50 ms doubling to
 `reconnect_max_ms`). After it reconnects, the conn subscribes again,
 re-attaches the durable consumer, and writes everything still
 unacknowledged again.
+
+**Latest value** (`delivery: nats::Delivery::Latest`). For a signal
+where only the newest value matters, such as a version number announced
+every second. Per subject, the conn keeps only the newest message the
+server has not confirmed:
+
+- Connected, each message is written at once, followed by a PING; the
+  PONG confirms it.
+- While the connection is down, a newer message replaces the one its
+  subject held, and the older one is dropped (never written).
+- After a reconnect, the newest of each subject is written, unless the
+  server already confirmed it.
+- Nothing is audited: an outage of any length is no `delivery`
+  violation, and the conn never collapses for it. A message over the
+  server's `max_payload` is said on `last_error` and not tried again.
+
+The conn holds one message per latest-value subject, replaced in place.
+`latest_in`, `latest_sent` and `latest_dropped` count what it was
+handed, what it wrote, and what was replaced before it was written. In
+`jetstream` mode, a latest-value message is a plain publish too: a
+stream that takes its subject stores it, but no PubAck is awaited.
+
+**Reconnecting.** The dial and the handshake each wait at most
+`timeout` (default 5 s, `std::io::tcp::connect_within`), so an address
+that never answers costs that much per attempt, not the kernel's two
+minutes of SYN retries, and the attempt is retried with the backoff
+above.
 
 An inbound message waits at most about 10 ms for the receive loop (its
 read timeout) plus however long the receiving locus takes to reach a
@@ -140,7 +171,12 @@ c.close();
   `tls_required` is upgraded the same way. The live tests do not cover
   TLS: that needs a server whose certificate the system trusts.
 - **Credentials.** `user`/`pass` or `token`, as params or in the URL
-  (`nats://user:pass@host`, `nats://token@host`). NKey and JWT
+  (`nats://user:pass@host`, `nats://token@host`), or sealed:
+  `credential: std::secret::Credential { vault: "nats-password" }` is
+  `user`'s password, or with no `user` the token. It is revealed only
+  on the line that writes CONNECT; when it names a source, `pass`,
+  `token` and a URL's password are not used. `NatsConn` takes the same
+  `credential` param and presents it on every (re)connect. NKey and JWT
   credentials are not supported: they need ed25519, which neither
   hale's stdlib nor `pond/crypto` has (`FRICTION.log`).
 - **Frames.** `next_frame()` returns one frame into `framer.frame`,
@@ -172,7 +208,9 @@ so the adapter and bindings stay as they are.
 
 - **Outbound.** Everything sent is kept, and acknowledged at once. With
   `ack: false` nothing is acknowledged, and the same `delivery` closure
-  fires once a message is older than `ack_window_ms`.
+  fires once a message is older than `ack_window_ms`. A latest-value
+  binding's messages are kept (and counted in `latest`) but never
+  audited, as on the conn.
 - **Inbound.** Messages come from `inject(subject, bytes)`, or from
   `replay(from, to)`, which re-delivers what was sent on one subject
   under another.
@@ -186,9 +224,12 @@ so the adapter and bindings stay as they are.
 hale test realtime/nats/
 ```
 
-Without a server, `proto_test` (framing), `fake_test` and
-`fake_audit_test` run, and the `*_live_test`s say "skipped" on stderr
-and pass. To run those against a real server:
+Without a server, `proto_test` (framing), the fake's tests and the
+loopback tests run, and the `*_live_test`s say "skipped" on stderr and
+pass. The loopback tests run against `tests/loopback/`, just enough of
+a NATS server on 127.0.0.1 (INFO, CONNECT with a password check,
+PING/PONG, PUB) to take one down and bring it back. To run the live
+tests against a real server:
 
 ```sh
 docker run --rm -p 4222:4222 nats:2 -js
@@ -197,6 +238,10 @@ NATS_URL=nats://127.0.0.1:4222 hale test realtime/nats/
 
 | Test | What it proves |
 |---|---|
+| `latest_outage_test` | loopback: across an outage longer than the ack window, a latest-value binding keeps only the newest of each subject, writes it after the reconnect and never the ones it replaced, and collapses nothing; an at-least-once binding on the same conn still collapses it |
+| `credential_test` | loopback: a vault credential as `user`'s password and as a token; a wrong or missing one refused; `NatsConn` connecting with its own |
+| `dial_test` | the dial gives up within the client's `timeout` on an address that never answers (127.0.0.2: dropped on macOS, refused at once on Linux) |
+| `fake_latest_test` | the fake never audits a latest-value binding, and still audits an at-least-once one |
 | `client_live_test` | pub/sub, a binary payload intact, unsub, request/reply, no-responders |
 | `jetstream_live_test` | streams, PubAcks, durable consumers under all five deliver policies, a filter, re-creating a durable without losing its place, redelivery of what was never acked |
 | `adapter_live_test` | the bus both ways under a `subject_prefix`: 50 messages out through the adapter, back in through a relay, whole and in order |
@@ -229,8 +274,8 @@ hale build realtime/nats/examples/bridge/ && ./realtime/nats/examples/bridge/bri
   queue, and its `run()` becomes the receive loop; programs lose the
   `placement` line and the second param.
 - **hale#1034** (a binding may name an adapter through an alias):
-  programs bind `nats::NatsAdapter { … }` directly and drop their local
-  `Nats` locus.
+  CLOSED. Programs bind `nats::NatsAdapter { … }` directly, which is
+  also how a binding picks its `delivery`.
 - **pond COMPILER-BUGS § 3** (a drain reaches a pinned loop): nothing
   changes here. The loop already ends on `self.draining`; `run_for_ms`
   becomes optional.

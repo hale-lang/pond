@@ -4039,13 +4039,49 @@ receive loop are on the conn's thread. The bus is the cross-thread
 queue: Bytes are carried by the bus, with per-publisher order, and the
 socket has one writer. Folds into one locus when hale#1032 closes.
 
-## A binding cannot name the library's adapter — [OPEN, not blocking] (2026-09-24)
+## A binding cannot name the library's adapter — [CLOSED] (2026-09-24, closed 2026-10-31)
 
-`bindings { Out: nats::NatsAdapter { }; }` is a parse error: the
-transport side of a binding takes a bare locus name (hale#1034, filed).
-Each program declares a four-line adapter that publishes the library's
+`bindings { Out: nats::NatsAdapter { }; }` was a parse error: the
+transport side of a binding took a bare locus name (hale#1034, filed).
+Each program declared a four-line adapter that publishes the library's
 `nats::NatsOutbound` (README, tests, example). The library's own
-`NatsAdapter` is the same four lines, kept for the day it can be named.
+`NatsAdapter` was the same four lines, kept for the day it could be
+named.
+
+CLOSED: hale#1034 is fixed; at hale 0.31.0 a binding names
+`nats::NatsAdapter { delivery: nats::Delivery::Latest }` through the
+alias (`latest_outage_test`, `credential_test`, `fake_latest_test`).
+The older tests keep their local adapter; it still works.
+
+## A latest-value signal could not ride the adapter — [CLOSED] (2026-10-31)
+
+pond#29: a service announcing a value once a second (hale-lang/voice's
+route-table version) wrote its own NATS publisher, because every
+binding was at least once: an outage queued every superseded value,
+the reconnect replayed them all, and an outage past `ack_window_ms`
+collapsed the conn. `NatsAdapter.delivery: Delivery::Latest` keeps the
+newest unconfirmed message per subject in `NatsNewest`, an
+`@form(vec)` of `Outbound` replaced in place — a vec `set` retires the
+Bytes it replaces since hale#1037 closed, so the slot churns flat. Its
+writes are confirmed by a PING of their own; the conn now numbers its
+PINGs, so the at-least-once barrier is acknowledged only by its own
+PONG, never by a latest-value one before it. The same issue added a
+sealed `credential` (`std::secret::Credential`, revealed only into the
+CONNECT line through `@secret` params) and a dial bounded by the
+client's `timeout` (`std::io::tcp::connect_within`; plain `connect`
+waited out the kernel's SYN retries, about two minutes).
+
+## A test server cannot wait for a connection with a deadline — [OPEN, worked around] (2026-10-31)
+
+`std::io::tcp::accept_one` takes no deadline, and a receive timeout
+on the listening socket does not bound it (probed on macOS: it waits
+on). The loopback server the tests use (`tests/loopback/`) waits in
+`accept` whenever it has no connection, and a failed assertion unwinds
+the test by joining it, so a failing test hung there. `LoopWatch`,
+pinned beside the server, shuts the listening socket
+(`__shutdown_listen_socket`, which does wake a waiting `accept`) if the
+server has not ended after `after_ms`. An `accept` with a deadline
+would retire it.
 
 ## The receive loop is never drained — [OPEN, not blocking] (2026-09-24)
 

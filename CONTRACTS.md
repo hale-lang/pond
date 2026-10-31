@@ -14,6 +14,22 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-10-31 status note — `realtime/nats`: latest-value delivery, a sealed credential, a bounded dial (hale 0.31.0)
+
+- **Additions, no older surface changed** (pond#29): `type Delivery =
+  enum { AtLeastOnce, Latest }` and `NatsAdapter.delivery` (default
+  `AtLeastOnce`, so every existing binding is unchanged);
+  `Outbound.latest`; `credential: std::secret::Credential` on
+  `NatsClient` and `NatsConn`, with `NatsClient.open_as(credential)`;
+  `NatsConn.timeout`; `NatsFake.latest`.
+- **Behaviour change:** `NatsClient.open` dials with
+  `std::io::tcp::connect_within(host, port, timeout)` instead of an
+  unbounded `connect`, so a dial to an address that never answers fails
+  with kind `connect` after `timeout` (default 5 s).
+- Verified against hale `0.31.0`. hale#1034 and hale#1035 are closed:
+  a binding names `nats::NatsAdapter { … }` through the alias, and a
+  conn passed in from `main()` keeps its owner's `on_failure`.
+
 ## 2026-10-07 status note — `units` added
 
 - New `pond/units` catalogue: 986 exact unit declarations; its optional
@@ -1389,13 +1405,16 @@ type NatsFrame  { op: String; subject; sid; reply; headers; data; text; }   // o
 type PubAck     { stream: String; seq: Int; duplicate: Bool; }
 type ConsumerSpec { durable: String; filter = ""; deliver = "all";   // all|new|last|by_start_sequence|by_start_time
                     start_seq: Int = 0; start_time: String = ""; ack_wait_ms: Int = 0; }
-type Outbound   { subject: String; data: Bytes; }
+type Delivery   = enum { AtLeastOnce, Latest };      // per binding (2026-10-31)
+type Outbound   { subject: String; data: Bytes; latest: Bool = false; }
 topic NatsOutbound { payload: Outbound; subject: "pond.nats.outbound"; }   // adapter -> conn queue
 
 locus NatsClient {
     params { url = "nats://127.0.0.1:4222"; user = ""; pass = ""; token = ""; name = "";
+             credential: std::secret::Credential;        // sealed: user's password, or the token (2026-10-31)
              echo = true; timeout = 5s; }                // nats:// or tls:// (INFO, then TLS upgrade)
-    fn open() -> Bool;                                     // INFO, CONNECT, PING/PONG; last_error on fail
+    fn open() -> Bool;                                     // dial (within timeout), INFO, CONNECT, PING/PONG; last_error on fail
+    fn open_as(credential: std::secret::Credential) -> Bool;   // open, presenting this credential
     fn pub_msg(subject: String, reply: String, data: Bytes) -> () fallible(NatsError);
     fn pub_headers(subject: String, reply: String, headers: String, data: Bytes) -> () fallible(NatsError);   // HPUB; see msg_id_headers
     fn sub_to(subject: String, queue: String) -> Int fallible(NatsError);   // sid
@@ -1415,20 +1434,23 @@ fn js_publish_id(c: NatsClient, subject: String, id: String, data: Bytes) -> Pub
 fn js_next(c: NatsClient, stream: String, consumer: String, wait_ms: Int) -> NatsMsg fallible(NatsError);
 fn js_ack(c: NatsClient, m: NatsMsg) -> () fallible(NatsError);
 
-locus NatsAdapter { fn send(subject: String, bytes: Bytes); }   // std::bus adapter: publishes NatsOutbound
+locus NatsAdapter {                                       // std::bus adapter: publishes NatsOutbound
+    params { delivery: Delivery = Delivery::AtLeastOnce; }   // Latest: newest per subject, never audited
+    fn send(subject: String, bytes: Bytes);
+}
 
 locus NatsConn {                                          // the program places it `pinned`
-    params { url; user; pass; token; name;
+    params { url; user; pass; token; credential; name; timeout = 5s;
              subjects = "";  queue = "";                  // core inbound, comma-separated
              subject_prefix = "";                         // on every wire subject, off every inbound one
              jetstream = false;                           // outbound acked by PubAck, else PING barrier
              stream = ""; consumer: ConsumerSpec;         // JetStream inbound (durable pull)
              pull_batch = 64; ack_window_ms = 10000; run_for_ms = 0; reconnect_max_ms = 2000; }
-    closure delivery { captures: sent, acked, last_error; epoch inline; }   // violated past ack_window_ms
+    closure delivery { captures: sent, acked, last_error; epoch inline; }   // violated past ack_window_ms (at-least-once only)
 }
 
 locus NatsFake {                                          // NatsConn's broker-less stand-in
-    params { ack = true; ack_window_ms = 10000; keep = 1000; }
+    params { ack = true; ack_window_ms = 10000; keep = 1000; }   // a latest-value message is never audited
     closure delivery { captures: sent, acked, last_error; epoch inline; }
     fn inject(subject: String, data: Bytes);              // as though the server sent it
     fn replay(from: String, to: String) -> Int;           // re-deliver what was sent on `from`

@@ -25,7 +25,9 @@ topic Echo { payload: Stamp; subject: "demo.bridge.echo"; }
 // library's queue, which NatsConn drains.
 locus Nats {
     bus { publish nats::NatsOutbound; }
-    fn send(subject: String, bytes: Bytes) { nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes }; }
+    fn send(subject: String, bytes: Bytes) {
+        nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes };
+    }
 }
 
 // Another NATS client, as another process would be: it copies what
@@ -43,7 +45,9 @@ locus Mirror {
         self.c.flush() or discard;
         let started = std::time::monotonic_ns();
         while std::time::monotonic_ns() - started < self.run_for_ms * 1000000 {
-            if self.c.read_msg(20ms) { self.c.pub_msg("demo.bridge.echo", "", self.c.last.data) or discard; }
+            if self.c.read_msg(20ms) {
+                self.c.pub_msg("demo.bridge.echo", "", self.c.last.data) or discard;
+            }
         }
         self.c.close();
     }
@@ -56,7 +60,12 @@ fn url_from_env() -> String {
 
 main locus Bridge {
     params {
-        conn: nats::NatsConn = nats::NatsConn { url: url_from_env(), name: "bridge", subjects: "demo.bridge.echo", run_for_ms: 3000 };
+        conn: nats::NatsConn = nats::NatsConn {
+            url: url_from_env(),
+            name: "bridge",
+            subjects: "demo.bridge.echo",
+            run_for_ms: 3000,
+        };
         mirror: Mirror = Mirror { };
         back: Int = 0;
     }

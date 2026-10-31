@@ -1,0 +1,194 @@
+// A latest-value binding across an outage, against the loopback server
+// (tests/loopback), no broker needed. While the server is down, the conn
+// keeps only the newest message of each latest-value subject; once it
+// has reconnected, it writes that one and never the ones it replaced.
+// An outage longer than the ack window audits nothing and collapses
+// nothing. The control at the end: an at-least-once binding on the
+// same conn, published into the same kind of outage, still collapses
+// it to its owner, so the owner's `on_failure` is wired and the quiet
+// above is the mode's, not a missing handler's.
+import ".." as nats;
+import "loopback" as lb;
+
+type Version { v: Int = 0; }
+
+topic RouteA {
+    payload: Version;
+    subject: "route.a";
+}
+topic RouteB {
+    payload: Version;
+    subject: "route.b";
+}
+topic Order {
+    payload: Version;
+    subject: "order";
+}
+
+// What reached the server: it dispatches each PUB under "seen." + its
+// wire subject, which carries the conn's prefix.
+topic SeenA {
+    payload: Version;
+    subject: "seen.lv.route.a";
+}
+topic SeenB {
+    payload: Version;
+    subject: "seen.lv.route.b";
+}
+topic SeenOrder {
+    payload: Version;
+    subject: "seen.lv.order";
+}
+
+main locus App {
+    params {
+        fd: Int = -1;
+        server: lb::LoopServer = lb::LoopServer { };
+        watch: lb::LoopWatch = lb::LoopWatch { };
+        conn: nats::NatsConn = nats::NatsConn { };
+        a: Int = 0;
+        a_last: Int = 0;
+        a_sum: Int = 0;
+        b: Int = 0;
+        b_last: Int = 0;
+        orders: Int = 0;
+        failed: Bool = false;
+        why: String = "";
+    }
+    placement {
+        server: pinned;
+        watch: pinned;
+        conn: pinned;
+    }
+    bindings {
+        RouteA: nats::NatsAdapter { delivery: nats::Delivery::Latest };
+        RouteB: nats::NatsAdapter { delivery: nats::Delivery::Latest };
+        Order: nats::NatsAdapter { };
+    }
+    bus {
+        publish RouteA;
+        publish RouteB;
+        publish Order;
+        publish lb::ServerCtl;
+        subscribe SeenA as on_a;
+        subscribe SeenB as on_b;
+        subscribe SeenOrder as on_order;
+    }
+
+    fn on_a(m: Version) {
+        self.a = self.a + 1;
+        self.a_last = m.v;
+        self.a_sum = self.a_sum + m.v;
+    }
+    fn on_b(m: Version) {
+        self.b = self.b + 1;
+        self.b_last = m.v;
+    }
+    fn on_order(m: Version) { self.orders = self.orders + 1; }
+
+    on_failure(c: nats::NatsConn, err: ClosureViolation) {
+        self.failed = true;
+        self.why = err.closure + ": " + c.last_error;
+    }
+
+    // Wait up to `ms` for the server to have seen A's `a` and B's `b`.
+    fn wait_seen(a: Int, b: Int, ms: Int) {
+        let mut waited = 0;
+        while (self.a_last != a || self.b_last != b) && waited < ms {
+            std::time::sleep(10ms);
+            waited = waited + 10;
+        }
+    }
+
+    run() {
+        // up: both kinds reach the server
+        RouteA <- Version { v: 1 };
+        Order <- Version { v: 1 };
+        self.wait_seen(1, 0, 3000);
+        let mut waited = 0;
+        while self.orders < 1 && waited < 3000 {
+            std::time::sleep(10ms);
+            waited = waited + 10;
+        }
+        std::test::assert(
+            self.a == 1 && self.a_last == 1,
+            "the first value arrives: " + to_string(self.a),
+        );
+        std::test::assert(self.orders == 1, "and the at-least-once message beside it");
+
+        // down: the server drops the connection and refuses every dial
+        lb::ServerCtl <- lb::Ctl { up: false };
+        std::time::sleep(200ms);
+        RouteA <- Version { v: 2 };
+        RouteB <- Version { v: 1 };
+        RouteA <- Version { v: 3 };
+        RouteB <- Version { v: 2 };
+        RouteA <- Version { v: 4 };
+        // well past the ack window (300 ms)
+        std::time::sleep(900ms);
+        std::test::assert(self.a == 1 && self.b == 0, "nothing reaches a server that is down");
+        std::test::assert(
+            !self.failed,
+            "an outage past the ack window collapses nothing: " + self.why,
+        );
+
+        // back: the newest of each subject, and nothing older
+        lb::ServerCtl <- lb::Ctl { up: true };
+        self.wait_seen(4, 2, 5000);
+        std::time::sleep(300ms);
+        std::test::assert(
+            self.a_last == 4 && self.b_last == 2,
+            "the newest is written after the reconnect: " + to_string(self.a_last) + " "
+                + to_string(self.b_last),
+        );
+        std::test::assert(
+            self.a == 2 && self.a_sum == 5 && self.b == 1,
+            "and the values it replaced never are: " + to_string(self.a) + " " + to_string(self.b),
+        );
+        std::test::assert(!self.failed, "still no collapse: " + self.why);
+
+        // the conn carries on, and what the server confirmed is not sent again
+        RouteA <- Version { v: 5 };
+        self.wait_seen(5, 2, 3000);
+        std::time::sleep(200ms);
+        std::test::assert(
+            self.a == 3 && self.b == 1,
+            "one more value, one more message: " + to_string(self.a),
+        );
+
+        // control: an at-least-once message into an outage still collapses the conn
+        lb::ServerCtl <- lb::Ctl { up: false };
+        std::time::sleep(200ms);
+        Order <- Version { v: 2 };
+        waited = 0;
+        while !self.failed && waited < 5000 {
+            std::time::sleep(10ms);
+            waited = waited + 10;
+        }
+        std::test::assert(
+            self.failed
+                && std::str::starts_with(self.why, "delivery: message 2 on order unacknowledged"),
+            "at least once is unchanged: " + self.why,
+        );
+        std::io::tcp::__shutdown_listen_socket(self.fd);
+    }
+}
+
+fn main() {
+    let fd = std::io::tcp::listen_socket("127.0.0.1", 0) or - 1;
+    std::test::assert(fd >= 0, "a loopback listener");
+    let url = "nats://127.0.0.1:" + to_string(std::io::tcp::__local_port(fd));
+    App {
+        fd: fd,
+        server: lb::LoopServer { fd: fd, run_for_ms: 15000 },
+        watch: lb::LoopWatch { fd: fd, after_ms: 15000 },
+        conn: nats::NatsConn {
+            url: url,
+            subject_prefix: "lv.",
+            ack_window_ms: 300,
+            timeout: 1s,
+            reconnect_max_ms: 100,
+            run_for_ms: 12000,
+        },
+    };
+}

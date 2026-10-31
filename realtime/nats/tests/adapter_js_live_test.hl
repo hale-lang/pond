@@ -12,7 +12,9 @@ topic Out { payload: Note; subject: "pond.nats.adapter_js.out"; }
 // hale#1034: the program declares the adapter it binds.
 locus Nats {
     bus { publish nats::NatsOutbound; }
-    fn send(subject: String, bytes: Bytes) { nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes }; }
+    fn send(subject: String, bytes: Bytes) {
+        nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes };
+    }
 }
 
 main locus App {
@@ -42,7 +44,10 @@ main locus App {
             std::time::sleep(10ms);
             waited = waited + 1;
         }
-        std::test::assert(self.got == 60 && self.sum == 930, "each message locally and again from the stream: " + to_string(self.got));
+        std::test::assert(
+            self.got == 60 && self.sum == 930,
+            "each message locally and again from the stream: " + to_string(self.got),
+        );
     }
 }
 

@@ -58,11 +58,28 @@ type ConsumerSpec {
     ack_wait_ms: Int = 0;
 }
 
+/// How a binding's messages travel, chosen per binding on
+/// `NatsAdapter { delivery: … }`.
+///
+/// - `AtLeastOnce` (the default): every message is kept until the
+///   server has it, written again after a reconnect, and one still
+///   unacknowledged after `ack_window_ms` violates the conn's
+///   `delivery` closure.
+/// - `Latest`: a latest-value signal. Per subject, only the newest
+///   message the server has not confirmed is kept; a newer one replaces
+///   it, and the older one is dropped. Nothing is audited and nothing
+///   collapses the conn. After a reconnect the newest of each subject
+///   is written; one the server confirmed (the PONG of a PING written
+///   after it) is not written again.
+type Delivery = enum { AtLeastOnce, Latest };
+
 /// One outbound publish on its way from a bus adapter's `send` to
 /// the connection that writes it (the internal queue topic below).
+/// `latest`: its binding's delivery is `Delivery::Latest`.
 type Outbound {
     subject: String = "";
     data: Bytes = b"";
+    latest: Bool = false;
 }
 
 // The adapter's outbound queue: `NatsAdapter.send` publishes here on

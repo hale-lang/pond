@@ -1,0 +1,24 @@
+// The dial is bounded by the client's `timeout`: an address that never
+// answers costs that much, not the kernel's SYN retries (about two
+// minutes). The address is 127.0.0.2, never off the host. On macOS it
+// is a loopback address no interface holds, so a SYN to it is dropped
+// and the dial pends until its deadline — the case under test. On
+// Linux the whole of 127/8 is local and nothing listens there, so the
+// dial is refused at once; the bound holds all the same.
+import ".." as nats;
+
+fn main() {
+    let c = nats::NatsClient { url: "nats://127.0.0.2:4222", timeout: 300ms };
+    let started = std::time::monotonic_ns();
+    let opened = c.open();
+    let took_ms = (std::time::monotonic_ns() - started) / 1000000;
+    std::test::assert(!opened, "nothing answers there");
+    std::test::assert(
+        took_ms < 2000,
+        "and the dial gave up within its bound: " + to_string(took_ms) + " ms",
+    );
+    std::test::assert(
+        std::str::starts_with(c.last_error, "connect: tcp to 127.0.0.2:4222: "),
+        "saying where: " + c.last_error,
+    );
+}

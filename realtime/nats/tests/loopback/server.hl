@@ -1,0 +1,192 @@
+// pond/realtime/nats tests — a NATS server on the loopback, just enough
+// of one for NatsClient and NatsConn, so a test needs no broker: INFO,
+// CONNECT (refused with `-ERR` when `secret` is set and the CONNECT's
+// `pass`, or with no user its `auth_token`, is not it), PING/PONG, SUB
+// (ignored) and PUB. Each PUB is dispatched on the local bus under
+// "seen." + its subject, so the test reads what reached the server as a
+// topic of its own.
+//
+// It serves one connection at a time. `ServerCtl { up: false }` drops
+// the connection and refuses every new one at once (accepted and
+// closed: a dial gets in, then reads the end of the stream before any
+// INFO), until `ServerCtl { up: true }`: an outage the client sees
+// promptly, with no stale connection left queued for when it ends.
+//
+// The test binds the listening socket itself (port 0, read back) and
+// hands it over as `fd`, so the server is never told a port that
+// someone else could take first. The server waits in `accept` whenever
+// it has no connection, so the test ends it by shutting that socket
+// (`std::io::tcp::__shutdown_listen_socket(fd)`) once it is done; it
+// also stops after `run_for_ms`, at its next connection or read. A
+// failed assertion unwinds the test by joining the server, which may be
+// waiting in `accept` then: `LoopWatch`, pinned beside it, shuts the
+// socket after `after_ms` if the server has not ended, and closes it.
+
+import "../.." as nats;
+
+type Ctl { up: Bool = true; }
+
+topic ServerCtl {
+    payload: Ctl;
+    subject: "pond.nats.test.server_ctl";
+}
+
+// `fd`: which server ended (a test may run two).
+type Done { fd: Int = -1; }
+
+topic ServerDone {
+    payload: Done;
+    subject: "pond.nats.test.server_done";
+}
+
+/// Ends a server that a failed test left waiting in `accept`, and closes
+/// the listening socket once the server is done with it.
+locus LoopWatch {
+    params {
+        fd: Int = -1;
+        after_ms: Int = 20000;
+        done: Bool = false;
+    }
+    bus { subscribe ServerDone as on_done; }
+    fn on_done(d: Done) { if d.fd == self.fd { self.done = true; } }
+    // @unbounded: a test fixture's loop, ended by the server or after_ms.
+    @unbounded
+    run() {
+        let started = std::time::monotonic_ns();
+        while !self.done && std::time::monotonic_ns() - started < self.after_ms * 1000000 {
+            std::time::sleep(10ms);
+        }
+        if !self.done {
+            std::io::tcp::__shutdown_listen_socket(self.fd);
+            let mut waited = 0;
+            while !self.done && waited < 2000 {
+                std::time::sleep(10ms);
+                waited = waited + 10;
+            }
+        }
+        std::io::tcp::close_fd(self.fd);
+    }
+}
+
+locus LoopServer {
+    params {
+        fd: Int = -1;
+        // "" accepts any CONNECT
+        secret: String = "";
+        run_for_ms: Int = 5000;
+        up: Bool = true;
+        conn: Int = -1;
+        rx: std::bytes::BytesBuilder = std::bytes::BytesBuilder { };
+        closed: Bool = false;
+        // CONNECTs accepted and refused, and PUBs seen
+        accepted: Int = 0;
+        refused: Int = 0;
+        pubs: Int = 0;
+    }
+
+    bus {
+        subscribe ServerCtl as on_ctl;
+        publish ServerDone;
+    }
+
+    fn on_ctl(c: Ctl) {
+        self.up = c.up;
+        if !c.up { self.hang_up(); }
+    }
+
+    fn hang_up() {
+        if self.conn >= 0 { std::io::tcp::close_fd(self.conn); }
+        self.conn = -1;
+        self.rx.clear();
+    }
+
+    fn send(s: String) {
+        if self.conn < 0 { return; }
+        if std::io::tcp::__send_bytes(self.conn, std::bytes::from_string(s)) < 0 { self.hang_up(); }
+    }
+
+    // The next connection: up, it is served; down, it is closed at once.
+    // A failed accept is the listening socket shut: the server ends.
+    fn take() {
+        let c = std::io::tcp::accept_one(self.fd) or - 1;
+        if c < 0 {
+            self.closed = true;
+            return;
+        }
+        if !self.up {
+            std::io::tcp::close_fd(c);
+            return;
+        }
+        self.hang_up();
+        self.conn = c;
+        std::io::tcp::set_recv_timeout(c, 10ms) or discard;
+        self.send("INFO {\"server_id\":\"loopback\",\"max_payload\":1048576,\"headers\":true}\r\n");
+    }
+
+    fn on_connect(json: String) {
+        let user = std::json::find_string_field(json, "user");
+        let given = if len(user) > 0 {
+            std::json::find_string_field(json, "pass")
+        } else {
+            std::json::find_string_field(json, "auth_token")
+        };
+        if len(self.secret) > 0 && given != self.secret {
+            self.refused = self.refused + 1;
+            self.send("-ERR 'Authorization Violation'\r\n");
+            self.hang_up();
+            return;
+        }
+        self.accepted = self.accepted + 1;
+    }
+
+    // One whole line or PUB off the front of `rx`; false when none is
+    // whole yet.
+    fn next() -> Bool {
+        let n = self.rx.len();
+        if n == 0 { return false; }
+        let b = self.rx.view();
+        let nl = std::bytes::find_byte(b, 0, 10);
+        if nl < 0 { return false; }
+        let end = if nl > 0 && (std::bytes::at(b, nl - 1) or 0) == 13 { nl - 1 } else { nl };
+        let line = std::str::from_bytes(std::bytes::slice(b, 0, end));
+        let body = nl + 1;
+        if std::str::starts_with(line, "PUB ") {
+            // PUB <subject> [reply] <size>
+            let subject = nats::token_at(line, 1);
+            let size = std::str::parse_int(nats::token_at(line, nats::token_count(line) - 1)) or 0;
+            if n < body + size + 2 { return false; }
+            let data = std::bytes::slice(b, body, body + size);
+            self.rx.shift_front(body + size + 2);
+            self.pubs = self.pubs + 1;
+            std::bus::__local_dispatch("seen." + subject, data);
+            return true;
+        }
+        self.rx.shift_front(body);
+        if std::str::starts_with(line, "CONNECT ") { self.on_connect(line[8..len(line)]); }
+        else if line == "PING" { self.send("PONG\r\n"); }
+        return true;
+    }
+
+    // @unbounded: a test fixture's loop, ended by run_for_ms.
+    @unbounded
+    run() {
+        let started = std::time::monotonic_ns();
+        while !self.closed && std::time::monotonic_ns() - started < self.run_for_ms * 1000000 {
+            if self.conn < 0 {
+                self.take();
+            } else {
+                let got = std::io::tcp::recv_into(self.conn, self.rx, 65536);
+                if got == 0 || (got < 0 && got != -2) { self.hang_up(); }
+                while self.conn >= 0 && self.next() {
+                    // one frame at a time
+                }
+                // while serving, a dial meanwhile is refused (one at a time)
+                if !self.up { self.hang_up(); }
+            }
+            std::time::sleep(0ms);
+        }
+        self.hang_up();
+        // the socket is LoopWatch's to close
+        ServerDone <- Done { fd: self.fd };
+    }
+}

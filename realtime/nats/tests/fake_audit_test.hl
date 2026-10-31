@@ -9,7 +9,9 @@ topic Lost { payload: Note; subject: "pond.nats.fake_audit_test.lost"; }
 // hale#1034: the program declares the adapter it binds.
 locus Nats {
     bus { publish nats::NatsOutbound; }
-    fn send(subject: String, bytes: Bytes) { nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes }; }
+    fn send(subject: String, bytes: Bytes) {
+        nats::NatsOutbound <- nats::Outbound { subject: subject, data: bytes };
+    }
 }
 
 main locus Silent {
@@ -22,11 +24,19 @@ main locus Silent {
     placement { fake: pinned; }
     bindings { Lost: Nats { }; }
     bus { publish Lost; }
-    on_failure(c: nats::NatsFake, err: ClosureViolation) { self.why = err.closure +": " + c.last_error; }
+    on_failure(c: nats::NatsFake, err: ClosureViolation) {
+        self.why = err.closure + ": " + c.last_error;
+    }
     run() {
         Lost <- Note { n: 1 };
         std::time::sleep(20ms);
-        std::test::assert(std::str::starts_with(self.why, "delivery: message 1 on pond.nats.fake_audit_test.lost unacknowledged"), "collapsed to its owner: " + self.why);
+        std::test::assert(
+            std::str::starts_with(
+                self.why,
+                "delivery: message 1 on pond.nats.fake_audit_test.lost unacknowledged",
+            ),
+            "collapsed to its owner: " + self.why,
+        );
     }
 }
 

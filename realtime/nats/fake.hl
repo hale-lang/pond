@@ -5,7 +5,9 @@
 // adapter and bindings stay as they are. What would have gone to a
 // server is kept here instead, acknowledged at once (or never, with
 // `ack: false`), and the delivery audit is the same closure with the
-// same captures. Inbound traffic is whatever the test injects.
+// same captures. A message from a `Delivery::Latest` binding is kept
+// and counted in `latest`, but never audited. Inbound traffic is
+// whatever the test injects.
 //
 //     params { nats: nats::NatsFake = nats::NatsFake { }; }
 //     ...
@@ -28,6 +30,8 @@ locus NatsFake {
         log: NatsMsgLog = NatsMsgLog { };
         sent: Int = 0;
         acked: Int = 0;
+        // of `sent`, how many came from a latest-value binding
+        latest: Int = 0;
         received: Int = 0;
         last_error: String = "";
         oldest_unacked_ns: Int = 0;
@@ -47,6 +51,12 @@ locus NatsFake {
         self.sent = self.sent + 1;
         if self.log.len() >= self.keep { self.log.drop_front(self.log.len() - self.keep + 1); }
         self.log.push(o.subject, o.data);
+        // a latest-value binding's message is never audited, as on the conn
+        if o.latest {
+            self.latest = self.latest + 1;
+            if self.ack { self.acked = self.acked + 1; }
+            return;
+        }
         if self.ack {
             self.acked = self.acked + 1;
         } else if self.oldest_unacked_ns == 0 {
@@ -62,8 +72,14 @@ locus NatsFake {
     /// runs it on each send; call it to check with no traffic.
     fn audit() {
         if self.oldest_unacked_ns == 0 { return; }
-        if std::time::monotonic_ns() - self.oldest_unacked_ns < self.ack_window_ms * 1000000 { return; }
-        self.note("message " + to_string(self.oldest_unacked_id) + " on " + self.oldest_unacked_subject + " unacknowledged after " + to_string(self.ack_window_ms) + " ms: no acknowledgement");
+        if std::time::monotonic_ns() - self.oldest_unacked_ns < self.ack_window_ms * 1000000 {
+            return;
+        }
+        self.note(
+            "message " + to_string(self.oldest_unacked_id) + " on " + self.oldest_unacked_subject
+                + " unacknowledged after " + to_string(self.ack_window_ms)
+                + " ms: no acknowledgement",
+        );
         violate delivery;
     }
 

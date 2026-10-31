@@ -1,0 +1,57 @@
+// NatsFake with `ack: false` and a zero ack window: a latest-value
+// binding's messages are kept but never audited, so they collapse
+// nothing, while an at-least-once binding's first message beside them
+// collapses the fake exactly as before.
+import ".." as nats;
+
+type Note { n: Int = 0; }
+
+topic Signal {
+    payload: Note;
+    subject: "pond.nats.fake_latest_test.signal";
+}
+topic Lost {
+    payload: Note;
+    subject: "pond.nats.fake_latest_test.lost";
+}
+
+main locus App {
+    params {
+        fake: nats::NatsFake = nats::NatsFake { ack: false, ack_window_ms: 0 };
+        why: String = "";
+    }
+    // pinned: the control collapses it (see fake_audit_test)
+    placement { fake: pinned; }
+    bindings {
+        Signal: nats::NatsAdapter { delivery: nats::Delivery::Latest };
+        Lost: nats::NatsAdapter { };
+    }
+    bus {
+        publish Signal;
+        publish Lost;
+    }
+    on_failure(c: nats::NatsFake, err: ClosureViolation) {
+        self.why = err.closure + ": " + c.last_error;
+    }
+    run() {
+        Signal <- Note { n: 1 };
+        Signal <- Note { n: 2 };
+        Signal <- Note { n: 3 };
+        std::time::sleep(50ms);
+        std::test::assert(
+            len(self.why) == 0,
+            "latest-value messages are never audited: " + self.why,
+        );
+        Lost <- Note { n: 1 };
+        std::time::sleep(50ms);
+        std::test::assert(
+            std::str::starts_with(
+                self.why,
+                "delivery: message 4 on pond.nats.fake_latest_test.lost unacknowledged",
+            ),
+            "an at-least-once one still is: " + self.why,
+        );
+    }
+}
+
+fn main() { App { }; }
