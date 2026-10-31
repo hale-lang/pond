@@ -28,7 +28,10 @@ locus NatsTransport {
             std::io::tcp::set_recv_timeout(self.sock, d) or discard;
         }
     }
-    fn write_all(b: Bytes) -> Int {
+    // `@secret`: the CONNECT line carries a revealed credential through
+    // `write_str` -> `write` -> here to the socket, each hop one statement
+    // (spec/semantics.md § "@sealed and a revealed secret").
+    fn write_all(@secret b: Bytes) -> Int {
         if self.tls >= 0 { return std::io::tls::send_bytes(self.tls, b); }
         if self.sock >= 0 { return std::io::tcp::__send_bytes(self.sock, b); }
         return -1;
@@ -75,11 +78,16 @@ locus NatsClient {
         user: String = "";
         pass: String = "";
         token: String = "";
+        // Sealed (std::secret): `user`'s password, or with no `user` the
+        // token. Revealed only on the line that writes CONNECT, never kept
+        // in a field; when it names a source (`vault:`, `env_var:`),
+        // `pass`, `token` and a URL's own password are not used.
+        credential: std::secret::Credential = std::secret::Credential { };
         name: String = "";
         // false: this connection's own publishes are not delivered back
         // to its own subscriptions (what a bus adapter wants).
         echo: Bool = true;
-        // how long a handshake, a flush or a request may wait
+        // how long a dial, a handshake, a flush or a request may wait
         timeout: Duration = 5s;
         recv_chunk: Int = 65536;
 
@@ -150,7 +158,7 @@ locus NatsClient {
         return true;
     }
 
-    fn write(b: Bytes) -> Bool {
+    fn write(@secret b: Bytes) -> Bool {
         if !self.io.is_open() { return false; }
         if self.io.write_all(b) < 0 {
             self.connected = false;
@@ -160,20 +168,34 @@ locus NatsClient {
         return true;
     }
 
-    fn write_str(s: String) -> Bool { return self.write(std::bytes::from_string(s)); }
+    fn write_str(@secret s: String) -> Bool { return self.write(std::bytes::from_string(s)); }
 
     /// Dial, read INFO, send CONNECT, and wait for the server's PONG to
     /// the PING after it: the server has accepted the connection when
     /// the PONG arrives, and a `-ERR` (bad credentials) arrives instead.
-    fn open() -> Bool {
+    /// The dial and the handshake each wait at most `timeout`, so an
+    /// address that never answers fails with kind `connect` (`timeout`
+    /// in its detail) rather than waiting out the kernel's retries.
+    fn open() -> Bool { return self.open_as(self.credential); }
+
+    // Why the dial failed (`timeout`, `connection_refused`, …): -1.
+    fn dial_failed(e: IoError) -> Int {
+        self.note("connect", "tcp to " + self.host + ":" + to_string(self.port) + ": " + e.kind);
+        return -1;
+    }
+
+    /// `open`, presenting `credential` (a holder of the client passes its
+    /// own: a `NatsConn`'s).
+    fn open_as(credential: std::secret::Credential) -> Bool {
         self.close();
         self.last_error = "";
         if !self.parse_url() { return false; }
-        let h = std::io::tcp::connect(self.host, self.port) or - 1;
-        if h < 0 {
-            self.note("connect", "tcp to " + self.host + ":" + to_string(self.port));
-            return false;
-        }
+        let h = std::io::tcp::connect_within(
+            self.host,
+            self.port,
+            self.timeout,
+        ) or self.dial_failed(err);
+        if h < 0 { return false; }
         self.io.sock = h;
         std::io::tcp::set_nodelay(h, true) or discard;
         self.framer.clear();
@@ -209,9 +231,22 @@ locus NatsClient {
             self.io.tls = t;
             self.io.set_recv_deadline(self.timeout);
         }
-        if !self.write_str(
-            connect_line(self.user, self.pass, self.token, self.name, self.echo) + ping_line(),
-        ) {
+        // a sealed credential is revealed here only, straight into the
+        // CONNECT it authenticates
+        let sent = if credential.ready() {
+            self.write_str(
+                with_secret(
+                    sealed_connect_line(self.user, self.name, self.echo),
+                    credential.reveal_text(),
+                )
+                    + ping_line(),
+            )
+        } else {
+            self.write_str(
+                connect_line(self.user, self.pass, self.token, self.name, self.echo) + ping_line(),
+            )
+        };
+        if !sent {
             self.io.close();
             return false;
         }

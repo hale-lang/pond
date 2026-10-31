@@ -56,6 +56,19 @@ fn main() {
         std::str::contains(t, "\"auth_token\": \"tok\"") && !std::str::contains(t, "\"user\""),
         "a token wins over user/pass: " + t,
     );
+    // a sealed credential's place, filled (JSON-escaped) by with_secret
+    let sp = nats::with_secret(nats::sealed_connect_line("ana", "probe", false), "p\"w");
+    std::test::assert(
+        std::str::contains(sp, "\"user\": \"ana\"")
+            && std::str::contains(sp, "\"pass\": \"p\\\"w\"")
+            && std::str::ends_with(sp, "}\r\n"),
+        "as user's password: " + sp,
+    );
+    let st = nats::with_secret(nats::sealed_connect_line("", "probe", false), "tok");
+    std::test::assert(
+        std::str::contains(st, "\"auth_token\": \"tok\"") && !std::str::contains(st, "\"user\""),
+        "with no user, as the token: " + st,
+    );
 
     // ---- server frames
     let f = nats::NatsFramer { };

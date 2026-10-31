@@ -19,6 +19,39 @@ fn crlf() -> String { return "\r\n"; }
 /// publishes from coming back to it), and whichever credentials are
 /// set (a token wins over user/pass).
 fn connect_line(user: String, pass: String, token: String, name: String, echo: Bool) -> String {
+    return connect_line_of(user, pass, token, name, echo, false);
+}
+
+/// `connect_line` for a sealed credential: its place is left empty for
+/// `with_secret` to fill — `user`'s `pass` when there is a user, the
+/// `auth_token` when there is none.
+fn sealed_connect_line(user: String, name: String, echo: Bool) -> String {
+    return connect_line_of(user, "", "", name, echo, true);
+}
+
+/// `line`, a `sealed_connect_line`, with `secret` in the credential's
+/// place. A transparent fn (spec/semantics.md § "@sealed and a revealed
+/// secret"): a revealed credential passes through it inside the one
+/// statement that writes the CONNECT, and it keeps nothing.
+fn with_secret(line: String, secret: String) -> String {
+    let mut at = std::str::index_of(line, "\"pass\": \"\"");
+    let mut skip = 9;
+    if at < 0 {
+        at = std::str::index_of(line, "\"auth_token\": \"\"");
+        skip = 15;
+    }
+    if at < 0 { return line; }
+    return line[0..(at + skip)] + std::json::escape_string(secret) + line[(at + skip)..len(line)];
+}
+
+fn connect_line_of(
+    user: String,
+    pass: String,
+    token: String,
+    name: String,
+    echo: Bool,
+    sealed: Bool
+) -> String {
     let b = std::json::Builder { };
     b.begin_object();
     b.bool_field("verbose", false);
@@ -31,7 +64,9 @@ fn connect_line(user: String, pass: String, token: String, name: String, echo: B
     b.bool_field("no_responders", true);
     b.bool_field("echo", echo);
     if len(name) > 0 { b.string_field("name", name); }
-    if len(token) > 0 {
+    if sealed && len(user) == 0 {
+        b.string_field("auth_token", "");
+    } else if len(token) > 0 {
         b.string_field("auth_token", token);
     } else if len(user) > 0 {
         b.string_field("user", user);

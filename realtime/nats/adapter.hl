@@ -20,23 +20,40 @@
 // owned the socket would write it from every publisher's thread. When
 // that closes, NatsConn folds into NatsAdapter.
 //
-// Delivery is at least once. `send` cannot fail, by contract, so the
-// conn keeps every outbound message until the server has it — a PING
-// barrier's PONG in core mode, the stream's PubAck with `jetstream` —
-// writes it again after a reconnect, and audits the gap: a message
-// still unacknowledged `ack_window_ms` after it was sent is a
+// Delivery is at least once by default. `send` cannot fail, by
+// contract, so the conn keeps every outbound message until the server
+// has it — a PING barrier's PONG in core mode, the stream's PubAck with
+// `jetstream` — writes it again after a reconnect, and audits the gap:
+// a message still unacknowledged `ack_window_ms` after it was sent is a
 // violation of `delivery`, which collapses the conn to its owner
 // (`on_failure(c: NatsConn, err: ClosureViolation)`; `c.last_error`
 // says which message and why).
+//
+// A binding whose adapter says `delivery: Delivery::Latest` is a
+// latest-value signal instead: the conn keeps only the newest message
+// of each of its subjects that the server has not confirmed, writes it
+// when it can, and never audits it (`Delivery`).
 
 /// The outbound queue that NatsConn drains. One per program: every
 /// bound topic's adapter publishes here, and one NatsConn writes it.
+/// `delivery` is the binding's own (`Delivery`): two bindings may
+/// differ.
 locus NatsAdapter {
+    params { delivery: Delivery = Delivery::AtLeastOnce; }
     bus { publish NatsOutbound; }
     fn send(subject: String, bytes: Bytes) {
-        NatsOutbound <- Outbound { subject: subject, data: bytes };
+        let latest = match self.delivery {
+            Delivery::Latest -> true,
+            _ -> false,
+        };
+        NatsOutbound <- Outbound { subject: subject, data: bytes, latest: latest };
     }
 }
+
+// The newest message of each latest-value subject, one element per
+// subject, replaced in place: `set` retires the value it replaces.
+@form(vec)
+locus NatsNewest { capacity { heap items of Outbound; } }
 
 locus NatsConn {
     params {
@@ -44,7 +61,16 @@ locus NatsConn {
         user: String = "";
         pass: String = "";
         token: String = "";
+        // Sealed (std::secret): `user`'s password, or with no `user` the
+        // token. Revealed only on the line that writes CONNECT; when it
+        // names a source (`vault:`, `env_var:`), `pass` and `token` are
+        // not used.
+        credential: std::secret::Credential = std::secret::Credential { };
         name: String = "hale-bus";
+        // How long a dial or a handshake may wait: a server that never
+        // answers costs this much of the conn's thread per attempt, and
+        // the attempt is retried with backoff.
+        timeout: Duration = 5s;
         // Core subscriptions, comma-separated NATS subjects (wildcards
         // allowed); each inbound message is dispatched under its own
         // subject. `queue` puts them in a queue group.
@@ -66,7 +92,7 @@ locus NatsConn {
         consumer: ConsumerSpec = ConsumerSpec { };
         pull_batch: Int = 64;
         // A message unacknowledged this long after it was queued is a
-        // violation of `delivery`.
+        // violation of `delivery` (at-least-once bindings only).
         ack_window_ms: Int = 10000;
         // > 0: run() returns after this long (tests, examples, and a
         // bounded run while a pinned loop cannot see a drain —
@@ -98,8 +124,25 @@ locus NatsConn {
         pull_left: Int = 0;
         pull_deadline_ns: Int = 0;
         // core mode: pending entries below this are covered by the PING
-        // in flight (-1: none in flight)
+        // in flight (-1: none in flight), which is PING number
+        // `barrier_ping` on this connection
         barrier: Int = -1;
+        barrier_ping: Int = 0;
+        // PINGs written on this connection and PONGs read back: the
+        // server answers them in order, so PONG number k answers PING k
+        pings: Int = 0;
+        pongs: Int = 0;
+        // latest-value bindings: the newest message of each subject, and
+        // its state — 0 the server has it, -1 not written on this
+        // connection, k > 0 written and confirmed by PONG number k
+        newest: NatsNewest = NatsNewest { };
+        newest_wait: NatsInts = NatsInts { };
+        // latest-value messages handed over, and how many were replaced
+        // by a newer one before they were written
+        latest_in: Int = 0;
+        latest_dropped: Int = 0;
+        // latest-value writes to the socket (again after a reconnect)
+        latest_sent: Int = 0;
         backoff_ms: Int = 0;
         retry_at_ns: Int = 0;
     }
@@ -120,6 +163,7 @@ locus NatsConn {
         self.client.pass = self.pass;
         self.client.token = self.token;
         self.client.name = self.name;
+        self.client.timeout = self.timeout;
         // what this program publishes reaches its own subscribers on
         // the bus already; the server must not send it back
         self.client.echo = false;
@@ -132,6 +176,7 @@ locus NatsConn {
     // the conn if they stop.
     @unbounded
     fn on_out(o: Outbound) {
+        if o.latest { self.keep_newest(o); return; }
         self.pending.push(o.subject, o.data);
         self.acks.push(0);
         self.queued.push(std::time::monotonic_ns());
@@ -161,7 +206,86 @@ locus NatsConn {
             self.written_to = i + 1;
         }
         if !self.jetstream && self.barrier < 0 && self.written_to > self.head {
-            if self.client.write_str(ping_line()) { self.barrier = self.written_to; }
+            if self.ping() {
+                self.barrier = self.written_to;
+                self.barrier_ping = self.pings;
+            }
+        }
+    }
+
+    // PING the server: true when it was written. Its PONG is number
+    // `pings` on this connection.
+    fn ping() -> Bool {
+        if !self.client.write_str(ping_line()) { return false; }
+        self.pings = self.pings + 1;
+        return true;
+    }
+
+    // A latest-value message: it replaces whatever its subject held, and
+    // is written now if the connection is up. What it replaces is dropped
+    // unless it was written already.
+    // @unbounded: one element per latest-value subject the program
+    // publishes (a bound topic's subject), replaced in place after that.
+    @unbounded
+    fn keep_newest(o: Outbound) {
+        self.latest_in = self.latest_in + 1;
+        let mut at = -1;
+        let mut i = 0;
+        for m in self.newest.items {
+            if at < 0 && m.subject == o.subject { at = i; }
+            i = i + 1;
+        }
+        if at < 0 {
+            self.newest.push(o);
+            self.newest_wait.push(-1);
+        } else {
+            if (self.newest_wait.get(at) or 0) == -1 {
+                self.latest_dropped = self.latest_dropped + 1;
+            }
+            self.newest.set(at, o) or discard;
+            self.newest_wait.set(at, -1) or discard;
+        }
+        if self.client.connected { self.write_newest(); }
+    }
+
+    // Write each latest-value subject's newest message not yet written on
+    // this connection, then PING: its PONG confirms them.
+    fn write_newest() {
+        let n = self.newest.len();
+        let mut wrote = false;
+        let mut i = 0;
+        while i < n {
+            if (self.newest_wait.get(i) or 0) == -1 {
+                let m = self.newest.get(i) or Outbound { };
+                let mut refused = "";
+                self.client.pub_msg(self.subject_prefix + m.subject, "", m.data) or {
+                    refused = err.detail;
+                };
+                if !self.client.connected { return; }
+                if len(refused) > 0 {
+                    // the connection holds but will never take it (over
+                    // max_payload): said, and not tried again
+                    self.note("latest-value message on " + m.subject + " not written: ", refused);
+                    self.newest_wait.set(i, 0) or discard;
+                } else {
+                    self.newest_wait.set(i, self.pings + 1) or discard;
+                    self.latest_sent = self.latest_sent + 1;
+                    wrote = true;
+                }
+            }
+            i = i + 1;
+        }
+        if wrote { let p = self.ping(); }
+    }
+
+    // What PONG number `pongs` confirms of the latest-value messages.
+    fn confirm_newest() {
+        let n = self.newest_wait.len();
+        let mut i = 0;
+        while i < n {
+            let w = self.newest_wait.get(i) or 0;
+            if w > 0 && w <= self.pongs { self.newest_wait.set(i, 0) or discard; }
+            i = i + 1;
         }
     }
 
@@ -196,7 +320,11 @@ locus NatsConn {
     }
 
     fn on_pong() {
-        if self.barrier < 0 { return; }
+        self.pongs = self.pongs + 1;
+        self.confirm_newest();
+        // a PONG answers the PING of its number: the barrier's, or one a
+        // latest-value write sent before it
+        if self.barrier < 0 || self.pongs < self.barrier_ping { return; }
         let mut i = self.head;
         while i < self.barrier && i < self.pending.len() {
             self.mark_acked(i);
@@ -290,7 +418,13 @@ locus NatsConn {
     // the server has not acknowledged. False when the server is not
     // reachable yet (retried with backoff).
     fn connect() -> Bool {
-        if !self.client.open() { self.last_error = self.client.last_error; return false; }
+        self.pings = 0;
+        self.pongs = 0;
+        self.barrier = -1;
+        if !self.client.open_as(self.credential) {
+            self.last_error = self.client.last_error;
+            return false;
+        }
         if self.jetstream {
             self.ack_sid = self.client.sub_to(self.inbox + ".ack.*", "") or 0;
         }
@@ -316,6 +450,15 @@ locus NatsConn {
         self.barrier = -1;
         self.written_to = self.head;
         self.write_pending();
+        // latest-value messages the server did not confirm go again: only
+        // the newest of each subject is still here
+        let n = self.newest_wait.len();
+        let mut i = 0;
+        while i < n {
+            if (self.newest_wait.get(i) or 0) != 0 { self.newest_wait.set(i, -1) or discard; }
+            i = i + 1;
+        }
+        self.write_newest();
         return self.client.connected;
     }
 
