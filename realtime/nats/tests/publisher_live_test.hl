@@ -1,0 +1,84 @@
+// NatsPublisher against a real server: a topic bound to it, with no
+// NatsConn in the program, publishes onto the JetStream stream that
+// takes its subject, each message stored once, under `subject_prefix`.
+// A publish no stream takes is said on std::log and dropped; the program
+// goes on. Opt-in: set NATS_URL to a server started with `-js`; unset,
+// the publisher's `url` is "" and it publishes nothing, which the test
+// checks instead.
+import ".." as nats;
+
+type Note { n: Int = 0; }
+
+topic Out {
+    payload: Note;
+    subject: "publisher.out";
+}
+topic Lost {
+    payload: Note;
+    subject: "publisher.lost";
+}
+
+// what std::log said
+topic Warned {
+    payload: std::log::LogEvent;
+    subject: "log.nats";
+}
+
+main locus App {
+    params { warned: Int = 0; }
+    bindings {
+        Out: nats::NatsPublisher { url: std::env::var("NATS_URL"), subject_prefix: "pond.nats." };
+        Lost: nats::NatsPublisher { url: std::env::var("NATS_URL"), subject_prefix: "pond.none." };
+    }
+    bus {
+        publish Out;
+        publish Lost;
+        subscribe Warned as on_warn;
+    }
+    fn on_warn(e: std::log::LogEvent) { self.warned = self.warned + 1; }
+    run() {
+        let mut i = 1;
+        while i <= 5 {
+            Out <- Note { n: i };
+            i = i + 1;
+        }
+        Lost <- Note { n: 1 };
+        std::time::sleep(100ms);
+        let expected = if len(std::env::var("NATS_URL")) > 0 { 1 } else { 0 };
+        std::test::assert(
+            self.warned == expected,
+            "a publish no stream takes is said, once: " + to_string(self.warned),
+        );
+    }
+}
+
+fn main() {
+    let url = std::env::var("NATS_URL");
+    if len(url) == 0 {
+        App { };
+        eprintln("publisher_live_test: NATS_URL unset, url \"\" publishes nothing");
+        return;
+    }
+    let stream = "POND_PUBLISHER";
+    let c = nats::NatsClient { url: url };
+    std::test::assert(c.open(), "open: " + c.last_error);
+    nats::js_stream_delete(c, stream) or discard;
+    c.last_error = "";
+    nats::js_stream_create(c, stream, "pond.nats.publisher.>") or discard;
+    std::test::assert(len(c.last_error) == 0, "stream: " + c.last_error);
+
+    App { };
+
+    nats::js_consumer_create(c, stream, nats::ConsumerSpec { durable: "count" }) or discard;
+    let mut stored = 0;
+    let mut subject_ok = true;
+    while stored < 10 {
+        let m = nats::js_next(c, stream, "count", 300) or nats::NatsMsg { subject: "none" };
+        if m.subject == "none" { break; }
+        if m.subject != "pond.nats.publisher.out" { subject_ok = false; }
+        stored = stored + 1;
+    }
+    std::test::assert(stored == 5 && subject_ok, "stored once each: " + to_string(stored));
+    nats::js_stream_delete(c, stream) or discard;
+    c.close();
+}

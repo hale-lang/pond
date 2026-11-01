@@ -63,6 +63,16 @@ fn js_stream_delete(c: NatsClient, name: String) fallible(NatsError) {
 /// is not an error; a durable keeps its place across reconnects and
 /// restarts, so `deliver` only matters the first time.
 fn js_consumer_create(c: NatsClient, stream: String, spec: ConsumerSpec) fallible(NatsError) {
+    let r = js_call(
+        c,
+        "$JS.API.CONSUMER.CREATE." + stream + "." + spec.durable,
+        consumer_create_body(stream, spec),
+    ) or raise;
+}
+
+// The request body that creates (or re-attaches) durable `spec.durable`
+// on `stream`, for `$JS.API.CONSUMER.CREATE.<stream>.<durable>`.
+fn consumer_create_body(stream: String, spec: ConsumerSpec) -> String {
     let b = std::json::Builder { };
     b.begin_object();
     b.string_field("stream_name", stream);
@@ -75,13 +85,10 @@ fn js_consumer_create(c: NatsClient, stream: String, spec: ConsumerSpec) fallibl
     if deliver == "by_start_time" { b.string_field("opt_start_time", spec.start_time); }
     if len(spec.filter) > 0 { b.string_field("filter_subject", spec.filter); }
     if spec.ack_wait_ms > 0 { b.int_field("ack_wait", spec.ack_wait_ms * 1000000); }
+    if spec.max_ack_pending > 0 { b.int_field("max_ack_pending", spec.max_ack_pending); }
     b.end_object();
     b.end_object();
-    let r = js_call(
-        c,
-        "$JS.API.CONSUMER.CREATE." + stream + "." + spec.durable,
-        b.result(),
-    ) or raise;
+    return b.result();
 }
 
 /// Publish `data` on `subject` and wait for the stream to store it.

@@ -1,0 +1,75 @@
+// Untyped inbound through NatsFake, no broker: a subject under the
+// fake's `untyped` prefix reaches the subscribers of `NatsInbound` as it
+// arrived, subject, bytes and reply; one outside it is not handed over
+// untyped. The subscriber's acknowledgement (`nats_ack`) is counted as an
+// ack, never kept or audited as a message: with `ack: false` and a zero
+// ack window, an at-least-once message would collapse the fake at once.
+import ".." as nats;
+
+main locus App {
+    params {
+        fake: nats::NatsFake = nats::NatsFake { untyped: "raw.", ack: false, ack_window_ms: 0 };
+        raw: Int = 0;
+        last_subject: String = "";
+        last_text: String = "";
+        last_reply: String = "";
+        failed: Bool = false;
+    }
+    bus {
+        subscribe nats::NatsInbound as on_raw;
+        publish nats::NatsOutbound;
+    }
+
+    // @unbounded: a test's two messages.
+    @unbounded
+    fn on_raw(m: nats::Inbound) {
+        self.raw = self.raw + 1;
+        self.last_subject = m.subject;
+        self.last_text = std::str::from_bytes(m.data);
+        self.last_reply = m.reply;
+        if len(m.reply) > 0 { nats::NatsOutbound <- nats::nats_ack(m.reply); }
+    }
+
+    // were the acknowledgement kept as a message, the audit would
+    // collapse the fake
+    on_failure(f: nats::NatsFake, err: ClosureViolation) { self.failed = true; }
+
+    fn settle() {
+        let mut waited = 0;
+        while waited < 200 {
+            std::time::sleep(10ms);
+            waited = waited + 10;
+        }
+    }
+
+    run() {
+        self.fake.inject("raw.a.b", std::bytes::from_string("first"));
+        self.settle();
+        std::test::assert(self.raw == 1, "an untyped subject reaches NatsInbound");
+        std::test::assert(
+            self.last_subject == "raw.a.b" && self.last_text == "first" && self.last_reply == "",
+            "as it arrived: " + self.last_subject + " " + self.last_text,
+        );
+
+        self.fake.inject_reply("raw.c", "$JS.ACK.S.D.1.1.1.0.0", std::bytes::from_string("second"));
+        self.settle();
+        std::test::assert(
+            self.raw == 2 && self.last_reply == "$JS.ACK.S.D.1.1.1.0.0",
+            "a pulled one carries its reply: " + self.last_reply,
+        );
+        std::test::assert(
+            self.fake.acks == 1 && self.fake.last_ack == "$JS.ACK.S.D.1.1.1.0.0",
+            "the acknowledgement reaches the fake: " + to_string(self.fake.acks),
+        );
+        std::test::assert(
+            self.fake.sent == 0 && !self.failed,
+            "and is no message: nothing sent, nothing audited",
+        );
+
+        self.fake.inject("other.note", std::bytes::from_string("third"));
+        self.settle();
+        std::test::assert(self.raw == 2, "a subject outside the prefix is not untyped");
+    }
+}
+
+fn main() { App { }; }

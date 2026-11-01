@@ -14,6 +14,29 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-10-31 status note — `realtime/nats`: untyped inbound, a publish-only adapter, inbox prefixes (hale 0.31.0)
+
+- **Additions, no older surface changed or default moved** (pond#33),
+  upstreamed from hale-lang/voice's vendored copy:
+  - `NatsConn.untyped`: wire subjects under it go out on the new local
+    topic `NatsInbound` as `Inbound { subject, data, reply }` instead of
+    a topic. A pulled one is acknowledged by its subscriber with
+    `NatsOutbound <- nats_ack(reply)` (new `Outbound.ack`).
+  - `NatsPublisher`: a publish-only bus adapter that dials, publishes
+    with a PubAck and hangs up per `send`, and says failures on
+    `std::log`.
+  - `ConsumerSpec.max_ack_pending`.
+  - `NatsClient.inbox_prefix` and `NatsConn.inbox_prefix` (default
+    `_INBOX`), and `new_inbox_under(prefix)`.
+  - On `NatsFake`: `untyped`, `inject_reply`, `acks` and `last_ack`.
+- **Behaviour change:** a durable pull answered with a 503 (the durable
+  or its stream gone while the connection holds) is counted in
+  `NatsConn.pull_refused`. The durable is created again and pulled again
+  at the pull's deadline; before, the pull was retried at once, a busy
+  loop that never recovered.
+- **Behaviour change:** the at-least-once audit's message names the last
+  cause (new field `cause`), never an earlier verdict.
+
 ## 2026-10-31 status note — `realtime/nats` v0.9.1: latest-value liveness (hale 0.31.0)
 
 - **Fix** (pond#31): against a server that completes the handshake and
@@ -1420,15 +1443,23 @@ type NatsMsg    { subject: String; sid: Int; reply: String; headers: String; dat
 type NatsFrame  { op: String; subject; sid; reply; headers; data; text; }   // op: INFO|MSG|HMSG|PING|PONG|OK|ERR
 type PubAck     { stream: String; seq: Int; duplicate: Bool; }
 type ConsumerSpec { durable: String; filter = ""; deliver = "all";   // all|new|last|by_start_sequence|by_start_time
-                    start_seq: Int = 0; start_time: String = ""; ack_wait_ms: Int = 0; }
+                    start_seq: Int = 0; start_time: String = ""; ack_wait_ms: Int = 0;
+                    max_ack_pending: Int = 0; }                      // 0: the server's default (2026-10-31)
 type Delivery   = enum { AtLeastOnce, Latest };      // per binding (2026-10-31)
-type Outbound   { subject: String; data: Bytes; latest: Bool = false; }
+type Outbound   { subject: String; data: Bytes; latest: Bool = false;
+                  ack: Bool = false; }                // an untyped message's acknowledgement (2026-10-31)
 topic NatsOutbound { payload: Outbound; subject: "pond.nats.outbound"; }   // adapter -> conn queue
+type Inbound    { subject: String; data: Bytes; reply: String; }   // as it arrived on the wire (2026-10-31)
+topic NatsInbound { payload: Inbound; subject: "pond.nats.inbound"; }      // conn -> program, under `untyped`
+fn nats_ack(reply: String) -> Outbound;               // NatsOutbound <- nats_ack(m.reply)
+fn new_inbox() -> String;                             // _INBOX.<22 hex>
+fn new_inbox_under(prefix: String) -> String;         // <prefix>.<22 hex> (2026-10-31)
 
 locus NatsClient {
     params { url = "nats://127.0.0.1:4222"; user = ""; pass = ""; token = ""; name = "";
              credential: std::secret::Credential;        // sealed: user's password, or the token (2026-10-31)
-             echo = true; timeout = 5s; }                // nats:// or tls:// (INFO, then TLS upgrade)
+             echo = true; timeout = 5s;                  // nats:// or tls:// (INFO, then TLS upgrade)
+             inbox_prefix = "_INBOX"; }                  // where a request's reply waits (2026-10-31)
     fn open() -> Bool;                                     // dial (within timeout), INFO, CONNECT, PING/PONG; last_error on fail
     fn open_as(credential: std::secret::Credential) -> Bool;   // open, presenting this credential
     fn pub_msg(subject: String, reply: String, data: Bytes) -> () fallible(NatsError);
@@ -1455,10 +1486,18 @@ locus NatsAdapter {                                       // std::bus adapter: p
     fn send(subject: String, bytes: Bytes);
 }
 
+locus NatsPublisher {                                     // publish-only adapter: dial, PubAck, hang up per send (2026-10-31)
+    params { url = ""; subject_prefix = ""; name = "hale-bus-publisher";   // url "": publishes nothing
+             user = ""; pass = ""; token = ""; credential: std::secret::Credential; timeout = 2s; }
+    fn send(subject: String, bytes: Bytes);               // failures: a warn on std::log (logger `nats`), dropped
+}
+
 locus NatsConn {                                          // the program places it `pinned`
     params { url; user; pass; token; credential; name; timeout = 5s;
              subjects = "";  queue = "";                  // core inbound, comma-separated
              subject_prefix = "";                         // on every wire subject, off every inbound one
+             untyped = "";                                // wire subjects under it go to NatsInbound (2026-10-31)
+             inbox_prefix = "_INBOX";                     // the conn's own reply subjects (2026-10-31)
              jetstream = false;                           // outbound acked by PubAck, else PING barrier
              stream = ""; consumer: ConsumerSpec;         // JetStream inbound (durable pull)
              pull_batch = 64; ack_window_ms = 10000; run_for_ms = 0; reconnect_max_ms = 2000;
@@ -1468,9 +1507,11 @@ locus NatsConn {                                          // the program places 
 }
 
 locus NatsFake {                                          // NatsConn's broker-less stand-in
-    params { ack = true; ack_window_ms = 10000; keep = 1000; }   // a latest-value message is never audited
+    params { ack = true; ack_window_ms = 10000; keep = 1000;   // a latest-value message is never audited
+             untyped = ""; }                              // as NatsConn's; acks counted in `acks` (2026-10-31)
     closure delivery { captures: sent, acked, last_error; epoch inline; }
     fn inject(subject: String, data: Bytes);              // as though the server sent it
+    fn inject_reply(subject: String, reply: String, data: Bytes);   // as though pulled (2026-10-31)
     fn replay(from: String, to: String) -> Int;           // re-deliver what was sent on `from`
     fn count(subject: String) -> Int;
 }

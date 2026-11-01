@@ -1,0 +1,124 @@
+// The conn's durable consumer deleted while the connection holds, against
+// a real server. Each pull is then refused with a 503 (nothing answers
+// it): the conn counts it in `pull_refused`, creates the durable again,
+// and pulls again at the pull's deadline rather than at once, so it
+// neither spins on the refusals nor stops receiving. What the stream
+// takes afterwards arrives, and `pull_refused` is back to 0. The program
+// publishes `In` through the conn (core mode: the stream stores it), so
+// each message reaches `on_in` once locally and once more from the
+// stream. Opt-in: set NATS_URL to a server started with `-js`; unset, it
+// says so on stderr and passes.
+import ".." as nats;
+
+type Note { n: Int = 0; }
+
+topic In {
+    payload: Note;
+    subject: "pond.nats.gone.in";
+}
+
+main locus App {
+    params {
+        url: String = "";
+        stream: String = "";
+        conn: nats::NatsConn = nats::NatsConn { };
+        // deliveries of message 1 and of message 2
+        one: Int = 0;
+        two: Int = 0;
+        why: String = "";
+    }
+    placement { conn: pinned; }
+    bindings { In: nats::NatsAdapter { }; }
+    bus {
+        publish In;
+        subscribe In as on_in;
+    }
+
+    on_failure(c: nats::NatsConn, err: ClosureViolation) {
+        self.why = err.closure + ": " + c.last_error;
+    }
+
+    fn on_in(m: Note) {
+        if m.n == 1 { self.one = self.one + 1; }
+        if m.n == 2 { self.two = self.two + 1; }
+    }
+
+    // until message `n` has arrived twice: locally and from the stream
+    fn wait_twice(n: Int, ms: Int) {
+        let mut waited = 0;
+        while (if n == 1 { self.one } else { self.two }) < 2 && waited < ms {
+            std::time::sleep(10ms);
+            waited = waited + 10;
+        }
+    }
+
+    run() {
+        let c = nats::NatsClient { url: self.url, name: "pond-gone-test" };
+        std::test::assert(c.open(), "open: " + c.last_error);
+        std::time::sleep(500ms);
+        In <- Note { n: 1 };
+        self.wait_twice(1, 3000);
+        std::test::assert(
+            self.one == 2,
+            "the first comes back from the stream: " + to_string(self.one),
+        );
+
+        // the durable goes, from under the connection
+        let gone = c.request(
+            "$JS.API.CONSUMER.DELETE." + self.stream + ".gone",
+            b"",
+            2s,
+        ) or nats::NatsMsg { };
+        std::test::assert(
+            std::str::contains(std::str::from_bytes(gone.data), "\"success\":true"),
+            "deleted: " + std::str::from_bytes(gone.data),
+        );
+        // refused, and created again
+        let mut refused = 0;
+        let mut waited = 0;
+        while refused == 0 && waited < 4000 {
+            refused = self.conn.pull_refused;
+            std::time::sleep(10ms);
+            waited = waited + 10;
+        }
+        std::test::assert(refused > 0, "a pull is refused once the durable is gone");
+
+        In <- Note { n: 2 };
+        self.wait_twice(2, 6000);
+        std::test::assert(
+            self.two == 2,
+            "what the stream takes next arrives from it: " + to_string(self.two),
+        );
+        std::test::assert(self.conn.pull_refused == 0, "and the refusals end");
+        // the conn's own accounting is intact: past the ack window, every
+        // message the program published was acknowledged
+        std::time::sleep(2500ms);
+        std::test::assert(len(self.why) == 0, "nothing unacknowledged: " + self.why);
+        c.close();
+    }
+}
+
+fn main() {
+    let url = std::env::var("NATS_URL");
+    if len(url) == 0 { eprintln("consumer_gone_live_test: NATS_URL unset, skipped"); return; }
+    let stream = "POND_GONE";
+    let c = nats::NatsClient { url: url };
+    std::test::assert(c.open(), "open: " + c.last_error);
+    nats::js_stream_delete(c, stream) or discard;
+    c.last_error = "";
+    nats::js_stream_create(c, stream, "pond.nats.gone.>") or discard;
+    std::test::assert(len(c.last_error) == 0, "stream: " + c.last_error);
+    App {
+        url: url,
+        stream: stream,
+        conn: nats::NatsConn {
+            url: url,
+            stream: stream,
+            consumer: nats::ConsumerSpec { durable: "gone" },
+            ack_window_ms: 2000,
+            run_for_ms: 12000,
+        },
+    };
+    nats::js_stream_delete(c, stream) or discard;
+    c.close();
+}

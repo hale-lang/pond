@@ -1,0 +1,113 @@
+// Untyped inbound against a real server. The conn's `untyped` prefix
+// covers a core subscription and the subjects of its durable consumer's
+// stream: each message under it reaches `NatsInbound` as it arrived,
+// subject and bytes, instead of a topic. A core one carries no reply. A
+// pulled one carries the reply its subscriber acknowledges with
+// `nats_ack`; the conn does not acknowledge it, so one the subscriber
+// leaves unacknowledged comes again after the consumer's ack wait, and
+// one it acknowledges does not. Opt-in: set NATS_URL to a server started
+// with `-js`; unset, it says so on stderr and passes.
+import ".." as nats;
+
+main locus App {
+    params {
+        url: String = "";
+        conn: nats::NatsConn = nats::NatsConn { };
+        core: Int = 0;
+        core_reply: String = "x";
+        kept: Int = 0;
+        skipped: Int = 0;
+        js_reply: String = "";
+        text: String = "";
+    }
+    placement { conn: pinned; }
+    bus {
+        subscribe nats::NatsInbound as on_raw;
+        publish nats::NatsOutbound;
+    }
+
+    // @unbounded: a test's handful of messages.
+    @unbounded
+    fn on_raw(m: nats::Inbound) {
+        if m.subject == "pond.nats.raw.core.one" {
+            self.core = self.core + 1;
+            self.core_reply = m.reply;
+            self.text = std::str::from_bytes(m.data);
+            return;
+        }
+        if m.subject == "pond.nats.raw.js.kept" {
+            self.kept = self.kept + 1;
+            self.js_reply = m.reply;
+            nats::NatsOutbound <- nats::nats_ack(m.reply);
+            return;
+        }
+        if m.subject == "pond.nats.raw.js.skipped" {
+            self.skipped = self.skipped + 1;
+            // the first delivery is left unacknowledged
+            if self.skipped > 1 { nats::NatsOutbound <- nats::nats_ack(m.reply); }
+        }
+    }
+
+    fn wait_for(ms: Int) {
+        let mut waited = 0;
+        while (self.core < 1 || self.kept < 1 || self.skipped < 2) && waited < ms {
+            std::time::sleep(10ms);
+            waited = waited + 10;
+        }
+    }
+
+    run() {
+        std::time::sleep(500ms);
+        let c = nats::NatsClient { url: self.url, name: "pond-untyped-test" };
+        std::test::assert(c.open(), "open: " + c.last_error);
+        c.pub_msg("pond.nats.raw.core.one", "", std::bytes::from_string("hello")) or discard;
+        let a = nats::js_publish(c, "pond.nats.raw.js.kept", b"k") or nats::PubAck { };
+        let b = nats::js_publish(c, "pond.nats.raw.js.skipped", b"s") or nats::PubAck { };
+        std::test::assert(a.seq > 0 && b.seq > 0, "stored: " + c.last_error);
+        c.close();
+        self.wait_for(5000);
+        std::test::assert(
+            self.core == 1 && self.core_reply == "" && self.text == "hello",
+            "a core message, untyped, no reply: " + to_string(self.core) + " " + self.text,
+        );
+        std::test::assert(
+            self.kept == 1 && std::str::starts_with(self.js_reply, "$JS.ACK."),
+            "a pulled one, with the reply to acknowledge: " + self.js_reply,
+        );
+        std::test::assert(
+            self.skipped == 2,
+            "one left unacknowledged comes again: " + to_string(self.skipped),
+        );
+        // past another ack wait: what was acknowledged stays acknowledged
+        std::time::sleep(1500ms);
+        std::test::assert(
+            self.kept == 1 && self.skipped == 2,
+            "acknowledged, never again: " + to_string(self.kept) + " " + to_string(self.skipped),
+        );
+    }
+}
+
+fn main() {
+    let url = std::env::var("NATS_URL");
+    if len(url) == 0 { eprintln("untyped_live_test: NATS_URL unset, skipped"); return; }
+    let stream = "POND_UNTYPED";
+    let c = nats::NatsClient { url: url };
+    std::test::assert(c.open(), "open: " + c.last_error);
+    nats::js_stream_delete(c, stream) or discard;
+    c.last_error = "";
+    nats::js_stream_create(c, stream, "pond.nats.raw.js.>") or discard;
+    std::test::assert(len(c.last_error) == 0, "stream: " + c.last_error);
+    App {
+        url: url,
+        conn: nats::NatsConn {
+            url: url,
+            subjects: "pond.nats.raw.core.>",
+            untyped: "pond.nats.raw.",
+            stream: stream,
+            consumer: nats::ConsumerSpec { durable: "raw", ack_wait_ms: 1000 },
+            run_for_ms: 7000,
+        },
+    };
+    nats::js_stream_delete(c, stream) or discard;
+    c.close();
+}

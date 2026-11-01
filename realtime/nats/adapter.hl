@@ -35,6 +35,11 @@
 // when it can, and never audits it (`Delivery`); a connection that
 // stops confirming it is closed and dialled again with a growing wait
 // (`latest_confirm_ms`).
+//
+// Inbound subjects under `untyped` skip the topics: they go out on
+// `NatsInbound` as they arrived, for a subscriber that reads the bytes
+// itself and acknowledges what it pulled (`nats_ack`). `NatsPublisher`
+// is the other adapter: publish only, a connection per send, no conn.
 
 /// The outbound queue that NatsConn drains. One per program: every
 /// bound topic's adapter publishes here, and one NatsConn writes it.
@@ -49,6 +54,66 @@ locus NatsAdapter {
             _ -> false,
         };
         NatsOutbound <- Outbound { subject: subject, data: bytes, latest: latest };
+    }
+}
+
+/// A publish-only adapter, for a program that says a little, rarely,
+/// and keeps no connection for it. Each `send` dials the server,
+/// publishes onto the JetStream stream that takes its subject, waits for
+/// the stream's PubAck, and hangs up, all on the publisher's own thread
+/// and holding nothing between sends. It needs no `NatsConn` and no
+/// placement, and it receives nothing: no inbound subject is dispatched
+/// into the program, so the program's topology is exactly what its
+/// source declares (a `NatsConn` hands what arrives to
+/// `std::bus::__local_dispatch`, any subject). A program that says much
+/// holds a `NatsConn` instead.
+///
+/// `send` cannot fail, by contract, and this adapter keeps no queue to
+/// retry: a message it could not deliver (no connection, or no stream
+/// took it) is said as a `warn` on `std::log` (logger `nats`) and
+/// dropped. `url` "" publishes nothing.
+locus NatsPublisher {
+    params {
+        url: String = "";
+        subject_prefix: String = "";
+        name: String = "hale-bus-publisher";
+        user: String = "";
+        pass: String = "";
+        token: String = "";
+        // sealed: `user`'s password, or with no `user` the token,
+        // revealed only on the CONNECT line (see NatsClient)
+        credential: std::secret::Credential = std::secret::Credential { };
+        // how long the dial, the handshake and the PubAck may each wait
+        timeout: Duration = 2s;
+    }
+    fn send(subject: String, bytes: Bytes) {
+        if len(self.url) == 0 { return; }
+        let c = NatsClient {
+            url: self.url,
+            name: self.name,
+            user: self.user,
+            pass: self.pass,
+            token: self.token,
+            timeout: self.timeout,
+        };
+        let log = std::log::Logger { name: "nats" };
+        if !c.open_as(self.credential) {
+            log.warn_kv(
+                "publisher: could not connect, message dropped",
+                std::log::kv("subject", self.subject_prefix + subject) + " "
+                    + std::log::kv("error", c.last_error),
+            );
+            return;
+        }
+        let ack = js_publish(c, self.subject_prefix + subject, bytes) or PubAck { seq: -1 };
+        if ack.seq < 0 {
+            log.warn_kv(
+                "publisher: the stream did not take a message",
+                std::log::kv("subject", self.subject_prefix + subject) + " "
+                    + std::log::kv("error", c.last_error),
+            );
+        }
+        c.close();
     }
 }
 
@@ -84,6 +149,18 @@ locus NatsConn {
         // `orders.new` travel as `acme.orders.new`). `subjects` are
         // given without it; a `consumer.filter` is a NATS subject, with it.
         subject_prefix: String = "";
+        // Wire subjects under this prefix ("" none) are not dispatched to
+        // a topic: each goes out on `NatsInbound` as it arrived, its whole
+        // wire subject and its bytes, for a subscriber that reads them
+        // itself. A NATS subject, with `subject_prefix` if any; it still
+        // has to be received, through `subjects` or the durable consumer.
+        // One pulled from the durable consumer is not acknowledged here:
+        // the subscriber acknowledges it when it is done with it
+        // (`nats_ack`), so what it never finishes comes again.
+        untyped: String = "";
+        // where this conn's own reply subjects live (JetStream PubAcks and
+        // pulls, and its client's requests): `<inbox_prefix>.<random>`
+        inbox_prefix: String = "_INBOX";
         // JetStream. `jetstream`: outbound messages are acknowledged by
         // the stream that takes their subject (a PubAck) instead of a
         // PING barrier. `stream` + `consumer.durable`: receive from that
@@ -129,10 +206,23 @@ locus NatsConn {
         received: Int = 0;
         reconnects: Int = 0;
         last_error: String = "";
+        // the trouble behind `last_error`: what a refusal, the server or
+        // the client said, never the audit's own verdict, so the audit
+        // names the cause and not an earlier verdict
+        cause: String = "";
         inbox: String = "";
         ack_sid: Int = 0;
         pull_sid: Int = 0;
         pull_open: Bool = false;
+        // pulls in a row the server refused with a 503 (nothing answers:
+        // the durable, or its stream, is gone while the connection holds);
+        // back to 0 once one is answered. The durable is created again on
+        // the next step, without waiting for the reply (it arrives on
+        // `create_sid`), and pulled again at the pull's deadline, not at
+        // once.
+        pull_refused: Int = 0;
+        recreate_consumer: Bool = false;
+        create_sid: Int = 0;
         pull_left: Int = 0;
         pull_deadline_ns: Int = 0;
         // core mode: pending entries below this are covered by the PING
@@ -166,7 +256,12 @@ locus NatsConn {
         retry_at_ns: Int = 0;
     }
 
-    bus { subscribe NatsOutbound as on_out; }
+    // `NatsInbound`: what arrives under `untyped`. A pulled message that
+    // no subscriber acknowledges is not lost: it comes again.
+    bus {
+        subscribe NatsOutbound as on_out;
+        publish NatsInbound;
+    }
 
     closure delivery { captures: sent, acked, last_error; epoch inline; }
 
@@ -175,7 +270,16 @@ locus NatsConn {
     // (at most one per `latest_confirm_ms` plus its backoff), or the
     // violation that ends this conn.
     @unbounded
-    fn note(what: String, detail: String) { self.last_error = what + detail; }
+    fn note(what: String, detail: String) {
+        self.last_error = what + detail;
+        self.cause = self.last_error;
+    }
+
+    // What the client said, as this conn's trouble.
+    fn client_trouble() {
+        self.last_error = self.client.last_error;
+        self.cause = self.client.last_error;
+    }
 
     birth() {
         self.client.url = self.url;
@@ -184,10 +288,11 @@ locus NatsConn {
         self.client.token = self.token;
         self.client.name = self.name;
         self.client.timeout = self.timeout;
+        self.client.inbox_prefix = self.inbox_prefix;
         // what this program publishes reaches its own subscribers on
         // the bus already; the server must not send it back
         self.client.echo = false;
-        self.inbox = new_inbox();
+        self.inbox = new_inbox_under(self.inbox_prefix);
     }
 
     // Runs on this locus's thread, between reads (run() yields for it).
@@ -196,6 +301,12 @@ locus NatsConn {
     // the conn if they stop.
     @unbounded
     fn on_out(o: Outbound) {
+        if o.ack {
+            // an untyped message's acknowledgement: once, or not at all
+            // (the message then comes again)
+            if self.client.connected { self.client.pub_msg(o.subject, "", o.data) or discard; }
+            return;
+        }
         if o.latest { self.keep_newest(o); return; }
         self.pending.push(o.subject, o.data);
         self.acks.push(0);
@@ -438,19 +549,61 @@ locus NatsConn {
         if f.op == "HMSG" {
             let status = header_status(f.headers);
             if len(status) > 0 {
-                // 404 no messages / 408 expired / 409 limits: pull again;
-                // 100 is an idle heartbeat
-                if !std::str::starts_with(status, "100") { self.pull_open = false; }
+                // 503: nothing answers the pull while the connection holds
+                // (the durable or its stream is gone). Counted, the durable
+                // created again on the next step, and pulled again at the
+                // pull's deadline rather than at once
+                if std::str::starts_with(status, "503") {
+                    self.pull_refused = self.pull_refused + 1;
+                    self.recreate_consumer = true;
+                    return;
+                }
+                // 404 no messages / 408 expired / 409 limits: the durable
+                // answered, pull again; 100 is an idle heartbeat
+                if !std::str::starts_with(status, "100") {
+                    self.pull_open = false;
+                    self.pull_refused = 0;
+                }
                 return;
             }
         }
-        std::bus::__local_dispatch(self.local_subject(f.subject), f.data);
+        self.pull_refused = 0;
         self.received = self.received + 1;
-        if len(f.reply) > 0 {
-            self.client.pub_msg(f.reply, "", std::bytes::from_string("+ACK")) or discard;
+        if self.is_untyped(f.subject) {
+            // its subscriber acknowledges it (`nats_ack`)
+            NatsInbound <- Inbound { subject: f.subject, data: f.data, reply: f.reply };
+        } else {
+            std::bus::__local_dispatch(self.local_subject(f.subject), f.data);
+            if len(f.reply) > 0 {
+                self.client.pub_msg(f.reply, "", std::bytes::from_string("+ACK")) or discard;
+            }
         }
         self.pull_left = self.pull_left - 1;
         if self.pull_left <= 0 { self.pull_open = false; }
+    }
+
+    // The reply to creating the durable again: said if refused (its stream
+    // gone too: tried again after the next refused pull), and pulled at
+    // once if not.
+    fn on_created(f: NatsFrame) {
+        let status = if f.op == "HMSG" { header_status(f.headers) } else { "" };
+        let refused = if len(status) > 0 {
+            "no reply (" + status + ")"
+        } else {
+            js_error_of(std::str::from_bytes(f.data))
+        };
+        if len(refused) > 0 {
+            self.note(
+                "jetstream: durable " + self.consumer.durable + " not created again: ",
+                refused,
+            );
+            return;
+        }
+        self.pull_open = false;
+    }
+
+    fn is_untyped(subject: String) -> Bool {
+        return len(self.untyped) > 0 && std::str::starts_with(subject, self.untyped);
     }
 
     // A subject as the program's topics know it: without the prefix.
@@ -465,7 +618,13 @@ locus NatsConn {
         if f.op == "MSG" || f.op == "HMSG" {
             if f.sid == self.ack_sid && self.ack_sid > 0 { self.on_pub_ack(f); return; }
             if f.sid == self.pull_sid && self.pull_sid > 0 { self.on_pulled(f); return; }
-            std::bus::__local_dispatch(self.local_subject(f.subject), f.data);
+            if f.sid == self.create_sid && self.create_sid > 0 { self.on_created(f); return; }
+            // a core subscription's message: nothing to acknowledge
+            if self.is_untyped(f.subject) {
+                NatsInbound <- Inbound { subject: f.subject, data: f.data };
+            } else {
+                std::bus::__local_dispatch(self.local_subject(f.subject), f.data);
+            }
             self.received = self.received + 1;
             return;
         }
@@ -481,21 +640,18 @@ locus NatsConn {
         self.pongs = 0;
         self.barrier = -1;
         self.latest_wait_ns = 0;
-        if !self.client.open_as(self.credential) {
-            self.last_error = self.client.last_error;
-            return false;
-        }
+        if !self.client.open_as(self.credential) { self.client_trouble(); return false; }
         if self.jetstream {
             self.ack_sid = self.client.sub_to(self.inbox + ".ack.*", "") or 0;
         }
         if len(self.stream) > 0 && len(self.consumer.durable) > 0 {
             js_consumer_create(self.client, self.stream, self.consumer) or discard;
-            if !self.client.connected { self.last_error = self.client.last_error; return false; }
-            if std::str::starts_with(self.client.last_error, "jetstream") {
-                self.last_error = self.client.last_error;
-            }
+            if !self.client.connected { self.client_trouble(); return false; }
+            if std::str::starts_with(self.client.last_error, "jetstream") { self.client_trouble(); }
             self.pull_sid = self.client.sub_to(self.inbox + ".pull", "") or 0;
+            self.create_sid = self.client.sub_to(self.inbox + ".create", "") or 0;
             self.pull_open = false;
+            self.recreate_consumer = false;
         }
         let mut rest = self.subjects;
         while len(rest) > 0 {
@@ -527,13 +683,12 @@ locus NatsConn {
         if self.head >= self.pending.len() { return; }
         let queued = self.queued.get(self.head) or now;
         if now - queued < self.ack_window_ms * 1000000 { return; }
-        let why = if len(self.last_error) > 0 { self.last_error } else { "no acknowledgement" };
-        self.note(
-            "message " + to_string(self.base_id + self.head) + " on "
-                + self.pending.subject_at(self.head) + " unacknowledged after "
-                + to_string(self.ack_window_ms) + " ms: ",
-            why,
-        );
+        // the cause, not `last_error`: an earlier verdict fed back in
+        // would grow the field by a verdict per audit
+        let why = if len(self.cause) > 0 { self.cause } else { "no acknowledgement" };
+        self.last_error = "message " + to_string(self.base_id + self.head) + " on "
+            + self.pending.subject_at(self.head) + " unacknowledged after "
+            + to_string(self.ack_window_ms) + " ms: " + why;
         violate delivery;
     }
 
@@ -552,6 +707,16 @@ locus NatsConn {
                 return;
             }
         }
+        if self.recreate_consumer && self.create_sid > 0 {
+            // not `js_consumer_create`: its request would wait here, and
+            // set aside the frames (PONGs, PubAcks, messages) this loop reads
+            self.recreate_consumer = false;
+            self.client.pub_msg(
+                "$JS.API.CONSUMER.CREATE." + self.stream + "." + self.consumer.durable,
+                self.inbox + ".create",
+                std::bytes::from_string(consumer_create_body(self.stream, self.consumer)),
+            ) or discard;
+        }
         if self.pull_sid > 0 && (!self.pull_open || now > self.pull_deadline_ns) { self.pull(); }
         let mut n = 0;
         while n < 256 && self.client.next_frame() {
@@ -560,7 +725,7 @@ locus NatsConn {
         }
         if !self.client.connected {
             // everything written but unacknowledged goes again
-            self.last_error = self.client.last_error;
+            self.client_trouble();
             self.pull_open = false;
             self.barrier = -1;
             return;

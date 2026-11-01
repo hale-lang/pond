@@ -65,11 +65,16 @@ fn hex_of(b: Bytes) -> String {
 }
 
 /// A subject no other client will use: `_INBOX.<22 random hex>`.
-fn new_inbox() -> String {
+fn new_inbox() -> String { return new_inbox_under("_INBOX"); }
+
+/// `new_inbox` under `prefix` instead of `_INBOX`: `<prefix>.<22 random
+/// hex>`, for an account whose permissions allow replies only under a
+/// prefix of its own.
+fn new_inbox_under(prefix: String) -> String {
     let raw = std::os::getrandom(11) or std::bytes::from_string(
         to_string(std::time::monotonic_ns()),
     );
-    return "_INBOX." + hex_of(raw);
+    return prefix + "." + hex_of(raw);
 }
 
 locus NatsClient {
@@ -89,6 +94,9 @@ locus NatsClient {
         echo: Bool = true;
         // how long a dial, a handshake, a flush or a request may wait
         timeout: Duration = 5s;
+        // where a `request` waits for its reply: a fresh subject under
+        // this prefix each time (`new_inbox_under`)
+        inbox_prefix: String = "_INBOX";
         recv_chunk: Int = 65536;
 
         io: NatsTransport = NatsTransport { };
@@ -472,7 +480,7 @@ locus NatsClient {
         data: Bytes,
         wait: Duration
     ) -> NatsMsg fallible(NatsError) {
-        let inbox = new_inbox();
+        let inbox = new_inbox_under(self.inbox_prefix);
         let sid = self.sub_to(inbox, "") or raise;
         if !self.write_str(unsub_line(sid, 1)) { fail self.fail_with("io", "the write failed"); }
         self.pub_headers(subject, inbox, headers, data) or raise;
