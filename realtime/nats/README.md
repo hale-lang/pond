@@ -96,6 +96,17 @@ server has not confirmed:
 - Nothing is audited: an outage of any length is no `delivery`
   violation, and the conn never collapses for it. A message over the
   server's `max_payload` is said on `last_error` and not tried again.
+- A server that stops answering is noticed. A latest-value write still
+  unconfirmed `latest_confirm_ms` (default 2000) after its PING, with no
+  PONG of any kind meanwhile, closes the connection. The conn dials
+  again after a wait of 1 s, doubling with each such close up to
+  `latest_backoff_max_ms` (default 30000), and then writes the newest
+  of each subject again. Only a confirmed latest-value write resets the
+  wait; a dial alone does not, so a server that takes the connection
+  and then goes silent is dialled ever less often, never hammered.
+  `latest_drops` counts these closes, and `last_error` says the last
+  one. (Before v0.9.1 such a server was written to forever, and the
+  newest value never confirmed.)
 
 The conn holds one message per latest-value subject, replaced in place.
 `latest_in`, `latest_sent` and `latest_dropped` count what it was
@@ -228,7 +239,8 @@ Without a server, `proto_test` (framing), the fake's tests and the
 loopback tests run, and the `*_live_test`s say "skipped" on stderr and
 pass. The loopback tests run against `tests/loopback/`, just enough of
 a NATS server on 127.0.0.1 (INFO, CONNECT with a password check,
-PING/PONG, PUB) to take one down and bring it back. To run the live
+PING/PONG, PUB) to take one down and bring it back, or make it go
+silent after the handshake. To run the live
 tests against a real server:
 
 ```sh
@@ -238,6 +250,7 @@ NATS_URL=nats://127.0.0.1:4222 hale test realtime/nats/
 
 | Test | What it proves |
 |---|---|
+| `latest_liveness_test` | loopback, a server that answers the handshake and then goes silent: the connection closed after the confirm window, dialled again after 1 s, 2 s, 2 s (the cap), the newest of each subject delivered once the server answers, and a confirmed write resetting the wait to 1 s; nothing collapses |
 | `latest_outage_test` | loopback: across an outage longer than the ack window, a latest-value binding keeps only the newest of each subject, writes it after the reconnect and never the ones it replaced, and collapses nothing; an at-least-once binding on the same conn still collapses it |
 | `credential_test` | loopback: a vault credential as `user`'s password and as a token; a wrong or missing one refused; `NatsConn` connecting with its own |
 | `dial_test` | the dial gives up within the client's `timeout` on an address that never answers (127.0.0.2: dropped on macOS, refused at once on Linux) |
