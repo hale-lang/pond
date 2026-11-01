@@ -14,6 +14,22 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-10-31 status note — `realtime/nats` v0.9.1: latest-value liveness (hale 0.31.0)
+
+- **Fix** (pond#31): against a server that completes the handshake and
+  then goes silent, a `Delivery::Latest` binding wrote forever, never
+  confirmed, and never redialled, so the newest value was never
+  delivered. Now a latest-value write unconfirmed `latest_confirm_ms`
+  after its PING (any PONG restarts the window) closes the connection,
+  which is dialled again after a wait of 1 s doubling to
+  `latest_backoff_max_ms`; only a confirmed latest-value write resets
+  the wait. Found by hale-lang/voice.
+- **Additions, no older surface changed:** `NatsConn.latest_confirm_ms`
+  (default 2000) and `NatsConn.latest_backoff_max_ms` (default 30000),
+  and the counter `NatsConn.latest_drops`. At-least-once delivery is
+  unchanged. The loopback test server gains `Ctl.silent` and a
+  `ServerSaw` topic (test fixtures, not library surface).
+
 ## 2026-10-31 status note — `realtime/nats`: latest-value delivery, a sealed credential, a bounded dial (hale 0.31.0)
 
 - **Additions, no older surface changed** (pond#29): `type Delivery =
@@ -1445,7 +1461,9 @@ locus NatsConn {                                          // the program places 
              subject_prefix = "";                         // on every wire subject, off every inbound one
              jetstream = false;                           // outbound acked by PubAck, else PING barrier
              stream = ""; consumer: ConsumerSpec;         // JetStream inbound (durable pull)
-             pull_batch = 64; ack_window_ms = 10000; run_for_ms = 0; reconnect_max_ms = 2000; }
+             pull_batch = 64; ack_window_ms = 10000; run_for_ms = 0; reconnect_max_ms = 2000;
+             latest_confirm_ms = 2000;                    // an unconfirmed latest-value write closes the conn (v0.9.1)
+             latest_backoff_max_ms = 30000; }             // then redial after 1 s, doubling to this; a confirmation resets it
     closure delivery { captures: sent, acked, last_error; epoch inline; }   // violated past ack_window_ms (at-least-once only)
 }
 

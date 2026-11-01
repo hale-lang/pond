@@ -32,7 +32,9 @@
 // A binding whose adapter says `delivery: Delivery::Latest` is a
 // latest-value signal instead: the conn keeps only the newest message
 // of each of its subjects that the server has not confirmed, writes it
-// when it can, and never audits it (`Delivery`).
+// when it can, and never audits it (`Delivery`); a connection that
+// stops confirming it is closed and dialled again with a growing wait
+// (`latest_confirm_ms`).
 
 /// The outbound queue that NatsConn drains. One per program: every
 /// bound topic's adapter publishes here, and one NatsConn writes it.
@@ -99,6 +101,16 @@ locus NatsConn {
         // pond COMPILER-BUGS.md #3).
         run_for_ms: Int = 0;
         reconnect_max_ms: Int = 2000;
+        // Latest-value liveness. A latest-value write the server has not
+        // confirmed `latest_confirm_ms` after its PING (no PONG at all
+        // meanwhile) closes the connection: a server that takes the
+        // connection and then goes silent would otherwise be written to
+        // forever, the newest value never confirmed. It is dialled again
+        // after a wait that starts at 1 s and doubles up to
+        // `latest_backoff_max_ms`; only a confirmed latest-value write
+        // resets the wait, a dial alone does not.
+        latest_confirm_ms: Int = 2000;
+        latest_backoff_max_ms: Int = 30000;
 
         client: NatsClient = NatsClient { };
         // pending message i is message number base_id + i; acks[i] is 1
@@ -143,6 +155,13 @@ locus NatsConn {
         latest_dropped: Int = 0;
         // latest-value writes to the socket (again after a reconnect)
         latest_sent: Int = 0;
+        // monotonic ns since which a latest-value write has waited for a
+        // PONG (0: none waits), the wait before the next dial after a
+        // liveness drop (0: none dropped since the last confirmation), and
+        // how many connections were closed for want of a confirmation
+        latest_wait_ns: Int = 0;
+        latest_backoff_ms: Int = 0;
+        latest_drops: Int = 0;
         backoff_ms: Int = 0;
         retry_at_ns: Int = 0;
     }
@@ -152,7 +171,8 @@ locus NatsConn {
     closure delivery { captures: sent, acked, last_error; epoch inline; }
 
     // Record why delivery is in trouble.
-    // @unbounded: once per refused publish, server error, or the
+    // @unbounded: once per refused publish, server error, liveness drop
+    // (at most one per `latest_confirm_ms` plus its backoff), or the
     // violation that ends this conn.
     @unbounded
     fn note(what: String, detail: String) { self.last_error = what + detail; }
@@ -275,18 +295,57 @@ locus NatsConn {
             }
             i = i + 1;
         }
-        if wrote { let p = self.ping(); }
+        if wrote {
+            let p = self.ping();
+            if self.latest_wait_ns == 0 { self.latest_wait_ns = std::time::monotonic_ns(); }
+        }
     }
 
-    // What PONG number `pongs` confirms of the latest-value messages.
+    // What PONG number `pongs` confirms of the latest-value messages. A
+    // confirmation resets the liveness backoff; any PONG restarts the
+    // confirm window of what still waits, since the server answers.
     fn confirm_newest() {
         let n = self.newest_wait.len();
+        let mut waiting = false;
         let mut i = 0;
         while i < n {
             let w = self.newest_wait.get(i) or 0;
-            if w > 0 && w <= self.pongs { self.newest_wait.set(i, 0) or discard; }
+            if w > 0 && w <= self.pongs {
+                self.newest_wait.set(i, 0) or discard;
+                self.latest_backoff_ms = 0;
+            } else if w > 0 {
+                waiting = true;
+            }
             i = i + 1;
         }
+        self.latest_wait_ns = if waiting { std::time::monotonic_ns() } else { 0 };
+    }
+
+    // A latest-value write unconfirmed for `latest_confirm_ms`: close the
+    // connection, and dial again after the liveness backoff. True when it
+    // was closed. What it held is written again after the redial, as after
+    // any reconnect.
+    fn latest_unconfirmed(now: Int) -> Bool {
+        if self.latest_wait_ns == 0 { return false; }
+        if now - self.latest_wait_ns < self.latest_confirm_ms * 1000000 { return false; }
+        self.client.close();
+        self.latest_wait_ns = 0;
+        self.latest_drops = self.latest_drops + 1;
+        self.latest_backoff_ms = if self.latest_backoff_ms == 0 {
+            1000
+        } else {
+            self.latest_backoff_ms * 2
+        };
+        if self.latest_backoff_ms > self.latest_backoff_max_ms {
+            self.latest_backoff_ms = self.latest_backoff_max_ms;
+        }
+        self.retry_at_ns = now + self.latest_backoff_ms * 1000000;
+        self.note(
+            "latest-value write unconfirmed after " + to_string(self.latest_confirm_ms)
+                + " ms: connection closed, dialling again in ",
+            to_string(self.latest_backoff_ms) + " ms",
+        );
+        return true;
     }
 
     fn mark_acked(i: Int) {
@@ -421,6 +480,7 @@ locus NatsConn {
         self.pings = 0;
         self.pongs = 0;
         self.barrier = -1;
+        self.latest_wait_ns = 0;
         if !self.client.open_as(self.credential) {
             self.last_error = self.client.last_error;
             return false;
@@ -501,6 +561,11 @@ locus NatsConn {
         if !self.client.connected {
             // everything written but unacknowledged goes again
             self.last_error = self.client.last_error;
+            self.pull_open = false;
+            self.barrier = -1;
+            return;
+        }
+        if self.latest_unconfirmed(now) {
             self.pull_open = false;
             self.barrier = -1;
         }

@@ -1,0 +1,221 @@
+// A latest-value binding against a server that takes the connection and
+// then goes silent (tests/loopback, `silent: true`: the handshake is
+// answered, no PING after it). Without a deadline the conn would write
+// into that connection forever and the newest value would never reach a
+// server again. With one, the conn closes the connection
+// `latest_confirm_ms` after an unconfirmed write, and dials again after
+// a wait that doubles from 1 s up to `latest_backoff_max_ms`: here 1 s,
+// then 2 s, then 2 s again (the cap). Once the server answers again, the
+// newest value of each subject arrives, and none it replaced. A
+// confirmed write resets the wait: going silent a second time, the
+// first redial comes after 1 s again. Nothing collapses the conn.
+import ".." as nats;
+import "loopback" as lb;
+
+type Version { v: Int = 0; }
+
+topic RouteA {
+    payload: Version;
+    subject: "route.a";
+}
+topic RouteB {
+    payload: Version;
+    subject: "route.b";
+}
+
+// What reached the server: it dispatches each PUB under "seen." + its
+// wire subject, which carries the conn's prefix.
+topic SeenA {
+    payload: Version;
+    subject: "seen.lv.route.a";
+}
+topic SeenB {
+    payload: Version;
+    subject: "seen.lv.route.b";
+}
+
+main locus App {
+    params {
+        fd: Int = -1;
+        server: lb::LoopServer = lb::LoopServer { };
+        watch: lb::LoopWatch = lb::LoopWatch { };
+        conn: nats::NatsConn = nats::NatsConn { };
+        a: Int = 0;
+        a_last: Int = 0;
+        a_sum: Int = 0;
+        b: Int = 0;
+        b_last: Int = 0;
+        // what the server saw, in order: the times of CONNECTs and of the
+        // client's closes
+        connects: nats::NatsInts = nats::NatsInts { };
+        closes: nats::NatsInts = nats::NatsInts { };
+        failed: Bool = false;
+        why: String = "";
+    }
+    placement {
+        server: pinned;
+        watch: pinned;
+        conn: pinned;
+    }
+    bindings {
+        RouteA: nats::NatsAdapter { delivery: nats::Delivery::Latest };
+        RouteB: nats::NatsAdapter { delivery: nats::Delivery::Latest };
+    }
+    bus {
+        publish RouteA;
+        publish RouteB;
+        publish lb::ServerCtl;
+        subscribe SeenA as on_a;
+        subscribe SeenB as on_b;
+        subscribe lb::ServerSaw as on_saw;
+    }
+
+    fn on_a(m: Version) {
+        self.a = self.a + 1;
+        self.a_last = m.v;
+        self.a_sum = self.a_sum + m.v;
+    }
+    fn on_b(m: Version) {
+        self.b = self.b + 1;
+        self.b_last = m.v;
+    }
+    // @unbounded: a test's handful of connections.
+    @unbounded
+    fn on_saw(s: lb::Saw) {
+        if s.what == "connect" { self.connects.push(s.at_ns); }
+        if s.what == "close" { self.closes.push(s.at_ns); }
+    }
+
+    on_failure(c: nats::NatsConn, err: ClosureViolation) {
+        self.failed = true;
+        self.why = err.closure + ": " + c.last_error;
+    }
+
+    fn wait_seen(a: Int, b: Int, ms: Int) {
+        let mut waited = 0;
+        while (self.a_last != a || self.b_last != b) && waited < ms {
+            std::time::sleep(10ms);
+            waited = waited + 10;
+        }
+    }
+
+    fn wait_connects(n: Int, ms: Int) {
+        let mut waited = 0;
+        while self.connects.len() < n && waited < ms {
+            std::time::sleep(10ms);
+            waited = waited + 10;
+        }
+    }
+
+    // ms from what the server saw at index `i` of `from` to index `j` of
+    // `to`.
+    fn between(from: nats::NatsInts, i: Int, to: nats::NatsInts, j: Int) -> Int {
+        let a = from.get(i) or 0;
+        let b = to.get(j) or 0;
+        return (b - a) / 1000000;
+    }
+
+    run() {
+        // answering: the first value is confirmed
+        RouteA <- Version { v: 1 };
+        self.wait_seen(1, 0, 3000);
+        std::test::assert(self.a == 1, "the first value arrives");
+
+        // silent: nothing is confirmed, and nothing reaches the server
+        lb::ServerCtl <- lb::Ctl { up: true, silent: true };
+        std::time::sleep(100ms);
+        let c0 = self.connects.len();
+        let x0 = self.closes.len();
+        let silent_at = std::time::monotonic_ns();
+        RouteA <- Version { v: 2 };
+        RouteB <- Version { v: 1 };
+        std::time::sleep(100ms);
+        RouteA <- Version { v: 3 };
+        // closed, then dialled again after 1 s, 2 s, and 2 s (the cap)
+        self.wait_connects(c0 + 3, 9000);
+        std::test::assert(
+            self.connects.len() >= c0 + 3 && self.closes.len() >= x0 + 3,
+            "a silent connection is closed and dialled again: "
+                + to_string(self.connects.len() - c0) + " connects, "
+                + to_string(self.closes.len() - x0) + " closes",
+        );
+        let first_close = ((self.closes.get(x0) or 0) - silent_at) / 1000000;
+        std::test::assert(
+            first_close >= 300 && first_close < 1500,
+            "closed once the confirm window (300 ms) passes: " + to_string(first_close) + " ms",
+        );
+        let k1 = self.between(self.connects, c0, self.closes, x0 + 1);
+        let k2 = self.between(self.connects, c0 + 1, self.closes, x0 + 2);
+        std::test::assert(
+            k1 >= 290 && k1 < 1500 && k2 >= 290 && k2 < 1500,
+            "each redial is kept for the confirm window: " + to_string(k1) + " " + to_string(k2),
+        );
+        // the server sees a close up to one read (10 ms) late
+        let r0 = self.between(self.closes, x0, self.connects, c0);
+        let r1 = self.between(self.closes, x0 + 1, self.connects, c0 + 1);
+        let r2 = self.between(self.closes, x0 + 2, self.connects, c0 + 2);
+        std::test::assert(
+            r0 >= 980 && r0 < 1800,
+            "the first redial waits 1 s: " + to_string(r0) + " ms",
+        );
+        std::test::assert(r1 >= 1980 && r1 < 2800, "the next twice that: " + to_string(r1) + " ms");
+        std::test::assert(
+            r2 >= 1980 && r2 < 2800,
+            "and no longer than latest_backoff_max_ms: " + to_string(r2) + " ms",
+        );
+        std::test::assert(self.a == 1 && self.b == 0, "nothing reached the silent server");
+        std::test::assert(!self.failed, "a silent server collapses nothing: " + self.why);
+
+        // answering again (the server drops the silent connection): the
+        // newest of each subject, and nothing older
+        lb::ServerCtl <- lb::Ctl { up: true, silent: false };
+        self.wait_seen(3, 1, 5000);
+        std::time::sleep(300ms);
+        std::test::assert(
+            self.a_last == 3 && self.b_last == 1,
+            "the newest is written once the server answers: " + to_string(self.a_last) + " "
+                + to_string(self.b_last),
+        );
+        std::test::assert(
+            self.a == 2 && self.a_sum == 4 && self.b == 1,
+            "and the value it replaced never is: " + to_string(self.a) + " " + to_string(self.b),
+        );
+
+        // the confirmation reset the wait: silent again, the redial comes after 1 s
+        lb::ServerCtl <- lb::Ctl { up: true, silent: true };
+        std::time::sleep(100ms);
+        let c1 = self.connects.len();
+        let x1 = self.closes.len();
+        RouteA <- Version { v: 4 };
+        self.wait_connects(c1 + 1, 4000);
+        let r = self.between(self.closes, x1, self.connects, c1);
+        std::test::assert(
+            self.closes.len() > x1 && r >= 980 && r < 1800,
+            "a confirmed write resets the wait to 1 s: " + to_string(r) + " ms",
+        );
+        lb::ServerCtl <- lb::Ctl { up: true, silent: false };
+        self.wait_seen(4, 1, 5000);
+        std::test::assert(self.a_last == 4, "and the newest arrives: " + to_string(self.a_last));
+        std::test::assert(!self.failed, "still no collapse: " + self.why);
+        std::io::tcp::__shutdown_listen_socket(self.fd);
+    }
+}
+
+fn main() {
+    let fd = std::io::tcp::listen_socket("127.0.0.1", 0) or - 1;
+    std::test::assert(fd >= 0, "a loopback listener");
+    let url = "nats://127.0.0.1:" + to_string(std::io::tcp::__local_port(fd));
+    App {
+        fd: fd,
+        server: lb::LoopServer { fd: fd, run_for_ms: 25000 },
+        watch: lb::LoopWatch { fd: fd, after_ms: 25000 },
+        conn: nats::NatsConn {
+            url: url,
+            subject_prefix: "lv.",
+            timeout: 1s,
+            latest_confirm_ms: 300,
+            latest_backoff_max_ms: 2000,
+            run_for_ms: 22000,
+        },
+    };
+}

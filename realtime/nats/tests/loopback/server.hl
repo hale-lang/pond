@@ -11,6 +11,14 @@
 // closed: a dial gets in, then reads the end of the stream before any
 // INFO), until `ServerCtl { up: true }`: an outage the client sees
 // promptly, with no stale connection left queued for when it ends.
+// `ServerCtl { silent: true }` keeps accepting but goes silent: each
+// connection's handshake is answered (its first PING), and after that
+// the server reads everything and answers nothing, PUBs unseen; the
+// connection it is serving goes silent too. Back to `silent: false`, it
+// drops the connection it is serving (whose PINGs it swallowed, so their
+// PONGs would no longer line up) and answers again. Each CONNECT it
+// accepts and each connection the client closes is a `ServerSaw`, with
+// the monotonic time it happened.
 //
 // The test binds the listening socket itself (port 0, read back) and
 // hands it over as `fd`, so the server is never told a port that
@@ -24,11 +32,26 @@
 
 import "../.." as nats;
 
-type Ctl { up: Bool = true; }
+type Ctl {
+    up: Bool = true;
+    silent: Bool = false;
+}
 
 topic ServerCtl {
     payload: Ctl;
     subject: "pond.nats.test.server_ctl";
+}
+
+// `what`: "connect" (a CONNECT accepted) or "close" (the client closed
+// the connection); `at_ns`: std::time::monotonic_ns() then.
+type Saw {
+    what: String = "";
+    at_ns: Int = 0;
+}
+
+topic ServerSaw {
+    payload: Saw;
+    subject: "pond.nats.test.server_saw";
 }
 
 // `fd`: which server ended (a test may run two).
@@ -75,7 +98,10 @@ locus LoopServer {
         secret: String = "";
         run_for_ms: Int = 5000;
         up: Bool = true;
+        silent: Bool = false;
         conn: Int = -1;
+        // PINGs answered on this connection
+        answered: Int = 0;
         rx: std::bytes::BytesBuilder = std::bytes::BytesBuilder { };
         closed: Bool = false;
         // CONNECTs accepted and refused, and PUBs seen
@@ -87,11 +113,14 @@ locus LoopServer {
     bus {
         subscribe ServerCtl as on_ctl;
         publish ServerDone;
+        publish ServerSaw;
     }
 
     fn on_ctl(c: Ctl) {
+        let was_silent = self.silent;
         self.up = c.up;
-        if !c.up { self.hang_up(); }
+        self.silent = c.silent;
+        if !c.up || (was_silent && !c.silent) { self.hang_up(); }
     }
 
     fn hang_up() {
@@ -119,6 +148,7 @@ locus LoopServer {
         }
         self.hang_up();
         self.conn = c;
+        self.answered = 0;
         std::io::tcp::set_recv_timeout(c, 10ms) or discard;
         self.send("INFO {\"server_id\":\"loopback\",\"max_payload\":1048576,\"headers\":true}\r\n");
     }
@@ -137,6 +167,7 @@ locus LoopServer {
             return;
         }
         self.accepted = self.accepted + 1;
+        ServerSaw <- Saw { what: "connect", at_ns: std::time::monotonic_ns() };
     }
 
     // One whole line or PUB off the front of `rx`; false when none is
@@ -157,13 +188,18 @@ locus LoopServer {
             if n < body + size + 2 { return false; }
             let data = std::bytes::slice(b, body, body + size);
             self.rx.shift_front(body + size + 2);
-            self.pubs = self.pubs + 1;
-            std::bus::__local_dispatch("seen." + subject, data);
+            if !self.silent {
+                self.pubs = self.pubs + 1;
+                std::bus::__local_dispatch("seen." + subject, data);
+            }
             return true;
         }
         self.rx.shift_front(body);
         if std::str::starts_with(line, "CONNECT ") { self.on_connect(line[8..len(line)]); }
-        else if line == "PING" { self.send("PONG\r\n"); }
+        else if line == "PING" && (!self.silent || self.answered == 0) {
+            self.answered = self.answered + 1;
+            self.send("PONG\r\n");
+        }
         return true;
     }
 
@@ -176,7 +212,10 @@ locus LoopServer {
                 self.take();
             } else {
                 let got = std::io::tcp::recv_into(self.conn, self.rx, 65536);
-                if got == 0 || (got < 0 && got != -2) { self.hang_up(); }
+                if got == 0 || (got < 0 && got != -2) {
+                    ServerSaw <- Saw { what: "close", at_ns: std::time::monotonic_ns() };
+                    self.hang_up();
+                }
                 while self.conn >= 0 && self.next() {
                     // one frame at a time
                 }
