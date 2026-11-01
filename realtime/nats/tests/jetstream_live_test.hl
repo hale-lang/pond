@@ -201,6 +201,40 @@ fn main() {
         "the unacked one comes again: " + std::str::from_bytes(again.data) + " " + c.last_error,
     );
 
+    // max_ack_pending: no more than that many unacknowledged at once (the
+    // stream holds three; the third is held back until one is acked)
+    nats::js_consumer_create(
+        c,
+        stream,
+        nats::ConsumerSpec { durable: "capped", max_ack_pending: 2 },
+    ) or discard;
+    let info = c.request(
+        "$JS.API.CONSUMER.INFO." + stream + ".capped",
+        b"",
+        2s,
+    ) or nats::NatsMsg { };
+    std::test::assert(
+        std::str::contains(std::str::from_bytes(info.data), "\"max_ack_pending\":2"),
+        "the consumer is created with it: " + c.last_error,
+    );
+    let p1 = nats::js_next(c, stream, "capped", 2000) or nats::NatsMsg { };
+    let p2 = nats::js_next(c, stream, "capped", 2000) or nats::NatsMsg { };
+    let p3 = nats::js_next(c, stream, "capped", 500) or nats::NatsMsg { subject: "none" };
+    std::test::assert(
+        std::str::from_bytes(p1.data) == "first" && std::str::from_bytes(p2.data) == "second",
+        "the first two: " + c.last_error,
+    );
+    std::test::assert(
+        p3.subject == "none",
+        "the third is held back while two are unacknowledged: " + std::str::from_bytes(p3.data),
+    );
+    nats::js_ack(c, p1) or discard;
+    let p4 = nats::js_next(c, stream, "capped", 2000) or nats::NatsMsg { };
+    std::test::assert(
+        std::str::from_bytes(p4.data) == "third",
+        "and handed out once one is: " + std::str::from_bytes(p4.data) + " " + c.last_error,
+    );
+
     nats::js_stream_delete(c, stream) or discard;
     c.close();
 }

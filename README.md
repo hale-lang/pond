@@ -94,7 +94,7 @@ apps, other `_util` libs, and tier libs — since upstream WS3.4
 | Path | What it is | Suggested alias |
 |------|------------|------|
 | `websocket/` | RFC 6455 WebSocket client + server-side upgrade, ping/pong liveness deadlines | `ws` |
-| `realtime/nats/` | NATS core + JetStream client, and a `std::bus` adapter carrying a program's topics over NATS, per binding at least once with an ack audit or latest-value; sealed credentials; in-memory fake | `nats` |
+| `realtime/nats/` | NATS core + JetStream client, and a `std::bus` adapter carrying a program's topics over NATS, per binding at least once with an ack audit or latest-value; untyped inbound; a publish-only adapter; sealed credentials; in-memory fake | `nats` |
 
 ### Tier 5 — AI / agent orchestration
 

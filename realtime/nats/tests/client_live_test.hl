@@ -44,6 +44,32 @@ fn main() {
         "a reply from $JS.API.INFO: " + c.last_error,
     );
 
+    // with `inbox_prefix`, a request's reply comes back under it: a second
+    // client subscribed there sees the server's answer go by
+    let tag = std::str::replace(nats::new_inbox(), "_INBOX.", "");
+    let watch = nats::NatsClient { url: url, name: "pond-client-test-watch" };
+    std::test::assert(watch.open(), "open the watcher: " + watch.last_error);
+    let wsid = watch.sub_to("pond.replies." + tag + ".>", "") or - 1;
+    watch.flush() or discard;
+    let p = nats::NatsClient {
+        url: url,
+        name: "pond-client-test-prefix",
+        inbox_prefix: "pond.replies." + tag,
+    };
+    std::test::assert(p.open(), "open: " + p.last_error);
+    let pinfo = p.request("$JS.API.INFO", b"", 2s) or nats::NatsMsg { };
+    std::test::assert(
+        std::str::contains(std::str::from_bytes(pinfo.data), "\"type\""),
+        "a reply under the prefix: " + p.last_error,
+    );
+    std::test::assert(
+        watch.read_msg(2s)
+            && std::str::starts_with(watch.last.subject, "pond.replies." + tag + "."),
+        "addressed to the prefix: " + watch.last.subject,
+    );
+    p.close();
+    watch.close();
+
     // nobody answering is its own error, not a timeout
     let none = c.request("pond.nobody." + nats::new_inbox(), b"", 2s) or nats::NatsMsg { };
     std::test::assert(

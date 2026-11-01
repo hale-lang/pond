@@ -7,7 +7,9 @@
 // `ack: false`), and the delivery audit is the same closure with the
 // same captures. A message from a `Delivery::Latest` binding is kept
 // and counted in `latest`, but never audited. Inbound traffic is
-// whatever the test injects.
+// whatever the test injects; under `untyped` it goes out on
+// `NatsInbound`, as on the conn, and an acknowledgement sent back
+// (`nats_ack`) is counted in `acks`, not kept as a message.
 //
 //     params { nats: nats::NatsFake = nats::NatsFake { }; }
 //     ...
@@ -26,12 +28,18 @@ locus NatsFake {
         ack_window_ms: Int = 10000;
         // how many of the latest messages `log` keeps
         keep: Int = 1000;
+        // as NatsConn's: injected subjects under it go out on NatsInbound
+        untyped: String = "";
 
         log: NatsMsgLog = NatsMsgLog { };
         sent: Int = 0;
         acked: Int = 0;
         // of `sent`, how many came from a latest-value binding
         latest: Int = 0;
+        // acknowledgements of untyped messages (`nats_ack`), and the
+        // reply subject of the last one
+        acks: Int = 0;
+        last_ack: String = "";
         received: Int = 0;
         last_error: String = "";
         oldest_unacked_ns: Int = 0;
@@ -39,7 +47,10 @@ locus NatsFake {
         oldest_unacked_subject: String = "";
     }
 
-    bus { subscribe NatsOutbound as on_out; }
+    bus {
+        subscribe NatsOutbound as on_out;
+        publish NatsInbound;
+    }
 
     closure delivery { captures: sent, acked, last_error; epoch inline; }
 
@@ -48,6 +59,11 @@ locus NatsFake {
     fn note(why: String) { self.last_error = why; }
 
     fn on_out(o: Outbound) {
+        if o.ack {
+            self.acks = self.acks + 1;
+            self.last_ack = o.subject;
+            return;
+        }
         self.sent = self.sent + 1;
         if self.log.len() >= self.keep { self.log.drop_front(self.log.len() - self.keep + 1); }
         self.log.push(o.subject, o.data);
@@ -84,9 +100,19 @@ locus NatsFake {
     }
 
     /// Deliver `data` under `subject` as though the server had sent it:
-    /// the local subscribers of that subject's topic receive it.
-    fn inject(subject: String, data: Bytes) {
-        std::bus::__local_dispatch(subject, data);
+    /// the local subscribers of that subject's topic receive it, or under
+    /// `untyped` the subscribers of `NatsInbound`.
+    fn inject(subject: String, data: Bytes) { self.inject_reply(subject, "", data); }
+
+    /// `inject`, as though pulled from a durable consumer whose
+    /// acknowledgement subject is `reply`: an untyped message carries it
+    /// on `Inbound.reply` for its subscriber to acknowledge.
+    fn inject_reply(subject: String, reply: String, data: Bytes) {
+        if len(self.untyped) > 0 && std::str::starts_with(subject, self.untyped) {
+            NatsInbound <- Inbound { subject: subject, data: data, reply: reply };
+        } else {
+            std::bus::__local_dispatch(subject, data);
+        }
         self.received = self.received + 1;
     }
 

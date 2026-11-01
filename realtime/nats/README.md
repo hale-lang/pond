@@ -148,7 +148,77 @@ where a new durable starts:
 
 A durable keeps its place across restarts. The program's own publishes
 come back through the stream too; `echo: false` does not apply to what
-a stream stores.
+a stream stores. `ConsumerSpec.max_ack_pending` (> 0) caps how many
+messages the server hands out unacknowledged at once (0: the server's
+default).
+
+If the durable, or its stream, disappears while the connection holds,
+each pull is refused with a 503. The conn counts the refusals in a row in
+`pull_refused`, creates the durable again (with `deliver` as given, so a
+durable that was deleted starts over), and pulls again at the pull's
+deadline rather than at once. `pull_refused` is back to 0 once a pull is
+answered.
+
+### Receiving untyped
+
+```hale
+nats: nats::NatsConn = nats::NatsConn {
+    url: "nats://127.0.0.1:4222",
+    subjects: "feeds.>",                    // core: still has to be subscribed
+    untyped: "feeds.",                      // a wire subject, with subject_prefix if any
+    stream: "FEEDS", consumer: nats::ConsumerSpec { durable: "app" }
+};
+...
+bus { subscribe nats::NatsInbound as on_raw; publish nats::NatsOutbound; }
+fn on_raw(m: nats::Inbound) {
+    ... m.subject, m.data ...                        // as they arrived on the wire
+    if len(m.reply) > 0 { nats::NatsOutbound <- nats::nats_ack(m.reply); }
+}
+```
+
+A message whose wire subject starts with `untyped` is not dispatched to
+a topic. It goes out on `NatsInbound` as `Inbound { subject, data,
+reply }`: the whole wire subject, prefix and all, and its bytes, for a
+subscriber that reads them itself. This suits a family of subjects the
+program does not declare topic by topic, or payloads that are not the
+bus's encoding.
+
+- **Core subscriptions.** A message from a core subscription has
+  `reply` "", and there is nothing to acknowledge.
+- **The durable consumer.** The conn does not acknowledge a message it
+  pulls from its durable consumer under `untyped`: its subscriber does,
+  once it is done with it, with `NatsOutbound <- nats::nats_ack(m.reply)`.
+  The conn writes that acknowledgement once if it is connected. It never
+  keeps, audits or writes the acknowledgement again, so a message never
+  acknowledged comes again after the consumer's ack wait, and nothing is
+  lost if no one subscribes.
+
+A program without `untyped` (the default "") behaves as before.
+
+## NatsPublisher — publish only
+
+```hale
+bindings { Audit: nats::NatsPublisher { url: "nats://127.0.0.1:4222", subject_prefix: "acme." }; }
+```
+
+`NatsPublisher` is for a program that publishes a little, rarely, and
+should not hold a connection for it. Each `send` dials, publishes onto
+the JetStream stream that takes the subject, waits for the stream's
+PubAck (each step bounded by `timeout`, default 2 s), and hangs up. All
+of that happens on the publisher's own thread, with nothing kept between
+sends.
+
+- It needs no `NatsConn` and no `placement` line.
+- It receives nothing, so the program's topology is exactly what its
+  source declares. A `NatsConn` dispatches whatever arrives.
+- `send` cannot fail and there is no queue. A message that could not be
+  delivered (no connection, or no stream takes the subject) is said as a
+  `warn` on `std::log` (logger `nats`) and dropped.
+- `url` "" publishes nothing.
+- Credentials are as on `NatsClient`: `user`, `pass`, `token`, or a
+  sealed `credential`.
+
+A program that publishes much holds a `NatsConn` instead.
 
 ### Ending
 
@@ -190,6 +260,12 @@ c.close();
   `credential` param and presents it on every (re)connect. NKey and JWT
   credentials are not supported: they need ed25519, which neither
   hale's stdlib nor `pond/crypto` has (`FRICTION.log`).
+- **Inboxes.** A `request` waits for its reply on a fresh subject
+  under `inbox_prefix` (default `_INBOX`, so `_INBOX.<22 hex>`). Set it
+  for an account whose permissions allow replies only under a prefix of
+  its own. `new_inbox_under(prefix)` makes one; `NatsConn.inbox_prefix`
+  is passed to its client and also places the conn's own reply subjects
+  (PubAcks and pulls).
 - **Frames.** `next_frame()` returns one frame into `framer.frame`,
   answering server PINGs itself. `last_error` says why the last
   operation failed; every `NatsError` has a stable `kind`.
@@ -206,7 +282,7 @@ Free fns over a client you own:
 |---|---|
 | `js_stream_create(c, name, subjects)` | a file-backed stream over comma-separated subjects (again unchanged: not an error) |
 | `js_stream_delete(c, name)` | |
-| `js_consumer_create(c, stream, spec: ConsumerSpec)` | a durable pull consumer, explicit acks, `deliver` as above, optional `filter` and `ack_wait_ms` (again unchanged: re-attaches, keeping its place) |
+| `js_consumer_create(c, stream, spec: ConsumerSpec)` | a durable pull consumer, explicit acks, `deliver` as above, optional `filter`, `ack_wait_ms` and `max_ack_pending` (again unchanged: re-attaches, keeping its place) |
 | `js_publish(c, subject, data) -> PubAck` | publish and wait for the stream to store it (`kind: "jetstream"` if no stream takes the subject) |
 | `js_publish_id(c, subject, id, data) -> PubAck` | the same, with a `Nats-Msg-Id` header: inside the stream's duplicate window a second publish of `id` is not stored again (`duplicate: true`, the first one's `seq`) |
 | `js_next(c, stream, consumer, wait_ms) -> NatsMsg` | the next message, or `kind: "no_messages"` |
@@ -224,7 +300,12 @@ so the adapter and bindings stay as they are.
   audited, as on the conn.
 - **Inbound.** Messages come from `inject(subject, bytes)`, or from
   `replay(from, to)`, which re-delivers what was sent on one subject
-  under another.
+  under another. With `untyped` set, an injected subject under it goes
+  out on `NatsInbound`, as on the conn. `inject_reply(subject, reply,
+  bytes)` gives it a reply, as though it was pulled from a durable
+  consumer. An acknowledgement sent back (`nats_ack`) is counted in
+  `acks` (`last_ack` is its subject), and never kept as a message or
+  audited.
 - **Placement.** Those are direct calls, so the fake shares its owner's
   pool. A test that expects the audit to fire places it `pinned`
   instead (hale#1036).
@@ -254,9 +335,14 @@ NATS_URL=nats://127.0.0.1:4222 hale test realtime/nats/
 | `latest_outage_test` | loopback: across an outage longer than the ack window, a latest-value binding keeps only the newest of each subject, writes it after the reconnect and never the ones it replaced, and collapses nothing; an at-least-once binding on the same conn still collapses it |
 | `credential_test` | loopback: a vault credential as `user`'s password and as a token; a wrong or missing one refused; `NatsConn` connecting with its own |
 | `dial_test` | the dial gives up within the client's `timeout` on an address that never answers (127.0.0.2: dropped on macOS, refused at once on Linux) |
+| `fake_untyped_test` | an injected subject under the fake's `untyped` reaches `NatsInbound` as it arrived, with its reply; the subscriber's `nats_ack` counts as an ack and is never audited |
+| `inbox_test` | `new_inbox` and `new_inbox_under`: the prefix, the length, fresh each time |
 | `fake_latest_test` | the fake never audits a latest-value binding, and still audits an at-least-once one |
-| `client_live_test` | pub/sub, a binary payload intact, unsub, request/reply, no-responders |
-| `jetstream_live_test` | streams, PubAcks, durable consumers under all five deliver policies, a filter, re-creating a durable without losing its place, redelivery of what was never acked |
+| `client_live_test` | pub/sub, a binary payload intact, unsub, request/reply, a reply under `inbox_prefix`, no-responders |
+| `jetstream_live_test` | streams, PubAcks, durable consumers under all five deliver policies, a filter, re-creating a durable without losing its place, redelivery of what was never acked, `max_ack_pending` holding back the next message |
+| `untyped_live_test` | `untyped` over a core subscription and the durable consumer: messages on `NatsInbound` as they arrived, a pulled one acknowledged by its subscriber, and one left unacknowledged coming again |
+| `consumer_gone_live_test` | the durable deleted under a live connection: pulls refused and counted in `pull_refused`, the durable created again, the next message delivered, the count back to 0 |
+| `publisher_live_test` | `NatsPublisher`: each message stored once under its prefix, a publish no stream takes said on `std::log`; with no server, `url` "" publishes nothing |
 | `adapter_live_test` | the bus both ways under a `subject_prefix`: 50 messages out through the adapter, back in through a relay, whole and in order |
 | `adapter_js_live_test` | JetStream mode: each message stored once and delivered back through the durable consumer |
 | `adapter_audit_live_test` | a publish no stream takes collapses the conn to its owner, naming the message and the reason |

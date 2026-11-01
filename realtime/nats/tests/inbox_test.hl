@@ -1,0 +1,21 @@
+// Inbox subjects, no broker: `new_inbox` is `_INBOX.` and 22 random hex
+// digits, `new_inbox_under(prefix)` the same under a prefix of the
+// caller's, each one fresh. A client's `inbox_prefix` puts its request
+// replies there (client_live_test checks that against a server).
+import ".." as nats;
+
+fn main() {
+    let a = nats::new_inbox();
+    std::test::assert(
+        std::str::starts_with(a, "_INBOX.") && len(a) == 7 + 22,
+        "the default inbox: " + a,
+    );
+    let b = nats::new_inbox_under("acct.replies");
+    std::test::assert(
+        std::str::starts_with(b, "acct.replies.") && len(b) == 13 + 22,
+        "under a prefix: " + b,
+    );
+    std::test::assert(nats::new_inbox_under("acct.replies") != b, "fresh each time");
+    let c = nats::NatsClient { };
+    std::test::assert(c.inbox_prefix == "_INBOX", "the client's default is unchanged");
+}
