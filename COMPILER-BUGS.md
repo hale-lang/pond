@@ -62,6 +62,8 @@ work.
 
 ## 1. A `let`-bound locus forwarded through a call and returned is reclaimed early — **high**
 
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream (re-run 2026-11-06 with this entry's shapes: `via_temp`, `via_let`, `via_let` with a read before the call, `via_direct` and a let-bound result returned all come back with `len=3` and the right elements). hale v0.24.0's locus ownership work (#1566, #1569: a returned aggregate of loci is owned by its holder) and #1598 (a returned locus's struct released at its reclaim) cover it.
+
 The last surviving shape of the v0.16.0 GH #402 temporary-reclaim
 regression. `3c05dad` fixed rebinding (`a = …`) and the direct
 `return <binding>` path; this is the **forwarding** path.
@@ -180,6 +182,8 @@ forward helper walks straight into it.
 
 ## 2. The hot-path allocation advisory ignores the `@unbounded` it tells you to use — medium
 
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream (hale 2026-09-05, dna F.2; re-run 2026-10-12: the advisory is silent with `@unbounded` and fires without it). `@bounded_by(<input>)` names what bounds a growth since v0.24.0 (#1494, #1500).
+
 The `hot-path allocation` advisory ends with:
 
 > …or acknowledge an intentional shape with `@unbounded` on the
@@ -270,6 +274,8 @@ adopted as a CI gate.
 
 ## 3. SIGTERM does not drain: a pinned loop never sees `self.draining` — medium
 
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream, hale#1039 closed 2026-09-25 (re-run 2026-10-12: the pinned child's `run()` sees the drain, its `dissolve` runs, exit 0). Since v0.32.5 (#1851) a declared `drain()` / `dissolve()` hook alone makes a locus answer a signal, and v0.32.7 ends a `sleep` begun during the drain at once.
+
 Found 2026-09-24 against `hale 0.21.0`, `hale-lang/hale` @ `bb0a2c55`,
 release build.
 
@@ -317,6 +323,8 @@ tests and the example end it (`FRICTION.log § pond/realtime/nats`).
 
 ## 4. A child passed into its parent's literal from `fn main` is not routed to the parent's `on_failure` — medium
 
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream, hale#1035 closed 2026-09-25 (re-run 2026-10-12: the parent's handler sees the violation).
+
 Found 2026-09-24 against `hale 0.21.0` @ `6a866b9a`; filed as
 hale-lang/hale#1035.
 
@@ -352,6 +360,8 @@ default instead (`tests/adapter_audit_live_test.hl`).
 
 ## 5. A self field alternating between a heap value and an empty one never retires the heap value — medium
 
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream, hale#1033 closed 2026-09-25 (re-run 2026-10-12: RSS flat at 4.7 MB over the alternation). A replaced `String` field reuses its block since v0.24.0 (#1502).
+
 Found 2026-09-24 against `hale 0.21.0` @ `6a866b9a`; filed as
 hale-lang/hale#1033.
 
@@ -385,6 +395,8 @@ ends.
 
 ## 6. A bound bus adapter's subscriptions run on the publishing thread, not the adapter's own — medium
 
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream, hale#1032 closed 2026-09-24; v0.24.0 runs a run-time subscriber on its builder's thread (#1510, #1513).
+
 Found 2026-09-24 against `hale 0.21.0` @ `bb0a2c55`; filed, with its
 repro, as hale-lang/hale#1032. A bound adapter's `run()` runs on a
 thread of its own, but a handler it subscribes runs synchronously on
@@ -399,6 +411,8 @@ publisher's thread would write it. The adapter is split in two, with
 internal topic. They fold back into one when this closes.
 
 ## 7. `@form(vec)` `pop` never frees a String/Bytes cell, and `set` never frees replaced Bytes — medium
+
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream, hale#1037 closed 2026-09-25 (re-run 2026-10-12: flat). v0.24.0's forms reclaim what they replace at any depth (#1518, #1535).
 
 Found 2026-09-24 against `hale 0.21.0` @ `6a866b9a`; filed as
 hale-lang/hale#1037.
@@ -435,6 +449,8 @@ reused BytesBuilder with Int vecs beside it, because a vec of
 `Outbound` used as a queue grew by one payload per message.
 
 ## 8. Use-after-free at exit: a collapsed child with a `@form(vec)` is reclaimed twice — **high**
+
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream, hale#1036 closed 2026-09-25 (re-run 2026-10-12: clean exit).
 
 Found 2026-09-24 against `hale 0.21.0` @ `6a866b9a`; filed as
 hale-lang/hale#1036.
@@ -484,6 +500,8 @@ fn main() { App { }; }
 
 ## 9. Publishing a topic bound to an adapter leaks the encoded payload — medium
 
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream, hale#1038 closed 2026-09-25 (re-run 2026-10-12: flat). The same leak on codec-bound and hub-bound topics in a served program was closed again in v0.32.3 (#1845).
+
 Found 2026-09-24 against `hale 0.21.0` @ `6a866b9a`; filed as
 hale-lang/hale#1038.
 
@@ -517,6 +535,8 @@ connection itself stays flat over 100k messages each way (the soak is
 described in `realtime/nats/README.md`).
 
 ## 10. Imported scalar point constructors check but do not lower — medium
+
+**Status (2026-11-06, hale v0.32.7):** STILL REAL (re-run 2026-11-06): `hale check` passes and the build says ``unsupported in codegen v0: path call `u::Celsius` in expression position``. A qualified point constructor of any imported quantity (`temporal::Instant(0monotonic_ns)`) fails the same way.
 
 Reproduced 2026-10-07 against Hale `0.22.0` at
 `2027ab41c1d10b98c0b8baeceafb587ba2178b1a`. No Pond dependency is needed.
@@ -552,6 +572,8 @@ form; the exported point's origin is preserved.
 
 ## 11. Qualified imported scalar casts do not recognize rounding policies — medium
 
+**Status (2026-11-06, hale v0.32.7):** STILL REAL (re-run 2026-11-06): `u::Metres(distance) or half_even` is refused by `hale check` with ``unknown identifier `half_even` ``.
+
 Reproduced 2026-10-07 against the same `2027ab41` compiler.
 
 `lib/units.hl`:
@@ -584,6 +606,8 @@ Pond's optional quantity examples use that supported surface.
 
 ## 12. Unary minus loses an exact quantity literal's divisibility proof — medium
 
+**Status (2026-11-06, hale v0.32.7):** STILL REAL (re-run 2026-11-06): `let n: A = -3b;` is refused with "`A` from `Q` divides by 3: say what happens to the remainder" while the positive `3b` converts exactly.
+
 Reproduced 2026-10-07 against the same `2027ab41` compiler. A single `main.hl`:
 
 ```hale
@@ -606,6 +630,8 @@ Its runtime signed conversion tests remain enabled; this gap is not encoded
 as an expected-failure language rule.
 
 ## 13. Duration and a nanosecond refinement have inconsistent backend classes — medium
+
+**Status (2026-11-06, hale v0.32.7):** STILL REAL (re-run 2026-11-06): `hale check` passes and the build says ``unsupported in codegen v0: binary op operands of mixed types Duration and Int``. The same class bites a locus param whose type is a Duration refinement with a Duration default (`d: Millis = 100ms`: "declared Int, default Duration").
 
 Reproduced 2026-10-07 against the same `2027ab41` compiler. A single `main.hl`:
 
