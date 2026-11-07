@@ -4747,6 +4747,8 @@ run-demo evidence).
 
 ### 3.3 `fn run` renamed to `fn run_cmd` — [still open, re-tested 2026-06-12]
 
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream in hale v0.24.0 (#1531): `run`, `epoch`, `restart`, `where` and the other framework words are contextual keywords, so `fn run(cmd, args)` parses and calls. The contract's spelling is writable again; `run_cmd` stays as the shipped name.
+
 `CONTRACTS.md` declares the convenience wrapper as `fn run(cmd:
 String, args: String)`. A free-fn decl named `run` still fails
 to parse at HEAD (`parse error: expected function name, got
@@ -4988,6 +4990,8 @@ post-change.
 
 ## gap: `-> ()` on locus methods triggers codegen tuple-arity error
 
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream (re-run 2026-10-12 on hale v0.23.0: a locus method declared `-> ()` builds and runs, fallible or not).
+
 Reproduced the existing pond/KNOWN_GOTCHAS.md G2 ("`-> () fallible(E)`
 codegens an error") with a non-fallible variant: `fn foo(...) -> ()
 { ... }` on a locus method fails with
@@ -5011,6 +5015,8 @@ fallible variant) to the non-fallible variant too. Both should
 codegen to a void return without tripping the tuple-arity check.
 
 ## gap: `return` rejected inside `on_failure` / lifecycle bodies
+
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream (re-run 2026-11-06: `return;` inside `on_failure`, `birth()` and `drain()` builds and runs).
 
 `on_failure` and lifecycle methods (`birth`, `run`, `dissolve`,
 `drain`, `accept`) reject `return value;` and `return;`:
@@ -5160,6 +5166,8 @@ This lib is pure Hale now.
 
 ## `ffi-symbols-not-namespaced` — C symbol collisions across FFI libs
 
+**Status (2026-11-06, hale v0.32.7):** unchanged; a link-layer convention, no ask.
+
 **What:** `@ffi("c")` symbols are NOT mangled per-import
 (`spec/ffi.md`: "The LLVM symbol name is the literal Hale fn
 name as written"), and every imported lib's `[ffi] csrc` files
@@ -5193,6 +5201,8 @@ record (path-calls aren't FFI-constrained); pond's `width()` /
 `height()` now read it directly. The packing is gone.
 
 ## `sigwinch-not-surfaced` — resize is polled, not signaled
+
+**Status (2026-11-06, hale v0.32.7):** unchanged; `std::term::size()` is still polled per frame and no user-facing signal surface shipped. No ask.
 
 **What:** Hale has no user-facing signal surface (SIGINT/SIGTERM
 are runtime-owned, per `spec/runtime.md`). Terminal resize is
@@ -5635,6 +5645,8 @@ byte count includes the embedded escape.
 
 ## upstream: stdin-not-parkable
 
+**Status (2026-11-06, hale v0.32.7):** still open upstream: no stdin park on an `async_io` pool has shipped (`read_byte(timeout)` is still a `poll(2)` loop, spec/stdlib.md). Low value; the per-frame poll stands.
+
 The frame loop poll-sleeps in
 `std::io::stdin::read_byte(frame_budget)` (formerly the FFI
 `tui_read_byte`, retired with the glue) —
@@ -5662,6 +5674,8 @@ screen + show cursor) runs on every runtime panic path. See
 regression test modeled on exactly this glue pattern.
 
 ## interface-field-skips-dissolve-cascade — upstream gap + framework workaround
+
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream (re-run 2026-10-12 on hale v0.23.0: a locus held in an interface-typed param field has its `dissolve()` run when the holder dissolves). The final-`quit` event stays as the framework contract.
 
 **What:** the F.29 lifecycle cascade dissolves `LocusRef`-typed
 param fields, but an INTERFACE-typed param field (`app: App` on
@@ -5775,6 +5789,8 @@ and never counted as passing native tests.
 
 ## Imported scalar constructors and policies — OPEN 2026-10-07
 
+**Status (2026-11-06, hale v0.32.7):** still open at hale v0.32.7; COMPILER-BUGS.md §§10–11 re-run 2026-11-06 with the same refusals.
+
 A qualified q::Celsius(25degC) passes check but fails native codegen; a plain
 alias also fails. A local scalar refinement works and preserves the origin:
   type Celsius = q::Celsius in temperature_quantum;
@@ -5785,6 +5801,8 @@ type. Both are small supported spellings in the examples, not runtime
 conversion shims. Standalone upstream reproductions: COMPILER-BUGS.md §§10–11.
 
 ## Exact negative literals and Duration refinements — OPEN 2026-10-07
+
+**Status (2026-11-06, hale v0.32.7):** still open at hale v0.32.7; COMPILER-BUGS.md §§12–13 re-run 2026-11-06 with the same refusals.
 
 A positive literal's exact divisibility proof is lost under unary minus for
 some rational narrowings. Literal-conversion golden cases negate an already
@@ -5952,6 +5970,8 @@ old blocking recv, and lifecycle/pump methods can't be
 
 ## substrate gap: IPv6 literal hosts in URL parsing
 
+**Status (2026-11-06, hale v0.32.7):** FIXED upstream in hale v0.24.0 (#1541): IPv6 throughout tcp, udp and `parse_url` (`ws://[::1]:9107/` parses; a bad literal is a clean `bad_url`).
+
 **2026-06-12 retest — still open** (at hale `b716696`). The
 original note misstated the mechanism: `parse_url` splits
 host:port on the **first** `:` (`std::str::index_of`), which is
@@ -6116,3 +6136,60 @@ the no-CRLF branch; guarded by the regression assert in
 `tests/handshake_test.hl` ("terminal header line parses").
 First concrete proof of the tests-as-second-codegen-gate
 convention paying for itself on day one.
+
+## Retest of the open upstream items — 2026-11-06 (hale v0.32.7, main `7764d0e18`)
+
+Every entry in this log that still read as open upstream was re-run or
+re-read against hale v0.32.7. The 2026-10-12 pass was on v0.23.0. Items
+above carry their own status line where they have a heading of their
+own; the rest are here.
+
+**FIXED upstream**
+
+- `topic-vs-type-duality: bus payload can't be raw String` — `hale check`
+  now refuses the declaration with the rule (``topic `Names` declares
+  `payload: String`, which the bus cannot carry … wrap it in a user
+  `type` ``), at the publish and at the subscribe, so nothing reaches the
+  late codegen message.
+- a locus-typed field in a `type` (agent/embeddings, ml/neural `Matrix`
+  in a record) — `hale check` refuses it with the rule (a `type` is plain
+  data with no lifecycle; make it a locus with a `params` field).
+- `std::process` resource limits, cwd, env, timeout — hale v0.24.0
+  (#1541): `run_with` / `spawn_with` take `SpawnOptions` (`cwd`, `env`,
+  `unset_env`, `clear_env`, `timeout`, `cpu_seconds`, `address_space`,
+  `open_files`, `file_size`); `close_stdin` (#1526) lets a child reading
+  to EOF finish.
+- no public hex encode/decode — hale v0.24.0 (#1540): `std::hex` (and
+  `std::url` for percent-decoding; `path_param` / `query_param` return
+  decoded values).
+- `@form(lru_cache)` has no `remove(k)` / evict hook — hale v0.24.0
+  (#1535, #1546): `remove` and `on_evict`.
+- `No from-offset index_of on strings` — `std::str::index_of_from(s,
+  sub, start)` (2026-10-12), and the `ByteView` `find(v, sub, start)` for
+  a long text.
+- no float-tolerance assert in `std::test` — `assert_near(a, b, eps,
+  label)`.
+- `gap: return rejected inside on_failure / lifecycle bodies` — `return;`
+  in `on_failure`, `birth()` and `drain()` builds and runs.
+- COMPILER-BUGS.md §1 (the forwarded let-bound locus) — every shape
+  returns `len=3` with the right elements; §§2–9 are closed upstream
+  (hale #1032–#1039, #577 and the v0.24.0 forms work).
+- IPv6 literal hosts in URL parsing — hale v0.24.0 (#1541).
+- `-> ()` on locus methods; `fn run` as a name (contextual keywords,
+  #1531); an interface-typed param field's `dissolve()` cascade.
+
+**Still open upstream**
+
+- COMPILER-BUGS.md §§10–13 (the units dialect: imported scalar point
+  constructors check but do not lower, rounding policies on qualified
+  imported casts, unary minus and divisibility, Duration against a ns
+  refinement) — all four re-run 2026-11-06 with the same refusals; a
+  locus param typed as a Duration refinement with a Duration default
+  fails the same way (`declared Int, default Duration`), and `min` /
+  `max` refuse a declared quantity.
+- `upstream: stdin-not-parkable` — no stdin park on `async_io` has
+  shipped; the per-frame `poll(2)` stands.
+- `ffi-symbols-not-namespaced`, `sigwinch-not-surfaced` — conventions,
+  no ask.
+- sandbox isolation primitives (namespaces / cgroups / seccomp) — a
+  wishlist, no decision.
