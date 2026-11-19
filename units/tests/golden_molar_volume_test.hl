@@ -20,8 +20,16 @@ fn check_runtime(k: Int) {
     let right_0 = k * target_0;
     std::test::assert(left_0 == right_0, "molar_volume/L_per_mol_to_m3_per_kmol: forward");
     std::test::assert(right_0 == left_0, "molar_volume/L_per_mol_to_m3_per_kmol: reverse");
-    std::test::assert_eq_int(left_0 / 1m3_per_kmol, k * 1, "molar_volume/L_per_mol_to_m3_per_kmol: target count");
-    std::test::assert_eq_int(right_0 / 1L_per_mol, k * 1, "molar_volume/L_per_mol_to_m3_per_kmol: source count");
+    std::test::assert_eq_int(
+        left_0 / 1m3_per_kmol,
+        k * 1,
+        "molar_volume/L_per_mol_to_m3_per_kmol: target count",
+    );
+    std::test::assert_eq_int(
+        right_0 / 1L_per_mol,
+        k * 1,
+        "molar_volume/L_per_mol_to_m3_per_kmol: source count",
+    );
 
     // 1 m3_per_mol = 1000000 mL_per_mol
     let source_1: Denomination2 = 1m3_per_mol;
@@ -30,8 +38,16 @@ fn check_runtime(k: Int) {
     let right_1 = k * target_1;
     std::test::assert(left_1 == right_1, "molar_volume/m3_per_mol_to_mL_per_mol: forward");
     std::test::assert(right_1 == left_1, "molar_volume/m3_per_mol_to_mL_per_mol: reverse");
-    std::test::assert_eq_int(left_1 / 1mL_per_mol, k * 1000000, "molar_volume/m3_per_mol_to_mL_per_mol: target count");
-    std::test::assert_eq_int(right_1 / 1m3_per_mol, k * 1, "molar_volume/m3_per_mol_to_mL_per_mol: source count");
+    std::test::assert_eq_int(
+        left_1 / 1mL_per_mol,
+        k * 1000000,
+        "molar_volume/m3_per_mol_to_mL_per_mol: target count",
+    );
+    std::test::assert_eq_int(
+        right_1 / 1m3_per_mol,
+        k * 1,
+        "molar_volume/m3_per_mol_to_mL_per_mol: source count",
+    );
 
     // 1 L_per_mol = 1000 mL_per_mol
     let source_2: Denomination0 = 1L_per_mol;
@@ -40,8 +56,16 @@ fn check_runtime(k: Int) {
     let right_2 = k * target_2;
     std::test::assert(left_2 == right_2, "molar_volume/L_per_mol_to_mL_per_mol: forward");
     std::test::assert(right_2 == left_2, "molar_volume/L_per_mol_to_mL_per_mol: reverse");
-    std::test::assert_eq_int(left_2 / 1mL_per_mol, k * 1000, "molar_volume/L_per_mol_to_mL_per_mol: target count");
-    std::test::assert_eq_int(right_2 / 1L_per_mol, k * 1, "molar_volume/L_per_mol_to_mL_per_mol: source count");
+    std::test::assert_eq_int(
+        left_2 / 1mL_per_mol,
+        k * 1000,
+        "molar_volume/L_per_mol_to_mL_per_mol: target count",
+    );
+    std::test::assert_eq_int(
+        right_2 / 1L_per_mol,
+        k * 1,
+        "molar_volume/L_per_mol_to_mL_per_mol: source count",
+    );
 
 }
 

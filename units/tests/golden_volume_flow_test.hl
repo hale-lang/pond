@@ -21,8 +21,16 @@ fn check_runtime(k: Int) {
     let right_0 = k * target_0;
     std::test::assert(left_0 == right_0, "volume_flow/gal_us_per_min_to_L_per_s: forward");
     std::test::assert(right_0 == left_0, "volume_flow/gal_us_per_min_to_L_per_s: reverse");
-    std::test::assert_eq_int(left_0 / 1L_per_s, k * 157725491, "volume_flow/gal_us_per_min_to_L_per_s: target count");
-    std::test::assert_eq_int(right_0 / 1gal_us_per_min, k * 2500000000, "volume_flow/gal_us_per_min_to_L_per_s: source count");
+    std::test::assert_eq_int(
+        left_0 / 1L_per_s,
+        k * 157725491,
+        "volume_flow/gal_us_per_min_to_L_per_s: target count",
+    );
+    std::test::assert_eq_int(
+        right_0 / 1gal_us_per_min,
+        k * 2500000000,
+        "volume_flow/gal_us_per_min_to_L_per_s: source count",
+    );
 
     // 1 m3_per_s = 60000 L_per_min
     let source_1: Denomination3 = 1m3_per_s;
@@ -31,8 +39,16 @@ fn check_runtime(k: Int) {
     let right_1 = k * target_1;
     std::test::assert(left_1 == right_1, "volume_flow/m3_per_s_to_L_per_min: forward");
     std::test::assert(right_1 == left_1, "volume_flow/m3_per_s_to_L_per_min: reverse");
-    std::test::assert_eq_int(left_1 / 1L_per_min, k * 60000, "volume_flow/m3_per_s_to_L_per_min: target count");
-    std::test::assert_eq_int(right_1 / 1m3_per_s, k * 1, "volume_flow/m3_per_s_to_L_per_min: source count");
+    std::test::assert_eq_int(
+        left_1 / 1L_per_min,
+        k * 60000,
+        "volume_flow/m3_per_s_to_L_per_min: target count",
+    );
+    std::test::assert_eq_int(
+        right_1 / 1m3_per_s,
+        k * 1,
+        "volume_flow/m3_per_s_to_L_per_min: source count",
+    );
 
     // 1 L_per_s = 60000 mL_per_min
     let source_2: Denomination1 = 1L_per_s;
@@ -41,8 +57,16 @@ fn check_runtime(k: Int) {
     let right_2 = k * target_2;
     std::test::assert(left_2 == right_2, "volume_flow/L_per_s_to_mL_per_min: forward");
     std::test::assert(right_2 == left_2, "volume_flow/L_per_s_to_mL_per_min: reverse");
-    std::test::assert_eq_int(left_2 / 1mL_per_min, k * 60000, "volume_flow/L_per_s_to_mL_per_min: target count");
-    std::test::assert_eq_int(right_2 / 1L_per_s, k * 1, "volume_flow/L_per_s_to_mL_per_min: source count");
+    std::test::assert_eq_int(
+        left_2 / 1mL_per_min,
+        k * 60000,
+        "volume_flow/L_per_s_to_mL_per_min: target count",
+    );
+    std::test::assert_eq_int(
+        right_2 / 1L_per_s,
+        k * 1,
+        "volume_flow/L_per_s_to_mL_per_min: source count",
+    );
 
     // 125000000 gal_us_per_min = 473176473 L_per_min
     let source_3: Denomination2 = 125000000gal_us_per_min;
@@ -51,8 +75,16 @@ fn check_runtime(k: Int) {
     let right_3 = k * target_3;
     std::test::assert(left_3 == right_3, "volume_flow/gal_us_per_min_to_L_per_min: forward");
     std::test::assert(right_3 == left_3, "volume_flow/gal_us_per_min_to_L_per_min: reverse");
-    std::test::assert_eq_int(left_3 / 1L_per_min, k * 473176473, "volume_flow/gal_us_per_min_to_L_per_min: target count");
-    std::test::assert_eq_int(right_3 / 1gal_us_per_min, k * 125000000, "volume_flow/gal_us_per_min_to_L_per_min: source count");
+    std::test::assert_eq_int(
+        left_3 / 1L_per_min,
+        k * 473176473,
+        "volume_flow/gal_us_per_min_to_L_per_min: target count",
+    );
+    std::test::assert_eq_int(
+        right_3 / 1gal_us_per_min,
+        k * 125000000,
+        "volume_flow/gal_us_per_min_to_L_per_min: source count",
+    );
 
     // 1 L_per_min = 1000 mL_per_min
     let source_4: Denomination0 = 1L_per_min;
@@ -61,8 +93,16 @@ fn check_runtime(k: Int) {
     let right_4 = k * target_4;
     std::test::assert(left_4 == right_4, "volume_flow/L_per_min_to_mL_per_min: forward");
     std::test::assert(right_4 == left_4, "volume_flow/L_per_min_to_mL_per_min: reverse");
-    std::test::assert_eq_int(left_4 / 1mL_per_min, k * 1000, "volume_flow/L_per_min_to_mL_per_min: target count");
-    std::test::assert_eq_int(right_4 / 1L_per_min, k * 1, "volume_flow/L_per_min_to_mL_per_min: source count");
+    std::test::assert_eq_int(
+        left_4 / 1mL_per_min,
+        k * 1000,
+        "volume_flow/L_per_min_to_mL_per_min: target count",
+    );
+    std::test::assert_eq_int(
+        right_4 / 1L_per_min,
+        k * 1,
+        "volume_flow/L_per_min_to_mL_per_min: source count",
+    );
 
 }
 

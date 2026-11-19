@@ -20,8 +20,16 @@ fn check_runtime(k: Int) {
     let right_0 = k * target_0;
     std::test::assert(left_0 == right_0, "kinematic_viscosity/m2_per_s_to_cSt: forward");
     std::test::assert(right_0 == left_0, "kinematic_viscosity/m2_per_s_to_cSt: reverse");
-    std::test::assert_eq_int(left_0 / 1cSt, k * 1000000, "kinematic_viscosity/m2_per_s_to_cSt: target count");
-    std::test::assert_eq_int(right_0 / 1m2_per_s, k * 1, "kinematic_viscosity/m2_per_s_to_cSt: source count");
+    std::test::assert_eq_int(
+        left_0 / 1cSt,
+        k * 1000000,
+        "kinematic_viscosity/m2_per_s_to_cSt: target count",
+    );
+    std::test::assert_eq_int(
+        right_0 / 1m2_per_s,
+        k * 1,
+        "kinematic_viscosity/m2_per_s_to_cSt: source count",
+    );
 
     // 1 St = 100 cSt
     let source_1: Denomination0 = 1St;
@@ -40,8 +48,16 @@ fn check_runtime(k: Int) {
     let right_2 = k * target_2;
     std::test::assert(left_2 == right_2, "kinematic_viscosity/cSt_to_mm2_per_s: forward");
     std::test::assert(right_2 == left_2, "kinematic_viscosity/cSt_to_mm2_per_s: reverse");
-    std::test::assert_eq_int(left_2 / 1mm2_per_s, k * 1, "kinematic_viscosity/cSt_to_mm2_per_s: target count");
-    std::test::assert_eq_int(right_2 / 1cSt, k * 1, "kinematic_viscosity/cSt_to_mm2_per_s: source count");
+    std::test::assert_eq_int(
+        left_2 / 1mm2_per_s,
+        k * 1,
+        "kinematic_viscosity/cSt_to_mm2_per_s: target count",
+    );
+    std::test::assert_eq_int(
+        right_2 / 1cSt,
+        k * 1,
+        "kinematic_viscosity/cSt_to_mm2_per_s: source count",
+    );
 
 }
 

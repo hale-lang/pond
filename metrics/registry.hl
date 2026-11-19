@@ -100,13 +100,27 @@ locus Registry {
         let b = std::bytes::BytesBuilder { initial_cap: 8192 };
         for e in self.store.entries {
             if e.kind == 0 {
-                b.append(std::bytes::from_string(render_type_line(self.namespace, e.name, "counter")));
-                b.append(std::bytes::from_string(render_sample(self.namespace, e.name, e.labels, e.value)));
+                b.append(
+                    std::bytes::from_string(render_type_line(self.namespace, e.name, "counter")),
+                );
+                b.append(
+                    std::bytes::from_string(
+                        render_sample(self.namespace, e.name, e.labels, e.value),
+                    ),
+                );
             } else if e.kind == 1 {
-                b.append(std::bytes::from_string(render_type_line(self.namespace, e.name, "gauge")));
-                b.append(std::bytes::from_string(render_sample(self.namespace, e.name, e.labels, e.value)));
+                b.append(
+                    std::bytes::from_string(render_type_line(self.namespace, e.name, "gauge")),
+                );
+                b.append(
+                    std::bytes::from_string(
+                        render_sample(self.namespace, e.name, e.labels, e.value),
+                    ),
+                );
             } else if e.kind == 2 {
-                b.append(std::bytes::from_string(render_type_line(self.namespace, e.name, "histogram")));
+                b.append(
+                    std::bytes::from_string(render_type_line(self.namespace, e.name, "histogram")),
+                );
                 let h = self.histograms.get(e.hist_idx) or HistogramData { };
                 b.append(std::bytes::from_string(render_histogram(self.namespace, h)));
             }

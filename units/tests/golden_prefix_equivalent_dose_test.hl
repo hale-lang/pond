@@ -41,8 +41,16 @@ fn check_runtime(k: Int) {
     let right_0 = k * target_0;
     std::test::assert(left_0 == right_0, "prefix_equivalent_dose/adjacent_rSv_qSv: forward");
     std::test::assert(right_0 == left_0, "prefix_equivalent_dose/adjacent_rSv_qSv: reverse");
-    std::test::assert_eq_int(left_0 / 1qSv, k * 1000, "prefix_equivalent_dose/adjacent_rSv_qSv: target count");
-    std::test::assert_eq_int(right_0 / 1rSv, k * 1, "prefix_equivalent_dose/adjacent_rSv_qSv: source count");
+    std::test::assert_eq_int(
+        left_0 / 1qSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_rSv_qSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_0 / 1rSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_rSv_qSv: source count",
+    );
 
     // 1 ySv = 1000 rSv
     let source_1: Denomination23 = 1ySv;
@@ -51,8 +59,16 @@ fn check_runtime(k: Int) {
     let right_1 = k * target_1;
     std::test::assert(left_1 == right_1, "prefix_equivalent_dose/adjacent_ySv_rSv: forward");
     std::test::assert(right_1 == left_1, "prefix_equivalent_dose/adjacent_ySv_rSv: reverse");
-    std::test::assert_eq_int(left_1 / 1rSv, k * 1000, "prefix_equivalent_dose/adjacent_ySv_rSv: target count");
-    std::test::assert_eq_int(right_1 / 1ySv, k * 1, "prefix_equivalent_dose/adjacent_ySv_rSv: source count");
+    std::test::assert_eq_int(
+        left_1 / 1rSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_ySv_rSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_1 / 1ySv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_ySv_rSv: source count",
+    );
 
     // 1 zSv = 1000 ySv
     let source_2: Denomination24 = 1zSv;
@@ -61,8 +77,16 @@ fn check_runtime(k: Int) {
     let right_2 = k * target_2;
     std::test::assert(left_2 == right_2, "prefix_equivalent_dose/adjacent_zSv_ySv: forward");
     std::test::assert(right_2 == left_2, "prefix_equivalent_dose/adjacent_zSv_ySv: reverse");
-    std::test::assert_eq_int(left_2 / 1ySv, k * 1000, "prefix_equivalent_dose/adjacent_zSv_ySv: target count");
-    std::test::assert_eq_int(right_2 / 1zSv, k * 1, "prefix_equivalent_dose/adjacent_zSv_ySv: source count");
+    std::test::assert_eq_int(
+        left_2 / 1ySv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_zSv_ySv: target count",
+    );
+    std::test::assert_eq_int(
+        right_2 / 1zSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_zSv_ySv: source count",
+    );
 
     // 1 aSv = 1000 zSv
     let source_3: Denomination10 = 1aSv;
@@ -71,8 +95,16 @@ fn check_runtime(k: Int) {
     let right_3 = k * target_3;
     std::test::assert(left_3 == right_3, "prefix_equivalent_dose/adjacent_aSv_zSv: forward");
     std::test::assert(right_3 == left_3, "prefix_equivalent_dose/adjacent_aSv_zSv: reverse");
-    std::test::assert_eq_int(left_3 / 1zSv, k * 1000, "prefix_equivalent_dose/adjacent_aSv_zSv: target count");
-    std::test::assert_eq_int(right_3 / 1aSv, k * 1, "prefix_equivalent_dose/adjacent_aSv_zSv: source count");
+    std::test::assert_eq_int(
+        left_3 / 1zSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_aSv_zSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_3 / 1aSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_aSv_zSv: source count",
+    );
 
     // 1 fSv = 1000 aSv
     let source_4: Denomination14 = 1fSv;
@@ -81,8 +113,16 @@ fn check_runtime(k: Int) {
     let right_4 = k * target_4;
     std::test::assert(left_4 == right_4, "prefix_equivalent_dose/adjacent_fSv_aSv: forward");
     std::test::assert(right_4 == left_4, "prefix_equivalent_dose/adjacent_fSv_aSv: reverse");
-    std::test::assert_eq_int(left_4 / 1aSv, k * 1000, "prefix_equivalent_dose/adjacent_fSv_aSv: target count");
-    std::test::assert_eq_int(right_4 / 1fSv, k * 1, "prefix_equivalent_dose/adjacent_fSv_aSv: source count");
+    std::test::assert_eq_int(
+        left_4 / 1aSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_fSv_aSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_4 / 1fSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_fSv_aSv: source count",
+    );
 
     // 1 pSv = 1000 fSv
     let source_5: Denomination19 = 1pSv;
@@ -91,8 +131,16 @@ fn check_runtime(k: Int) {
     let right_5 = k * target_5;
     std::test::assert(left_5 == right_5, "prefix_equivalent_dose/adjacent_pSv_fSv: forward");
     std::test::assert(right_5 == left_5, "prefix_equivalent_dose/adjacent_pSv_fSv: reverse");
-    std::test::assert_eq_int(left_5 / 1fSv, k * 1000, "prefix_equivalent_dose/adjacent_pSv_fSv: target count");
-    std::test::assert_eq_int(right_5 / 1pSv, k * 1, "prefix_equivalent_dose/adjacent_pSv_fSv: source count");
+    std::test::assert_eq_int(
+        left_5 / 1fSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_pSv_fSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_5 / 1pSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_pSv_fSv: source count",
+    );
 
     // 1 nSv = 1000 pSv
     let source_6: Denomination18 = 1nSv;
@@ -101,8 +149,16 @@ fn check_runtime(k: Int) {
     let right_6 = k * target_6;
     std::test::assert(left_6 == right_6, "prefix_equivalent_dose/adjacent_nSv_pSv: forward");
     std::test::assert(right_6 == left_6, "prefix_equivalent_dose/adjacent_nSv_pSv: reverse");
-    std::test::assert_eq_int(left_6 / 1pSv, k * 1000, "prefix_equivalent_dose/adjacent_nSv_pSv: target count");
-    std::test::assert_eq_int(right_6 / 1nSv, k * 1, "prefix_equivalent_dose/adjacent_nSv_pSv: source count");
+    std::test::assert_eq_int(
+        left_6 / 1pSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_nSv_pSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_6 / 1nSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_nSv_pSv: source count",
+    );
 
     // 1 uSv = 1000 nSv
     let source_7: Denomination22 = 1uSv;
@@ -111,8 +167,16 @@ fn check_runtime(k: Int) {
     let right_7 = k * target_7;
     std::test::assert(left_7 == right_7, "prefix_equivalent_dose/adjacent_uSv_nSv: forward");
     std::test::assert(right_7 == left_7, "prefix_equivalent_dose/adjacent_uSv_nSv: reverse");
-    std::test::assert_eq_int(left_7 / 1nSv, k * 1000, "prefix_equivalent_dose/adjacent_uSv_nSv: target count");
-    std::test::assert_eq_int(right_7 / 1uSv, k * 1, "prefix_equivalent_dose/adjacent_uSv_nSv: source count");
+    std::test::assert_eq_int(
+        left_7 / 1nSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_uSv_nSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_7 / 1uSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_uSv_nSv: source count",
+    );
 
     // 1 mSv = 1000 uSv
     let source_8: Denomination17 = 1mSv;
@@ -121,8 +185,16 @@ fn check_runtime(k: Int) {
     let right_8 = k * target_8;
     std::test::assert(left_8 == right_8, "prefix_equivalent_dose/adjacent_mSv_uSv: forward");
     std::test::assert(right_8 == left_8, "prefix_equivalent_dose/adjacent_mSv_uSv: reverse");
-    std::test::assert_eq_int(left_8 / 1uSv, k * 1000, "prefix_equivalent_dose/adjacent_mSv_uSv: target count");
-    std::test::assert_eq_int(right_8 / 1mSv, k * 1, "prefix_equivalent_dose/adjacent_mSv_uSv: source count");
+    std::test::assert_eq_int(
+        left_8 / 1uSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_mSv_uSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_8 / 1mSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_mSv_uSv: source count",
+    );
 
     // 1 cSv = 10 mSv
     let source_9: Denomination11 = 1cSv;
@@ -131,8 +203,16 @@ fn check_runtime(k: Int) {
     let right_9 = k * target_9;
     std::test::assert(left_9 == right_9, "prefix_equivalent_dose/adjacent_cSv_mSv: forward");
     std::test::assert(right_9 == left_9, "prefix_equivalent_dose/adjacent_cSv_mSv: reverse");
-    std::test::assert_eq_int(left_9 / 1mSv, k * 10, "prefix_equivalent_dose/adjacent_cSv_mSv: target count");
-    std::test::assert_eq_int(right_9 / 1cSv, k * 1, "prefix_equivalent_dose/adjacent_cSv_mSv: source count");
+    std::test::assert_eq_int(
+        left_9 / 1mSv,
+        k * 10,
+        "prefix_equivalent_dose/adjacent_cSv_mSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_9 / 1cSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_cSv_mSv: source count",
+    );
 
     // 1 dSv = 10 cSv
     let source_10: Denomination12 = 1dSv;
@@ -141,8 +221,16 @@ fn check_runtime(k: Int) {
     let right_10 = k * target_10;
     std::test::assert(left_10 == right_10, "prefix_equivalent_dose/adjacent_dSv_cSv: forward");
     std::test::assert(right_10 == left_10, "prefix_equivalent_dose/adjacent_dSv_cSv: reverse");
-    std::test::assert_eq_int(left_10 / 1cSv, k * 10, "prefix_equivalent_dose/adjacent_dSv_cSv: target count");
-    std::test::assert_eq_int(right_10 / 1dSv, k * 1, "prefix_equivalent_dose/adjacent_dSv_cSv: source count");
+    std::test::assert_eq_int(
+        left_10 / 1cSv,
+        k * 10,
+        "prefix_equivalent_dose/adjacent_dSv_cSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_10 / 1dSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_dSv_cSv: source count",
+    );
 
     // 1 Sv = 10 dSv
     let source_11: Denomination6 = 1Sv;
@@ -151,8 +239,16 @@ fn check_runtime(k: Int) {
     let right_11 = k * target_11;
     std::test::assert(left_11 == right_11, "prefix_equivalent_dose/adjacent_Sv_dSv: forward");
     std::test::assert(right_11 == left_11, "prefix_equivalent_dose/adjacent_Sv_dSv: reverse");
-    std::test::assert_eq_int(left_11 / 1dSv, k * 10, "prefix_equivalent_dose/adjacent_Sv_dSv: target count");
-    std::test::assert_eq_int(right_11 / 1Sv, k * 1, "prefix_equivalent_dose/adjacent_Sv_dSv: source count");
+    std::test::assert_eq_int(
+        left_11 / 1dSv,
+        k * 10,
+        "prefix_equivalent_dose/adjacent_Sv_dSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_11 / 1Sv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_Sv_dSv: source count",
+    );
 
     // 1 daSv = 10 Sv
     let source_12: Denomination13 = 1daSv;
@@ -161,8 +257,16 @@ fn check_runtime(k: Int) {
     let right_12 = k * target_12;
     std::test::assert(left_12 == right_12, "prefix_equivalent_dose/adjacent_daSv_Sv: forward");
     std::test::assert(right_12 == left_12, "prefix_equivalent_dose/adjacent_daSv_Sv: reverse");
-    std::test::assert_eq_int(left_12 / 1Sv, k * 10, "prefix_equivalent_dose/adjacent_daSv_Sv: target count");
-    std::test::assert_eq_int(right_12 / 1daSv, k * 1, "prefix_equivalent_dose/adjacent_daSv_Sv: source count");
+    std::test::assert_eq_int(
+        left_12 / 1Sv,
+        k * 10,
+        "prefix_equivalent_dose/adjacent_daSv_Sv: target count",
+    );
+    std::test::assert_eq_int(
+        right_12 / 1daSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_daSv_Sv: source count",
+    );
 
     // 1 hSv = 10 daSv
     let source_13: Denomination15 = 1hSv;
@@ -171,8 +275,16 @@ fn check_runtime(k: Int) {
     let right_13 = k * target_13;
     std::test::assert(left_13 == right_13, "prefix_equivalent_dose/adjacent_hSv_daSv: forward");
     std::test::assert(right_13 == left_13, "prefix_equivalent_dose/adjacent_hSv_daSv: reverse");
-    std::test::assert_eq_int(left_13 / 1daSv, k * 10, "prefix_equivalent_dose/adjacent_hSv_daSv: target count");
-    std::test::assert_eq_int(right_13 / 1hSv, k * 1, "prefix_equivalent_dose/adjacent_hSv_daSv: source count");
+    std::test::assert_eq_int(
+        left_13 / 1daSv,
+        k * 10,
+        "prefix_equivalent_dose/adjacent_hSv_daSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_13 / 1hSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_hSv_daSv: source count",
+    );
 
     // 1 kSv = 10 hSv
     let source_14: Denomination16 = 1kSv;
@@ -181,8 +293,16 @@ fn check_runtime(k: Int) {
     let right_14 = k * target_14;
     std::test::assert(left_14 == right_14, "prefix_equivalent_dose/adjacent_kSv_hSv: forward");
     std::test::assert(right_14 == left_14, "prefix_equivalent_dose/adjacent_kSv_hSv: reverse");
-    std::test::assert_eq_int(left_14 / 1hSv, k * 10, "prefix_equivalent_dose/adjacent_kSv_hSv: target count");
-    std::test::assert_eq_int(right_14 / 1kSv, k * 1, "prefix_equivalent_dose/adjacent_kSv_hSv: source count");
+    std::test::assert_eq_int(
+        left_14 / 1hSv,
+        k * 10,
+        "prefix_equivalent_dose/adjacent_kSv_hSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_14 / 1kSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_kSv_hSv: source count",
+    );
 
     // 1 MSv = 1000 kSv
     let source_15: Denomination2 = 1MSv;
@@ -191,8 +311,16 @@ fn check_runtime(k: Int) {
     let right_15 = k * target_15;
     std::test::assert(left_15 == right_15, "prefix_equivalent_dose/adjacent_MSv_kSv: forward");
     std::test::assert(right_15 == left_15, "prefix_equivalent_dose/adjacent_MSv_kSv: reverse");
-    std::test::assert_eq_int(left_15 / 1kSv, k * 1000, "prefix_equivalent_dose/adjacent_MSv_kSv: target count");
-    std::test::assert_eq_int(right_15 / 1MSv, k * 1, "prefix_equivalent_dose/adjacent_MSv_kSv: source count");
+    std::test::assert_eq_int(
+        left_15 / 1kSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_MSv_kSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_15 / 1MSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_MSv_kSv: source count",
+    );
 
     // 1 GSv = 1000 MSv
     let source_16: Denomination1 = 1GSv;
@@ -201,8 +329,16 @@ fn check_runtime(k: Int) {
     let right_16 = k * target_16;
     std::test::assert(left_16 == right_16, "prefix_equivalent_dose/adjacent_GSv_MSv: forward");
     std::test::assert(right_16 == left_16, "prefix_equivalent_dose/adjacent_GSv_MSv: reverse");
-    std::test::assert_eq_int(left_16 / 1MSv, k * 1000, "prefix_equivalent_dose/adjacent_GSv_MSv: target count");
-    std::test::assert_eq_int(right_16 / 1GSv, k * 1, "prefix_equivalent_dose/adjacent_GSv_MSv: source count");
+    std::test::assert_eq_int(
+        left_16 / 1MSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_GSv_MSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_16 / 1GSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_GSv_MSv: source count",
+    );
 
     // 1 TSv = 1000 GSv
     let source_17: Denomination7 = 1TSv;
@@ -211,8 +347,16 @@ fn check_runtime(k: Int) {
     let right_17 = k * target_17;
     std::test::assert(left_17 == right_17, "prefix_equivalent_dose/adjacent_TSv_GSv: forward");
     std::test::assert(right_17 == left_17, "prefix_equivalent_dose/adjacent_TSv_GSv: reverse");
-    std::test::assert_eq_int(left_17 / 1GSv, k * 1000, "prefix_equivalent_dose/adjacent_TSv_GSv: target count");
-    std::test::assert_eq_int(right_17 / 1TSv, k * 1, "prefix_equivalent_dose/adjacent_TSv_GSv: source count");
+    std::test::assert_eq_int(
+        left_17 / 1GSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_TSv_GSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_17 / 1TSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_TSv_GSv: source count",
+    );
 
     // 1 PSv = 1000 TSv
     let source_18: Denomination3 = 1PSv;
@@ -221,8 +365,16 @@ fn check_runtime(k: Int) {
     let right_18 = k * target_18;
     std::test::assert(left_18 == right_18, "prefix_equivalent_dose/adjacent_PSv_TSv: forward");
     std::test::assert(right_18 == left_18, "prefix_equivalent_dose/adjacent_PSv_TSv: reverse");
-    std::test::assert_eq_int(left_18 / 1TSv, k * 1000, "prefix_equivalent_dose/adjacent_PSv_TSv: target count");
-    std::test::assert_eq_int(right_18 / 1PSv, k * 1, "prefix_equivalent_dose/adjacent_PSv_TSv: source count");
+    std::test::assert_eq_int(
+        left_18 / 1TSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_PSv_TSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_18 / 1PSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_PSv_TSv: source count",
+    );
 
     // 1 ESv = 1000 PSv
     let source_19: Denomination0 = 1ESv;
@@ -231,8 +383,16 @@ fn check_runtime(k: Int) {
     let right_19 = k * target_19;
     std::test::assert(left_19 == right_19, "prefix_equivalent_dose/adjacent_ESv_PSv: forward");
     std::test::assert(right_19 == left_19, "prefix_equivalent_dose/adjacent_ESv_PSv: reverse");
-    std::test::assert_eq_int(left_19 / 1PSv, k * 1000, "prefix_equivalent_dose/adjacent_ESv_PSv: target count");
-    std::test::assert_eq_int(right_19 / 1ESv, k * 1, "prefix_equivalent_dose/adjacent_ESv_PSv: source count");
+    std::test::assert_eq_int(
+        left_19 / 1PSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_ESv_PSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_19 / 1ESv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_ESv_PSv: source count",
+    );
 
     // 1 ZSv = 1000 ESv
     let source_20: Denomination9 = 1ZSv;
@@ -241,8 +401,16 @@ fn check_runtime(k: Int) {
     let right_20 = k * target_20;
     std::test::assert(left_20 == right_20, "prefix_equivalent_dose/adjacent_ZSv_ESv: forward");
     std::test::assert(right_20 == left_20, "prefix_equivalent_dose/adjacent_ZSv_ESv: reverse");
-    std::test::assert_eq_int(left_20 / 1ESv, k * 1000, "prefix_equivalent_dose/adjacent_ZSv_ESv: target count");
-    std::test::assert_eq_int(right_20 / 1ZSv, k * 1, "prefix_equivalent_dose/adjacent_ZSv_ESv: source count");
+    std::test::assert_eq_int(
+        left_20 / 1ESv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_ZSv_ESv: target count",
+    );
+    std::test::assert_eq_int(
+        right_20 / 1ZSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_ZSv_ESv: source count",
+    );
 
     // 1 YSv = 1000 ZSv
     let source_21: Denomination8 = 1YSv;
@@ -251,8 +419,16 @@ fn check_runtime(k: Int) {
     let right_21 = k * target_21;
     std::test::assert(left_21 == right_21, "prefix_equivalent_dose/adjacent_YSv_ZSv: forward");
     std::test::assert(right_21 == left_21, "prefix_equivalent_dose/adjacent_YSv_ZSv: reverse");
-    std::test::assert_eq_int(left_21 / 1ZSv, k * 1000, "prefix_equivalent_dose/adjacent_YSv_ZSv: target count");
-    std::test::assert_eq_int(right_21 / 1YSv, k * 1, "prefix_equivalent_dose/adjacent_YSv_ZSv: source count");
+    std::test::assert_eq_int(
+        left_21 / 1ZSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_YSv_ZSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_21 / 1YSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_YSv_ZSv: source count",
+    );
 
     // 1 RSv = 1000 YSv
     let source_22: Denomination5 = 1RSv;
@@ -261,8 +437,16 @@ fn check_runtime(k: Int) {
     let right_22 = k * target_22;
     std::test::assert(left_22 == right_22, "prefix_equivalent_dose/adjacent_RSv_YSv: forward");
     std::test::assert(right_22 == left_22, "prefix_equivalent_dose/adjacent_RSv_YSv: reverse");
-    std::test::assert_eq_int(left_22 / 1YSv, k * 1000, "prefix_equivalent_dose/adjacent_RSv_YSv: target count");
-    std::test::assert_eq_int(right_22 / 1RSv, k * 1, "prefix_equivalent_dose/adjacent_RSv_YSv: source count");
+    std::test::assert_eq_int(
+        left_22 / 1YSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_RSv_YSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_22 / 1RSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_RSv_YSv: source count",
+    );
 
     // 1 QSv = 1000 RSv
     let source_23: Denomination4 = 1QSv;
@@ -271,8 +455,16 @@ fn check_runtime(k: Int) {
     let right_23 = k * target_23;
     std::test::assert(left_23 == right_23, "prefix_equivalent_dose/adjacent_QSv_RSv: forward");
     std::test::assert(right_23 == left_23, "prefix_equivalent_dose/adjacent_QSv_RSv: reverse");
-    std::test::assert_eq_int(left_23 / 1RSv, k * 1000, "prefix_equivalent_dose/adjacent_QSv_RSv: target count");
-    std::test::assert_eq_int(right_23 / 1QSv, k * 1, "prefix_equivalent_dose/adjacent_QSv_RSv: source count");
+    std::test::assert_eq_int(
+        left_23 / 1RSv,
+        k * 1000,
+        "prefix_equivalent_dose/adjacent_QSv_RSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_23 / 1QSv,
+        k * 1,
+        "prefix_equivalent_dose/adjacent_QSv_RSv: source count",
+    );
 
     // 1000000000000000000 aSv = 1 Sv
     let source_24: Denomination10 = 1000000000000000000aSv;
@@ -281,8 +473,16 @@ fn check_runtime(k: Int) {
     let right_24 = k * target_24;
     std::test::assert(left_24 == right_24, "prefix_equivalent_dose/base_anchor_aSv: forward");
     std::test::assert(right_24 == left_24, "prefix_equivalent_dose/base_anchor_aSv: reverse");
-    std::test::assert_eq_int(left_24 / 1Sv, k * 1, "prefix_equivalent_dose/base_anchor_aSv: target count");
-    std::test::assert_eq_int(right_24 / 1aSv, k * 1000000000000000000, "prefix_equivalent_dose/base_anchor_aSv: source count");
+    std::test::assert_eq_int(
+        left_24 / 1Sv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_aSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_24 / 1aSv,
+        k * 1000000000000000000,
+        "prefix_equivalent_dose/base_anchor_aSv: source count",
+    );
 
     // 1000000000000000 fSv = 1 Sv
     let source_25: Denomination14 = 1000000000000000fSv;
@@ -291,8 +491,16 @@ fn check_runtime(k: Int) {
     let right_25 = k * target_25;
     std::test::assert(left_25 == right_25, "prefix_equivalent_dose/base_anchor_fSv: forward");
     std::test::assert(right_25 == left_25, "prefix_equivalent_dose/base_anchor_fSv: reverse");
-    std::test::assert_eq_int(left_25 / 1Sv, k * 1, "prefix_equivalent_dose/base_anchor_fSv: target count");
-    std::test::assert_eq_int(right_25 / 1fSv, k * 1000000000000000, "prefix_equivalent_dose/base_anchor_fSv: source count");
+    std::test::assert_eq_int(
+        left_25 / 1Sv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_fSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_25 / 1fSv,
+        k * 1000000000000000,
+        "prefix_equivalent_dose/base_anchor_fSv: source count",
+    );
 
     // 1000000000000 pSv = 1 Sv
     let source_26: Denomination19 = 1000000000000pSv;
@@ -301,8 +509,16 @@ fn check_runtime(k: Int) {
     let right_26 = k * target_26;
     std::test::assert(left_26 == right_26, "prefix_equivalent_dose/base_anchor_pSv: forward");
     std::test::assert(right_26 == left_26, "prefix_equivalent_dose/base_anchor_pSv: reverse");
-    std::test::assert_eq_int(left_26 / 1Sv, k * 1, "prefix_equivalent_dose/base_anchor_pSv: target count");
-    std::test::assert_eq_int(right_26 / 1pSv, k * 1000000000000, "prefix_equivalent_dose/base_anchor_pSv: source count");
+    std::test::assert_eq_int(
+        left_26 / 1Sv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_pSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_26 / 1pSv,
+        k * 1000000000000,
+        "prefix_equivalent_dose/base_anchor_pSv: source count",
+    );
 
     // 1000000000 nSv = 1 Sv
     let source_27: Denomination18 = 1000000000nSv;
@@ -311,8 +527,16 @@ fn check_runtime(k: Int) {
     let right_27 = k * target_27;
     std::test::assert(left_27 == right_27, "prefix_equivalent_dose/base_anchor_nSv: forward");
     std::test::assert(right_27 == left_27, "prefix_equivalent_dose/base_anchor_nSv: reverse");
-    std::test::assert_eq_int(left_27 / 1Sv, k * 1, "prefix_equivalent_dose/base_anchor_nSv: target count");
-    std::test::assert_eq_int(right_27 / 1nSv, k * 1000000000, "prefix_equivalent_dose/base_anchor_nSv: source count");
+    std::test::assert_eq_int(
+        left_27 / 1Sv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_nSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_27 / 1nSv,
+        k * 1000000000,
+        "prefix_equivalent_dose/base_anchor_nSv: source count",
+    );
 
     // 1000000 uSv = 1 Sv
     let source_28: Denomination22 = 1000000uSv;
@@ -321,8 +545,16 @@ fn check_runtime(k: Int) {
     let right_28 = k * target_28;
     std::test::assert(left_28 == right_28, "prefix_equivalent_dose/base_anchor_uSv: forward");
     std::test::assert(right_28 == left_28, "prefix_equivalent_dose/base_anchor_uSv: reverse");
-    std::test::assert_eq_int(left_28 / 1Sv, k * 1, "prefix_equivalent_dose/base_anchor_uSv: target count");
-    std::test::assert_eq_int(right_28 / 1uSv, k * 1000000, "prefix_equivalent_dose/base_anchor_uSv: source count");
+    std::test::assert_eq_int(
+        left_28 / 1Sv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_uSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_28 / 1uSv,
+        k * 1000000,
+        "prefix_equivalent_dose/base_anchor_uSv: source count",
+    );
 
     // 1000 mSv = 1 Sv
     let source_29: Denomination17 = 1000mSv;
@@ -331,8 +563,16 @@ fn check_runtime(k: Int) {
     let right_29 = k * target_29;
     std::test::assert(left_29 == right_29, "prefix_equivalent_dose/base_anchor_mSv: forward");
     std::test::assert(right_29 == left_29, "prefix_equivalent_dose/base_anchor_mSv: reverse");
-    std::test::assert_eq_int(left_29 / 1Sv, k * 1, "prefix_equivalent_dose/base_anchor_mSv: target count");
-    std::test::assert_eq_int(right_29 / 1mSv, k * 1000, "prefix_equivalent_dose/base_anchor_mSv: source count");
+    std::test::assert_eq_int(
+        left_29 / 1Sv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_mSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_29 / 1mSv,
+        k * 1000,
+        "prefix_equivalent_dose/base_anchor_mSv: source count",
+    );
 
     // 100 cSv = 1 Sv
     let source_30: Denomination11 = 100cSv;
@@ -341,8 +581,16 @@ fn check_runtime(k: Int) {
     let right_30 = k * target_30;
     std::test::assert(left_30 == right_30, "prefix_equivalent_dose/base_anchor_cSv: forward");
     std::test::assert(right_30 == left_30, "prefix_equivalent_dose/base_anchor_cSv: reverse");
-    std::test::assert_eq_int(left_30 / 1Sv, k * 1, "prefix_equivalent_dose/base_anchor_cSv: target count");
-    std::test::assert_eq_int(right_30 / 1cSv, k * 100, "prefix_equivalent_dose/base_anchor_cSv: source count");
+    std::test::assert_eq_int(
+        left_30 / 1Sv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_cSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_30 / 1cSv,
+        k * 100,
+        "prefix_equivalent_dose/base_anchor_cSv: source count",
+    );
 
     // 1 hSv = 100 Sv
     let source_31: Denomination15 = 1hSv;
@@ -351,8 +599,16 @@ fn check_runtime(k: Int) {
     let right_31 = k * target_31;
     std::test::assert(left_31 == right_31, "prefix_equivalent_dose/base_anchor_hSv: forward");
     std::test::assert(right_31 == left_31, "prefix_equivalent_dose/base_anchor_hSv: reverse");
-    std::test::assert_eq_int(left_31 / 1Sv, k * 100, "prefix_equivalent_dose/base_anchor_hSv: target count");
-    std::test::assert_eq_int(right_31 / 1hSv, k * 1, "prefix_equivalent_dose/base_anchor_hSv: source count");
+    std::test::assert_eq_int(
+        left_31 / 1Sv,
+        k * 100,
+        "prefix_equivalent_dose/base_anchor_hSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_31 / 1hSv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_hSv: source count",
+    );
 
     // 1 kSv = 1000 Sv
     let source_32: Denomination16 = 1kSv;
@@ -361,8 +617,16 @@ fn check_runtime(k: Int) {
     let right_32 = k * target_32;
     std::test::assert(left_32 == right_32, "prefix_equivalent_dose/base_anchor_kSv: forward");
     std::test::assert(right_32 == left_32, "prefix_equivalent_dose/base_anchor_kSv: reverse");
-    std::test::assert_eq_int(left_32 / 1Sv, k * 1000, "prefix_equivalent_dose/base_anchor_kSv: target count");
-    std::test::assert_eq_int(right_32 / 1kSv, k * 1, "prefix_equivalent_dose/base_anchor_kSv: source count");
+    std::test::assert_eq_int(
+        left_32 / 1Sv,
+        k * 1000,
+        "prefix_equivalent_dose/base_anchor_kSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_32 / 1kSv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_kSv: source count",
+    );
 
     // 1 MSv = 1000000 Sv
     let source_33: Denomination2 = 1MSv;
@@ -371,8 +635,16 @@ fn check_runtime(k: Int) {
     let right_33 = k * target_33;
     std::test::assert(left_33 == right_33, "prefix_equivalent_dose/base_anchor_MSv: forward");
     std::test::assert(right_33 == left_33, "prefix_equivalent_dose/base_anchor_MSv: reverse");
-    std::test::assert_eq_int(left_33 / 1Sv, k * 1000000, "prefix_equivalent_dose/base_anchor_MSv: target count");
-    std::test::assert_eq_int(right_33 / 1MSv, k * 1, "prefix_equivalent_dose/base_anchor_MSv: source count");
+    std::test::assert_eq_int(
+        left_33 / 1Sv,
+        k * 1000000,
+        "prefix_equivalent_dose/base_anchor_MSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_33 / 1MSv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_MSv: source count",
+    );
 
     // 1 GSv = 1000000000 Sv
     let source_34: Denomination1 = 1GSv;
@@ -381,8 +653,16 @@ fn check_runtime(k: Int) {
     let right_34 = k * target_34;
     std::test::assert(left_34 == right_34, "prefix_equivalent_dose/base_anchor_GSv: forward");
     std::test::assert(right_34 == left_34, "prefix_equivalent_dose/base_anchor_GSv: reverse");
-    std::test::assert_eq_int(left_34 / 1Sv, k * 1000000000, "prefix_equivalent_dose/base_anchor_GSv: target count");
-    std::test::assert_eq_int(right_34 / 1GSv, k * 1, "prefix_equivalent_dose/base_anchor_GSv: source count");
+    std::test::assert_eq_int(
+        left_34 / 1Sv,
+        k * 1000000000,
+        "prefix_equivalent_dose/base_anchor_GSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_34 / 1GSv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_GSv: source count",
+    );
 
     // 1 TSv = 1000000000000 Sv
     let source_35: Denomination7 = 1TSv;
@@ -391,8 +671,16 @@ fn check_runtime(k: Int) {
     let right_35 = k * target_35;
     std::test::assert(left_35 == right_35, "prefix_equivalent_dose/base_anchor_TSv: forward");
     std::test::assert(right_35 == left_35, "prefix_equivalent_dose/base_anchor_TSv: reverse");
-    std::test::assert_eq_int(left_35 / 1Sv, k * 1000000000000, "prefix_equivalent_dose/base_anchor_TSv: target count");
-    std::test::assert_eq_int(right_35 / 1TSv, k * 1, "prefix_equivalent_dose/base_anchor_TSv: source count");
+    std::test::assert_eq_int(
+        left_35 / 1Sv,
+        k * 1000000000000,
+        "prefix_equivalent_dose/base_anchor_TSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_35 / 1TSv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_TSv: source count",
+    );
 
     // 1 PSv = 1000000000000000 Sv
     let source_36: Denomination3 = 1PSv;
@@ -401,8 +689,16 @@ fn check_runtime(k: Int) {
     let right_36 = k * target_36;
     std::test::assert(left_36 == right_36, "prefix_equivalent_dose/base_anchor_PSv: forward");
     std::test::assert(right_36 == left_36, "prefix_equivalent_dose/base_anchor_PSv: reverse");
-    std::test::assert_eq_int(left_36 / 1Sv, k * 1000000000000000, "prefix_equivalent_dose/base_anchor_PSv: target count");
-    std::test::assert_eq_int(right_36 / 1PSv, k * 1, "prefix_equivalent_dose/base_anchor_PSv: source count");
+    std::test::assert_eq_int(
+        left_36 / 1Sv,
+        k * 1000000000000000,
+        "prefix_equivalent_dose/base_anchor_PSv: target count",
+    );
+    std::test::assert_eq_int(
+        right_36 / 1PSv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_PSv: source count",
+    );
 
     // 1 ESv = 1000000000000000000 Sv
     let source_37: Denomination0 = 1ESv;
@@ -411,8 +707,16 @@ fn check_runtime(k: Int) {
     let right_37 = k * target_37;
     std::test::assert(left_37 == right_37, "prefix_equivalent_dose/base_anchor_ESv: forward");
     std::test::assert(right_37 == left_37, "prefix_equivalent_dose/base_anchor_ESv: reverse");
-    std::test::assert_eq_int(left_37 / 1Sv, k * 1000000000000000000, "prefix_equivalent_dose/base_anchor_ESv: target count");
-    std::test::assert_eq_int(right_37 / 1ESv, k * 1, "prefix_equivalent_dose/base_anchor_ESv: source count");
+    std::test::assert_eq_int(
+        left_37 / 1Sv,
+        k * 1000000000000000000,
+        "prefix_equivalent_dose/base_anchor_ESv: target count",
+    );
+    std::test::assert_eq_int(
+        right_37 / 1ESv,
+        k * 1,
+        "prefix_equivalent_dose/base_anchor_ESv: source count",
+    );
 
 }
 

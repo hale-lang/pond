@@ -66,7 +66,11 @@ fn __build_request_headers(req: Request, user_agent: String, keep_alive: Bool) -
     let host_header = "Host: " + host + ":" + to_string(port) + "\r\n";
     let ua_header = "User-Agent: " + user_agent + "\r\n";
     let cl_header = "Content-Length: " + to_string(body_len) + "\r\n";
-    let conn_header = if keep_alive { "Connection: keep-alive\r\n" } else { "Connection: close\r\n" };
+    let conn_header = if keep_alive {
+        "Connection: keep-alive\r\n"
+    } else {
+        "Connection: close\r\n"
+    };
 
     let request_line = method + " " + path + " HTTP/1.1\r\n";
 

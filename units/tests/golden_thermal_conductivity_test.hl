@@ -19,8 +19,16 @@ fn check_runtime(k: Int) {
     let right_0 = k * target_0;
     std::test::assert(left_0 == right_0, "thermal_conductivity/W_per_cm_K_to_mW_per_m_K: forward");
     std::test::assert(right_0 == left_0, "thermal_conductivity/W_per_cm_K_to_mW_per_m_K: reverse");
-    std::test::assert_eq_int(left_0 / 1mW_per_m_K, k * 100000, "thermal_conductivity/W_per_cm_K_to_mW_per_m_K: target count");
-    std::test::assert_eq_int(right_0 / 1W_per_cm_K, k * 1, "thermal_conductivity/W_per_cm_K_to_mW_per_m_K: source count");
+    std::test::assert_eq_int(
+        left_0 / 1mW_per_m_K,
+        k * 100000,
+        "thermal_conductivity/W_per_cm_K_to_mW_per_m_K: target count",
+    );
+    std::test::assert_eq_int(
+        right_0 / 1W_per_cm_K,
+        k * 1,
+        "thermal_conductivity/W_per_cm_K_to_mW_per_m_K: source count",
+    );
 
     // 1 W_per_cm_K = 100 W_per_m_K
     let source_1: Denomination0 = 1W_per_cm_K;
@@ -29,8 +37,16 @@ fn check_runtime(k: Int) {
     let right_1 = k * target_1;
     std::test::assert(left_1 == right_1, "thermal_conductivity/W_per_cm_K_to_W_per_m_K: forward");
     std::test::assert(right_1 == left_1, "thermal_conductivity/W_per_cm_K_to_W_per_m_K: reverse");
-    std::test::assert_eq_int(left_1 / 1W_per_m_K, k * 100, "thermal_conductivity/W_per_cm_K_to_W_per_m_K: target count");
-    std::test::assert_eq_int(right_1 / 1W_per_cm_K, k * 1, "thermal_conductivity/W_per_cm_K_to_W_per_m_K: source count");
+    std::test::assert_eq_int(
+        left_1 / 1W_per_m_K,
+        k * 100,
+        "thermal_conductivity/W_per_cm_K_to_W_per_m_K: target count",
+    );
+    std::test::assert_eq_int(
+        right_1 / 1W_per_cm_K,
+        k * 1,
+        "thermal_conductivity/W_per_cm_K_to_W_per_m_K: source count",
+    );
 
 }
 

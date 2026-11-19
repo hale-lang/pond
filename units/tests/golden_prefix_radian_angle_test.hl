@@ -41,8 +41,16 @@ fn check_runtime(k: Int) {
     let right_0 = k * target_0;
     std::test::assert(left_0 == right_0, "prefix_radian_angle/adjacent_rrad_qrad: forward");
     std::test::assert(right_0 == left_0, "prefix_radian_angle/adjacent_rrad_qrad: reverse");
-    std::test::assert_eq_int(left_0 / 1qrad, k * 1000, "prefix_radian_angle/adjacent_rrad_qrad: target count");
-    std::test::assert_eq_int(right_0 / 1rrad, k * 1, "prefix_radian_angle/adjacent_rrad_qrad: source count");
+    std::test::assert_eq_int(
+        left_0 / 1qrad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_rrad_qrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_0 / 1rrad,
+        k * 1,
+        "prefix_radian_angle/adjacent_rrad_qrad: source count",
+    );
 
     // 1 yrad = 1000 rrad
     let source_1: Denomination23 = 1yrad;
@@ -51,8 +59,16 @@ fn check_runtime(k: Int) {
     let right_1 = k * target_1;
     std::test::assert(left_1 == right_1, "prefix_radian_angle/adjacent_yrad_rrad: forward");
     std::test::assert(right_1 == left_1, "prefix_radian_angle/adjacent_yrad_rrad: reverse");
-    std::test::assert_eq_int(left_1 / 1rrad, k * 1000, "prefix_radian_angle/adjacent_yrad_rrad: target count");
-    std::test::assert_eq_int(right_1 / 1yrad, k * 1, "prefix_radian_angle/adjacent_yrad_rrad: source count");
+    std::test::assert_eq_int(
+        left_1 / 1rrad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_yrad_rrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_1 / 1yrad,
+        k * 1,
+        "prefix_radian_angle/adjacent_yrad_rrad: source count",
+    );
 
     // 1 zrad = 1000 yrad
     let source_2: Denomination24 = 1zrad;
@@ -61,8 +77,16 @@ fn check_runtime(k: Int) {
     let right_2 = k * target_2;
     std::test::assert(left_2 == right_2, "prefix_radian_angle/adjacent_zrad_yrad: forward");
     std::test::assert(right_2 == left_2, "prefix_radian_angle/adjacent_zrad_yrad: reverse");
-    std::test::assert_eq_int(left_2 / 1yrad, k * 1000, "prefix_radian_angle/adjacent_zrad_yrad: target count");
-    std::test::assert_eq_int(right_2 / 1zrad, k * 1, "prefix_radian_angle/adjacent_zrad_yrad: source count");
+    std::test::assert_eq_int(
+        left_2 / 1yrad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_zrad_yrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_2 / 1zrad,
+        k * 1,
+        "prefix_radian_angle/adjacent_zrad_yrad: source count",
+    );
 
     // 1 arad = 1000 zrad
     let source_3: Denomination9 = 1arad;
@@ -71,8 +95,16 @@ fn check_runtime(k: Int) {
     let right_3 = k * target_3;
     std::test::assert(left_3 == right_3, "prefix_radian_angle/adjacent_arad_zrad: forward");
     std::test::assert(right_3 == left_3, "prefix_radian_angle/adjacent_arad_zrad: reverse");
-    std::test::assert_eq_int(left_3 / 1zrad, k * 1000, "prefix_radian_angle/adjacent_arad_zrad: target count");
-    std::test::assert_eq_int(right_3 / 1arad, k * 1, "prefix_radian_angle/adjacent_arad_zrad: source count");
+    std::test::assert_eq_int(
+        left_3 / 1zrad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_arad_zrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_3 / 1arad,
+        k * 1,
+        "prefix_radian_angle/adjacent_arad_zrad: source count",
+    );
 
     // 1 frad = 1000 arad
     let source_4: Denomination13 = 1frad;
@@ -81,8 +113,16 @@ fn check_runtime(k: Int) {
     let right_4 = k * target_4;
     std::test::assert(left_4 == right_4, "prefix_radian_angle/adjacent_frad_arad: forward");
     std::test::assert(right_4 == left_4, "prefix_radian_angle/adjacent_frad_arad: reverse");
-    std::test::assert_eq_int(left_4 / 1arad, k * 1000, "prefix_radian_angle/adjacent_frad_arad: target count");
-    std::test::assert_eq_int(right_4 / 1frad, k * 1, "prefix_radian_angle/adjacent_frad_arad: source count");
+    std::test::assert_eq_int(
+        left_4 / 1arad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_frad_arad: target count",
+    );
+    std::test::assert_eq_int(
+        right_4 / 1frad,
+        k * 1,
+        "prefix_radian_angle/adjacent_frad_arad: source count",
+    );
 
     // 1 prad = 1000 frad
     let source_5: Denomination18 = 1prad;
@@ -91,8 +131,16 @@ fn check_runtime(k: Int) {
     let right_5 = k * target_5;
     std::test::assert(left_5 == right_5, "prefix_radian_angle/adjacent_prad_frad: forward");
     std::test::assert(right_5 == left_5, "prefix_radian_angle/adjacent_prad_frad: reverse");
-    std::test::assert_eq_int(left_5 / 1frad, k * 1000, "prefix_radian_angle/adjacent_prad_frad: target count");
-    std::test::assert_eq_int(right_5 / 1prad, k * 1, "prefix_radian_angle/adjacent_prad_frad: source count");
+    std::test::assert_eq_int(
+        left_5 / 1frad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_prad_frad: target count",
+    );
+    std::test::assert_eq_int(
+        right_5 / 1prad,
+        k * 1,
+        "prefix_radian_angle/adjacent_prad_frad: source count",
+    );
 
     // 1 nrad = 1000 prad
     let source_6: Denomination17 = 1nrad;
@@ -101,8 +149,16 @@ fn check_runtime(k: Int) {
     let right_6 = k * target_6;
     std::test::assert(left_6 == right_6, "prefix_radian_angle/adjacent_nrad_prad: forward");
     std::test::assert(right_6 == left_6, "prefix_radian_angle/adjacent_nrad_prad: reverse");
-    std::test::assert_eq_int(left_6 / 1prad, k * 1000, "prefix_radian_angle/adjacent_nrad_prad: target count");
-    std::test::assert_eq_int(right_6 / 1nrad, k * 1, "prefix_radian_angle/adjacent_nrad_prad: source count");
+    std::test::assert_eq_int(
+        left_6 / 1prad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_nrad_prad: target count",
+    );
+    std::test::assert_eq_int(
+        right_6 / 1nrad,
+        k * 1,
+        "prefix_radian_angle/adjacent_nrad_prad: source count",
+    );
 
     // 1 urad = 1000 nrad
     let source_7: Denomination22 = 1urad;
@@ -111,8 +167,16 @@ fn check_runtime(k: Int) {
     let right_7 = k * target_7;
     std::test::assert(left_7 == right_7, "prefix_radian_angle/adjacent_urad_nrad: forward");
     std::test::assert(right_7 == left_7, "prefix_radian_angle/adjacent_urad_nrad: reverse");
-    std::test::assert_eq_int(left_7 / 1nrad, k * 1000, "prefix_radian_angle/adjacent_urad_nrad: target count");
-    std::test::assert_eq_int(right_7 / 1urad, k * 1, "prefix_radian_angle/adjacent_urad_nrad: source count");
+    std::test::assert_eq_int(
+        left_7 / 1nrad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_urad_nrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_7 / 1urad,
+        k * 1,
+        "prefix_radian_angle/adjacent_urad_nrad: source count",
+    );
 
     // 1 mrad = 1000 urad
     let source_8: Denomination16 = 1mrad;
@@ -121,8 +185,16 @@ fn check_runtime(k: Int) {
     let right_8 = k * target_8;
     std::test::assert(left_8 == right_8, "prefix_radian_angle/adjacent_mrad_urad: forward");
     std::test::assert(right_8 == left_8, "prefix_radian_angle/adjacent_mrad_urad: reverse");
-    std::test::assert_eq_int(left_8 / 1urad, k * 1000, "prefix_radian_angle/adjacent_mrad_urad: target count");
-    std::test::assert_eq_int(right_8 / 1mrad, k * 1, "prefix_radian_angle/adjacent_mrad_urad: source count");
+    std::test::assert_eq_int(
+        left_8 / 1urad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_mrad_urad: target count",
+    );
+    std::test::assert_eq_int(
+        right_8 / 1mrad,
+        k * 1,
+        "prefix_radian_angle/adjacent_mrad_urad: source count",
+    );
 
     // 1 crad = 10 mrad
     let source_9: Denomination10 = 1crad;
@@ -131,8 +203,16 @@ fn check_runtime(k: Int) {
     let right_9 = k * target_9;
     std::test::assert(left_9 == right_9, "prefix_radian_angle/adjacent_crad_mrad: forward");
     std::test::assert(right_9 == left_9, "prefix_radian_angle/adjacent_crad_mrad: reverse");
-    std::test::assert_eq_int(left_9 / 1mrad, k * 10, "prefix_radian_angle/adjacent_crad_mrad: target count");
-    std::test::assert_eq_int(right_9 / 1crad, k * 1, "prefix_radian_angle/adjacent_crad_mrad: source count");
+    std::test::assert_eq_int(
+        left_9 / 1mrad,
+        k * 10,
+        "prefix_radian_angle/adjacent_crad_mrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_9 / 1crad,
+        k * 1,
+        "prefix_radian_angle/adjacent_crad_mrad: source count",
+    );
 
     // 1 drad = 10 crad
     let source_10: Denomination12 = 1drad;
@@ -141,8 +221,16 @@ fn check_runtime(k: Int) {
     let right_10 = k * target_10;
     std::test::assert(left_10 == right_10, "prefix_radian_angle/adjacent_drad_crad: forward");
     std::test::assert(right_10 == left_10, "prefix_radian_angle/adjacent_drad_crad: reverse");
-    std::test::assert_eq_int(left_10 / 1crad, k * 10, "prefix_radian_angle/adjacent_drad_crad: target count");
-    std::test::assert_eq_int(right_10 / 1drad, k * 1, "prefix_radian_angle/adjacent_drad_crad: source count");
+    std::test::assert_eq_int(
+        left_10 / 1crad,
+        k * 10,
+        "prefix_radian_angle/adjacent_drad_crad: target count",
+    );
+    std::test::assert_eq_int(
+        right_10 / 1drad,
+        k * 1,
+        "prefix_radian_angle/adjacent_drad_crad: source count",
+    );
 
     // 1 rad = 10 drad
     let source_11: Denomination20 = 1rad;
@@ -151,8 +239,16 @@ fn check_runtime(k: Int) {
     let right_11 = k * target_11;
     std::test::assert(left_11 == right_11, "prefix_radian_angle/adjacent_rad_drad: forward");
     std::test::assert(right_11 == left_11, "prefix_radian_angle/adjacent_rad_drad: reverse");
-    std::test::assert_eq_int(left_11 / 1drad, k * 10, "prefix_radian_angle/adjacent_rad_drad: target count");
-    std::test::assert_eq_int(right_11 / 1rad, k * 1, "prefix_radian_angle/adjacent_rad_drad: source count");
+    std::test::assert_eq_int(
+        left_11 / 1drad,
+        k * 10,
+        "prefix_radian_angle/adjacent_rad_drad: target count",
+    );
+    std::test::assert_eq_int(
+        right_11 / 1rad,
+        k * 1,
+        "prefix_radian_angle/adjacent_rad_drad: source count",
+    );
 
     // 1 darad = 10 rad
     let source_12: Denomination11 = 1darad;
@@ -161,8 +257,16 @@ fn check_runtime(k: Int) {
     let right_12 = k * target_12;
     std::test::assert(left_12 == right_12, "prefix_radian_angle/adjacent_darad_rad: forward");
     std::test::assert(right_12 == left_12, "prefix_radian_angle/adjacent_darad_rad: reverse");
-    std::test::assert_eq_int(left_12 / 1rad, k * 10, "prefix_radian_angle/adjacent_darad_rad: target count");
-    std::test::assert_eq_int(right_12 / 1darad, k * 1, "prefix_radian_angle/adjacent_darad_rad: source count");
+    std::test::assert_eq_int(
+        left_12 / 1rad,
+        k * 10,
+        "prefix_radian_angle/adjacent_darad_rad: target count",
+    );
+    std::test::assert_eq_int(
+        right_12 / 1darad,
+        k * 1,
+        "prefix_radian_angle/adjacent_darad_rad: source count",
+    );
 
     // 1 hrad = 10 darad
     let source_13: Denomination14 = 1hrad;
@@ -171,8 +275,16 @@ fn check_runtime(k: Int) {
     let right_13 = k * target_13;
     std::test::assert(left_13 == right_13, "prefix_radian_angle/adjacent_hrad_darad: forward");
     std::test::assert(right_13 == left_13, "prefix_radian_angle/adjacent_hrad_darad: reverse");
-    std::test::assert_eq_int(left_13 / 1darad, k * 10, "prefix_radian_angle/adjacent_hrad_darad: target count");
-    std::test::assert_eq_int(right_13 / 1hrad, k * 1, "prefix_radian_angle/adjacent_hrad_darad: source count");
+    std::test::assert_eq_int(
+        left_13 / 1darad,
+        k * 10,
+        "prefix_radian_angle/adjacent_hrad_darad: target count",
+    );
+    std::test::assert_eq_int(
+        right_13 / 1hrad,
+        k * 1,
+        "prefix_radian_angle/adjacent_hrad_darad: source count",
+    );
 
     // 1 krad = 10 hrad
     let source_14: Denomination15 = 1krad;
@@ -181,8 +293,16 @@ fn check_runtime(k: Int) {
     let right_14 = k * target_14;
     std::test::assert(left_14 == right_14, "prefix_radian_angle/adjacent_krad_hrad: forward");
     std::test::assert(right_14 == left_14, "prefix_radian_angle/adjacent_krad_hrad: reverse");
-    std::test::assert_eq_int(left_14 / 1hrad, k * 10, "prefix_radian_angle/adjacent_krad_hrad: target count");
-    std::test::assert_eq_int(right_14 / 1krad, k * 1, "prefix_radian_angle/adjacent_krad_hrad: source count");
+    std::test::assert_eq_int(
+        left_14 / 1hrad,
+        k * 10,
+        "prefix_radian_angle/adjacent_krad_hrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_14 / 1krad,
+        k * 1,
+        "prefix_radian_angle/adjacent_krad_hrad: source count",
+    );
 
     // 1 Mrad = 1000 krad
     let source_15: Denomination2 = 1Mrad;
@@ -191,8 +311,16 @@ fn check_runtime(k: Int) {
     let right_15 = k * target_15;
     std::test::assert(left_15 == right_15, "prefix_radian_angle/adjacent_Mrad_krad: forward");
     std::test::assert(right_15 == left_15, "prefix_radian_angle/adjacent_Mrad_krad: reverse");
-    std::test::assert_eq_int(left_15 / 1krad, k * 1000, "prefix_radian_angle/adjacent_Mrad_krad: target count");
-    std::test::assert_eq_int(right_15 / 1Mrad, k * 1, "prefix_radian_angle/adjacent_Mrad_krad: source count");
+    std::test::assert_eq_int(
+        left_15 / 1krad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_Mrad_krad: target count",
+    );
+    std::test::assert_eq_int(
+        right_15 / 1Mrad,
+        k * 1,
+        "prefix_radian_angle/adjacent_Mrad_krad: source count",
+    );
 
     // 1 Grad = 1000 Mrad
     let source_16: Denomination1 = 1Grad;
@@ -201,8 +329,16 @@ fn check_runtime(k: Int) {
     let right_16 = k * target_16;
     std::test::assert(left_16 == right_16, "prefix_radian_angle/adjacent_Grad_Mrad: forward");
     std::test::assert(right_16 == left_16, "prefix_radian_angle/adjacent_Grad_Mrad: reverse");
-    std::test::assert_eq_int(left_16 / 1Mrad, k * 1000, "prefix_radian_angle/adjacent_Grad_Mrad: target count");
-    std::test::assert_eq_int(right_16 / 1Grad, k * 1, "prefix_radian_angle/adjacent_Grad_Mrad: source count");
+    std::test::assert_eq_int(
+        left_16 / 1Mrad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_Grad_Mrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_16 / 1Grad,
+        k * 1,
+        "prefix_radian_angle/adjacent_Grad_Mrad: source count",
+    );
 
     // 1 Trad = 1000 Grad
     let source_17: Denomination6 = 1Trad;
@@ -211,8 +347,16 @@ fn check_runtime(k: Int) {
     let right_17 = k * target_17;
     std::test::assert(left_17 == right_17, "prefix_radian_angle/adjacent_Trad_Grad: forward");
     std::test::assert(right_17 == left_17, "prefix_radian_angle/adjacent_Trad_Grad: reverse");
-    std::test::assert_eq_int(left_17 / 1Grad, k * 1000, "prefix_radian_angle/adjacent_Trad_Grad: target count");
-    std::test::assert_eq_int(right_17 / 1Trad, k * 1, "prefix_radian_angle/adjacent_Trad_Grad: source count");
+    std::test::assert_eq_int(
+        left_17 / 1Grad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_Trad_Grad: target count",
+    );
+    std::test::assert_eq_int(
+        right_17 / 1Trad,
+        k * 1,
+        "prefix_radian_angle/adjacent_Trad_Grad: source count",
+    );
 
     // 1 Prad = 1000 Trad
     let source_18: Denomination3 = 1Prad;
@@ -221,8 +365,16 @@ fn check_runtime(k: Int) {
     let right_18 = k * target_18;
     std::test::assert(left_18 == right_18, "prefix_radian_angle/adjacent_Prad_Trad: forward");
     std::test::assert(right_18 == left_18, "prefix_radian_angle/adjacent_Prad_Trad: reverse");
-    std::test::assert_eq_int(left_18 / 1Trad, k * 1000, "prefix_radian_angle/adjacent_Prad_Trad: target count");
-    std::test::assert_eq_int(right_18 / 1Prad, k * 1, "prefix_radian_angle/adjacent_Prad_Trad: source count");
+    std::test::assert_eq_int(
+        left_18 / 1Trad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_Prad_Trad: target count",
+    );
+    std::test::assert_eq_int(
+        right_18 / 1Prad,
+        k * 1,
+        "prefix_radian_angle/adjacent_Prad_Trad: source count",
+    );
 
     // 1 Erad = 1000 Prad
     let source_19: Denomination0 = 1Erad;
@@ -231,8 +383,16 @@ fn check_runtime(k: Int) {
     let right_19 = k * target_19;
     std::test::assert(left_19 == right_19, "prefix_radian_angle/adjacent_Erad_Prad: forward");
     std::test::assert(right_19 == left_19, "prefix_radian_angle/adjacent_Erad_Prad: reverse");
-    std::test::assert_eq_int(left_19 / 1Prad, k * 1000, "prefix_radian_angle/adjacent_Erad_Prad: target count");
-    std::test::assert_eq_int(right_19 / 1Erad, k * 1, "prefix_radian_angle/adjacent_Erad_Prad: source count");
+    std::test::assert_eq_int(
+        left_19 / 1Prad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_Erad_Prad: target count",
+    );
+    std::test::assert_eq_int(
+        right_19 / 1Erad,
+        k * 1,
+        "prefix_radian_angle/adjacent_Erad_Prad: source count",
+    );
 
     // 1 Zrad = 1000 Erad
     let source_20: Denomination8 = 1Zrad;
@@ -241,8 +401,16 @@ fn check_runtime(k: Int) {
     let right_20 = k * target_20;
     std::test::assert(left_20 == right_20, "prefix_radian_angle/adjacent_Zrad_Erad: forward");
     std::test::assert(right_20 == left_20, "prefix_radian_angle/adjacent_Zrad_Erad: reverse");
-    std::test::assert_eq_int(left_20 / 1Erad, k * 1000, "prefix_radian_angle/adjacent_Zrad_Erad: target count");
-    std::test::assert_eq_int(right_20 / 1Zrad, k * 1, "prefix_radian_angle/adjacent_Zrad_Erad: source count");
+    std::test::assert_eq_int(
+        left_20 / 1Erad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_Zrad_Erad: target count",
+    );
+    std::test::assert_eq_int(
+        right_20 / 1Zrad,
+        k * 1,
+        "prefix_radian_angle/adjacent_Zrad_Erad: source count",
+    );
 
     // 1 Yrad = 1000 Zrad
     let source_21: Denomination7 = 1Yrad;
@@ -251,8 +419,16 @@ fn check_runtime(k: Int) {
     let right_21 = k * target_21;
     std::test::assert(left_21 == right_21, "prefix_radian_angle/adjacent_Yrad_Zrad: forward");
     std::test::assert(right_21 == left_21, "prefix_radian_angle/adjacent_Yrad_Zrad: reverse");
-    std::test::assert_eq_int(left_21 / 1Zrad, k * 1000, "prefix_radian_angle/adjacent_Yrad_Zrad: target count");
-    std::test::assert_eq_int(right_21 / 1Yrad, k * 1, "prefix_radian_angle/adjacent_Yrad_Zrad: source count");
+    std::test::assert_eq_int(
+        left_21 / 1Zrad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_Yrad_Zrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_21 / 1Yrad,
+        k * 1,
+        "prefix_radian_angle/adjacent_Yrad_Zrad: source count",
+    );
 
     // 1 Rrad = 1000 Yrad
     let source_22: Denomination5 = 1Rrad;
@@ -261,8 +437,16 @@ fn check_runtime(k: Int) {
     let right_22 = k * target_22;
     std::test::assert(left_22 == right_22, "prefix_radian_angle/adjacent_Rrad_Yrad: forward");
     std::test::assert(right_22 == left_22, "prefix_radian_angle/adjacent_Rrad_Yrad: reverse");
-    std::test::assert_eq_int(left_22 / 1Yrad, k * 1000, "prefix_radian_angle/adjacent_Rrad_Yrad: target count");
-    std::test::assert_eq_int(right_22 / 1Rrad, k * 1, "prefix_radian_angle/adjacent_Rrad_Yrad: source count");
+    std::test::assert_eq_int(
+        left_22 / 1Yrad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_Rrad_Yrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_22 / 1Rrad,
+        k * 1,
+        "prefix_radian_angle/adjacent_Rrad_Yrad: source count",
+    );
 
     // 1 Qrad = 1000 Rrad
     let source_23: Denomination4 = 1Qrad;
@@ -271,8 +455,16 @@ fn check_runtime(k: Int) {
     let right_23 = k * target_23;
     std::test::assert(left_23 == right_23, "prefix_radian_angle/adjacent_Qrad_Rrad: forward");
     std::test::assert(right_23 == left_23, "prefix_radian_angle/adjacent_Qrad_Rrad: reverse");
-    std::test::assert_eq_int(left_23 / 1Rrad, k * 1000, "prefix_radian_angle/adjacent_Qrad_Rrad: target count");
-    std::test::assert_eq_int(right_23 / 1Qrad, k * 1, "prefix_radian_angle/adjacent_Qrad_Rrad: source count");
+    std::test::assert_eq_int(
+        left_23 / 1Rrad,
+        k * 1000,
+        "prefix_radian_angle/adjacent_Qrad_Rrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_23 / 1Qrad,
+        k * 1,
+        "prefix_radian_angle/adjacent_Qrad_Rrad: source count",
+    );
 
     // 1000000000000000000 arad = 1 rad
     let source_24: Denomination9 = 1000000000000000000arad;
@@ -281,8 +473,16 @@ fn check_runtime(k: Int) {
     let right_24 = k * target_24;
     std::test::assert(left_24 == right_24, "prefix_radian_angle/base_anchor_arad: forward");
     std::test::assert(right_24 == left_24, "prefix_radian_angle/base_anchor_arad: reverse");
-    std::test::assert_eq_int(left_24 / 1rad, k * 1, "prefix_radian_angle/base_anchor_arad: target count");
-    std::test::assert_eq_int(right_24 / 1arad, k * 1000000000000000000, "prefix_radian_angle/base_anchor_arad: source count");
+    std::test::assert_eq_int(
+        left_24 / 1rad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_arad: target count",
+    );
+    std::test::assert_eq_int(
+        right_24 / 1arad,
+        k * 1000000000000000000,
+        "prefix_radian_angle/base_anchor_arad: source count",
+    );
 
     // 1000000000000000 frad = 1 rad
     let source_25: Denomination13 = 1000000000000000frad;
@@ -291,8 +491,16 @@ fn check_runtime(k: Int) {
     let right_25 = k * target_25;
     std::test::assert(left_25 == right_25, "prefix_radian_angle/base_anchor_frad: forward");
     std::test::assert(right_25 == left_25, "prefix_radian_angle/base_anchor_frad: reverse");
-    std::test::assert_eq_int(left_25 / 1rad, k * 1, "prefix_radian_angle/base_anchor_frad: target count");
-    std::test::assert_eq_int(right_25 / 1frad, k * 1000000000000000, "prefix_radian_angle/base_anchor_frad: source count");
+    std::test::assert_eq_int(
+        left_25 / 1rad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_frad: target count",
+    );
+    std::test::assert_eq_int(
+        right_25 / 1frad,
+        k * 1000000000000000,
+        "prefix_radian_angle/base_anchor_frad: source count",
+    );
 
     // 1000000000000 prad = 1 rad
     let source_26: Denomination18 = 1000000000000prad;
@@ -301,8 +509,16 @@ fn check_runtime(k: Int) {
     let right_26 = k * target_26;
     std::test::assert(left_26 == right_26, "prefix_radian_angle/base_anchor_prad: forward");
     std::test::assert(right_26 == left_26, "prefix_radian_angle/base_anchor_prad: reverse");
-    std::test::assert_eq_int(left_26 / 1rad, k * 1, "prefix_radian_angle/base_anchor_prad: target count");
-    std::test::assert_eq_int(right_26 / 1prad, k * 1000000000000, "prefix_radian_angle/base_anchor_prad: source count");
+    std::test::assert_eq_int(
+        left_26 / 1rad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_prad: target count",
+    );
+    std::test::assert_eq_int(
+        right_26 / 1prad,
+        k * 1000000000000,
+        "prefix_radian_angle/base_anchor_prad: source count",
+    );
 
     // 1000000000 nrad = 1 rad
     let source_27: Denomination17 = 1000000000nrad;
@@ -311,8 +527,16 @@ fn check_runtime(k: Int) {
     let right_27 = k * target_27;
     std::test::assert(left_27 == right_27, "prefix_radian_angle/base_anchor_nrad: forward");
     std::test::assert(right_27 == left_27, "prefix_radian_angle/base_anchor_nrad: reverse");
-    std::test::assert_eq_int(left_27 / 1rad, k * 1, "prefix_radian_angle/base_anchor_nrad: target count");
-    std::test::assert_eq_int(right_27 / 1nrad, k * 1000000000, "prefix_radian_angle/base_anchor_nrad: source count");
+    std::test::assert_eq_int(
+        left_27 / 1rad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_nrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_27 / 1nrad,
+        k * 1000000000,
+        "prefix_radian_angle/base_anchor_nrad: source count",
+    );
 
     // 1000000 urad = 1 rad
     let source_28: Denomination22 = 1000000urad;
@@ -321,8 +545,16 @@ fn check_runtime(k: Int) {
     let right_28 = k * target_28;
     std::test::assert(left_28 == right_28, "prefix_radian_angle/base_anchor_urad: forward");
     std::test::assert(right_28 == left_28, "prefix_radian_angle/base_anchor_urad: reverse");
-    std::test::assert_eq_int(left_28 / 1rad, k * 1, "prefix_radian_angle/base_anchor_urad: target count");
-    std::test::assert_eq_int(right_28 / 1urad, k * 1000000, "prefix_radian_angle/base_anchor_urad: source count");
+    std::test::assert_eq_int(
+        left_28 / 1rad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_urad: target count",
+    );
+    std::test::assert_eq_int(
+        right_28 / 1urad,
+        k * 1000000,
+        "prefix_radian_angle/base_anchor_urad: source count",
+    );
 
     // 1000 mrad = 1 rad
     let source_29: Denomination16 = 1000mrad;
@@ -331,8 +563,16 @@ fn check_runtime(k: Int) {
     let right_29 = k * target_29;
     std::test::assert(left_29 == right_29, "prefix_radian_angle/base_anchor_mrad: forward");
     std::test::assert(right_29 == left_29, "prefix_radian_angle/base_anchor_mrad: reverse");
-    std::test::assert_eq_int(left_29 / 1rad, k * 1, "prefix_radian_angle/base_anchor_mrad: target count");
-    std::test::assert_eq_int(right_29 / 1mrad, k * 1000, "prefix_radian_angle/base_anchor_mrad: source count");
+    std::test::assert_eq_int(
+        left_29 / 1rad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_mrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_29 / 1mrad,
+        k * 1000,
+        "prefix_radian_angle/base_anchor_mrad: source count",
+    );
 
     // 100 crad = 1 rad
     let source_30: Denomination10 = 100crad;
@@ -341,8 +581,16 @@ fn check_runtime(k: Int) {
     let right_30 = k * target_30;
     std::test::assert(left_30 == right_30, "prefix_radian_angle/base_anchor_crad: forward");
     std::test::assert(right_30 == left_30, "prefix_radian_angle/base_anchor_crad: reverse");
-    std::test::assert_eq_int(left_30 / 1rad, k * 1, "prefix_radian_angle/base_anchor_crad: target count");
-    std::test::assert_eq_int(right_30 / 1crad, k * 100, "prefix_radian_angle/base_anchor_crad: source count");
+    std::test::assert_eq_int(
+        left_30 / 1rad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_crad: target count",
+    );
+    std::test::assert_eq_int(
+        right_30 / 1crad,
+        k * 100,
+        "prefix_radian_angle/base_anchor_crad: source count",
+    );
 
     // 1 hrad = 100 rad
     let source_31: Denomination14 = 1hrad;
@@ -351,8 +599,16 @@ fn check_runtime(k: Int) {
     let right_31 = k * target_31;
     std::test::assert(left_31 == right_31, "prefix_radian_angle/base_anchor_hrad: forward");
     std::test::assert(right_31 == left_31, "prefix_radian_angle/base_anchor_hrad: reverse");
-    std::test::assert_eq_int(left_31 / 1rad, k * 100, "prefix_radian_angle/base_anchor_hrad: target count");
-    std::test::assert_eq_int(right_31 / 1hrad, k * 1, "prefix_radian_angle/base_anchor_hrad: source count");
+    std::test::assert_eq_int(
+        left_31 / 1rad,
+        k * 100,
+        "prefix_radian_angle/base_anchor_hrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_31 / 1hrad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_hrad: source count",
+    );
 
     // 1 krad = 1000 rad
     let source_32: Denomination15 = 1krad;
@@ -361,8 +617,16 @@ fn check_runtime(k: Int) {
     let right_32 = k * target_32;
     std::test::assert(left_32 == right_32, "prefix_radian_angle/base_anchor_krad: forward");
     std::test::assert(right_32 == left_32, "prefix_radian_angle/base_anchor_krad: reverse");
-    std::test::assert_eq_int(left_32 / 1rad, k * 1000, "prefix_radian_angle/base_anchor_krad: target count");
-    std::test::assert_eq_int(right_32 / 1krad, k * 1, "prefix_radian_angle/base_anchor_krad: source count");
+    std::test::assert_eq_int(
+        left_32 / 1rad,
+        k * 1000,
+        "prefix_radian_angle/base_anchor_krad: target count",
+    );
+    std::test::assert_eq_int(
+        right_32 / 1krad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_krad: source count",
+    );
 
     // 1 Mrad = 1000000 rad
     let source_33: Denomination2 = 1Mrad;
@@ -371,8 +635,16 @@ fn check_runtime(k: Int) {
     let right_33 = k * target_33;
     std::test::assert(left_33 == right_33, "prefix_radian_angle/base_anchor_Mrad: forward");
     std::test::assert(right_33 == left_33, "prefix_radian_angle/base_anchor_Mrad: reverse");
-    std::test::assert_eq_int(left_33 / 1rad, k * 1000000, "prefix_radian_angle/base_anchor_Mrad: target count");
-    std::test::assert_eq_int(right_33 / 1Mrad, k * 1, "prefix_radian_angle/base_anchor_Mrad: source count");
+    std::test::assert_eq_int(
+        left_33 / 1rad,
+        k * 1000000,
+        "prefix_radian_angle/base_anchor_Mrad: target count",
+    );
+    std::test::assert_eq_int(
+        right_33 / 1Mrad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_Mrad: source count",
+    );
 
     // 1 Grad = 1000000000 rad
     let source_34: Denomination1 = 1Grad;
@@ -381,8 +653,16 @@ fn check_runtime(k: Int) {
     let right_34 = k * target_34;
     std::test::assert(left_34 == right_34, "prefix_radian_angle/base_anchor_Grad: forward");
     std::test::assert(right_34 == left_34, "prefix_radian_angle/base_anchor_Grad: reverse");
-    std::test::assert_eq_int(left_34 / 1rad, k * 1000000000, "prefix_radian_angle/base_anchor_Grad: target count");
-    std::test::assert_eq_int(right_34 / 1Grad, k * 1, "prefix_radian_angle/base_anchor_Grad: source count");
+    std::test::assert_eq_int(
+        left_34 / 1rad,
+        k * 1000000000,
+        "prefix_radian_angle/base_anchor_Grad: target count",
+    );
+    std::test::assert_eq_int(
+        right_34 / 1Grad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_Grad: source count",
+    );
 
     // 1 Trad = 1000000000000 rad
     let source_35: Denomination6 = 1Trad;
@@ -391,8 +671,16 @@ fn check_runtime(k: Int) {
     let right_35 = k * target_35;
     std::test::assert(left_35 == right_35, "prefix_radian_angle/base_anchor_Trad: forward");
     std::test::assert(right_35 == left_35, "prefix_radian_angle/base_anchor_Trad: reverse");
-    std::test::assert_eq_int(left_35 / 1rad, k * 1000000000000, "prefix_radian_angle/base_anchor_Trad: target count");
-    std::test::assert_eq_int(right_35 / 1Trad, k * 1, "prefix_radian_angle/base_anchor_Trad: source count");
+    std::test::assert_eq_int(
+        left_35 / 1rad,
+        k * 1000000000000,
+        "prefix_radian_angle/base_anchor_Trad: target count",
+    );
+    std::test::assert_eq_int(
+        right_35 / 1Trad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_Trad: source count",
+    );
 
     // 1 Prad = 1000000000000000 rad
     let source_36: Denomination3 = 1Prad;
@@ -401,8 +689,16 @@ fn check_runtime(k: Int) {
     let right_36 = k * target_36;
     std::test::assert(left_36 == right_36, "prefix_radian_angle/base_anchor_Prad: forward");
     std::test::assert(right_36 == left_36, "prefix_radian_angle/base_anchor_Prad: reverse");
-    std::test::assert_eq_int(left_36 / 1rad, k * 1000000000000000, "prefix_radian_angle/base_anchor_Prad: target count");
-    std::test::assert_eq_int(right_36 / 1Prad, k * 1, "prefix_radian_angle/base_anchor_Prad: source count");
+    std::test::assert_eq_int(
+        left_36 / 1rad,
+        k * 1000000000000000,
+        "prefix_radian_angle/base_anchor_Prad: target count",
+    );
+    std::test::assert_eq_int(
+        right_36 / 1Prad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_Prad: source count",
+    );
 
     // 1 Erad = 1000000000000000000 rad
     let source_37: Denomination0 = 1Erad;
@@ -411,8 +707,16 @@ fn check_runtime(k: Int) {
     let right_37 = k * target_37;
     std::test::assert(left_37 == right_37, "prefix_radian_angle/base_anchor_Erad: forward");
     std::test::assert(right_37 == left_37, "prefix_radian_angle/base_anchor_Erad: reverse");
-    std::test::assert_eq_int(left_37 / 1rad, k * 1000000000000000000, "prefix_radian_angle/base_anchor_Erad: target count");
-    std::test::assert_eq_int(right_37 / 1Erad, k * 1, "prefix_radian_angle/base_anchor_Erad: source count");
+    std::test::assert_eq_int(
+        left_37 / 1rad,
+        k * 1000000000000000000,
+        "prefix_radian_angle/base_anchor_Erad: target count",
+    );
+    std::test::assert_eq_int(
+        right_37 / 1Erad,
+        k * 1,
+        "prefix_radian_angle/base_anchor_Erad: source count",
+    );
 
 }
 

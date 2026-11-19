@@ -41,8 +41,16 @@ fn check_runtime(k: Int) {
     let right_0 = k * target_0;
     std::test::assert(left_0 == right_0, "prefix_magnetic_flux/adjacent_rWb_qWb: forward");
     std::test::assert(right_0 == left_0, "prefix_magnetic_flux/adjacent_rWb_qWb: reverse");
-    std::test::assert_eq_int(left_0 / 1qWb, k * 1000, "prefix_magnetic_flux/adjacent_rWb_qWb: target count");
-    std::test::assert_eq_int(right_0 / 1rWb, k * 1, "prefix_magnetic_flux/adjacent_rWb_qWb: source count");
+    std::test::assert_eq_int(
+        left_0 / 1qWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_rWb_qWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_0 / 1rWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_rWb_qWb: source count",
+    );
 
     // 1 yWb = 1000 rWb
     let source_1: Denomination23 = 1yWb;
@@ -51,8 +59,16 @@ fn check_runtime(k: Int) {
     let right_1 = k * target_1;
     std::test::assert(left_1 == right_1, "prefix_magnetic_flux/adjacent_yWb_rWb: forward");
     std::test::assert(right_1 == left_1, "prefix_magnetic_flux/adjacent_yWb_rWb: reverse");
-    std::test::assert_eq_int(left_1 / 1rWb, k * 1000, "prefix_magnetic_flux/adjacent_yWb_rWb: target count");
-    std::test::assert_eq_int(right_1 / 1yWb, k * 1, "prefix_magnetic_flux/adjacent_yWb_rWb: source count");
+    std::test::assert_eq_int(
+        left_1 / 1rWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_yWb_rWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_1 / 1yWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_yWb_rWb: source count",
+    );
 
     // 1 zWb = 1000 yWb
     let source_2: Denomination24 = 1zWb;
@@ -61,8 +77,16 @@ fn check_runtime(k: Int) {
     let right_2 = k * target_2;
     std::test::assert(left_2 == right_2, "prefix_magnetic_flux/adjacent_zWb_yWb: forward");
     std::test::assert(right_2 == left_2, "prefix_magnetic_flux/adjacent_zWb_yWb: reverse");
-    std::test::assert_eq_int(left_2 / 1yWb, k * 1000, "prefix_magnetic_flux/adjacent_zWb_yWb: target count");
-    std::test::assert_eq_int(right_2 / 1zWb, k * 1, "prefix_magnetic_flux/adjacent_zWb_yWb: source count");
+    std::test::assert_eq_int(
+        left_2 / 1yWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_zWb_yWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_2 / 1zWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_zWb_yWb: source count",
+    );
 
     // 1 aWb = 1000 zWb
     let source_3: Denomination10 = 1aWb;
@@ -71,8 +95,16 @@ fn check_runtime(k: Int) {
     let right_3 = k * target_3;
     std::test::assert(left_3 == right_3, "prefix_magnetic_flux/adjacent_aWb_zWb: forward");
     std::test::assert(right_3 == left_3, "prefix_magnetic_flux/adjacent_aWb_zWb: reverse");
-    std::test::assert_eq_int(left_3 / 1zWb, k * 1000, "prefix_magnetic_flux/adjacent_aWb_zWb: target count");
-    std::test::assert_eq_int(right_3 / 1aWb, k * 1, "prefix_magnetic_flux/adjacent_aWb_zWb: source count");
+    std::test::assert_eq_int(
+        left_3 / 1zWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_aWb_zWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_3 / 1aWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_aWb_zWb: source count",
+    );
 
     // 1 fWb = 1000 aWb
     let source_4: Denomination14 = 1fWb;
@@ -81,8 +113,16 @@ fn check_runtime(k: Int) {
     let right_4 = k * target_4;
     std::test::assert(left_4 == right_4, "prefix_magnetic_flux/adjacent_fWb_aWb: forward");
     std::test::assert(right_4 == left_4, "prefix_magnetic_flux/adjacent_fWb_aWb: reverse");
-    std::test::assert_eq_int(left_4 / 1aWb, k * 1000, "prefix_magnetic_flux/adjacent_fWb_aWb: target count");
-    std::test::assert_eq_int(right_4 / 1fWb, k * 1, "prefix_magnetic_flux/adjacent_fWb_aWb: source count");
+    std::test::assert_eq_int(
+        left_4 / 1aWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_fWb_aWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_4 / 1fWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_fWb_aWb: source count",
+    );
 
     // 1 pWb = 1000 fWb
     let source_5: Denomination19 = 1pWb;
@@ -91,8 +131,16 @@ fn check_runtime(k: Int) {
     let right_5 = k * target_5;
     std::test::assert(left_5 == right_5, "prefix_magnetic_flux/adjacent_pWb_fWb: forward");
     std::test::assert(right_5 == left_5, "prefix_magnetic_flux/adjacent_pWb_fWb: reverse");
-    std::test::assert_eq_int(left_5 / 1fWb, k * 1000, "prefix_magnetic_flux/adjacent_pWb_fWb: target count");
-    std::test::assert_eq_int(right_5 / 1pWb, k * 1, "prefix_magnetic_flux/adjacent_pWb_fWb: source count");
+    std::test::assert_eq_int(
+        left_5 / 1fWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_pWb_fWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_5 / 1pWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_pWb_fWb: source count",
+    );
 
     // 1 nWb = 1000 pWb
     let source_6: Denomination18 = 1nWb;
@@ -101,8 +149,16 @@ fn check_runtime(k: Int) {
     let right_6 = k * target_6;
     std::test::assert(left_6 == right_6, "prefix_magnetic_flux/adjacent_nWb_pWb: forward");
     std::test::assert(right_6 == left_6, "prefix_magnetic_flux/adjacent_nWb_pWb: reverse");
-    std::test::assert_eq_int(left_6 / 1pWb, k * 1000, "prefix_magnetic_flux/adjacent_nWb_pWb: target count");
-    std::test::assert_eq_int(right_6 / 1nWb, k * 1, "prefix_magnetic_flux/adjacent_nWb_pWb: source count");
+    std::test::assert_eq_int(
+        left_6 / 1pWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_nWb_pWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_6 / 1nWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_nWb_pWb: source count",
+    );
 
     // 1 uWb = 1000 nWb
     let source_7: Denomination22 = 1uWb;
@@ -111,8 +167,16 @@ fn check_runtime(k: Int) {
     let right_7 = k * target_7;
     std::test::assert(left_7 == right_7, "prefix_magnetic_flux/adjacent_uWb_nWb: forward");
     std::test::assert(right_7 == left_7, "prefix_magnetic_flux/adjacent_uWb_nWb: reverse");
-    std::test::assert_eq_int(left_7 / 1nWb, k * 1000, "prefix_magnetic_flux/adjacent_uWb_nWb: target count");
-    std::test::assert_eq_int(right_7 / 1uWb, k * 1, "prefix_magnetic_flux/adjacent_uWb_nWb: source count");
+    std::test::assert_eq_int(
+        left_7 / 1nWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_uWb_nWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_7 / 1uWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_uWb_nWb: source count",
+    );
 
     // 1 mWb = 1000 uWb
     let source_8: Denomination17 = 1mWb;
@@ -121,8 +185,16 @@ fn check_runtime(k: Int) {
     let right_8 = k * target_8;
     std::test::assert(left_8 == right_8, "prefix_magnetic_flux/adjacent_mWb_uWb: forward");
     std::test::assert(right_8 == left_8, "prefix_magnetic_flux/adjacent_mWb_uWb: reverse");
-    std::test::assert_eq_int(left_8 / 1uWb, k * 1000, "prefix_magnetic_flux/adjacent_mWb_uWb: target count");
-    std::test::assert_eq_int(right_8 / 1mWb, k * 1, "prefix_magnetic_flux/adjacent_mWb_uWb: source count");
+    std::test::assert_eq_int(
+        left_8 / 1uWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_mWb_uWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_8 / 1mWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_mWb_uWb: source count",
+    );
 
     // 1 cWb = 10 mWb
     let source_9: Denomination11 = 1cWb;
@@ -131,8 +203,16 @@ fn check_runtime(k: Int) {
     let right_9 = k * target_9;
     std::test::assert(left_9 == right_9, "prefix_magnetic_flux/adjacent_cWb_mWb: forward");
     std::test::assert(right_9 == left_9, "prefix_magnetic_flux/adjacent_cWb_mWb: reverse");
-    std::test::assert_eq_int(left_9 / 1mWb, k * 10, "prefix_magnetic_flux/adjacent_cWb_mWb: target count");
-    std::test::assert_eq_int(right_9 / 1cWb, k * 1, "prefix_magnetic_flux/adjacent_cWb_mWb: source count");
+    std::test::assert_eq_int(
+        left_9 / 1mWb,
+        k * 10,
+        "prefix_magnetic_flux/adjacent_cWb_mWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_9 / 1cWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_cWb_mWb: source count",
+    );
 
     // 1 dWb = 10 cWb
     let source_10: Denomination12 = 1dWb;
@@ -141,8 +221,16 @@ fn check_runtime(k: Int) {
     let right_10 = k * target_10;
     std::test::assert(left_10 == right_10, "prefix_magnetic_flux/adjacent_dWb_cWb: forward");
     std::test::assert(right_10 == left_10, "prefix_magnetic_flux/adjacent_dWb_cWb: reverse");
-    std::test::assert_eq_int(left_10 / 1cWb, k * 10, "prefix_magnetic_flux/adjacent_dWb_cWb: target count");
-    std::test::assert_eq_int(right_10 / 1dWb, k * 1, "prefix_magnetic_flux/adjacent_dWb_cWb: source count");
+    std::test::assert_eq_int(
+        left_10 / 1cWb,
+        k * 10,
+        "prefix_magnetic_flux/adjacent_dWb_cWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_10 / 1dWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_dWb_cWb: source count",
+    );
 
     // 1 Wb = 10 dWb
     let source_11: Denomination7 = 1Wb;
@@ -151,8 +239,16 @@ fn check_runtime(k: Int) {
     let right_11 = k * target_11;
     std::test::assert(left_11 == right_11, "prefix_magnetic_flux/adjacent_Wb_dWb: forward");
     std::test::assert(right_11 == left_11, "prefix_magnetic_flux/adjacent_Wb_dWb: reverse");
-    std::test::assert_eq_int(left_11 / 1dWb, k * 10, "prefix_magnetic_flux/adjacent_Wb_dWb: target count");
-    std::test::assert_eq_int(right_11 / 1Wb, k * 1, "prefix_magnetic_flux/adjacent_Wb_dWb: source count");
+    std::test::assert_eq_int(
+        left_11 / 1dWb,
+        k * 10,
+        "prefix_magnetic_flux/adjacent_Wb_dWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_11 / 1Wb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_Wb_dWb: source count",
+    );
 
     // 1 daWb = 10 Wb
     let source_12: Denomination13 = 1daWb;
@@ -161,8 +257,16 @@ fn check_runtime(k: Int) {
     let right_12 = k * target_12;
     std::test::assert(left_12 == right_12, "prefix_magnetic_flux/adjacent_daWb_Wb: forward");
     std::test::assert(right_12 == left_12, "prefix_magnetic_flux/adjacent_daWb_Wb: reverse");
-    std::test::assert_eq_int(left_12 / 1Wb, k * 10, "prefix_magnetic_flux/adjacent_daWb_Wb: target count");
-    std::test::assert_eq_int(right_12 / 1daWb, k * 1, "prefix_magnetic_flux/adjacent_daWb_Wb: source count");
+    std::test::assert_eq_int(
+        left_12 / 1Wb,
+        k * 10,
+        "prefix_magnetic_flux/adjacent_daWb_Wb: target count",
+    );
+    std::test::assert_eq_int(
+        right_12 / 1daWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_daWb_Wb: source count",
+    );
 
     // 1 hWb = 10 daWb
     let source_13: Denomination15 = 1hWb;
@@ -171,8 +275,16 @@ fn check_runtime(k: Int) {
     let right_13 = k * target_13;
     std::test::assert(left_13 == right_13, "prefix_magnetic_flux/adjacent_hWb_daWb: forward");
     std::test::assert(right_13 == left_13, "prefix_magnetic_flux/adjacent_hWb_daWb: reverse");
-    std::test::assert_eq_int(left_13 / 1daWb, k * 10, "prefix_magnetic_flux/adjacent_hWb_daWb: target count");
-    std::test::assert_eq_int(right_13 / 1hWb, k * 1, "prefix_magnetic_flux/adjacent_hWb_daWb: source count");
+    std::test::assert_eq_int(
+        left_13 / 1daWb,
+        k * 10,
+        "prefix_magnetic_flux/adjacent_hWb_daWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_13 / 1hWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_hWb_daWb: source count",
+    );
 
     // 1 kWb = 10 hWb
     let source_14: Denomination16 = 1kWb;
@@ -181,8 +293,16 @@ fn check_runtime(k: Int) {
     let right_14 = k * target_14;
     std::test::assert(left_14 == right_14, "prefix_magnetic_flux/adjacent_kWb_hWb: forward");
     std::test::assert(right_14 == left_14, "prefix_magnetic_flux/adjacent_kWb_hWb: reverse");
-    std::test::assert_eq_int(left_14 / 1hWb, k * 10, "prefix_magnetic_flux/adjacent_kWb_hWb: target count");
-    std::test::assert_eq_int(right_14 / 1kWb, k * 1, "prefix_magnetic_flux/adjacent_kWb_hWb: source count");
+    std::test::assert_eq_int(
+        left_14 / 1hWb,
+        k * 10,
+        "prefix_magnetic_flux/adjacent_kWb_hWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_14 / 1kWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_kWb_hWb: source count",
+    );
 
     // 1 MWb = 1000 kWb
     let source_15: Denomination2 = 1MWb;
@@ -191,8 +311,16 @@ fn check_runtime(k: Int) {
     let right_15 = k * target_15;
     std::test::assert(left_15 == right_15, "prefix_magnetic_flux/adjacent_MWb_kWb: forward");
     std::test::assert(right_15 == left_15, "prefix_magnetic_flux/adjacent_MWb_kWb: reverse");
-    std::test::assert_eq_int(left_15 / 1kWb, k * 1000, "prefix_magnetic_flux/adjacent_MWb_kWb: target count");
-    std::test::assert_eq_int(right_15 / 1MWb, k * 1, "prefix_magnetic_flux/adjacent_MWb_kWb: source count");
+    std::test::assert_eq_int(
+        left_15 / 1kWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_MWb_kWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_15 / 1MWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_MWb_kWb: source count",
+    );
 
     // 1 GWb = 1000 MWb
     let source_16: Denomination1 = 1GWb;
@@ -201,8 +329,16 @@ fn check_runtime(k: Int) {
     let right_16 = k * target_16;
     std::test::assert(left_16 == right_16, "prefix_magnetic_flux/adjacent_GWb_MWb: forward");
     std::test::assert(right_16 == left_16, "prefix_magnetic_flux/adjacent_GWb_MWb: reverse");
-    std::test::assert_eq_int(left_16 / 1MWb, k * 1000, "prefix_magnetic_flux/adjacent_GWb_MWb: target count");
-    std::test::assert_eq_int(right_16 / 1GWb, k * 1, "prefix_magnetic_flux/adjacent_GWb_MWb: source count");
+    std::test::assert_eq_int(
+        left_16 / 1MWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_GWb_MWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_16 / 1GWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_GWb_MWb: source count",
+    );
 
     // 1 TWb = 1000 GWb
     let source_17: Denomination6 = 1TWb;
@@ -211,8 +347,16 @@ fn check_runtime(k: Int) {
     let right_17 = k * target_17;
     std::test::assert(left_17 == right_17, "prefix_magnetic_flux/adjacent_TWb_GWb: forward");
     std::test::assert(right_17 == left_17, "prefix_magnetic_flux/adjacent_TWb_GWb: reverse");
-    std::test::assert_eq_int(left_17 / 1GWb, k * 1000, "prefix_magnetic_flux/adjacent_TWb_GWb: target count");
-    std::test::assert_eq_int(right_17 / 1TWb, k * 1, "prefix_magnetic_flux/adjacent_TWb_GWb: source count");
+    std::test::assert_eq_int(
+        left_17 / 1GWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_TWb_GWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_17 / 1TWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_TWb_GWb: source count",
+    );
 
     // 1 PWb = 1000 TWb
     let source_18: Denomination3 = 1PWb;
@@ -221,8 +365,16 @@ fn check_runtime(k: Int) {
     let right_18 = k * target_18;
     std::test::assert(left_18 == right_18, "prefix_magnetic_flux/adjacent_PWb_TWb: forward");
     std::test::assert(right_18 == left_18, "prefix_magnetic_flux/adjacent_PWb_TWb: reverse");
-    std::test::assert_eq_int(left_18 / 1TWb, k * 1000, "prefix_magnetic_flux/adjacent_PWb_TWb: target count");
-    std::test::assert_eq_int(right_18 / 1PWb, k * 1, "prefix_magnetic_flux/adjacent_PWb_TWb: source count");
+    std::test::assert_eq_int(
+        left_18 / 1TWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_PWb_TWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_18 / 1PWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_PWb_TWb: source count",
+    );
 
     // 1 EWb = 1000 PWb
     let source_19: Denomination0 = 1EWb;
@@ -231,8 +383,16 @@ fn check_runtime(k: Int) {
     let right_19 = k * target_19;
     std::test::assert(left_19 == right_19, "prefix_magnetic_flux/adjacent_EWb_PWb: forward");
     std::test::assert(right_19 == left_19, "prefix_magnetic_flux/adjacent_EWb_PWb: reverse");
-    std::test::assert_eq_int(left_19 / 1PWb, k * 1000, "prefix_magnetic_flux/adjacent_EWb_PWb: target count");
-    std::test::assert_eq_int(right_19 / 1EWb, k * 1, "prefix_magnetic_flux/adjacent_EWb_PWb: source count");
+    std::test::assert_eq_int(
+        left_19 / 1PWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_EWb_PWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_19 / 1EWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_EWb_PWb: source count",
+    );
 
     // 1 ZWb = 1000 EWb
     let source_20: Denomination9 = 1ZWb;
@@ -241,8 +401,16 @@ fn check_runtime(k: Int) {
     let right_20 = k * target_20;
     std::test::assert(left_20 == right_20, "prefix_magnetic_flux/adjacent_ZWb_EWb: forward");
     std::test::assert(right_20 == left_20, "prefix_magnetic_flux/adjacent_ZWb_EWb: reverse");
-    std::test::assert_eq_int(left_20 / 1EWb, k * 1000, "prefix_magnetic_flux/adjacent_ZWb_EWb: target count");
-    std::test::assert_eq_int(right_20 / 1ZWb, k * 1, "prefix_magnetic_flux/adjacent_ZWb_EWb: source count");
+    std::test::assert_eq_int(
+        left_20 / 1EWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_ZWb_EWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_20 / 1ZWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_ZWb_EWb: source count",
+    );
 
     // 1 YWb = 1000 ZWb
     let source_21: Denomination8 = 1YWb;
@@ -251,8 +419,16 @@ fn check_runtime(k: Int) {
     let right_21 = k * target_21;
     std::test::assert(left_21 == right_21, "prefix_magnetic_flux/adjacent_YWb_ZWb: forward");
     std::test::assert(right_21 == left_21, "prefix_magnetic_flux/adjacent_YWb_ZWb: reverse");
-    std::test::assert_eq_int(left_21 / 1ZWb, k * 1000, "prefix_magnetic_flux/adjacent_YWb_ZWb: target count");
-    std::test::assert_eq_int(right_21 / 1YWb, k * 1, "prefix_magnetic_flux/adjacent_YWb_ZWb: source count");
+    std::test::assert_eq_int(
+        left_21 / 1ZWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_YWb_ZWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_21 / 1YWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_YWb_ZWb: source count",
+    );
 
     // 1 RWb = 1000 YWb
     let source_22: Denomination5 = 1RWb;
@@ -261,8 +437,16 @@ fn check_runtime(k: Int) {
     let right_22 = k * target_22;
     std::test::assert(left_22 == right_22, "prefix_magnetic_flux/adjacent_RWb_YWb: forward");
     std::test::assert(right_22 == left_22, "prefix_magnetic_flux/adjacent_RWb_YWb: reverse");
-    std::test::assert_eq_int(left_22 / 1YWb, k * 1000, "prefix_magnetic_flux/adjacent_RWb_YWb: target count");
-    std::test::assert_eq_int(right_22 / 1RWb, k * 1, "prefix_magnetic_flux/adjacent_RWb_YWb: source count");
+    std::test::assert_eq_int(
+        left_22 / 1YWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_RWb_YWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_22 / 1RWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_RWb_YWb: source count",
+    );
 
     // 1 QWb = 1000 RWb
     let source_23: Denomination4 = 1QWb;
@@ -271,8 +455,16 @@ fn check_runtime(k: Int) {
     let right_23 = k * target_23;
     std::test::assert(left_23 == right_23, "prefix_magnetic_flux/adjacent_QWb_RWb: forward");
     std::test::assert(right_23 == left_23, "prefix_magnetic_flux/adjacent_QWb_RWb: reverse");
-    std::test::assert_eq_int(left_23 / 1RWb, k * 1000, "prefix_magnetic_flux/adjacent_QWb_RWb: target count");
-    std::test::assert_eq_int(right_23 / 1QWb, k * 1, "prefix_magnetic_flux/adjacent_QWb_RWb: source count");
+    std::test::assert_eq_int(
+        left_23 / 1RWb,
+        k * 1000,
+        "prefix_magnetic_flux/adjacent_QWb_RWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_23 / 1QWb,
+        k * 1,
+        "prefix_magnetic_flux/adjacent_QWb_RWb: source count",
+    );
 
     // 1000000000000000000 aWb = 1 Wb
     let source_24: Denomination10 = 1000000000000000000aWb;
@@ -281,8 +473,16 @@ fn check_runtime(k: Int) {
     let right_24 = k * target_24;
     std::test::assert(left_24 == right_24, "prefix_magnetic_flux/base_anchor_aWb: forward");
     std::test::assert(right_24 == left_24, "prefix_magnetic_flux/base_anchor_aWb: reverse");
-    std::test::assert_eq_int(left_24 / 1Wb, k * 1, "prefix_magnetic_flux/base_anchor_aWb: target count");
-    std::test::assert_eq_int(right_24 / 1aWb, k * 1000000000000000000, "prefix_magnetic_flux/base_anchor_aWb: source count");
+    std::test::assert_eq_int(
+        left_24 / 1Wb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_aWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_24 / 1aWb,
+        k * 1000000000000000000,
+        "prefix_magnetic_flux/base_anchor_aWb: source count",
+    );
 
     // 1000000000000000 fWb = 1 Wb
     let source_25: Denomination14 = 1000000000000000fWb;
@@ -291,8 +491,16 @@ fn check_runtime(k: Int) {
     let right_25 = k * target_25;
     std::test::assert(left_25 == right_25, "prefix_magnetic_flux/base_anchor_fWb: forward");
     std::test::assert(right_25 == left_25, "prefix_magnetic_flux/base_anchor_fWb: reverse");
-    std::test::assert_eq_int(left_25 / 1Wb, k * 1, "prefix_magnetic_flux/base_anchor_fWb: target count");
-    std::test::assert_eq_int(right_25 / 1fWb, k * 1000000000000000, "prefix_magnetic_flux/base_anchor_fWb: source count");
+    std::test::assert_eq_int(
+        left_25 / 1Wb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_fWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_25 / 1fWb,
+        k * 1000000000000000,
+        "prefix_magnetic_flux/base_anchor_fWb: source count",
+    );
 
     // 1000000000000 pWb = 1 Wb
     let source_26: Denomination19 = 1000000000000pWb;
@@ -301,8 +509,16 @@ fn check_runtime(k: Int) {
     let right_26 = k * target_26;
     std::test::assert(left_26 == right_26, "prefix_magnetic_flux/base_anchor_pWb: forward");
     std::test::assert(right_26 == left_26, "prefix_magnetic_flux/base_anchor_pWb: reverse");
-    std::test::assert_eq_int(left_26 / 1Wb, k * 1, "prefix_magnetic_flux/base_anchor_pWb: target count");
-    std::test::assert_eq_int(right_26 / 1pWb, k * 1000000000000, "prefix_magnetic_flux/base_anchor_pWb: source count");
+    std::test::assert_eq_int(
+        left_26 / 1Wb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_pWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_26 / 1pWb,
+        k * 1000000000000,
+        "prefix_magnetic_flux/base_anchor_pWb: source count",
+    );
 
     // 1000000000 nWb = 1 Wb
     let source_27: Denomination18 = 1000000000nWb;
@@ -311,8 +527,16 @@ fn check_runtime(k: Int) {
     let right_27 = k * target_27;
     std::test::assert(left_27 == right_27, "prefix_magnetic_flux/base_anchor_nWb: forward");
     std::test::assert(right_27 == left_27, "prefix_magnetic_flux/base_anchor_nWb: reverse");
-    std::test::assert_eq_int(left_27 / 1Wb, k * 1, "prefix_magnetic_flux/base_anchor_nWb: target count");
-    std::test::assert_eq_int(right_27 / 1nWb, k * 1000000000, "prefix_magnetic_flux/base_anchor_nWb: source count");
+    std::test::assert_eq_int(
+        left_27 / 1Wb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_nWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_27 / 1nWb,
+        k * 1000000000,
+        "prefix_magnetic_flux/base_anchor_nWb: source count",
+    );
 
     // 1000000 uWb = 1 Wb
     let source_28: Denomination22 = 1000000uWb;
@@ -321,8 +545,16 @@ fn check_runtime(k: Int) {
     let right_28 = k * target_28;
     std::test::assert(left_28 == right_28, "prefix_magnetic_flux/base_anchor_uWb: forward");
     std::test::assert(right_28 == left_28, "prefix_magnetic_flux/base_anchor_uWb: reverse");
-    std::test::assert_eq_int(left_28 / 1Wb, k * 1, "prefix_magnetic_flux/base_anchor_uWb: target count");
-    std::test::assert_eq_int(right_28 / 1uWb, k * 1000000, "prefix_magnetic_flux/base_anchor_uWb: source count");
+    std::test::assert_eq_int(
+        left_28 / 1Wb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_uWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_28 / 1uWb,
+        k * 1000000,
+        "prefix_magnetic_flux/base_anchor_uWb: source count",
+    );
 
     // 1000 mWb = 1 Wb
     let source_29: Denomination17 = 1000mWb;
@@ -331,8 +563,16 @@ fn check_runtime(k: Int) {
     let right_29 = k * target_29;
     std::test::assert(left_29 == right_29, "prefix_magnetic_flux/base_anchor_mWb: forward");
     std::test::assert(right_29 == left_29, "prefix_magnetic_flux/base_anchor_mWb: reverse");
-    std::test::assert_eq_int(left_29 / 1Wb, k * 1, "prefix_magnetic_flux/base_anchor_mWb: target count");
-    std::test::assert_eq_int(right_29 / 1mWb, k * 1000, "prefix_magnetic_flux/base_anchor_mWb: source count");
+    std::test::assert_eq_int(
+        left_29 / 1Wb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_mWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_29 / 1mWb,
+        k * 1000,
+        "prefix_magnetic_flux/base_anchor_mWb: source count",
+    );
 
     // 100 cWb = 1 Wb
     let source_30: Denomination11 = 100cWb;
@@ -341,8 +581,16 @@ fn check_runtime(k: Int) {
     let right_30 = k * target_30;
     std::test::assert(left_30 == right_30, "prefix_magnetic_flux/base_anchor_cWb: forward");
     std::test::assert(right_30 == left_30, "prefix_magnetic_flux/base_anchor_cWb: reverse");
-    std::test::assert_eq_int(left_30 / 1Wb, k * 1, "prefix_magnetic_flux/base_anchor_cWb: target count");
-    std::test::assert_eq_int(right_30 / 1cWb, k * 100, "prefix_magnetic_flux/base_anchor_cWb: source count");
+    std::test::assert_eq_int(
+        left_30 / 1Wb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_cWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_30 / 1cWb,
+        k * 100,
+        "prefix_magnetic_flux/base_anchor_cWb: source count",
+    );
 
     // 1 hWb = 100 Wb
     let source_31: Denomination15 = 1hWb;
@@ -351,8 +599,16 @@ fn check_runtime(k: Int) {
     let right_31 = k * target_31;
     std::test::assert(left_31 == right_31, "prefix_magnetic_flux/base_anchor_hWb: forward");
     std::test::assert(right_31 == left_31, "prefix_magnetic_flux/base_anchor_hWb: reverse");
-    std::test::assert_eq_int(left_31 / 1Wb, k * 100, "prefix_magnetic_flux/base_anchor_hWb: target count");
-    std::test::assert_eq_int(right_31 / 1hWb, k * 1, "prefix_magnetic_flux/base_anchor_hWb: source count");
+    std::test::assert_eq_int(
+        left_31 / 1Wb,
+        k * 100,
+        "prefix_magnetic_flux/base_anchor_hWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_31 / 1hWb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_hWb: source count",
+    );
 
     // 1 kWb = 1000 Wb
     let source_32: Denomination16 = 1kWb;
@@ -361,8 +617,16 @@ fn check_runtime(k: Int) {
     let right_32 = k * target_32;
     std::test::assert(left_32 == right_32, "prefix_magnetic_flux/base_anchor_kWb: forward");
     std::test::assert(right_32 == left_32, "prefix_magnetic_flux/base_anchor_kWb: reverse");
-    std::test::assert_eq_int(left_32 / 1Wb, k * 1000, "prefix_magnetic_flux/base_anchor_kWb: target count");
-    std::test::assert_eq_int(right_32 / 1kWb, k * 1, "prefix_magnetic_flux/base_anchor_kWb: source count");
+    std::test::assert_eq_int(
+        left_32 / 1Wb,
+        k * 1000,
+        "prefix_magnetic_flux/base_anchor_kWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_32 / 1kWb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_kWb: source count",
+    );
 
     // 1 MWb = 1000000 Wb
     let source_33: Denomination2 = 1MWb;
@@ -371,8 +635,16 @@ fn check_runtime(k: Int) {
     let right_33 = k * target_33;
     std::test::assert(left_33 == right_33, "prefix_magnetic_flux/base_anchor_MWb: forward");
     std::test::assert(right_33 == left_33, "prefix_magnetic_flux/base_anchor_MWb: reverse");
-    std::test::assert_eq_int(left_33 / 1Wb, k * 1000000, "prefix_magnetic_flux/base_anchor_MWb: target count");
-    std::test::assert_eq_int(right_33 / 1MWb, k * 1, "prefix_magnetic_flux/base_anchor_MWb: source count");
+    std::test::assert_eq_int(
+        left_33 / 1Wb,
+        k * 1000000,
+        "prefix_magnetic_flux/base_anchor_MWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_33 / 1MWb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_MWb: source count",
+    );
 
     // 1 GWb = 1000000000 Wb
     let source_34: Denomination1 = 1GWb;
@@ -381,8 +653,16 @@ fn check_runtime(k: Int) {
     let right_34 = k * target_34;
     std::test::assert(left_34 == right_34, "prefix_magnetic_flux/base_anchor_GWb: forward");
     std::test::assert(right_34 == left_34, "prefix_magnetic_flux/base_anchor_GWb: reverse");
-    std::test::assert_eq_int(left_34 / 1Wb, k * 1000000000, "prefix_magnetic_flux/base_anchor_GWb: target count");
-    std::test::assert_eq_int(right_34 / 1GWb, k * 1, "prefix_magnetic_flux/base_anchor_GWb: source count");
+    std::test::assert_eq_int(
+        left_34 / 1Wb,
+        k * 1000000000,
+        "prefix_magnetic_flux/base_anchor_GWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_34 / 1GWb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_GWb: source count",
+    );
 
     // 1 TWb = 1000000000000 Wb
     let source_35: Denomination6 = 1TWb;
@@ -391,8 +671,16 @@ fn check_runtime(k: Int) {
     let right_35 = k * target_35;
     std::test::assert(left_35 == right_35, "prefix_magnetic_flux/base_anchor_TWb: forward");
     std::test::assert(right_35 == left_35, "prefix_magnetic_flux/base_anchor_TWb: reverse");
-    std::test::assert_eq_int(left_35 / 1Wb, k * 1000000000000, "prefix_magnetic_flux/base_anchor_TWb: target count");
-    std::test::assert_eq_int(right_35 / 1TWb, k * 1, "prefix_magnetic_flux/base_anchor_TWb: source count");
+    std::test::assert_eq_int(
+        left_35 / 1Wb,
+        k * 1000000000000,
+        "prefix_magnetic_flux/base_anchor_TWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_35 / 1TWb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_TWb: source count",
+    );
 
     // 1 PWb = 1000000000000000 Wb
     let source_36: Denomination3 = 1PWb;
@@ -401,8 +689,16 @@ fn check_runtime(k: Int) {
     let right_36 = k * target_36;
     std::test::assert(left_36 == right_36, "prefix_magnetic_flux/base_anchor_PWb: forward");
     std::test::assert(right_36 == left_36, "prefix_magnetic_flux/base_anchor_PWb: reverse");
-    std::test::assert_eq_int(left_36 / 1Wb, k * 1000000000000000, "prefix_magnetic_flux/base_anchor_PWb: target count");
-    std::test::assert_eq_int(right_36 / 1PWb, k * 1, "prefix_magnetic_flux/base_anchor_PWb: source count");
+    std::test::assert_eq_int(
+        left_36 / 1Wb,
+        k * 1000000000000000,
+        "prefix_magnetic_flux/base_anchor_PWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_36 / 1PWb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_PWb: source count",
+    );
 
     // 1 EWb = 1000000000000000000 Wb
     let source_37: Denomination0 = 1EWb;
@@ -411,8 +707,16 @@ fn check_runtime(k: Int) {
     let right_37 = k * target_37;
     std::test::assert(left_37 == right_37, "prefix_magnetic_flux/base_anchor_EWb: forward");
     std::test::assert(right_37 == left_37, "prefix_magnetic_flux/base_anchor_EWb: reverse");
-    std::test::assert_eq_int(left_37 / 1Wb, k * 1000000000000000000, "prefix_magnetic_flux/base_anchor_EWb: target count");
-    std::test::assert_eq_int(right_37 / 1EWb, k * 1, "prefix_magnetic_flux/base_anchor_EWb: source count");
+    std::test::assert_eq_int(
+        left_37 / 1Wb,
+        k * 1000000000000000000,
+        "prefix_magnetic_flux/base_anchor_EWb: target count",
+    );
+    std::test::assert_eq_int(
+        right_37 / 1EWb,
+        k * 1,
+        "prefix_magnetic_flux/base_anchor_EWb: source count",
+    );
 
 }
 

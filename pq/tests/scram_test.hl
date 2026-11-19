@@ -161,7 +161,11 @@ fn main() {
         0, "scram_xor returns empty Bytes on a length mismatch instead of silently truncating");
 
     // ============= gs2 header / empty-username client-first =============
-    std::test::assert_eq_str(scram::gs2_header(), "n,,", "gs2 header is 'n,,' (no channel binding)");
+    std::test::assert_eq_str(
+        scram::gs2_header(),
+        "n,,",
+        "gs2 header is 'n,,' (no channel binding)",
+    );
     std::test::assert_eq_str(
         std::text::base64::encode(std::bytes::from_string(scram::gs2_header())), "biws",
         "base64(gs2 header) == biws (the fixed c= value)");

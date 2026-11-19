@@ -278,7 +278,7 @@ locus Supervisor {
                 println("supervisor: intensity exceeded (",
                     self.restart_count, " > ", self.max_restarts,
                     " in ", self.window_seconds, "s) — bubbling");
-                bubble (err);
+                bubble(err);
             } else {
                 self.route_by_strategy(c, err);
             }
@@ -297,12 +297,12 @@ locus Supervisor {
         if kind == "escalate" {
             println("supervisor: strategy=escalate; bubbling closure=",
                 err.closure, " from child=", c.name);
-            bubble (err);
+            bubble(err);
         } else {
             if kind == "one_for_one" {
                 println("supervisor: one_for_one restart child=", c.name,
                     " (last_error=", c.last_error, ")");
-                restart (c);
+                restart(c);
             } else {
                 if kind == "rest_for_one" {
                     // TODO: needs sibling iteration that supports
@@ -312,7 +312,7 @@ locus Supervisor {
                     // example/one-for-one. See FRICTION.log.
                     println("supervisor: rest_for_one (degraded — restarting only c=",
                         c.name, "); see FRICTION.log");
-                    restart (c);
+                    restart(c);
                 } else {
                     if kind == "one_for_all" {
                         // TODO: needs `for sib in self.children {
@@ -321,14 +321,14 @@ locus Supervisor {
                         // a friction note. See FRICTION.log.
                         println("supervisor: one_for_all (degraded — restarting only c=",
                             c.name, "); see FRICTION.log");
-                        restart (c);
+                        restart(c);
                     } else {
                         // Unknown strategy.kind — defensive default:
                         // bubble so the problem surfaces rather than
                         // silently absorbing.
                         println("supervisor: unknown strategy kind=", kind,
                             "; bubbling");
-                        bubble (err);
+                        bubble(err);
                     }
                 }
             }

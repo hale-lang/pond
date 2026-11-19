@@ -171,7 +171,11 @@ fn check_runtime(k: Int) {
     let right_13 = k * target_13;
     std::test::assert(left_13 == right_13, "prefix_voltage/adjacent_hV_daV: forward");
     std::test::assert(right_13 == left_13, "prefix_voltage/adjacent_hV_daV: reverse");
-    std::test::assert_eq_int(left_13 / 1daV, k * 10, "prefix_voltage/adjacent_hV_daV: target count");
+    std::test::assert_eq_int(
+        left_13 / 1daV,
+        k * 10,
+        "prefix_voltage/adjacent_hV_daV: target count",
+    );
     std::test::assert_eq_int(right_13 / 1hV, k * 1, "prefix_voltage/adjacent_hV_daV: source count");
 
     // 1 kV = 10 hV
@@ -191,7 +195,11 @@ fn check_runtime(k: Int) {
     let right_15 = k * target_15;
     std::test::assert(left_15 == right_15, "prefix_voltage/adjacent_MV_kV: forward");
     std::test::assert(right_15 == left_15, "prefix_voltage/adjacent_MV_kV: reverse");
-    std::test::assert_eq_int(left_15 / 1kV, k * 1000, "prefix_voltage/adjacent_MV_kV: target count");
+    std::test::assert_eq_int(
+        left_15 / 1kV,
+        k * 1000,
+        "prefix_voltage/adjacent_MV_kV: target count",
+    );
     std::test::assert_eq_int(right_15 / 1MV, k * 1, "prefix_voltage/adjacent_MV_kV: source count");
 
     // 1 GV = 1000 MV
@@ -201,7 +209,11 @@ fn check_runtime(k: Int) {
     let right_16 = k * target_16;
     std::test::assert(left_16 == right_16, "prefix_voltage/adjacent_GV_MV: forward");
     std::test::assert(right_16 == left_16, "prefix_voltage/adjacent_GV_MV: reverse");
-    std::test::assert_eq_int(left_16 / 1MV, k * 1000, "prefix_voltage/adjacent_GV_MV: target count");
+    std::test::assert_eq_int(
+        left_16 / 1MV,
+        k * 1000,
+        "prefix_voltage/adjacent_GV_MV: target count",
+    );
     std::test::assert_eq_int(right_16 / 1GV, k * 1, "prefix_voltage/adjacent_GV_MV: source count");
 
     // 1 TV = 1000 GV
@@ -211,7 +223,11 @@ fn check_runtime(k: Int) {
     let right_17 = k * target_17;
     std::test::assert(left_17 == right_17, "prefix_voltage/adjacent_TV_GV: forward");
     std::test::assert(right_17 == left_17, "prefix_voltage/adjacent_TV_GV: reverse");
-    std::test::assert_eq_int(left_17 / 1GV, k * 1000, "prefix_voltage/adjacent_TV_GV: target count");
+    std::test::assert_eq_int(
+        left_17 / 1GV,
+        k * 1000,
+        "prefix_voltage/adjacent_TV_GV: target count",
+    );
     std::test::assert_eq_int(right_17 / 1TV, k * 1, "prefix_voltage/adjacent_TV_GV: source count");
 
     // 1 PV = 1000 TV
@@ -221,7 +237,11 @@ fn check_runtime(k: Int) {
     let right_18 = k * target_18;
     std::test::assert(left_18 == right_18, "prefix_voltage/adjacent_PV_TV: forward");
     std::test::assert(right_18 == left_18, "prefix_voltage/adjacent_PV_TV: reverse");
-    std::test::assert_eq_int(left_18 / 1TV, k * 1000, "prefix_voltage/adjacent_PV_TV: target count");
+    std::test::assert_eq_int(
+        left_18 / 1TV,
+        k * 1000,
+        "prefix_voltage/adjacent_PV_TV: target count",
+    );
     std::test::assert_eq_int(right_18 / 1PV, k * 1, "prefix_voltage/adjacent_PV_TV: source count");
 
     // 1 EV = 1000 PV
@@ -231,7 +251,11 @@ fn check_runtime(k: Int) {
     let right_19 = k * target_19;
     std::test::assert(left_19 == right_19, "prefix_voltage/adjacent_EV_PV: forward");
     std::test::assert(right_19 == left_19, "prefix_voltage/adjacent_EV_PV: reverse");
-    std::test::assert_eq_int(left_19 / 1PV, k * 1000, "prefix_voltage/adjacent_EV_PV: target count");
+    std::test::assert_eq_int(
+        left_19 / 1PV,
+        k * 1000,
+        "prefix_voltage/adjacent_EV_PV: target count",
+    );
     std::test::assert_eq_int(right_19 / 1EV, k * 1, "prefix_voltage/adjacent_EV_PV: source count");
 
     // 1 ZV = 1000 EV
@@ -241,7 +265,11 @@ fn check_runtime(k: Int) {
     let right_20 = k * target_20;
     std::test::assert(left_20 == right_20, "prefix_voltage/adjacent_ZV_EV: forward");
     std::test::assert(right_20 == left_20, "prefix_voltage/adjacent_ZV_EV: reverse");
-    std::test::assert_eq_int(left_20 / 1EV, k * 1000, "prefix_voltage/adjacent_ZV_EV: target count");
+    std::test::assert_eq_int(
+        left_20 / 1EV,
+        k * 1000,
+        "prefix_voltage/adjacent_ZV_EV: target count",
+    );
     std::test::assert_eq_int(right_20 / 1ZV, k * 1, "prefix_voltage/adjacent_ZV_EV: source count");
 
     // 1 YV = 1000 ZV
@@ -251,7 +279,11 @@ fn check_runtime(k: Int) {
     let right_21 = k * target_21;
     std::test::assert(left_21 == right_21, "prefix_voltage/adjacent_YV_ZV: forward");
     std::test::assert(right_21 == left_21, "prefix_voltage/adjacent_YV_ZV: reverse");
-    std::test::assert_eq_int(left_21 / 1ZV, k * 1000, "prefix_voltage/adjacent_YV_ZV: target count");
+    std::test::assert_eq_int(
+        left_21 / 1ZV,
+        k * 1000,
+        "prefix_voltage/adjacent_YV_ZV: target count",
+    );
     std::test::assert_eq_int(right_21 / 1YV, k * 1, "prefix_voltage/adjacent_YV_ZV: source count");
 
     // 1 RV = 1000 YV
@@ -261,7 +293,11 @@ fn check_runtime(k: Int) {
     let right_22 = k * target_22;
     std::test::assert(left_22 == right_22, "prefix_voltage/adjacent_RV_YV: forward");
     std::test::assert(right_22 == left_22, "prefix_voltage/adjacent_RV_YV: reverse");
-    std::test::assert_eq_int(left_22 / 1YV, k * 1000, "prefix_voltage/adjacent_RV_YV: target count");
+    std::test::assert_eq_int(
+        left_22 / 1YV,
+        k * 1000,
+        "prefix_voltage/adjacent_RV_YV: target count",
+    );
     std::test::assert_eq_int(right_22 / 1RV, k * 1, "prefix_voltage/adjacent_RV_YV: source count");
 
     // 1 QV = 1000 RV
@@ -271,7 +307,11 @@ fn check_runtime(k: Int) {
     let right_23 = k * target_23;
     std::test::assert(left_23 == right_23, "prefix_voltage/adjacent_QV_RV: forward");
     std::test::assert(right_23 == left_23, "prefix_voltage/adjacent_QV_RV: reverse");
-    std::test::assert_eq_int(left_23 / 1RV, k * 1000, "prefix_voltage/adjacent_QV_RV: target count");
+    std::test::assert_eq_int(
+        left_23 / 1RV,
+        k * 1000,
+        "prefix_voltage/adjacent_QV_RV: target count",
+    );
     std::test::assert_eq_int(right_23 / 1QV, k * 1, "prefix_voltage/adjacent_QV_RV: source count");
 
     // 1000000000000000000 aV = 1 V
@@ -282,7 +322,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_24 == right_24, "prefix_voltage/base_anchor_aV: forward");
     std::test::assert(right_24 == left_24, "prefix_voltage/base_anchor_aV: reverse");
     std::test::assert_eq_int(left_24 / 1V, k * 1, "prefix_voltage/base_anchor_aV: target count");
-    std::test::assert_eq_int(right_24 / 1aV, k * 1000000000000000000, "prefix_voltage/base_anchor_aV: source count");
+    std::test::assert_eq_int(
+        right_24 / 1aV,
+        k * 1000000000000000000,
+        "prefix_voltage/base_anchor_aV: source count",
+    );
 
     // 1000000000000000 fV = 1 V
     let source_25: Denomination14 = 1000000000000000fV;
@@ -292,7 +336,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_25 == right_25, "prefix_voltage/base_anchor_fV: forward");
     std::test::assert(right_25 == left_25, "prefix_voltage/base_anchor_fV: reverse");
     std::test::assert_eq_int(left_25 / 1V, k * 1, "prefix_voltage/base_anchor_fV: target count");
-    std::test::assert_eq_int(right_25 / 1fV, k * 1000000000000000, "prefix_voltage/base_anchor_fV: source count");
+    std::test::assert_eq_int(
+        right_25 / 1fV,
+        k * 1000000000000000,
+        "prefix_voltage/base_anchor_fV: source count",
+    );
 
     // 1000000000000 pV = 1 V
     let source_26: Denomination19 = 1000000000000pV;
@@ -302,7 +350,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_26 == right_26, "prefix_voltage/base_anchor_pV: forward");
     std::test::assert(right_26 == left_26, "prefix_voltage/base_anchor_pV: reverse");
     std::test::assert_eq_int(left_26 / 1V, k * 1, "prefix_voltage/base_anchor_pV: target count");
-    std::test::assert_eq_int(right_26 / 1pV, k * 1000000000000, "prefix_voltage/base_anchor_pV: source count");
+    std::test::assert_eq_int(
+        right_26 / 1pV,
+        k * 1000000000000,
+        "prefix_voltage/base_anchor_pV: source count",
+    );
 
     // 1000000000 nV = 1 V
     let source_27: Denomination18 = 1000000000nV;
@@ -312,7 +364,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_27 == right_27, "prefix_voltage/base_anchor_nV: forward");
     std::test::assert(right_27 == left_27, "prefix_voltage/base_anchor_nV: reverse");
     std::test::assert_eq_int(left_27 / 1V, k * 1, "prefix_voltage/base_anchor_nV: target count");
-    std::test::assert_eq_int(right_27 / 1nV, k * 1000000000, "prefix_voltage/base_anchor_nV: source count");
+    std::test::assert_eq_int(
+        right_27 / 1nV,
+        k * 1000000000,
+        "prefix_voltage/base_anchor_nV: source count",
+    );
 
     // 1000000 uV = 1 V
     let source_28: Denomination22 = 1000000uV;
@@ -322,7 +378,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_28 == right_28, "prefix_voltage/base_anchor_uV: forward");
     std::test::assert(right_28 == left_28, "prefix_voltage/base_anchor_uV: reverse");
     std::test::assert_eq_int(left_28 / 1V, k * 1, "prefix_voltage/base_anchor_uV: target count");
-    std::test::assert_eq_int(right_28 / 1uV, k * 1000000, "prefix_voltage/base_anchor_uV: source count");
+    std::test::assert_eq_int(
+        right_28 / 1uV,
+        k * 1000000,
+        "prefix_voltage/base_anchor_uV: source count",
+    );
 
     // 1000 mV = 1 V
     let source_29: Denomination17 = 1000mV;
@@ -332,7 +392,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_29 == right_29, "prefix_voltage/base_anchor_mV: forward");
     std::test::assert(right_29 == left_29, "prefix_voltage/base_anchor_mV: reverse");
     std::test::assert_eq_int(left_29 / 1V, k * 1, "prefix_voltage/base_anchor_mV: target count");
-    std::test::assert_eq_int(right_29 / 1mV, k * 1000, "prefix_voltage/base_anchor_mV: source count");
+    std::test::assert_eq_int(
+        right_29 / 1mV,
+        k * 1000,
+        "prefix_voltage/base_anchor_mV: source count",
+    );
 
     // 100 cV = 1 V
     let source_30: Denomination11 = 100cV;
@@ -342,7 +406,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_30 == right_30, "prefix_voltage/base_anchor_cV: forward");
     std::test::assert(right_30 == left_30, "prefix_voltage/base_anchor_cV: reverse");
     std::test::assert_eq_int(left_30 / 1V, k * 1, "prefix_voltage/base_anchor_cV: target count");
-    std::test::assert_eq_int(right_30 / 1cV, k * 100, "prefix_voltage/base_anchor_cV: source count");
+    std::test::assert_eq_int(
+        right_30 / 1cV,
+        k * 100,
+        "prefix_voltage/base_anchor_cV: source count",
+    );
 
     // 1 hV = 100 V
     let source_31: Denomination15 = 1hV;
@@ -371,7 +439,11 @@ fn check_runtime(k: Int) {
     let right_33 = k * target_33;
     std::test::assert(left_33 == right_33, "prefix_voltage/base_anchor_MV: forward");
     std::test::assert(right_33 == left_33, "prefix_voltage/base_anchor_MV: reverse");
-    std::test::assert_eq_int(left_33 / 1V, k * 1000000, "prefix_voltage/base_anchor_MV: target count");
+    std::test::assert_eq_int(
+        left_33 / 1V,
+        k * 1000000,
+        "prefix_voltage/base_anchor_MV: target count",
+    );
     std::test::assert_eq_int(right_33 / 1MV, k * 1, "prefix_voltage/base_anchor_MV: source count");
 
     // 1 GV = 1000000000 V
@@ -381,7 +453,11 @@ fn check_runtime(k: Int) {
     let right_34 = k * target_34;
     std::test::assert(left_34 == right_34, "prefix_voltage/base_anchor_GV: forward");
     std::test::assert(right_34 == left_34, "prefix_voltage/base_anchor_GV: reverse");
-    std::test::assert_eq_int(left_34 / 1V, k * 1000000000, "prefix_voltage/base_anchor_GV: target count");
+    std::test::assert_eq_int(
+        left_34 / 1V,
+        k * 1000000000,
+        "prefix_voltage/base_anchor_GV: target count",
+    );
     std::test::assert_eq_int(right_34 / 1GV, k * 1, "prefix_voltage/base_anchor_GV: source count");
 
     // 1 TV = 1000000000000 V
@@ -391,7 +467,11 @@ fn check_runtime(k: Int) {
     let right_35 = k * target_35;
     std::test::assert(left_35 == right_35, "prefix_voltage/base_anchor_TV: forward");
     std::test::assert(right_35 == left_35, "prefix_voltage/base_anchor_TV: reverse");
-    std::test::assert_eq_int(left_35 / 1V, k * 1000000000000, "prefix_voltage/base_anchor_TV: target count");
+    std::test::assert_eq_int(
+        left_35 / 1V,
+        k * 1000000000000,
+        "prefix_voltage/base_anchor_TV: target count",
+    );
     std::test::assert_eq_int(right_35 / 1TV, k * 1, "prefix_voltage/base_anchor_TV: source count");
 
     // 1 PV = 1000000000000000 V
@@ -401,7 +481,11 @@ fn check_runtime(k: Int) {
     let right_36 = k * target_36;
     std::test::assert(left_36 == right_36, "prefix_voltage/base_anchor_PV: forward");
     std::test::assert(right_36 == left_36, "prefix_voltage/base_anchor_PV: reverse");
-    std::test::assert_eq_int(left_36 / 1V, k * 1000000000000000, "prefix_voltage/base_anchor_PV: target count");
+    std::test::assert_eq_int(
+        left_36 / 1V,
+        k * 1000000000000000,
+        "prefix_voltage/base_anchor_PV: target count",
+    );
     std::test::assert_eq_int(right_36 / 1PV, k * 1, "prefix_voltage/base_anchor_PV: source count");
 
     // 1 EV = 1000000000000000000 V
@@ -411,7 +495,11 @@ fn check_runtime(k: Int) {
     let right_37 = k * target_37;
     std::test::assert(left_37 == right_37, "prefix_voltage/base_anchor_EV: forward");
     std::test::assert(right_37 == left_37, "prefix_voltage/base_anchor_EV: reverse");
-    std::test::assert_eq_int(left_37 / 1V, k * 1000000000000000000, "prefix_voltage/base_anchor_EV: target count");
+    std::test::assert_eq_int(
+        left_37 / 1V,
+        k * 1000000000000000000,
+        "prefix_voltage/base_anchor_EV: target count",
+    );
     std::test::assert_eq_int(right_37 / 1EV, k * 1, "prefix_voltage/base_anchor_EV: source count");
 
 }

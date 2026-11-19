@@ -28,7 +28,11 @@ fn main() {
 
     let s3 = sess::set_value(s2, "user", "bob");
     std::test::assert_eq_str(sess::get_value(s3, "user"), "bob", "overwrite existing key");
-    std::test::assert_eq_str(sess::get_value(s3, "role"), "admin", "sibling key untouched by overwrite");
+    std::test::assert_eq_str(
+        sess::get_value(s3, "role"),
+        "admin",
+        "sibling key untouched by overwrite",
+    );
 
     // ---- sign -> verify round-trip -----------------------------
 

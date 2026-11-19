@@ -55,7 +55,9 @@ fn main() {
 
     let resp101 = ws::build_101_response(rfc_accept());
     let resp101_str = std::str::from_bytes(resp101);
-    std::test::assert_eq_int(std::str::index_of(resp101_str, "HTTP/1.1 101 Switching Protocols\r\n"), 0,
+    std::test::assert_eq_int(
+        std::str::index_of(resp101_str, "HTTP/1.1 101 Switching Protocols\r\n"),
+        0,
         "101 status line first");
     std::test::assert(has_text(resp101_str, "Sec-WebSocket-Accept: " + rfc_accept() + "\r\n"),
         "accept header in 101 response");
@@ -69,7 +71,10 @@ fn main() {
     let with_tail = std::bytes::BytesBuilder { initial_cap: 256 };
     with_tail.append(resp101);
     with_tail.append(std::bytes::from_string("FRAMEBYTES"));
-    let consumed_tail = ws::parse_response(with_tail.finish() or raise, rfc_accept()) or hs_err(err);
+    let consumed_tail = ws::parse_response(
+        with_tail.finish() or raise,
+        rfc_accept(),
+    ) or hs_err(err);
     std::test::assert_eq_int(consumed_tail, len(resp101), "tail after handshake not consumed");
 
     // Empty expected_accept skips the accept check.

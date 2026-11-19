@@ -58,21 +58,34 @@ fn main() {
     let (whole, rest) = negative.split(mm);
     std::test::assert_eq_int(whole, -2, "negative split floors the whole count");
     std::test::assert(rest == 500um, "negative split has a nonnegative residue");
-    std::test::assert(whole * 1mm + rest == negative, "negative split reconstructs the original quantity");
+    std::test::assert(
+        whole * 1mm + rest == negative,
+        "negative split reconstructs the original quantity",
+    );
     let (exact_whole, exact_rest) = measured(-2000).split(mm);
     std::test::assert_eq_int(exact_whole, -2, "exact negative split preserves whole count");
     std::test::assert(exact_rest == 0um, "exact negative split has zero residue");
 
     let elapsed: Duration = 1week + 2h + 30min;
-    std::test::assert_eq_int(elapsed / 1s, 613800, "catalogue week composes with builtin time units");
+    std::test::assert_eq_int(
+        elapsed / 1s,
+        613800,
+        "catalogue week composes with builtin time units",
+    );
     std::test::assert(1000ps == 1ns, "subnanosecond units join the builtin time component");
     let half: Duration = 1500ms / 2 or floor;
     std::test::assert(half == 750ms, "builtin Duration participates in exact quantity arithmetic");
 
     let fraction = measured(1234567) * rate(3);
-    std::test::assert(fraction > 370um && fraction < 371um, "dimensionless multiplication keeps fractional precision");
+    std::test::assert(
+        fraction > 370um && fraction < 371um,
+        "dimensionless multiplication keeps fractional precision",
+    );
     let settled = fraction.in(um) or half_even;
     std::test::assert(settled == 370um, "dimensionless multiplication rounds only at the boundary");
     std::test::assert(2m * 25pct == 500mm, "percent scales a physical quantity");
-    std::test::assert(1one == 100pct && 1pct == 100bp, "dimensionless denominations share one quantity");
+    std::test::assert(
+        1one == 100pct && 1pct == 100bp,
+        "dimensionless denominations share one quantity",
+    );
 }

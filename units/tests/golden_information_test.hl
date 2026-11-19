@@ -228,7 +228,11 @@ fn check_runtime(k: Int) {
     let right_17 = k * target_17;
     std::test::assert(left_17 == right_17, "information/Mibit_to_Kibit: forward");
     std::test::assert(right_17 == left_17, "information/Mibit_to_Kibit: reverse");
-    std::test::assert_eq_int(left_17 / 1Kibit, k * 1024, "information/Mibit_to_Kibit: target count");
+    std::test::assert_eq_int(
+        left_17 / 1Kibit,
+        k * 1024,
+        "information/Mibit_to_Kibit: target count",
+    );
     std::test::assert_eq_int(right_17 / 1Mibit, k * 1, "information/Mibit_to_Kibit: source count");
 
     // 1 Gibit = 1024 Mibit
@@ -238,7 +242,11 @@ fn check_runtime(k: Int) {
     let right_18 = k * target_18;
     std::test::assert(left_18 == right_18, "information/Gibit_to_Mibit: forward");
     std::test::assert(right_18 == left_18, "information/Gibit_to_Mibit: reverse");
-    std::test::assert_eq_int(left_18 / 1Mibit, k * 1024, "information/Gibit_to_Mibit: target count");
+    std::test::assert_eq_int(
+        left_18 / 1Mibit,
+        k * 1024,
+        "information/Gibit_to_Mibit: target count",
+    );
     std::test::assert_eq_int(right_18 / 1Gibit, k * 1, "information/Gibit_to_Mibit: source count");
 
     // 1 Tibit = 1024 Gibit
@@ -248,7 +256,11 @@ fn check_runtime(k: Int) {
     let right_19 = k * target_19;
     std::test::assert(left_19 == right_19, "information/Tibit_to_Gibit: forward");
     std::test::assert(right_19 == left_19, "information/Tibit_to_Gibit: reverse");
-    std::test::assert_eq_int(left_19 / 1Gibit, k * 1024, "information/Tibit_to_Gibit: target count");
+    std::test::assert_eq_int(
+        left_19 / 1Gibit,
+        k * 1024,
+        "information/Tibit_to_Gibit: target count",
+    );
     std::test::assert_eq_int(right_19 / 1Tibit, k * 1, "information/Tibit_to_Gibit: source count");
 
     // 1 Pibit = 1024 Tibit
@@ -258,7 +270,11 @@ fn check_runtime(k: Int) {
     let right_20 = k * target_20;
     std::test::assert(left_20 == right_20, "information/Pibit_to_Tibit: forward");
     std::test::assert(right_20 == left_20, "information/Pibit_to_Tibit: reverse");
-    std::test::assert_eq_int(left_20 / 1Tibit, k * 1024, "information/Pibit_to_Tibit: target count");
+    std::test::assert_eq_int(
+        left_20 / 1Tibit,
+        k * 1024,
+        "information/Pibit_to_Tibit: target count",
+    );
     std::test::assert_eq_int(right_20 / 1Pibit, k * 1, "information/Pibit_to_Tibit: source count");
 
     // 1 Eibit = 1024 Pibit
@@ -268,7 +284,11 @@ fn check_runtime(k: Int) {
     let right_21 = k * target_21;
     std::test::assert(left_21 == right_21, "information/Eibit_to_Pibit: forward");
     std::test::assert(right_21 == left_21, "information/Eibit_to_Pibit: reverse");
-    std::test::assert_eq_int(left_21 / 1Pibit, k * 1024, "information/Eibit_to_Pibit: target count");
+    std::test::assert_eq_int(
+        left_21 / 1Pibit,
+        k * 1024,
+        "information/Eibit_to_Pibit: target count",
+    );
     std::test::assert_eq_int(right_21 / 1Eibit, k * 1, "information/Eibit_to_Pibit: source count");
 
     // 1 Zibit = 1024 Eibit
@@ -278,7 +298,11 @@ fn check_runtime(k: Int) {
     let right_22 = k * target_22;
     std::test::assert(left_22 == right_22, "information/Zibit_to_Eibit: forward");
     std::test::assert(right_22 == left_22, "information/Zibit_to_Eibit: reverse");
-    std::test::assert_eq_int(left_22 / 1Eibit, k * 1024, "information/Zibit_to_Eibit: target count");
+    std::test::assert_eq_int(
+        left_22 / 1Eibit,
+        k * 1024,
+        "information/Zibit_to_Eibit: target count",
+    );
     std::test::assert_eq_int(right_22 / 1Zibit, k * 1, "information/Zibit_to_Eibit: source count");
 
     // 1 Yibit = 1024 Zibit
@@ -288,7 +312,11 @@ fn check_runtime(k: Int) {
     let right_23 = k * target_23;
     std::test::assert(left_23 == right_23, "information/Yibit_to_Zibit: forward");
     std::test::assert(right_23 == left_23, "information/Yibit_to_Zibit: reverse");
-    std::test::assert_eq_int(left_23 / 1Zibit, k * 1024, "information/Yibit_to_Zibit: target count");
+    std::test::assert_eq_int(
+        left_23 / 1Zibit,
+        k * 1024,
+        "information/Yibit_to_Zibit: target count",
+    );
     std::test::assert_eq_int(right_23 / 1Yibit, k * 1, "information/Yibit_to_Zibit: source count");
 
     // 1 Ribit = 1024 Yibit
@@ -298,7 +326,11 @@ fn check_runtime(k: Int) {
     let right_24 = k * target_24;
     std::test::assert(left_24 == right_24, "information/Ribit_to_Yibit: forward");
     std::test::assert(right_24 == left_24, "information/Ribit_to_Yibit: reverse");
-    std::test::assert_eq_int(left_24 / 1Yibit, k * 1024, "information/Ribit_to_Yibit: target count");
+    std::test::assert_eq_int(
+        left_24 / 1Yibit,
+        k * 1024,
+        "information/Ribit_to_Yibit: target count",
+    );
     std::test::assert_eq_int(right_24 / 1Ribit, k * 1, "information/Ribit_to_Yibit: source count");
 
     // 1 Qibit = 1024 Ribit
@@ -308,7 +340,11 @@ fn check_runtime(k: Int) {
     let right_25 = k * target_25;
     std::test::assert(left_25 == right_25, "information/Qibit_to_Ribit: forward");
     std::test::assert(right_25 == left_25, "information/Qibit_to_Ribit: reverse");
-    std::test::assert_eq_int(left_25 / 1Ribit, k * 1024, "information/Qibit_to_Ribit: target count");
+    std::test::assert_eq_int(
+        left_25 / 1Ribit,
+        k * 1024,
+        "information/Qibit_to_Ribit: target count",
+    );
     std::test::assert_eq_int(right_25 / 1Qibit, k * 1, "information/Qibit_to_Ribit: source count");
 
     // 1 Mibit = 1048576 bit
@@ -328,7 +364,11 @@ fn check_runtime(k: Int) {
     let right_27 = k * target_27;
     std::test::assert(left_27 == right_27, "information/Gibit_to_bit: forward");
     std::test::assert(right_27 == left_27, "information/Gibit_to_bit: reverse");
-    std::test::assert_eq_int(left_27 / 1bit, k * 1073741824, "information/Gibit_to_bit: target count");
+    std::test::assert_eq_int(
+        left_27 / 1bit,
+        k * 1073741824,
+        "information/Gibit_to_bit: target count",
+    );
     std::test::assert_eq_int(right_27 / 1Gibit, k * 1, "information/Gibit_to_bit: source count");
 
     // 1 Tibit = 1099511627776 bit
@@ -338,7 +378,11 @@ fn check_runtime(k: Int) {
     let right_28 = k * target_28;
     std::test::assert(left_28 == right_28, "information/Tibit_to_bit: forward");
     std::test::assert(right_28 == left_28, "information/Tibit_to_bit: reverse");
-    std::test::assert_eq_int(left_28 / 1bit, k * 1099511627776, "information/Tibit_to_bit: target count");
+    std::test::assert_eq_int(
+        left_28 / 1bit,
+        k * 1099511627776,
+        "information/Tibit_to_bit: target count",
+    );
     std::test::assert_eq_int(right_28 / 1Tibit, k * 1, "information/Tibit_to_bit: source count");
 
     // 1 Pibit = 1125899906842624 bit
@@ -348,7 +392,11 @@ fn check_runtime(k: Int) {
     let right_29 = k * target_29;
     std::test::assert(left_29 == right_29, "information/Pibit_to_bit: forward");
     std::test::assert(right_29 == left_29, "information/Pibit_to_bit: reverse");
-    std::test::assert_eq_int(left_29 / 1bit, k * 1125899906842624, "information/Pibit_to_bit: target count");
+    std::test::assert_eq_int(
+        left_29 / 1bit,
+        k * 1125899906842624,
+        "information/Pibit_to_bit: target count",
+    );
     std::test::assert_eq_int(right_29 / 1Pibit, k * 1, "information/Pibit_to_bit: source count");
 
     // 1 Eibit = 1152921504606846976 bit
@@ -358,7 +406,11 @@ fn check_runtime(k: Int) {
     let right_30 = k * target_30;
     std::test::assert(left_30 == right_30, "information/Eibit_to_bit: forward");
     std::test::assert(right_30 == left_30, "information/Eibit_to_bit: reverse");
-    std::test::assert_eq_int(left_30 / 1bit, k * 1152921504606846976, "information/Eibit_to_bit: target count");
+    std::test::assert_eq_int(
+        left_30 / 1bit,
+        k * 1152921504606846976,
+        "information/Eibit_to_bit: target count",
+    );
     std::test::assert_eq_int(right_30 / 1Eibit, k * 1, "information/Eibit_to_bit: source count");
 
     // 1 kB = 1000 B
@@ -598,7 +650,11 @@ fn check_runtime(k: Int) {
     let right_54 = k * target_54;
     std::test::assert(left_54 == right_54, "information/PiB_to_B: forward");
     std::test::assert(right_54 == left_54, "information/PiB_to_B: reverse");
-    std::test::assert_eq_int(left_54 / 1B, k * 1125899906842624, "information/PiB_to_B: target count");
+    std::test::assert_eq_int(
+        left_54 / 1B,
+        k * 1125899906842624,
+        "information/PiB_to_B: target count",
+    );
     std::test::assert_eq_int(right_54 / 1PiB, k * 1, "information/PiB_to_B: source count");
 
     // 1 EiB = 1152921504606846976 B
@@ -608,7 +664,11 @@ fn check_runtime(k: Int) {
     let right_55 = k * target_55;
     std::test::assert(left_55 == right_55, "information/EiB_to_B: forward");
     std::test::assert(right_55 == left_55, "information/EiB_to_B: reverse");
-    std::test::assert_eq_int(left_55 / 1B, k * 1152921504606846976, "information/EiB_to_B: target count");
+    std::test::assert_eq_int(
+        left_55 / 1B,
+        k * 1152921504606846976,
+        "information/EiB_to_B: target count",
+    );
     std::test::assert_eq_int(right_55 / 1EiB, k * 1, "information/EiB_to_B: source count");
 
 }

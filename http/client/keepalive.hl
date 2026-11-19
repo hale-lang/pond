@@ -119,7 +119,13 @@ fn __scan_chunks(raw: Bytes, start: Int, end: Int) -> __ChunkScan {
             while tpos < end {
                 let tnl = __crlf_at(raw, tpos, end);
                 if tnl < 0 { return __ChunkScan { body: b"", complete: false, bad: false }; }
-                if tnl == tpos { return __ChunkScan { body: out.snapshot() or raise, complete: true, bad: false }; }
+                if tnl == tpos {
+                    return __ChunkScan {
+                        body: out.snapshot() or raise,
+                        complete: true,
+                        bad: false,
+                    };
+                }
                 tpos = tnl + 2;
             }
             return __ChunkScan { body: b"", complete: false, bad: false };
@@ -225,13 +231,23 @@ type __ExchangeResult { resp: Response; ok: Bool; reusable: Bool; }
 // One keep-alive round-trip on a raw handle (no auto-close). Returns the parsed
 // response + whether the handle is reusable (cleanly framed AND the peer didn't
 // say `Connection: close`).
-fn __exchange_on_handle(handle: Int, is_tls: Bool, req: Request, ua: String, max_body: Int) -> __ExchangeResult {
+fn __exchange_on_handle(
+    handle: Int,
+    is_tls: Bool,
+    req: Request,
+    ua: String,
+    max_body: Int
+) -> __ExchangeResult {
     let header_block = __build_request_headers(req, ua, true); // keep-alive
     let sent = __send_raw(handle, is_tls, std::bytes::from_string(header_block));
-    if sent < 0 { return __ExchangeResult { resp: __empty_response(), ok: false, reusable: false }; }
+    if sent < 0 {
+        return __ExchangeResult { resp: __empty_response(), ok: false, reusable: false };
+    }
     if len(req.body) > 0 {
         let bs = __send_raw(handle, is_tls, req.body);
-        if bs < 0 { return __ExchangeResult { resp: __empty_response(), ok: false, reusable: false }; }
+        if bs < 0 {
+            return __ExchangeResult { resp: __empty_response(), ok: false, reusable: false };
+        }
     }
     let fr = __recv_framed(handle, is_tls, max_body);
     let resp = __parse_response(fr.bytes);

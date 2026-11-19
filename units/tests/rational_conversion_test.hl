@@ -42,11 +42,31 @@ fn check_pressure(count: Int, down: Int, up: Int, toward_zero: Int, even: Int, a
     let truncated = value.in(mbar) or trunc;
     let nearest_even = value.in(mbar) or half_even;
     let nearest_away = value.in(mbar) or half_up;
-    std::test::assert_eq_int(floored / 1mbar, down, "pressure floor uses the complete rational factor");
-    std::test::assert_eq_int(ceiling / 1mbar, up, "pressure ceil uses the complete rational factor");
-    std::test::assert_eq_int(truncated / 1mbar, toward_zero, "pressure trunc uses the complete rational factor");
-    std::test::assert_eq_int(nearest_even / 1mbar, even, "pressure half_even uses the complete rational factor");
-    std::test::assert_eq_int(nearest_away / 1mbar, away, "pressure half_up uses the complete rational factor");
+    std::test::assert_eq_int(
+        floored / 1mbar,
+        down,
+        "pressure floor uses the complete rational factor",
+    );
+    std::test::assert_eq_int(
+        ceiling / 1mbar,
+        up,
+        "pressure ceil uses the complete rational factor",
+    );
+    std::test::assert_eq_int(
+        truncated / 1mbar,
+        toward_zero,
+        "pressure trunc uses the complete rational factor",
+    );
+    std::test::assert_eq_int(
+        nearest_even / 1mbar,
+        even,
+        "pressure half_even uses the complete rational factor",
+    );
+    std::test::assert_eq_int(
+        nearest_away / 1mbar,
+        away,
+        "pressure half_up uses the complete rational factor",
+    );
 }
 
 fn check_enzyme(count: Int, down: Int, up: Int, toward_zero: Int, even: Int, away: Int) {
@@ -56,11 +76,27 @@ fn check_enzyme(count: Int, down: Int, up: Int, toward_zero: Int, even: Int, awa
     let truncated = value.in(nkat) or trunc;
     let nearest_even = value.in(nkat) or half_even;
     let nearest_away = value.in(nkat) or half_up;
-    std::test::assert_eq_int(floored / 1nkat, down, "enzyme floor uses the complete rational factor");
+    std::test::assert_eq_int(
+        floored / 1nkat,
+        down,
+        "enzyme floor uses the complete rational factor",
+    );
     std::test::assert_eq_int(ceiling / 1nkat, up, "enzyme ceil uses the complete rational factor");
-    std::test::assert_eq_int(truncated / 1nkat, toward_zero, "enzyme trunc uses the complete rational factor");
-    std::test::assert_eq_int(nearest_even / 1nkat, even, "enzyme half_even uses the complete rational factor");
-    std::test::assert_eq_int(nearest_away / 1nkat, away, "enzyme half_up uses the complete rational factor");
+    std::test::assert_eq_int(
+        truncated / 1nkat,
+        toward_zero,
+        "enzyme trunc uses the complete rational factor",
+    );
+    std::test::assert_eq_int(
+        nearest_even / 1nkat,
+        even,
+        "enzyme half_even uses the complete rational factor",
+    );
+    std::test::assert_eq_int(
+        nearest_away / 1nkat,
+        away,
+        "enzyme half_up uses the complete rational factor",
+    );
 }
 
 fn check_mass(count: Int, down: Int, up: Int, toward_zero: Int, even: Int, away: Int) {
@@ -72,9 +108,21 @@ fn check_mass(count: Int, down: Int, up: Int, toward_zero: Int, even: Int, away:
     let nearest_away = value.in(g) or half_up;
     std::test::assert_eq_int(floored / 1g, down, "mass floor uses the complete rational factor");
     std::test::assert_eq_int(ceiling / 1g, up, "mass ceil uses the complete rational factor");
-    std::test::assert_eq_int(truncated / 1g, toward_zero, "mass trunc uses the complete rational factor");
-    std::test::assert_eq_int(nearest_even / 1g, even, "mass half_even uses the complete rational factor");
-    std::test::assert_eq_int(nearest_away / 1g, away, "mass half_up uses the complete rational factor");
+    std::test::assert_eq_int(
+        truncated / 1g,
+        toward_zero,
+        "mass trunc uses the complete rational factor",
+    );
+    std::test::assert_eq_int(
+        nearest_even / 1g,
+        even,
+        "mass half_even uses the complete rational factor",
+    );
+    std::test::assert_eq_int(
+        nearest_away / 1g,
+        away,
+        "mass half_up uses the complete rational factor",
+    );
 }
 
 fn main() {
@@ -104,9 +152,21 @@ fn main() {
     let exact_pressure = torr(3040).in(mbar) or 999mbar;
     let inexact_pressure = torr(1).in(mbar) or 999mbar;
     let negative_pressure = torr(-1).in(mbar) or 999mbar;
-    std::test::assert_eq_int(exact_pressure / 1mbar, 4053, "exact rational pressure conversion bypasses substitute");
-    std::test::assert_eq_int(inexact_pressure / 1mbar, 999, "inexact positive pressure conversion takes substitute");
-    std::test::assert_eq_int(negative_pressure / 1mbar, 999, "inexact negative pressure conversion takes substitute");
+    std::test::assert_eq_int(
+        exact_pressure / 1mbar,
+        4053,
+        "exact rational pressure conversion bypasses substitute",
+    );
+    std::test::assert_eq_int(
+        inexact_pressure / 1mbar,
+        999,
+        "inexact positive pressure conversion takes substitute",
+    );
+    std::test::assert_eq_int(
+        negative_pressure / 1mbar,
+        999,
+        "inexact negative pressure conversion takes substitute",
+    );
 
     let pressure_back = millibars(4053).in(Torr) or 999Torr;
     let pressure_nearest = millibars(1).in(Torr) or half_even;
@@ -116,7 +176,11 @@ fn main() {
     let pressure_substitute = millibars(1).in(Torr) or 999Torr;
     std::test::assert_eq_int(pressure_back / 1Torr, 3040, "exact reverse pressure conversion");
     std::test::assert_eq_int(pressure_nearest / 1Torr, 1, "one millibar is about 0.75006 Torr");
-    std::test::assert_eq_int(pressure_negative / 1Torr, -1, "negative reverse pressure rounds symmetrically");
+    std::test::assert_eq_int(
+        pressure_negative / 1Torr,
+            -1,
+        "negative reverse pressure rounds symmetrically",
+    );
     std::test::assert_eq_int(pressure_floor / 1Torr, 0, "positive reverse pressure floor");
     std::test::assert_eq_int(pressure_ceil / 1Torr, 0, "negative reverse pressure ceiling");
     std::test::assert_eq_int(pressure_substitute / 1Torr, 999, "reverse pressure substitute");
@@ -124,9 +188,21 @@ fn main() {
     let exact_activity = enzyme_units(3).in(nkat) or 999nkat;
     let inexact_activity = enzyme_units(1).in(nkat) or 999nkat;
     let negative_activity = enzyme_units(-1).in(nkat) or 999nkat;
-    std::test::assert_eq_int(exact_activity / 1nkat, 50, "three enzyme units are exactly 50 nanokatals");
-    std::test::assert_eq_int(inexact_activity / 1nkat, 999, "inexact positive enzyme conversion takes substitute");
-    std::test::assert_eq_int(negative_activity / 1nkat, 999, "inexact negative enzyme conversion takes substitute");
+    std::test::assert_eq_int(
+        exact_activity / 1nkat,
+        50,
+        "three enzyme units are exactly 50 nanokatals",
+    );
+    std::test::assert_eq_int(
+        inexact_activity / 1nkat,
+        999,
+        "inexact positive enzyme conversion takes substitute",
+    );
+    std::test::assert_eq_int(
+        negative_activity / 1nkat,
+        999,
+        "inexact negative enzyme conversion takes substitute",
+    );
 
     let activity_back = nanokatals(50).in(enzyme_unit) or 999enzyme_unit;
     let activity_tie = nanokatals(25).in(enzyme_unit) or half_even;
@@ -135,26 +211,50 @@ fn main() {
     let activity_negative_even = nanokatals(-75).in(enzyme_unit) or half_even;
     let activity_negative_away = nanokatals(-75).in(enzyme_unit) or half_up;
     let activity_substitute = nanokatals(1).in(enzyme_unit) or 999enzyme_unit;
-    std::test::assert_eq_int(activity_back / 1enzyme_unit, 3, "50 nanokatals convert exactly to three enzyme units");
+    std::test::assert_eq_int(
+        activity_back / 1enzyme_unit,
+        3,
+        "50 nanokatals convert exactly to three enzyme units",
+    );
     std::test::assert_eq_int(activity_tie / 1enzyme_unit, 2, "1.5 enzyme units ties to even two");
     std::test::assert_eq_int(activity_even / 1enzyme_unit, 4, "4.5 enzyme units ties to even four");
     std::test::assert_eq_int(activity_away / 1enzyme_unit, 5, "4.5 enzyme units ties away to five");
-    std::test::assert_eq_int(activity_negative_even / 1enzyme_unit, -4, "negative enzyme tie goes to even");
-    std::test::assert_eq_int(activity_negative_away / 1enzyme_unit, -5, "negative enzyme tie goes away from zero");
+    std::test::assert_eq_int(
+        activity_negative_even / 1enzyme_unit,
+            -4,
+        "negative enzyme tie goes to even",
+    );
+    std::test::assert_eq_int(
+        activity_negative_away / 1enzyme_unit,
+            -5,
+        "negative enzyme tie goes away from zero",
+    );
     std::test::assert_eq_int(activity_substitute / 1enzyme_unit, 999, "reverse enzyme substitute");
 
     let exact_mass = pounds(100000).in(g) or 999g;
     let inexact_mass = pounds(1).in(g) or 999g;
     let negative_mass = pounds(-1).in(g) or 999g;
     std::test::assert_eq_int(exact_mass / 1g, 45359237, "exact international-pound conversion");
-    std::test::assert_eq_int(inexact_mass / 1g, 999, "inexact positive pound conversion takes substitute");
-    std::test::assert_eq_int(negative_mass / 1g, 999, "inexact negative pound conversion takes substitute");
+    std::test::assert_eq_int(
+        inexact_mass / 1g,
+        999,
+        "inexact positive pound conversion takes substitute",
+    );
+    std::test::assert_eq_int(
+        negative_mass / 1g,
+        999,
+        "inexact negative pound conversion takes substitute",
+    );
 
     let mass_back = grams(45359237).in(lb) or 999lb;
     let mass_nearest = grams(453).in(lb) or half_even;
     let mass_negative = grams(-453).in(lb) or half_even;
     let mass_substitute = grams(1).in(lb) or 999lb;
-    std::test::assert_eq_int(mass_back / 1lb, 100000, "exact reverse international-pound conversion");
+    std::test::assert_eq_int(
+        mass_back / 1lb,
+        100000,
+        "exact reverse international-pound conversion",
+    );
     std::test::assert_eq_int(mass_nearest / 1lb, 1, "453 grams rounds to one pound");
     std::test::assert_eq_int(mass_negative / 1lb, -1, "negative grams round symmetrically");
     std::test::assert_eq_int(mass_substitute / 1lb, 999, "reverse pound substitute");

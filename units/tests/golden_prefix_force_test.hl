@@ -282,7 +282,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_24 == right_24, "prefix_force/base_anchor_aN: forward");
     std::test::assert(right_24 == left_24, "prefix_force/base_anchor_aN: reverse");
     std::test::assert_eq_int(left_24 / 1N, k * 1, "prefix_force/base_anchor_aN: target count");
-    std::test::assert_eq_int(right_24 / 1aN, k * 1000000000000000000, "prefix_force/base_anchor_aN: source count");
+    std::test::assert_eq_int(
+        right_24 / 1aN,
+        k * 1000000000000000000,
+        "prefix_force/base_anchor_aN: source count",
+    );
 
     // 1000000000000000 fN = 1 N
     let source_25: Denomination14 = 1000000000000000fN;
@@ -292,7 +296,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_25 == right_25, "prefix_force/base_anchor_fN: forward");
     std::test::assert(right_25 == left_25, "prefix_force/base_anchor_fN: reverse");
     std::test::assert_eq_int(left_25 / 1N, k * 1, "prefix_force/base_anchor_fN: target count");
-    std::test::assert_eq_int(right_25 / 1fN, k * 1000000000000000, "prefix_force/base_anchor_fN: source count");
+    std::test::assert_eq_int(
+        right_25 / 1fN,
+        k * 1000000000000000,
+        "prefix_force/base_anchor_fN: source count",
+    );
 
     // 1000000000000 pN = 1 N
     let source_26: Denomination19 = 1000000000000pN;
@@ -302,7 +310,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_26 == right_26, "prefix_force/base_anchor_pN: forward");
     std::test::assert(right_26 == left_26, "prefix_force/base_anchor_pN: reverse");
     std::test::assert_eq_int(left_26 / 1N, k * 1, "prefix_force/base_anchor_pN: target count");
-    std::test::assert_eq_int(right_26 / 1pN, k * 1000000000000, "prefix_force/base_anchor_pN: source count");
+    std::test::assert_eq_int(
+        right_26 / 1pN,
+        k * 1000000000000,
+        "prefix_force/base_anchor_pN: source count",
+    );
 
     // 1000000000 nN = 1 N
     let source_27: Denomination18 = 1000000000nN;
@@ -312,7 +324,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_27 == right_27, "prefix_force/base_anchor_nN: forward");
     std::test::assert(right_27 == left_27, "prefix_force/base_anchor_nN: reverse");
     std::test::assert_eq_int(left_27 / 1N, k * 1, "prefix_force/base_anchor_nN: target count");
-    std::test::assert_eq_int(right_27 / 1nN, k * 1000000000, "prefix_force/base_anchor_nN: source count");
+    std::test::assert_eq_int(
+        right_27 / 1nN,
+        k * 1000000000,
+        "prefix_force/base_anchor_nN: source count",
+    );
 
     // 1000000 uN = 1 N
     let source_28: Denomination22 = 1000000uN;
@@ -322,7 +338,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_28 == right_28, "prefix_force/base_anchor_uN: forward");
     std::test::assert(right_28 == left_28, "prefix_force/base_anchor_uN: reverse");
     std::test::assert_eq_int(left_28 / 1N, k * 1, "prefix_force/base_anchor_uN: target count");
-    std::test::assert_eq_int(right_28 / 1uN, k * 1000000, "prefix_force/base_anchor_uN: source count");
+    std::test::assert_eq_int(
+        right_28 / 1uN,
+        k * 1000000,
+        "prefix_force/base_anchor_uN: source count",
+    );
 
     // 1000 mN = 1 N
     let source_29: Denomination17 = 1000mN;
@@ -371,7 +391,11 @@ fn check_runtime(k: Int) {
     let right_33 = k * target_33;
     std::test::assert(left_33 == right_33, "prefix_force/base_anchor_MN: forward");
     std::test::assert(right_33 == left_33, "prefix_force/base_anchor_MN: reverse");
-    std::test::assert_eq_int(left_33 / 1N, k * 1000000, "prefix_force/base_anchor_MN: target count");
+    std::test::assert_eq_int(
+        left_33 / 1N,
+        k * 1000000,
+        "prefix_force/base_anchor_MN: target count",
+    );
     std::test::assert_eq_int(right_33 / 1MN, k * 1, "prefix_force/base_anchor_MN: source count");
 
     // 1 GN = 1000000000 N
@@ -381,7 +405,11 @@ fn check_runtime(k: Int) {
     let right_34 = k * target_34;
     std::test::assert(left_34 == right_34, "prefix_force/base_anchor_GN: forward");
     std::test::assert(right_34 == left_34, "prefix_force/base_anchor_GN: reverse");
-    std::test::assert_eq_int(left_34 / 1N, k * 1000000000, "prefix_force/base_anchor_GN: target count");
+    std::test::assert_eq_int(
+        left_34 / 1N,
+        k * 1000000000,
+        "prefix_force/base_anchor_GN: target count",
+    );
     std::test::assert_eq_int(right_34 / 1GN, k * 1, "prefix_force/base_anchor_GN: source count");
 
     // 1 TN = 1000000000000 N
@@ -391,7 +419,11 @@ fn check_runtime(k: Int) {
     let right_35 = k * target_35;
     std::test::assert(left_35 == right_35, "prefix_force/base_anchor_TN: forward");
     std::test::assert(right_35 == left_35, "prefix_force/base_anchor_TN: reverse");
-    std::test::assert_eq_int(left_35 / 1N, k * 1000000000000, "prefix_force/base_anchor_TN: target count");
+    std::test::assert_eq_int(
+        left_35 / 1N,
+        k * 1000000000000,
+        "prefix_force/base_anchor_TN: target count",
+    );
     std::test::assert_eq_int(right_35 / 1TN, k * 1, "prefix_force/base_anchor_TN: source count");
 
     // 1 PN = 1000000000000000 N
@@ -401,7 +433,11 @@ fn check_runtime(k: Int) {
     let right_36 = k * target_36;
     std::test::assert(left_36 == right_36, "prefix_force/base_anchor_PN: forward");
     std::test::assert(right_36 == left_36, "prefix_force/base_anchor_PN: reverse");
-    std::test::assert_eq_int(left_36 / 1N, k * 1000000000000000, "prefix_force/base_anchor_PN: target count");
+    std::test::assert_eq_int(
+        left_36 / 1N,
+        k * 1000000000000000,
+        "prefix_force/base_anchor_PN: target count",
+    );
     std::test::assert_eq_int(right_36 / 1PN, k * 1, "prefix_force/base_anchor_PN: source count");
 
     // 1 EN = 1000000000000000000 N
@@ -411,7 +447,11 @@ fn check_runtime(k: Int) {
     let right_37 = k * target_37;
     std::test::assert(left_37 == right_37, "prefix_force/base_anchor_EN: forward");
     std::test::assert(right_37 == left_37, "prefix_force/base_anchor_EN: reverse");
-    std::test::assert_eq_int(left_37 / 1N, k * 1000000000000000000, "prefix_force/base_anchor_EN: target count");
+    std::test::assert_eq_int(
+        left_37 / 1N,
+        k * 1000000000000000000,
+        "prefix_force/base_anchor_EN: target count",
+    );
     std::test::assert_eq_int(right_37 / 1EN, k * 1, "prefix_force/base_anchor_EN: source count");
 
 }

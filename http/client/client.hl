@@ -353,23 +353,63 @@ locus Client {
             attempt = attempt + 1;
             if attempt < max_attempts { std::time::sleep(50ms); }
         }
-        fail HttpError { kind: "retries_exhausted", status: 0, detail: host + ":" + to_string(port) };
+        fail HttpError {
+            kind: "retries_exhausted",
+            status: 0,
+            detail: host + ":" + to_string(port),
+        };
     }
 
     // Take an idle pooled fd matching (host, port, is_tls), clearing its slot;
     // -1 if none.
     fn __pool_take(host: String, port: Int, is_tls: Bool) -> Int {
-        if self.pool_fd0 >= 0 && self.pool_host0 == host && self.pool_port0 == port && self.pool_tls0 == is_tls {
-            let fd = self.pool_fd0; self.pool_fd0 = -1; self.pool_host0 = ""; self.pool_port0 = 0; self.pool_tls0 = false; return fd;
+        if self.pool_fd0 >= 0
+            && self.pool_host0 == host
+            && self.pool_port0 == port
+            && self.pool_tls0 == is_tls
+        {
+            let fd = self.pool_fd0;
+            self.pool_fd0 = -1;
+            self.pool_host0 = "";
+            self.pool_port0 = 0;
+            self.pool_tls0 = false;
+            return fd;
         }
-        if self.pool_fd1 >= 0 && self.pool_host1 == host && self.pool_port1 == port && self.pool_tls1 == is_tls {
-            let fd = self.pool_fd1; self.pool_fd1 = -1; self.pool_host1 = ""; self.pool_port1 = 0; self.pool_tls1 = false; return fd;
+        if self.pool_fd1 >= 0
+            && self.pool_host1 == host
+            && self.pool_port1 == port
+            && self.pool_tls1 == is_tls
+        {
+            let fd = self.pool_fd1;
+            self.pool_fd1 = -1;
+            self.pool_host1 = "";
+            self.pool_port1 = 0;
+            self.pool_tls1 = false;
+            return fd;
         }
-        if self.pool_fd2 >= 0 && self.pool_host2 == host && self.pool_port2 == port && self.pool_tls2 == is_tls {
-            let fd = self.pool_fd2; self.pool_fd2 = -1; self.pool_host2 = ""; self.pool_port2 = 0; self.pool_tls2 = false; return fd;
+        if self.pool_fd2 >= 0
+            && self.pool_host2 == host
+            && self.pool_port2 == port
+            && self.pool_tls2 == is_tls
+        {
+            let fd = self.pool_fd2;
+            self.pool_fd2 = -1;
+            self.pool_host2 = "";
+            self.pool_port2 = 0;
+            self.pool_tls2 = false;
+            return fd;
         }
-        if self.pool_fd3 >= 0 && self.pool_host3 == host && self.pool_port3 == port && self.pool_tls3 == is_tls {
-            let fd = self.pool_fd3; self.pool_fd3 = -1; self.pool_host3 = ""; self.pool_port3 = 0; self.pool_tls3 = false; return fd;
+        if self.pool_fd3 >= 0
+            && self.pool_host3 == host
+            && self.pool_port3 == port
+            && self.pool_tls3 == is_tls
+        {
+            let fd = self.pool_fd3;
+            self.pool_fd3 = -1;
+            self.pool_host3 = "";
+            self.pool_port3 = 0;
+            self.pool_tls3 = false;
+            return fd;
         }
         return -1;
     }
@@ -377,10 +417,34 @@ locus Client {
     // Return an fd to the pool, into the first empty slot; if full, evict slot 3
     // (closing it) and install there.
     fn __pool_put(host: String, port: Int, fd: Int, is_tls: Bool) {
-        if self.pool_fd0 < 0 { self.pool_fd0 = fd; self.pool_host0 = host; self.pool_port0 = port; self.pool_tls0 = is_tls; return; }
-        if self.pool_fd1 < 0 { self.pool_fd1 = fd; self.pool_host1 = host; self.pool_port1 = port; self.pool_tls1 = is_tls; return; }
-        if self.pool_fd2 < 0 { self.pool_fd2 = fd; self.pool_host2 = host; self.pool_port2 = port; self.pool_tls2 = is_tls; return; }
-        if self.pool_fd3 < 0 { self.pool_fd3 = fd; self.pool_host3 = host; self.pool_port3 = port; self.pool_tls3 = is_tls; return; }
+        if self.pool_fd0 < 0 {
+            self.pool_fd0 = fd;
+            self.pool_host0 = host;
+            self.pool_port0 = port;
+            self.pool_tls0 = is_tls;
+            return;
+        }
+        if self.pool_fd1 < 0 {
+            self.pool_fd1 = fd;
+            self.pool_host1 = host;
+            self.pool_port1 = port;
+            self.pool_tls1 = is_tls;
+            return;
+        }
+        if self.pool_fd2 < 0 {
+            self.pool_fd2 = fd;
+            self.pool_host2 = host;
+            self.pool_port2 = port;
+            self.pool_tls2 = is_tls;
+            return;
+        }
+        if self.pool_fd3 < 0 {
+            self.pool_fd3 = fd;
+            self.pool_host3 = host;
+            self.pool_port3 = port;
+            self.pool_tls3 = is_tls;
+            return;
+        }
         __close_handle(self.pool_fd3, self.pool_tls3);
         self.pool_fd3 = fd; self.pool_host3 = host; self.pool_port3 = port; self.pool_tls3 = is_tls;
     }

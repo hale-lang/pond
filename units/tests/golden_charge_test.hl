@@ -54,14 +54,26 @@ fn main() {
     // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
     let actual_0_forward_positive: Denomination2 = 5000000000e_charge;
     let expected_0_forward_positive: Denomination2 = 801088317aC;
-    std::test::assert(actual_0_forward_positive == expected_0_forward_positive, "charge/e_charge_to_aC: literal forward positive");
+    std::test::assert(
+        actual_0_forward_positive == expected_0_forward_positive,
+        "charge/e_charge_to_aC: literal forward positive",
+    );
     let actual_0_forward_negative: Denomination2 = -actual_0_forward_positive;
     let expected_0_forward_negative: Denomination2 = -expected_0_forward_positive;
-    std::test::assert(actual_0_forward_negative == expected_0_forward_negative, "charge/e_charge_to_aC: literal forward negative");
+    std::test::assert(
+        actual_0_forward_negative == expected_0_forward_negative,
+        "charge/e_charge_to_aC: literal forward negative",
+    );
     let actual_0_reverse_positive: Denomination3 = 801088317aC;
     let expected_0_reverse_positive: Denomination3 = 5000000000e_charge;
-    std::test::assert(actual_0_reverse_positive == expected_0_reverse_positive, "charge/e_charge_to_aC: literal reverse positive");
+    std::test::assert(
+        actual_0_reverse_positive == expected_0_reverse_positive,
+        "charge/e_charge_to_aC: literal reverse positive",
+    );
     let actual_0_reverse_negative: Denomination3 = -actual_0_reverse_positive;
     let expected_0_reverse_negative: Denomination3 = -expected_0_reverse_positive;
-    std::test::assert(actual_0_reverse_negative == expected_0_reverse_negative, "charge/e_charge_to_aC: literal reverse negative");
+    std::test::assert(
+        actual_0_reverse_negative == expected_0_reverse_negative,
+        "charge/e_charge_to_aC: literal reverse negative",
+    );
 }

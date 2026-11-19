@@ -282,7 +282,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_24 == right_24, "prefix_power/base_anchor_aW: forward");
     std::test::assert(right_24 == left_24, "prefix_power/base_anchor_aW: reverse");
     std::test::assert_eq_int(left_24 / 1W, k * 1, "prefix_power/base_anchor_aW: target count");
-    std::test::assert_eq_int(right_24 / 1aW, k * 1000000000000000000, "prefix_power/base_anchor_aW: source count");
+    std::test::assert_eq_int(
+        right_24 / 1aW,
+        k * 1000000000000000000,
+        "prefix_power/base_anchor_aW: source count",
+    );
 
     // 1000000000000000 fW = 1 W
     let source_25: Denomination14 = 1000000000000000fW;
@@ -292,7 +296,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_25 == right_25, "prefix_power/base_anchor_fW: forward");
     std::test::assert(right_25 == left_25, "prefix_power/base_anchor_fW: reverse");
     std::test::assert_eq_int(left_25 / 1W, k * 1, "prefix_power/base_anchor_fW: target count");
-    std::test::assert_eq_int(right_25 / 1fW, k * 1000000000000000, "prefix_power/base_anchor_fW: source count");
+    std::test::assert_eq_int(
+        right_25 / 1fW,
+        k * 1000000000000000,
+        "prefix_power/base_anchor_fW: source count",
+    );
 
     // 1000000000000 pW = 1 W
     let source_26: Denomination19 = 1000000000000pW;
@@ -302,7 +310,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_26 == right_26, "prefix_power/base_anchor_pW: forward");
     std::test::assert(right_26 == left_26, "prefix_power/base_anchor_pW: reverse");
     std::test::assert_eq_int(left_26 / 1W, k * 1, "prefix_power/base_anchor_pW: target count");
-    std::test::assert_eq_int(right_26 / 1pW, k * 1000000000000, "prefix_power/base_anchor_pW: source count");
+    std::test::assert_eq_int(
+        right_26 / 1pW,
+        k * 1000000000000,
+        "prefix_power/base_anchor_pW: source count",
+    );
 
     // 1000000000 nW = 1 W
     let source_27: Denomination18 = 1000000000nW;
@@ -312,7 +324,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_27 == right_27, "prefix_power/base_anchor_nW: forward");
     std::test::assert(right_27 == left_27, "prefix_power/base_anchor_nW: reverse");
     std::test::assert_eq_int(left_27 / 1W, k * 1, "prefix_power/base_anchor_nW: target count");
-    std::test::assert_eq_int(right_27 / 1nW, k * 1000000000, "prefix_power/base_anchor_nW: source count");
+    std::test::assert_eq_int(
+        right_27 / 1nW,
+        k * 1000000000,
+        "prefix_power/base_anchor_nW: source count",
+    );
 
     // 1000000 uW = 1 W
     let source_28: Denomination22 = 1000000uW;
@@ -322,7 +338,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_28 == right_28, "prefix_power/base_anchor_uW: forward");
     std::test::assert(right_28 == left_28, "prefix_power/base_anchor_uW: reverse");
     std::test::assert_eq_int(left_28 / 1W, k * 1, "prefix_power/base_anchor_uW: target count");
-    std::test::assert_eq_int(right_28 / 1uW, k * 1000000, "prefix_power/base_anchor_uW: source count");
+    std::test::assert_eq_int(
+        right_28 / 1uW,
+        k * 1000000,
+        "prefix_power/base_anchor_uW: source count",
+    );
 
     // 1000 mW = 1 W
     let source_29: Denomination17 = 1000mW;
@@ -371,7 +391,11 @@ fn check_runtime(k: Int) {
     let right_33 = k * target_33;
     std::test::assert(left_33 == right_33, "prefix_power/base_anchor_MW: forward");
     std::test::assert(right_33 == left_33, "prefix_power/base_anchor_MW: reverse");
-    std::test::assert_eq_int(left_33 / 1W, k * 1000000, "prefix_power/base_anchor_MW: target count");
+    std::test::assert_eq_int(
+        left_33 / 1W,
+        k * 1000000,
+        "prefix_power/base_anchor_MW: target count",
+    );
     std::test::assert_eq_int(right_33 / 1MW, k * 1, "prefix_power/base_anchor_MW: source count");
 
     // 1 GW = 1000000000 W
@@ -381,7 +405,11 @@ fn check_runtime(k: Int) {
     let right_34 = k * target_34;
     std::test::assert(left_34 == right_34, "prefix_power/base_anchor_GW: forward");
     std::test::assert(right_34 == left_34, "prefix_power/base_anchor_GW: reverse");
-    std::test::assert_eq_int(left_34 / 1W, k * 1000000000, "prefix_power/base_anchor_GW: target count");
+    std::test::assert_eq_int(
+        left_34 / 1W,
+        k * 1000000000,
+        "prefix_power/base_anchor_GW: target count",
+    );
     std::test::assert_eq_int(right_34 / 1GW, k * 1, "prefix_power/base_anchor_GW: source count");
 
     // 1 TW = 1000000000000 W
@@ -391,7 +419,11 @@ fn check_runtime(k: Int) {
     let right_35 = k * target_35;
     std::test::assert(left_35 == right_35, "prefix_power/base_anchor_TW: forward");
     std::test::assert(right_35 == left_35, "prefix_power/base_anchor_TW: reverse");
-    std::test::assert_eq_int(left_35 / 1W, k * 1000000000000, "prefix_power/base_anchor_TW: target count");
+    std::test::assert_eq_int(
+        left_35 / 1W,
+        k * 1000000000000,
+        "prefix_power/base_anchor_TW: target count",
+    );
     std::test::assert_eq_int(right_35 / 1TW, k * 1, "prefix_power/base_anchor_TW: source count");
 
     // 1 PW = 1000000000000000 W
@@ -401,7 +433,11 @@ fn check_runtime(k: Int) {
     let right_36 = k * target_36;
     std::test::assert(left_36 == right_36, "prefix_power/base_anchor_PW: forward");
     std::test::assert(right_36 == left_36, "prefix_power/base_anchor_PW: reverse");
-    std::test::assert_eq_int(left_36 / 1W, k * 1000000000000000, "prefix_power/base_anchor_PW: target count");
+    std::test::assert_eq_int(
+        left_36 / 1W,
+        k * 1000000000000000,
+        "prefix_power/base_anchor_PW: target count",
+    );
     std::test::assert_eq_int(right_36 / 1PW, k * 1, "prefix_power/base_anchor_PW: source count");
 
     // 1 EW = 1000000000000000000 W
@@ -411,7 +447,11 @@ fn check_runtime(k: Int) {
     let right_37 = k * target_37;
     std::test::assert(left_37 == right_37, "prefix_power/base_anchor_EW: forward");
     std::test::assert(right_37 == left_37, "prefix_power/base_anchor_EW: reverse");
-    std::test::assert_eq_int(left_37 / 1W, k * 1000000000000000000, "prefix_power/base_anchor_EW: target count");
+    std::test::assert_eq_int(
+        left_37 / 1W,
+        k * 1000000000000000000,
+        "prefix_power/base_anchor_EW: target count",
+    );
     std::test::assert_eq_int(right_37 / 1EW, k * 1, "prefix_power/base_anchor_EW: source count");
 
 }

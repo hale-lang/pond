@@ -22,8 +22,16 @@ fn check_runtime(k: Int) {
     let right_0 = k * target_0;
     std::test::assert(left_0 == right_0, "molality/mmol_per_g_to_mol_per_kg: forward");
     std::test::assert(right_0 == left_0, "molality/mmol_per_g_to_mol_per_kg: reverse");
-    std::test::assert_eq_int(left_0 / 1mol_per_kg, k * 1, "molality/mmol_per_g_to_mol_per_kg: target count");
-    std::test::assert_eq_int(right_0 / 1mmol_per_g, k * 1, "molality/mmol_per_g_to_mol_per_kg: source count");
+    std::test::assert_eq_int(
+        left_0 / 1mol_per_kg,
+        k * 1,
+        "molality/mmol_per_g_to_mol_per_kg: target count",
+    );
+    std::test::assert_eq_int(
+        right_0 / 1mmol_per_g,
+        k * 1,
+        "molality/mmol_per_g_to_mol_per_kg: source count",
+    );
 
     // 1 umol_per_g = 1 mmol_per_kg
     let source_1: Denomination4 = 1umol_per_g;
@@ -32,8 +40,16 @@ fn check_runtime(k: Int) {
     let right_1 = k * target_1;
     std::test::assert(left_1 == right_1, "molality/umol_per_g_to_mmol_per_kg: forward");
     std::test::assert(right_1 == left_1, "molality/umol_per_g_to_mmol_per_kg: reverse");
-    std::test::assert_eq_int(left_1 / 1mmol_per_kg, k * 1, "molality/umol_per_g_to_mmol_per_kg: target count");
-    std::test::assert_eq_int(right_1 / 1umol_per_g, k * 1, "molality/umol_per_g_to_mmol_per_kg: source count");
+    std::test::assert_eq_int(
+        left_1 / 1mmol_per_kg,
+        k * 1,
+        "molality/umol_per_g_to_mmol_per_kg: target count",
+    );
+    std::test::assert_eq_int(
+        right_1 / 1umol_per_g,
+        k * 1,
+        "molality/umol_per_g_to_mmol_per_kg: source count",
+    );
 
     // 1 mol_per_g = 1000 mol_per_kg
     let source_2: Denomination2 = 1mol_per_g;
@@ -42,8 +58,16 @@ fn check_runtime(k: Int) {
     let right_2 = k * target_2;
     std::test::assert(left_2 == right_2, "molality/mol_per_g_to_mol_per_kg: forward");
     std::test::assert(right_2 == left_2, "molality/mol_per_g_to_mol_per_kg: reverse");
-    std::test::assert_eq_int(left_2 / 1mol_per_kg, k * 1000, "molality/mol_per_g_to_mol_per_kg: target count");
-    std::test::assert_eq_int(right_2 / 1mol_per_g, k * 1, "molality/mol_per_g_to_mol_per_kg: source count");
+    std::test::assert_eq_int(
+        left_2 / 1mol_per_kg,
+        k * 1000,
+        "molality/mol_per_g_to_mol_per_kg: target count",
+    );
+    std::test::assert_eq_int(
+        right_2 / 1mol_per_g,
+        k * 1,
+        "molality/mol_per_g_to_mol_per_kg: source count",
+    );
 
     // 1 mol_per_kg = 1000000 umol_per_kg
     let source_3: Denomination3 = 1mol_per_kg;
@@ -52,8 +76,16 @@ fn check_runtime(k: Int) {
     let right_3 = k * target_3;
     std::test::assert(left_3 == right_3, "molality/mol_per_kg_to_umol_per_kg: forward");
     std::test::assert(right_3 == left_3, "molality/mol_per_kg_to_umol_per_kg: reverse");
-    std::test::assert_eq_int(left_3 / 1umol_per_kg, k * 1000000, "molality/mol_per_kg_to_umol_per_kg: target count");
-    std::test::assert_eq_int(right_3 / 1mol_per_kg, k * 1, "molality/mol_per_kg_to_umol_per_kg: source count");
+    std::test::assert_eq_int(
+        left_3 / 1umol_per_kg,
+        k * 1000000,
+        "molality/mol_per_kg_to_umol_per_kg: target count",
+    );
+    std::test::assert_eq_int(
+        right_3 / 1mol_per_kg,
+        k * 1,
+        "molality/mol_per_kg_to_umol_per_kg: source count",
+    );
 
     // 1 mol_per_g = 1000 mmol_per_g
     let source_4: Denomination2 = 1mol_per_g;
@@ -62,8 +94,16 @@ fn check_runtime(k: Int) {
     let right_4 = k * target_4;
     std::test::assert(left_4 == right_4, "molality/mol_per_g_to_mmol_per_g: forward");
     std::test::assert(right_4 == left_4, "molality/mol_per_g_to_mmol_per_g: reverse");
-    std::test::assert_eq_int(left_4 / 1mmol_per_g, k * 1000, "molality/mol_per_g_to_mmol_per_g: target count");
-    std::test::assert_eq_int(right_4 / 1mol_per_g, k * 1, "molality/mol_per_g_to_mmol_per_g: source count");
+    std::test::assert_eq_int(
+        left_4 / 1mmol_per_g,
+        k * 1000,
+        "molality/mol_per_g_to_mmol_per_g: target count",
+    );
+    std::test::assert_eq_int(
+        right_4 / 1mol_per_g,
+        k * 1,
+        "molality/mol_per_g_to_mmol_per_g: source count",
+    );
 
     // 1 mol_per_kg = 1000 mmol_per_kg
     let source_5: Denomination3 = 1mol_per_kg;
@@ -72,8 +112,16 @@ fn check_runtime(k: Int) {
     let right_5 = k * target_5;
     std::test::assert(left_5 == right_5, "molality/mol_per_kg_to_mmol_per_kg: forward");
     std::test::assert(right_5 == left_5, "molality/mol_per_kg_to_mmol_per_kg: reverse");
-    std::test::assert_eq_int(left_5 / 1mmol_per_kg, k * 1000, "molality/mol_per_kg_to_mmol_per_kg: target count");
-    std::test::assert_eq_int(right_5 / 1mol_per_kg, k * 1, "molality/mol_per_kg_to_mmol_per_kg: source count");
+    std::test::assert_eq_int(
+        left_5 / 1mmol_per_kg,
+        k * 1000,
+        "molality/mol_per_kg_to_mmol_per_kg: target count",
+    );
+    std::test::assert_eq_int(
+        right_5 / 1mol_per_kg,
+        k * 1,
+        "molality/mol_per_kg_to_mmol_per_kg: source count",
+    );
 
 }
 
