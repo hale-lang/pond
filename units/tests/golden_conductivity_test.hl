@@ -19,8 +19,16 @@ fn check_runtime(k: Int) {
     let right_0 = k * target_0;
     std::test::assert(left_0 == right_0, "conductivity/S_per_m_to_mS_per_cm: forward");
     std::test::assert(right_0 == left_0, "conductivity/S_per_m_to_mS_per_cm: reverse");
-    std::test::assert_eq_int(left_0 / 1mS_per_cm, k * 10, "conductivity/S_per_m_to_mS_per_cm: target count");
-    std::test::assert_eq_int(right_0 / 1S_per_m, k * 1, "conductivity/S_per_m_to_mS_per_cm: source count");
+    std::test::assert_eq_int(
+        left_0 / 1mS_per_cm,
+        k * 10,
+        "conductivity/S_per_m_to_mS_per_cm: target count",
+    );
+    std::test::assert_eq_int(
+        right_0 / 1S_per_m,
+        k * 1,
+        "conductivity/S_per_m_to_mS_per_cm: source count",
+    );
 
     // 1 S_per_m = 10000 uS_per_cm
     let source_1: Denomination0 = 1S_per_m;
@@ -29,8 +37,16 @@ fn check_runtime(k: Int) {
     let right_1 = k * target_1;
     std::test::assert(left_1 == right_1, "conductivity/S_per_m_to_uS_per_cm: forward");
     std::test::assert(right_1 == left_1, "conductivity/S_per_m_to_uS_per_cm: reverse");
-    std::test::assert_eq_int(left_1 / 1uS_per_cm, k * 10000, "conductivity/S_per_m_to_uS_per_cm: target count");
-    std::test::assert_eq_int(right_1 / 1S_per_m, k * 1, "conductivity/S_per_m_to_uS_per_cm: source count");
+    std::test::assert_eq_int(
+        left_1 / 1uS_per_cm,
+        k * 10000,
+        "conductivity/S_per_m_to_uS_per_cm: target count",
+    );
+    std::test::assert_eq_int(
+        right_1 / 1S_per_m,
+        k * 1,
+        "conductivity/S_per_m_to_uS_per_cm: source count",
+    );
 
     // 1 mS_per_cm = 1000 uS_per_cm
     let source_2: Denomination1 = 1mS_per_cm;
@@ -39,8 +55,16 @@ fn check_runtime(k: Int) {
     let right_2 = k * target_2;
     std::test::assert(left_2 == right_2, "conductivity/mS_per_cm_to_uS_per_cm: forward");
     std::test::assert(right_2 == left_2, "conductivity/mS_per_cm_to_uS_per_cm: reverse");
-    std::test::assert_eq_int(left_2 / 1uS_per_cm, k * 1000, "conductivity/mS_per_cm_to_uS_per_cm: target count");
-    std::test::assert_eq_int(right_2 / 1mS_per_cm, k * 1, "conductivity/mS_per_cm_to_uS_per_cm: source count");
+    std::test::assert_eq_int(
+        left_2 / 1uS_per_cm,
+        k * 1000,
+        "conductivity/mS_per_cm_to_uS_per_cm: target count",
+    );
+    std::test::assert_eq_int(
+        right_2 / 1mS_per_cm,
+        k * 1,
+        "conductivity/mS_per_cm_to_uS_per_cm: source count",
+    );
 
 }
 

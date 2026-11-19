@@ -115,7 +115,7 @@ locus Pool {
     on_failure(w: Worker, err: ClosureViolation) {
         println("[jobs::Pool] worker ", err.locus,
             " failed (", err.closure, "); restarting");
-        restart (w);
+        restart(w);
     }
 }
 

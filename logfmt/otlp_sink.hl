@@ -139,6 +139,8 @@ locus OtlpSink {
 
     // ----- Internal helpers -----
 
+    // the pending rows are posted and cleared every `batch_size` rows
+    @bounded_by(batch_size)
     fn __enqueue(level: Int, path: String, msg: String) {
         let row = to_string(level) + "\t" + path + "\t" + msg + "\n";
         self.pending_buf = self.pending_buf + row;

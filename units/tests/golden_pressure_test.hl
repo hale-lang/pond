@@ -77,42 +77,78 @@ fn main() {
     // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
     let actual_0_forward_positive: Denomination1 = 1290320000psi;
     let expected_0_forward_positive: Denomination1 = 8896443230521Pa;
-    std::test::assert(actual_0_forward_positive == expected_0_forward_positive, "pressure/psi_to_Pa: literal forward positive");
+    std::test::assert(
+        actual_0_forward_positive == expected_0_forward_positive,
+        "pressure/psi_to_Pa: literal forward positive",
+    );
     let actual_0_forward_negative: Denomination1 = -actual_0_forward_positive;
     let expected_0_forward_negative: Denomination1 = -expected_0_forward_positive;
-    std::test::assert(actual_0_forward_negative == expected_0_forward_negative, "pressure/psi_to_Pa: literal forward negative");
+    std::test::assert(
+        actual_0_forward_negative == expected_0_forward_negative,
+        "pressure/psi_to_Pa: literal forward negative",
+    );
     let actual_0_reverse_positive: Denomination7 = 8896443230521Pa;
     let expected_0_reverse_positive: Denomination7 = 1290320000psi;
-    std::test::assert(actual_0_reverse_positive == expected_0_reverse_positive, "pressure/psi_to_Pa: literal reverse positive");
+    std::test::assert(
+        actual_0_reverse_positive == expected_0_reverse_positive,
+        "pressure/psi_to_Pa: literal reverse positive",
+    );
     let actual_0_reverse_negative: Denomination7 = -actual_0_reverse_positive;
     let expected_0_reverse_negative: Denomination7 = -expected_0_reverse_positive;
-    std::test::assert(actual_0_reverse_negative == expected_0_reverse_negative, "pressure/psi_to_Pa: literal reverse negative");
+    std::test::assert(
+        actual_0_reverse_negative == expected_0_reverse_negative,
+        "pressure/psi_to_Pa: literal reverse negative",
+    );
 
     // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
     let actual_1_forward_positive: Denomination7 = 1270920461503atm;
     let expected_1_forward_positive: Denomination7 = 18677382000000psi;
-    std::test::assert(actual_1_forward_positive == expected_1_forward_positive, "pressure/atm_to_psi: literal forward positive");
+    std::test::assert(
+        actual_1_forward_positive == expected_1_forward_positive,
+        "pressure/atm_to_psi: literal forward positive",
+    );
     let actual_1_forward_negative: Denomination7 = -actual_1_forward_positive;
     let expected_1_forward_negative: Denomination7 = -expected_1_forward_positive;
-    std::test::assert(actual_1_forward_negative == expected_1_forward_negative, "pressure/atm_to_psi: literal forward negative");
+    std::test::assert(
+        actual_1_forward_negative == expected_1_forward_negative,
+        "pressure/atm_to_psi: literal forward negative",
+    );
     let actual_1_reverse_positive: Denomination3 = 18677382000000psi;
     let expected_1_reverse_positive: Denomination3 = 1270920461503atm;
-    std::test::assert(actual_1_reverse_positive == expected_1_reverse_positive, "pressure/atm_to_psi: literal reverse positive");
+    std::test::assert(
+        actual_1_reverse_positive == expected_1_reverse_positive,
+        "pressure/atm_to_psi: literal reverse positive",
+    );
     let actual_1_reverse_negative: Denomination3 = -actual_1_reverse_positive;
     let expected_1_reverse_negative: Denomination3 = -expected_1_reverse_positive;
-    std::test::assert(actual_1_reverse_negative == expected_1_reverse_negative, "pressure/atm_to_psi: literal reverse negative");
+    std::test::assert(
+        actual_1_reverse_negative == expected_1_reverse_negative,
+        "pressure/atm_to_psi: literal reverse negative",
+    );
 
     // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
     let actual_2_forward_positive: Denomination7 = 8896443230521bar;
     let expected_2_forward_positive: Denomination7 = 129032000000000psi;
-    std::test::assert(actual_2_forward_positive == expected_2_forward_positive, "pressure/bar_to_psi: literal forward positive");
+    std::test::assert(
+        actual_2_forward_positive == expected_2_forward_positive,
+        "pressure/bar_to_psi: literal forward positive",
+    );
     let actual_2_forward_negative: Denomination7 = -actual_2_forward_positive;
     let expected_2_forward_negative: Denomination7 = -expected_2_forward_positive;
-    std::test::assert(actual_2_forward_negative == expected_2_forward_negative, "pressure/bar_to_psi: literal forward negative");
+    std::test::assert(
+        actual_2_forward_negative == expected_2_forward_negative,
+        "pressure/bar_to_psi: literal forward negative",
+    );
     let actual_2_reverse_positive: Denomination4 = 129032000000000psi;
     let expected_2_reverse_positive: Denomination4 = 8896443230521bar;
-    std::test::assert(actual_2_reverse_positive == expected_2_reverse_positive, "pressure/bar_to_psi: literal reverse positive");
+    std::test::assert(
+        actual_2_reverse_positive == expected_2_reverse_positive,
+        "pressure/bar_to_psi: literal reverse positive",
+    );
     let actual_2_reverse_negative: Denomination4 = -actual_2_reverse_positive;
     let expected_2_reverse_negative: Denomination4 = -expected_2_reverse_positive;
-    std::test::assert(actual_2_reverse_negative == expected_2_reverse_negative, "pressure/bar_to_psi: literal reverse negative");
+    std::test::assert(
+        actual_2_reverse_negative == expected_2_reverse_negative,
+        "pressure/bar_to_psi: literal reverse negative",
+    );
 }

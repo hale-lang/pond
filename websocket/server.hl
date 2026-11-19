@@ -69,8 +69,8 @@ locus WsServerConn {
             = std::bytes::BytesBuilder { initial_cap: 128 };
 
         // ---- exposed via contract ----
-        last_message: WsMessage;
-        last_error: WsError;
+        last_message: WsMessage = WsMessage { };
+        last_error: WsError = WsError { };
 
         frames_received: Int = 0;
         frames_sent: Int = 0;
@@ -196,6 +196,9 @@ locus WsServerConn {
     // are reassembled into frag_buf; control frames (ping/close)
     // are handled inline. Returns false on EOF / framing error;
     // caller inspects `self.last_error` and `self.last_message`.
+    // each pass of the loop is one frame of the message being read; the
+    // frames of one message are what rx_buf holds
+    @bounded_by(rx_buf)
     fn read_msg() -> Bool {
         if !self.handshake_done {
             self.last_error = WsError {

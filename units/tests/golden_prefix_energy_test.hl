@@ -282,7 +282,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_24 == right_24, "prefix_energy/base_anchor_aJ: forward");
     std::test::assert(right_24 == left_24, "prefix_energy/base_anchor_aJ: reverse");
     std::test::assert_eq_int(left_24 / 1J, k * 1, "prefix_energy/base_anchor_aJ: target count");
-    std::test::assert_eq_int(right_24 / 1aJ, k * 1000000000000000000, "prefix_energy/base_anchor_aJ: source count");
+    std::test::assert_eq_int(
+        right_24 / 1aJ,
+        k * 1000000000000000000,
+        "prefix_energy/base_anchor_aJ: source count",
+    );
 
     // 1000000000000000 fJ = 1 J
     let source_25: Denomination14 = 1000000000000000fJ;
@@ -292,7 +296,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_25 == right_25, "prefix_energy/base_anchor_fJ: forward");
     std::test::assert(right_25 == left_25, "prefix_energy/base_anchor_fJ: reverse");
     std::test::assert_eq_int(left_25 / 1J, k * 1, "prefix_energy/base_anchor_fJ: target count");
-    std::test::assert_eq_int(right_25 / 1fJ, k * 1000000000000000, "prefix_energy/base_anchor_fJ: source count");
+    std::test::assert_eq_int(
+        right_25 / 1fJ,
+        k * 1000000000000000,
+        "prefix_energy/base_anchor_fJ: source count",
+    );
 
     // 1000000000000 pJ = 1 J
     let source_26: Denomination19 = 1000000000000pJ;
@@ -302,7 +310,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_26 == right_26, "prefix_energy/base_anchor_pJ: forward");
     std::test::assert(right_26 == left_26, "prefix_energy/base_anchor_pJ: reverse");
     std::test::assert_eq_int(left_26 / 1J, k * 1, "prefix_energy/base_anchor_pJ: target count");
-    std::test::assert_eq_int(right_26 / 1pJ, k * 1000000000000, "prefix_energy/base_anchor_pJ: source count");
+    std::test::assert_eq_int(
+        right_26 / 1pJ,
+        k * 1000000000000,
+        "prefix_energy/base_anchor_pJ: source count",
+    );
 
     // 1000000000 nJ = 1 J
     let source_27: Denomination18 = 1000000000nJ;
@@ -312,7 +324,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_27 == right_27, "prefix_energy/base_anchor_nJ: forward");
     std::test::assert(right_27 == left_27, "prefix_energy/base_anchor_nJ: reverse");
     std::test::assert_eq_int(left_27 / 1J, k * 1, "prefix_energy/base_anchor_nJ: target count");
-    std::test::assert_eq_int(right_27 / 1nJ, k * 1000000000, "prefix_energy/base_anchor_nJ: source count");
+    std::test::assert_eq_int(
+        right_27 / 1nJ,
+        k * 1000000000,
+        "prefix_energy/base_anchor_nJ: source count",
+    );
 
     // 1000000 uJ = 1 J
     let source_28: Denomination22 = 1000000uJ;
@@ -322,7 +338,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_28 == right_28, "prefix_energy/base_anchor_uJ: forward");
     std::test::assert(right_28 == left_28, "prefix_energy/base_anchor_uJ: reverse");
     std::test::assert_eq_int(left_28 / 1J, k * 1, "prefix_energy/base_anchor_uJ: target count");
-    std::test::assert_eq_int(right_28 / 1uJ, k * 1000000, "prefix_energy/base_anchor_uJ: source count");
+    std::test::assert_eq_int(
+        right_28 / 1uJ,
+        k * 1000000,
+        "prefix_energy/base_anchor_uJ: source count",
+    );
 
     // 1000 mJ = 1 J
     let source_29: Denomination17 = 1000mJ;
@@ -332,7 +352,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_29 == right_29, "prefix_energy/base_anchor_mJ: forward");
     std::test::assert(right_29 == left_29, "prefix_energy/base_anchor_mJ: reverse");
     std::test::assert_eq_int(left_29 / 1J, k * 1, "prefix_energy/base_anchor_mJ: target count");
-    std::test::assert_eq_int(right_29 / 1mJ, k * 1000, "prefix_energy/base_anchor_mJ: source count");
+    std::test::assert_eq_int(
+        right_29 / 1mJ,
+        k * 1000,
+        "prefix_energy/base_anchor_mJ: source count",
+    );
 
     // 100 cJ = 1 J
     let source_30: Denomination11 = 100cJ;
@@ -371,7 +395,11 @@ fn check_runtime(k: Int) {
     let right_33 = k * target_33;
     std::test::assert(left_33 == right_33, "prefix_energy/base_anchor_MJ: forward");
     std::test::assert(right_33 == left_33, "prefix_energy/base_anchor_MJ: reverse");
-    std::test::assert_eq_int(left_33 / 1J, k * 1000000, "prefix_energy/base_anchor_MJ: target count");
+    std::test::assert_eq_int(
+        left_33 / 1J,
+        k * 1000000,
+        "prefix_energy/base_anchor_MJ: target count",
+    );
     std::test::assert_eq_int(right_33 / 1MJ, k * 1, "prefix_energy/base_anchor_MJ: source count");
 
     // 1 GJ = 1000000000 J
@@ -381,7 +409,11 @@ fn check_runtime(k: Int) {
     let right_34 = k * target_34;
     std::test::assert(left_34 == right_34, "prefix_energy/base_anchor_GJ: forward");
     std::test::assert(right_34 == left_34, "prefix_energy/base_anchor_GJ: reverse");
-    std::test::assert_eq_int(left_34 / 1J, k * 1000000000, "prefix_energy/base_anchor_GJ: target count");
+    std::test::assert_eq_int(
+        left_34 / 1J,
+        k * 1000000000,
+        "prefix_energy/base_anchor_GJ: target count",
+    );
     std::test::assert_eq_int(right_34 / 1GJ, k * 1, "prefix_energy/base_anchor_GJ: source count");
 
     // 1 TJ = 1000000000000 J
@@ -391,7 +423,11 @@ fn check_runtime(k: Int) {
     let right_35 = k * target_35;
     std::test::assert(left_35 == right_35, "prefix_energy/base_anchor_TJ: forward");
     std::test::assert(right_35 == left_35, "prefix_energy/base_anchor_TJ: reverse");
-    std::test::assert_eq_int(left_35 / 1J, k * 1000000000000, "prefix_energy/base_anchor_TJ: target count");
+    std::test::assert_eq_int(
+        left_35 / 1J,
+        k * 1000000000000,
+        "prefix_energy/base_anchor_TJ: target count",
+    );
     std::test::assert_eq_int(right_35 / 1TJ, k * 1, "prefix_energy/base_anchor_TJ: source count");
 
     // 1 PJ = 1000000000000000 J
@@ -401,7 +437,11 @@ fn check_runtime(k: Int) {
     let right_36 = k * target_36;
     std::test::assert(left_36 == right_36, "prefix_energy/base_anchor_PJ: forward");
     std::test::assert(right_36 == left_36, "prefix_energy/base_anchor_PJ: reverse");
-    std::test::assert_eq_int(left_36 / 1J, k * 1000000000000000, "prefix_energy/base_anchor_PJ: target count");
+    std::test::assert_eq_int(
+        left_36 / 1J,
+        k * 1000000000000000,
+        "prefix_energy/base_anchor_PJ: target count",
+    );
     std::test::assert_eq_int(right_36 / 1PJ, k * 1, "prefix_energy/base_anchor_PJ: source count");
 
     // 1 EJ = 1000000000000000000 J
@@ -411,7 +451,11 @@ fn check_runtime(k: Int) {
     let right_37 = k * target_37;
     std::test::assert(left_37 == right_37, "prefix_energy/base_anchor_EJ: forward");
     std::test::assert(right_37 == left_37, "prefix_energy/base_anchor_EJ: reverse");
-    std::test::assert_eq_int(left_37 / 1J, k * 1000000000000000000, "prefix_energy/base_anchor_EJ: target count");
+    std::test::assert_eq_int(
+        left_37 / 1J,
+        k * 1000000000000000000,
+        "prefix_energy/base_anchor_EJ: target count",
+    );
     std::test::assert_eq_int(right_37 / 1EJ, k * 1, "prefix_energy/base_anchor_EJ: source count");
 
 }

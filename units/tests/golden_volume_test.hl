@@ -69,7 +69,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_3 == right_3, "volume/floz_us_to_mL: forward");
     std::test::assert(right_3 == left_3, "volume/floz_us_to_mL: reverse");
     std::test::assert_eq_int(left_3 / 1mL, k * 473176473, "volume/floz_us_to_mL: target count");
-    std::test::assert_eq_int(right_3 / 1floz_us, k * 16000000, "volume/floz_us_to_mL: source count");
+    std::test::assert_eq_int(
+        right_3 / 1floz_us,
+        k * 16000000,
+        "volume/floz_us_to_mL: source count",
+    );
 
     // 32000000 tbsp_us = 473176473 mL
     let source_4: Denomination19 = 32000000tbsp_us;
@@ -79,7 +83,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_4 == right_4, "volume/tbsp_us_to_mL: forward");
     std::test::assert(right_4 == left_4, "volume/tbsp_us_to_mL: reverse");
     std::test::assert_eq_int(left_4 / 1mL, k * 473176473, "volume/tbsp_us_to_mL: target count");
-    std::test::assert_eq_int(right_4 / 1tbsp_us, k * 32000000, "volume/tbsp_us_to_mL: source count");
+    std::test::assert_eq_int(
+        right_4 / 1tbsp_us,
+        k * 32000000,
+        "volume/tbsp_us_to_mL: source count",
+    );
 
     // 32000000 tsp_us = 157725491 mL
     let source_5: Denomination20 = 32000000tsp_us;
@@ -99,7 +107,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_6 == right_6, "volume/acre_ft_to_m3: forward");
     std::test::assert(right_6 == left_6, "volume/acre_ft_to_m3: reverse");
     std::test::assert_eq_int(left_6 / 1m3, k * 60228605349, "volume/acre_ft_to_m3: target count");
-    std::test::assert_eq_int(right_6 / 1acre_ft, k * 48828125, "volume/acre_ft_to_m3: source count");
+    std::test::assert_eq_int(
+        right_6 / 1acre_ft,
+        k * 48828125,
+        "volume/acre_ft_to_m3: source count",
+    );
 
     // 1 yd3 = 27 ft3
     let source_7: Denomination21 = 1yd3;
@@ -258,7 +270,11 @@ fn check_runtime(k: Int) {
     let right_22 = k * target_22;
     std::test::assert(left_22 == right_22, "volume/pt_imp_to_floz_imp: forward");
     std::test::assert(right_22 == left_22, "volume/pt_imp_to_floz_imp: reverse");
-    std::test::assert_eq_int(left_22 / 1floz_imp, k * 20, "volume/pt_imp_to_floz_imp: target count");
+    std::test::assert_eq_int(
+        left_22 / 1floz_imp,
+        k * 20,
+        "volume/pt_imp_to_floz_imp: target count",
+    );
     std::test::assert_eq_int(right_22 / 1pt_imp, k * 1, "volume/pt_imp_to_floz_imp: source count");
 
     // 473176473 gal_imp = 568261250 gal_us
@@ -268,8 +284,16 @@ fn check_runtime(k: Int) {
     let right_23 = k * target_23;
     std::test::assert(left_23 == right_23, "volume/gal_imp_to_gal_us: forward");
     std::test::assert(right_23 == left_23, "volume/gal_imp_to_gal_us: reverse");
-    std::test::assert_eq_int(left_23 / 1gal_us, k * 568261250, "volume/gal_imp_to_gal_us: target count");
-    std::test::assert_eq_int(right_23 / 1gal_imp, k * 473176473, "volume/gal_imp_to_gal_us: source count");
+    std::test::assert_eq_int(
+        left_23 / 1gal_us,
+        k * 568261250,
+        "volume/gal_imp_to_gal_us: target count",
+    );
+    std::test::assert_eq_int(
+        right_23 / 1gal_imp,
+        k * 473176473,
+        "volume/gal_imp_to_gal_us: source count",
+    );
 
     // 473176473 floz_imp = 454609000 floz_us
     let source_24: Denomination5 = 473176473floz_imp;
@@ -278,8 +302,16 @@ fn check_runtime(k: Int) {
     let right_24 = k * target_24;
     std::test::assert(left_24 == right_24, "volume/floz_imp_to_floz_us: forward");
     std::test::assert(right_24 == left_24, "volume/floz_imp_to_floz_us: reverse");
-    std::test::assert_eq_int(left_24 / 1floz_us, k * 454609000, "volume/floz_imp_to_floz_us: target count");
-    std::test::assert_eq_int(right_24 / 1floz_imp, k * 473176473, "volume/floz_imp_to_floz_us: source count");
+    std::test::assert_eq_int(
+        left_24 / 1floz_us,
+        k * 454609000,
+        "volume/floz_imp_to_floz_us: target count",
+    );
+    std::test::assert_eq_int(
+        right_24 / 1floz_imp,
+        k * 473176473,
+        "volume/floz_imp_to_floz_us: source count",
+    );
 
 }
 

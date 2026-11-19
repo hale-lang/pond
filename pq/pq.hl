@@ -509,7 +509,11 @@ locus PgConn {
         }
         if r.n == 0 {
             return db::Row { ok: false,
-                err: db::DbError { kind: "no_row", engine_code: 0, detail: "query returned no rows" } };
+                err: db::DbError {
+                    kind: "no_row",
+                    engine_code: 0,
+                    detail: "query returned no rows",
+                } };
         }
         // first row = csv up to the first newline
         let nl = std::str::index_of(r.csv, "\n");
@@ -534,7 +538,11 @@ locus PgConn {
             return db::ExecResult { ok: false,
                 err: db::DbError { kind: r.err_kind, engine_code: 0, detail: r.err_detail } };
         }
-        return db::ExecResult { ok: true, rows_affected: __tag_rows(r.cmd_tag), last_insert_rowid: 0 };
+        return db::ExecResult {
+            ok: true,
+            rows_affected: __tag_rows(r.cmd_tag),
+            last_insert_rowid: 0,
+        };
     }
 
     fn query_params(sql: String, args: db::Args) -> db::Rows {

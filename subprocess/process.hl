@@ -82,7 +82,15 @@ locus Process {
         // documented no-op (no upstream chdir hook yet); the child
         // inherits the parent's working directory.
         let argv = argv_blob(self.cmd, self.args);
-        self.child = std::process::spawn(argv) or self.on_spawn_fail(err);
+        // A locus handle is never assigned: `adopt` moves the spawned
+        // child's state into the field this locus already owns. A
+        // failed spawn is recorded and violates `fatal_spawn`; the
+        // handler ends birth, so nothing is adopted on that path.
+        let spawned = std::process::spawn(argv) or {
+            self.on_spawn_fail(err) or discard;
+            return;
+        };
+        std::process::adopt(self.child, spawned);
         self.pid = self.child.pid;
     }
 
@@ -162,10 +170,10 @@ locus Process {
     // on_spawn_fail — error-check fn (spec/styleguide.md § 7) for
     // the birth() spawn call. Records the IoError-derived detail and
     // violates `fatal_spawn` so the failure escalates to the
-    // parent's on_failure via the structural channel. Divergent
-    // (`violate` is Never), so the declared Child return is never
-    // produced.
-    fn on_spawn_fail(e: IoError) -> std::process::Child {
+    // parent's on_failure via the structural channel. A method that
+    // may violate is `fallible(ClosureViolation)`, so the call site
+    // says what happens next (birth ends).
+    fn on_spawn_fail(e: IoError) fallible(ClosureViolation) {
         self.spawn_error = e.kind + ": " + e.path;
         violate fatal_spawn;
     }

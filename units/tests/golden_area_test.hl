@@ -142,7 +142,11 @@ fn check_runtime(k: Int) {
     let right_11 = k * target_11;
     std::test::assert(left_11 == right_11, "area/angstrom2_to_barn: forward");
     std::test::assert(right_11 == left_11, "area/angstrom2_to_barn: reverse");
-    std::test::assert_eq_int(left_11 / 1barn, k * 100000000, "area/angstrom2_to_barn: target count");
+    std::test::assert_eq_int(
+        left_11 / 1barn,
+        k * 100000000,
+        "area/angstrom2_to_barn: target count",
+    );
     std::test::assert_eq_int(right_11 / 1angstrom2, k * 1, "area/angstrom2_to_barn: source count");
 
     // 1 pm2 = 10000 barn

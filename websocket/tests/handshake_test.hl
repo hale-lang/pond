@@ -17,7 +17,7 @@ fn hs_err(e: ws::WsError) -> Int {
     return -3;
 }
 
-fn contains(haystack: String, needle: String) -> Bool {
+fn has_text(haystack: String, needle: String) -> Bool {
     return std::str::index_of(haystack, needle) >= 0;
 }
 
@@ -36,18 +36,18 @@ fn main() {
     let req = std::str::from_bytes(ws::build_request("example.com", "/chat", rfc_key(), ""));
     std::test::assert_eq_int(std::str::index_of(req, "GET /chat HTTP/1.1\r\n"), 0,
         "request line first");
-    std::test::assert(contains(req, "Host: example.com\r\n"), "Host header");
-    std::test::assert(contains(req, "Upgrade: websocket\r\n"), "Upgrade header");
-    std::test::assert(contains(req, "Connection: Upgrade\r\n"), "Connection header");
-    std::test::assert(contains(req, "Sec-WebSocket-Key: " + rfc_key() + "\r\n"), "Key header");
-    std::test::assert(contains(req, "Sec-WebSocket-Version: 13\r\n"), "Version header");
+    std::test::assert(has_text(req, "Host: example.com\r\n"), "Host header");
+    std::test::assert(has_text(req, "Upgrade: websocket\r\n"), "Upgrade header");
+    std::test::assert(has_text(req, "Connection: Upgrade\r\n"), "Connection header");
+    std::test::assert(has_text(req, "Sec-WebSocket-Key: " + rfc_key() + "\r\n"), "Key header");
+    std::test::assert(has_text(req, "Sec-WebSocket-Version: 13\r\n"), "Version header");
     let rn = len(req);
     std::test::assert_eq_str(req[(rn - 4)..rn], "\r\n\r\n", "request CRLF-CRLF terminated");
 
     // Extra headers are stitched in, CRLF-terminated either way.
     let req2 = std::str::from_bytes(
         ws::build_request("example.com", "/", rfc_key(), "X-Auth: tok"));
-    std::test::assert(contains(req2, "X-Auth: tok\r\n"), "extra header without CRLF stitched");
+    std::test::assert(has_text(req2, "X-Auth: tok\r\n"), "extra header without CRLF stitched");
     let r2n = len(req2);
     std::test::assert_eq_str(req2[(r2n - 4)..r2n], "\r\n\r\n", "req2 still CRLF-CRLF terminated");
 
@@ -55,9 +55,11 @@ fn main() {
 
     let resp101 = ws::build_101_response(rfc_accept());
     let resp101_str = std::str::from_bytes(resp101);
-    std::test::assert_eq_int(std::str::index_of(resp101_str, "HTTP/1.1 101 Switching Protocols\r\n"), 0,
+    std::test::assert_eq_int(
+        std::str::index_of(resp101_str, "HTTP/1.1 101 Switching Protocols\r\n"),
+        0,
         "101 status line first");
-    std::test::assert(contains(resp101_str, "Sec-WebSocket-Accept: " + rfc_accept() + "\r\n"),
+    std::test::assert(has_text(resp101_str, "Sec-WebSocket-Accept: " + rfc_accept() + "\r\n"),
         "accept header in 101 response");
 
     // parse_response consumes exactly the header block on a good
@@ -69,7 +71,10 @@ fn main() {
     let with_tail = std::bytes::BytesBuilder { initial_cap: 256 };
     with_tail.append(resp101);
     with_tail.append(std::bytes::from_string("FRAMEBYTES"));
-    let consumed_tail = ws::parse_response(with_tail.finish() or raise, rfc_accept()) or hs_err(err);
+    let consumed_tail = ws::parse_response(
+        with_tail.finish() or raise,
+        rfc_accept(),
+    ) or hs_err(err);
     std::test::assert_eq_int(consumed_tail, len(resp101), "tail after handshake not consumed");
 
     // Empty expected_accept skips the accept check.
@@ -152,7 +157,7 @@ fn main() {
     let b400 = std::str::from_bytes(ws::build_400_response("not an upgrade"));
     std::test::assert_eq_int(std::str::index_of(b400, "HTTP/1.1 400 Bad Request\r\n"), 0,
         "400 status line first");
-    std::test::assert(contains(b400, "not an upgrade"), "400 reason in body");
+    std::test::assert(has_text(b400, "not an upgrade"), "400 reason in body");
 
     std::test::assert(ws::ends_with_crlf("line\r\n"), "ends_with_crlf true case");
     std::test::assert(!ws::ends_with_crlf("line"), "ends_with_crlf false case");

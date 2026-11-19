@@ -32,14 +32,26 @@ fn main() {
     // The exact common-denomination product exceeds runtime i64 headroom; compare compiler-converted literal counts in both directions instead.
     let actual_0_forward_positive: Denomination0 = 2500000000000000lbf_ft;
     let expected_0_forward_positive: Denomination0 = 3389544870828501N_m;
-    std::test::assert(actual_0_forward_positive == expected_0_forward_positive, "torque/lbf_ft_to_N_m: literal forward positive");
+    std::test::assert(
+        actual_0_forward_positive == expected_0_forward_positive,
+        "torque/lbf_ft_to_N_m: literal forward positive",
+    );
     let actual_0_forward_negative: Denomination0 = -actual_0_forward_positive;
     let expected_0_forward_negative: Denomination0 = -expected_0_forward_positive;
-    std::test::assert(actual_0_forward_negative == expected_0_forward_negative, "torque/lbf_ft_to_N_m: literal forward negative");
+    std::test::assert(
+        actual_0_forward_negative == expected_0_forward_negative,
+        "torque/lbf_ft_to_N_m: literal forward negative",
+    );
     let actual_0_reverse_positive: Denomination1 = 3389544870828501N_m;
     let expected_0_reverse_positive: Denomination1 = 2500000000000000lbf_ft;
-    std::test::assert(actual_0_reverse_positive == expected_0_reverse_positive, "torque/lbf_ft_to_N_m: literal reverse positive");
+    std::test::assert(
+        actual_0_reverse_positive == expected_0_reverse_positive,
+        "torque/lbf_ft_to_N_m: literal reverse positive",
+    );
     let actual_0_reverse_negative: Denomination1 = -actual_0_reverse_positive;
     let expected_0_reverse_negative: Denomination1 = -expected_0_reverse_positive;
-    std::test::assert(actual_0_reverse_negative == expected_0_reverse_negative, "torque/lbf_ft_to_N_m: literal reverse negative");
+    std::test::assert(
+        actual_0_reverse_negative == expected_0_reverse_negative,
+        "torque/lbf_ft_to_N_m: literal reverse negative",
+    );
 }

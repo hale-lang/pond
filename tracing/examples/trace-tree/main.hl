@@ -39,6 +39,8 @@ locus SpanSink {
         subscribe trace::SpanCompleted as on_span;
     }
 
+    // @unbounded: a demo that collects every span it is shown and prints them once
+    @unbounded
     fn on_span(s: trace::Span) {
         let dur_ns = s.end_ns - s.start_ns;
         self.rows = self.rows

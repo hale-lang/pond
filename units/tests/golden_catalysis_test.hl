@@ -21,7 +21,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_0 == right_0, "catalysis/enzyme_unit_to_nkat: forward");
     std::test::assert(right_0 == left_0, "catalysis/enzyme_unit_to_nkat: reverse");
     std::test::assert_eq_int(left_0 / 1nkat, k * 50, "catalysis/enzyme_unit_to_nkat: target count");
-    std::test::assert_eq_int(right_0 / 1enzyme_unit, k * 3, "catalysis/enzyme_unit_to_nkat: source count");
+    std::test::assert_eq_int(
+        right_0 / 1enzyme_unit,
+        k * 3,
+        "catalysis/enzyme_unit_to_nkat: source count",
+    );
 
     // 60 enzyme_unit = 1 ukat
     let source_1: Denomination0 = 60enzyme_unit;
@@ -31,7 +35,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_1 == right_1, "catalysis/enzyme_unit_to_ukat: forward");
     std::test::assert(right_1 == left_1, "catalysis/enzyme_unit_to_ukat: reverse");
     std::test::assert_eq_int(left_1 / 1ukat, k * 1, "catalysis/enzyme_unit_to_ukat: target count");
-    std::test::assert_eq_int(right_1 / 1enzyme_unit, k * 60, "catalysis/enzyme_unit_to_ukat: source count");
+    std::test::assert_eq_int(
+        right_1 / 1enzyme_unit,
+        k * 60,
+        "catalysis/enzyme_unit_to_ukat: source count",
+    );
 
     // 1 kat = 60000000 enzyme_unit
     let source_2: Denomination1 = 1kat;
@@ -40,7 +48,11 @@ fn check_runtime(k: Int) {
     let right_2 = k * target_2;
     std::test::assert(left_2 == right_2, "catalysis/kat_to_enzyme_unit: forward");
     std::test::assert(right_2 == left_2, "catalysis/kat_to_enzyme_unit: reverse");
-    std::test::assert_eq_int(left_2 / 1enzyme_unit, k * 60000000, "catalysis/kat_to_enzyme_unit: target count");
+    std::test::assert_eq_int(
+        left_2 / 1enzyme_unit,
+        k * 60000000,
+        "catalysis/kat_to_enzyme_unit: target count",
+    );
     std::test::assert_eq_int(right_2 / 1kat, k * 1, "catalysis/kat_to_enzyme_unit: source count");
 
 }

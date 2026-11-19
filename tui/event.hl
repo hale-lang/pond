@@ -199,12 +199,24 @@ fn __finish_csi(fin: Int, p1: Int, p2: Int, p3: Int,
             if (m & 4) != 0 { ctrl = true; }
         }
 
-        if fin == 65 { return Event { kind: "key", key: "up", shift: shift, alt: alt, ctrl: ctrl }; }
-        if fin == 66 { return Event { kind: "key", key: "down", shift: shift, alt: alt, ctrl: ctrl }; }
-        if fin == 67 { return Event { kind: "key", key: "right", shift: shift, alt: alt, ctrl: ctrl }; }
-        if fin == 68 { return Event { kind: "key", key: "left", shift: shift, alt: alt, ctrl: ctrl }; }
-        if fin == 72 { return Event { kind: "key", key: "home", shift: shift, alt: alt, ctrl: ctrl }; }
-        if fin == 70 { return Event { kind: "key", key: "end", shift: shift, alt: alt, ctrl: ctrl }; }
+        if fin == 65 {
+            return Event { kind: "key", key: "up", shift: shift, alt: alt, ctrl: ctrl };
+        }
+        if fin == 66 {
+            return Event { kind: "key", key: "down", shift: shift, alt: alt, ctrl: ctrl };
+        }
+        if fin == 67 {
+            return Event { kind: "key", key: "right", shift: shift, alt: alt, ctrl: ctrl };
+        }
+        if fin == 68 {
+            return Event { kind: "key", key: "left", shift: shift, alt: alt, ctrl: ctrl };
+        }
+        if fin == 72 {
+            return Event { kind: "key", key: "home", shift: shift, alt: alt, ctrl: ctrl };
+        }
+        if fin == 70 {
+            return Event { kind: "key", key: "end", shift: shift, alt: alt, ctrl: ctrl };
+        }
         if fin == 90 { return Event { kind: "key", key: "tab", shift: true }; } // CSI Z
 
         if fin == 126 { // '~'

@@ -22,7 +22,11 @@ fn check_runtime(k: Int) {
     let right_0 = k * target_0;
     std::test::assert(left_0 == right_0, "acceleration/g0_to_ft_per_s2: forward");
     std::test::assert(right_0 == left_0, "acceleration/g0_to_ft_per_s2: reverse");
-    std::test::assert_eq_int(left_0 / 1ft_per_s2, k * 196133, "acceleration/g0_to_ft_per_s2: target count");
+    std::test::assert_eq_int(
+        left_0 / 1ft_per_s2,
+        k * 196133,
+        "acceleration/g0_to_ft_per_s2: target count",
+    );
     std::test::assert_eq_int(right_0 / 1g0, k * 6096, "acceleration/g0_to_ft_per_s2: source count");
 
     // 200 g0 = 196133 Gal
@@ -43,7 +47,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_2 == right_2, "acceleration/m_per_s2_to_Gal: forward");
     std::test::assert(right_2 == left_2, "acceleration/m_per_s2_to_Gal: reverse");
     std::test::assert_eq_int(left_2 / 1Gal, k * 100, "acceleration/m_per_s2_to_Gal: target count");
-    std::test::assert_eq_int(right_2 / 1m_per_s2, k * 1, "acceleration/m_per_s2_to_Gal: source count");
+    std::test::assert_eq_int(
+        right_2 / 1m_per_s2,
+        k * 1,
+        "acceleration/m_per_s2_to_Gal: source count",
+    );
 
     // 1 Gal = 10 mm_per_s2
     let source_3: Denomination0 = 1Gal;
@@ -52,7 +60,11 @@ fn check_runtime(k: Int) {
     let right_3 = k * target_3;
     std::test::assert(left_3 == right_3, "acceleration/Gal_to_mm_per_s2: forward");
     std::test::assert(right_3 == left_3, "acceleration/Gal_to_mm_per_s2: reverse");
-    std::test::assert_eq_int(left_3 / 1mm_per_s2, k * 10, "acceleration/Gal_to_mm_per_s2: target count");
+    std::test::assert_eq_int(
+        left_3 / 1mm_per_s2,
+        k * 10,
+        "acceleration/Gal_to_mm_per_s2: target count",
+    );
     std::test::assert_eq_int(right_3 / 1Gal, k * 1, "acceleration/Gal_to_mm_per_s2: source count");
 
     // 1 mm_per_s2 = 1000 um_per_s2
@@ -62,8 +74,16 @@ fn check_runtime(k: Int) {
     let right_4 = k * target_4;
     std::test::assert(left_4 == right_4, "acceleration/mm_per_s2_to_um_per_s2: forward");
     std::test::assert(right_4 == left_4, "acceleration/mm_per_s2_to_um_per_s2: reverse");
-    std::test::assert_eq_int(left_4 / 1um_per_s2, k * 1000, "acceleration/mm_per_s2_to_um_per_s2: target count");
-    std::test::assert_eq_int(right_4 / 1mm_per_s2, k * 1, "acceleration/mm_per_s2_to_um_per_s2: source count");
+    std::test::assert_eq_int(
+        left_4 / 1um_per_s2,
+        k * 1000,
+        "acceleration/mm_per_s2_to_um_per_s2: target count",
+    );
+    std::test::assert_eq_int(
+        right_4 / 1mm_per_s2,
+        k * 1,
+        "acceleration/mm_per_s2_to_um_per_s2: source count",
+    );
 
     // 20000 g0 = 196133 m_per_s2
     let source_5: Denomination2 = 20000g0;
@@ -72,7 +92,11 @@ fn check_runtime(k: Int) {
     let right_5 = k * target_5;
     std::test::assert(left_5 == right_5, "acceleration/g0_to_m_per_s2: forward");
     std::test::assert(right_5 == left_5, "acceleration/g0_to_m_per_s2: reverse");
-    std::test::assert_eq_int(left_5 / 1m_per_s2, k * 196133, "acceleration/g0_to_m_per_s2: target count");
+    std::test::assert_eq_int(
+        left_5 / 1m_per_s2,
+        k * 196133,
+        "acceleration/g0_to_m_per_s2: target count",
+    );
     std::test::assert_eq_int(right_5 / 1g0, k * 20000, "acceleration/g0_to_m_per_s2: source count");
 
 }

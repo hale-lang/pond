@@ -148,8 +148,8 @@ locus WsClient {
 
         // ---- exposed surface (read by owner via contract) ----
 
-        last_message: WsMessage;
-        last_error: WsError;
+        last_message: WsMessage = WsMessage { };
+        last_error: WsError = WsError { };
 
         frames_received: Int = 0;
         frames_sent: Int = 0;

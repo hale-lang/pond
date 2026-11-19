@@ -50,7 +50,9 @@ fn main() {
 
     // Nonzero exit codes come back on the value channel's SUCCESS
     // side (a child that runs and exits nonzero is not a SpawnError).
-    let out4 = sub::run_cmd("/bin/false", "") or err_out(err);
+    // /usr/bin/false: macOS 26 and later ship no /bin/false, and a
+    // usr-merged Linux has both
+    let out4 = sub::run_cmd("/usr/bin/false", "") or err_out(err);
     std::test::assert_eq_int(out4.status.code, 1, "false exits 1 (success channel)");
 
     // ---- argv_blob pure helper ----

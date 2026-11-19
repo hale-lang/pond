@@ -19,8 +19,16 @@ fn check_runtime(k: Int) {
     let right_0 = k * target_0;
     std::test::assert(left_0 == right_0, "absorbed_dose/Gy_to_radiation_rad: forward");
     std::test::assert(right_0 == left_0, "absorbed_dose/Gy_to_radiation_rad: reverse");
-    std::test::assert_eq_int(left_0 / 1radiation_rad, k * 100, "absorbed_dose/Gy_to_radiation_rad: target count");
-    std::test::assert_eq_int(right_0 / 1Gy, k * 1, "absorbed_dose/Gy_to_radiation_rad: source count");
+    std::test::assert_eq_int(
+        left_0 / 1radiation_rad,
+        k * 100,
+        "absorbed_dose/Gy_to_radiation_rad: target count",
+    );
+    std::test::assert_eq_int(
+        right_0 / 1Gy,
+        k * 1,
+        "absorbed_dose/Gy_to_radiation_rad: source count",
+    );
 
     // 1 radiation_rad = 10 mGy
     let source_1: Denomination2 = 1radiation_rad;
@@ -29,8 +37,16 @@ fn check_runtime(k: Int) {
     let right_1 = k * target_1;
     std::test::assert(left_1 == right_1, "absorbed_dose/radiation_rad_to_mGy: forward");
     std::test::assert(right_1 == left_1, "absorbed_dose/radiation_rad_to_mGy: reverse");
-    std::test::assert_eq_int(left_1 / 1mGy, k * 10, "absorbed_dose/radiation_rad_to_mGy: target count");
-    std::test::assert_eq_int(right_1 / 1radiation_rad, k * 1, "absorbed_dose/radiation_rad_to_mGy: source count");
+    std::test::assert_eq_int(
+        left_1 / 1mGy,
+        k * 10,
+        "absorbed_dose/radiation_rad_to_mGy: target count",
+    );
+    std::test::assert_eq_int(
+        right_1 / 1radiation_rad,
+        k * 1,
+        "absorbed_dose/radiation_rad_to_mGy: source count",
+    );
 
 }
 

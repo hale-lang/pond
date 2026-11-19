@@ -198,10 +198,14 @@ fn render_histogram(ns: String, h: HistogramData) -> String {
     if nc > nb {
         let inf_cnt = at(h.counts, nb) or 0;
         let lab_inf = render_labels_with_le(h.labels, "+Inf");
-        b.append(std::bytes::from_string(full + "_bucket" + lab_inf + " " + to_string(inf_cnt) + "\n"));
+        b.append(
+            std::bytes::from_string(full + "_bucket" + lab_inf + " " + to_string(inf_cnt) + "\n"),
+        );
     }
     let lab_total = render_labels(h.labels);
     b.append(std::bytes::from_string(full + "_sum" + lab_total + " " + to_string(h.sum) + "\n"));
-    b.append(std::bytes::from_string(full + "_count" + lab_total + " " + to_string(h.count) + "\n"));
+    b.append(
+        std::bytes::from_string(full + "_count" + lab_total + " " + to_string(h.count) + "\n"),
+    );
     return std::str::from_bytes(b.finish() or raise);
 }

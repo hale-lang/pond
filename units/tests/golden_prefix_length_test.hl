@@ -282,7 +282,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_24 == right_24, "prefix_length/base_anchor_am: forward");
     std::test::assert(right_24 == left_24, "prefix_length/base_anchor_am: reverse");
     std::test::assert_eq_int(left_24 / 1m, k * 1, "prefix_length/base_anchor_am: target count");
-    std::test::assert_eq_int(right_24 / 1am, k * 1000000000000000000, "prefix_length/base_anchor_am: source count");
+    std::test::assert_eq_int(
+        right_24 / 1am,
+        k * 1000000000000000000,
+        "prefix_length/base_anchor_am: source count",
+    );
 
     // 1000000000000000 fm = 1 m
     let source_25: Denomination13 = 1000000000000000fm;
@@ -292,7 +296,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_25 == right_25, "prefix_length/base_anchor_fm: forward");
     std::test::assert(right_25 == left_25, "prefix_length/base_anchor_fm: reverse");
     std::test::assert_eq_int(left_25 / 1m, k * 1, "prefix_length/base_anchor_fm: target count");
-    std::test::assert_eq_int(right_25 / 1fm, k * 1000000000000000, "prefix_length/base_anchor_fm: source count");
+    std::test::assert_eq_int(
+        right_25 / 1fm,
+        k * 1000000000000000,
+        "prefix_length/base_anchor_fm: source count",
+    );
 
     // 1000000000000 pm = 1 m
     let source_26: Denomination19 = 1000000000000pm;
@@ -302,7 +310,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_26 == right_26, "prefix_length/base_anchor_pm: forward");
     std::test::assert(right_26 == left_26, "prefix_length/base_anchor_pm: reverse");
     std::test::assert_eq_int(left_26 / 1m, k * 1, "prefix_length/base_anchor_pm: target count");
-    std::test::assert_eq_int(right_26 / 1pm, k * 1000000000000, "prefix_length/base_anchor_pm: source count");
+    std::test::assert_eq_int(
+        right_26 / 1pm,
+        k * 1000000000000,
+        "prefix_length/base_anchor_pm: source count",
+    );
 
     // 1000000000 nm = 1 m
     let source_27: Denomination18 = 1000000000nm;
@@ -312,7 +324,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_27 == right_27, "prefix_length/base_anchor_nm: forward");
     std::test::assert(right_27 == left_27, "prefix_length/base_anchor_nm: reverse");
     std::test::assert_eq_int(left_27 / 1m, k * 1, "prefix_length/base_anchor_nm: target count");
-    std::test::assert_eq_int(right_27 / 1nm, k * 1000000000, "prefix_length/base_anchor_nm: source count");
+    std::test::assert_eq_int(
+        right_27 / 1nm,
+        k * 1000000000,
+        "prefix_length/base_anchor_nm: source count",
+    );
 
     // 1000000 um = 1 m
     let source_28: Denomination22 = 1000000um;
@@ -322,7 +338,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_28 == right_28, "prefix_length/base_anchor_um: forward");
     std::test::assert(right_28 == left_28, "prefix_length/base_anchor_um: reverse");
     std::test::assert_eq_int(left_28 / 1m, k * 1, "prefix_length/base_anchor_um: target count");
-    std::test::assert_eq_int(right_28 / 1um, k * 1000000, "prefix_length/base_anchor_um: source count");
+    std::test::assert_eq_int(
+        right_28 / 1um,
+        k * 1000000,
+        "prefix_length/base_anchor_um: source count",
+    );
 
     // 1000 mm = 1 m
     let source_29: Denomination17 = 1000mm;
@@ -332,7 +352,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_29 == right_29, "prefix_length/base_anchor_mm: forward");
     std::test::assert(right_29 == left_29, "prefix_length/base_anchor_mm: reverse");
     std::test::assert_eq_int(left_29 / 1m, k * 1, "prefix_length/base_anchor_mm: target count");
-    std::test::assert_eq_int(right_29 / 1mm, k * 1000, "prefix_length/base_anchor_mm: source count");
+    std::test::assert_eq_int(
+        right_29 / 1mm,
+        k * 1000,
+        "prefix_length/base_anchor_mm: source count",
+    );
 
     // 100 cm = 1 m
     let source_30: Denomination10 = 100cm;
@@ -371,7 +395,11 @@ fn check_runtime(k: Int) {
     let right_33 = k * target_33;
     std::test::assert(left_33 == right_33, "prefix_length/base_anchor_Mm: forward");
     std::test::assert(right_33 == left_33, "prefix_length/base_anchor_Mm: reverse");
-    std::test::assert_eq_int(left_33 / 1m, k * 1000000, "prefix_length/base_anchor_Mm: target count");
+    std::test::assert_eq_int(
+        left_33 / 1m,
+        k * 1000000,
+        "prefix_length/base_anchor_Mm: target count",
+    );
     std::test::assert_eq_int(right_33 / 1Mm, k * 1, "prefix_length/base_anchor_Mm: source count");
 
     // 1 Gm = 1000000000 m
@@ -381,7 +409,11 @@ fn check_runtime(k: Int) {
     let right_34 = k * target_34;
     std::test::assert(left_34 == right_34, "prefix_length/base_anchor_Gm: forward");
     std::test::assert(right_34 == left_34, "prefix_length/base_anchor_Gm: reverse");
-    std::test::assert_eq_int(left_34 / 1m, k * 1000000000, "prefix_length/base_anchor_Gm: target count");
+    std::test::assert_eq_int(
+        left_34 / 1m,
+        k * 1000000000,
+        "prefix_length/base_anchor_Gm: target count",
+    );
     std::test::assert_eq_int(right_34 / 1Gm, k * 1, "prefix_length/base_anchor_Gm: source count");
 
     // 1 Tm = 1000000000000 m
@@ -391,7 +423,11 @@ fn check_runtime(k: Int) {
     let right_35 = k * target_35;
     std::test::assert(left_35 == right_35, "prefix_length/base_anchor_Tm: forward");
     std::test::assert(right_35 == left_35, "prefix_length/base_anchor_Tm: reverse");
-    std::test::assert_eq_int(left_35 / 1m, k * 1000000000000, "prefix_length/base_anchor_Tm: target count");
+    std::test::assert_eq_int(
+        left_35 / 1m,
+        k * 1000000000000,
+        "prefix_length/base_anchor_Tm: target count",
+    );
     std::test::assert_eq_int(right_35 / 1Tm, k * 1, "prefix_length/base_anchor_Tm: source count");
 
     // 1 Pm = 1000000000000000 m
@@ -401,7 +437,11 @@ fn check_runtime(k: Int) {
     let right_36 = k * target_36;
     std::test::assert(left_36 == right_36, "prefix_length/base_anchor_Pm: forward");
     std::test::assert(right_36 == left_36, "prefix_length/base_anchor_Pm: reverse");
-    std::test::assert_eq_int(left_36 / 1m, k * 1000000000000000, "prefix_length/base_anchor_Pm: target count");
+    std::test::assert_eq_int(
+        left_36 / 1m,
+        k * 1000000000000000,
+        "prefix_length/base_anchor_Pm: target count",
+    );
     std::test::assert_eq_int(right_36 / 1Pm, k * 1, "prefix_length/base_anchor_Pm: source count");
 
     // 1 Em = 1000000000000000000 m
@@ -411,7 +451,11 @@ fn check_runtime(k: Int) {
     let right_37 = k * target_37;
     std::test::assert(left_37 == right_37, "prefix_length/base_anchor_Em: forward");
     std::test::assert(right_37 == left_37, "prefix_length/base_anchor_Em: reverse");
-    std::test::assert_eq_int(left_37 / 1m, k * 1000000000000000000, "prefix_length/base_anchor_Em: target count");
+    std::test::assert_eq_int(
+        left_37 / 1m,
+        k * 1000000000000000000,
+        "prefix_length/base_anchor_Em: target count",
+    );
     std::test::assert_eq_int(right_37 / 1Em, k * 1, "prefix_length/base_anchor_Em: source count");
 
 }

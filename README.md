@@ -31,10 +31,9 @@ import "vendor/pond/agent/llm" as llm;
 You vendor the whole pond repo, then import only the libs you
 use. Each lib lives at its own path under `vendor/pond/`.
 
-> **Compiler compatibility is per library.** The older catalogue's
-> recorded baseline is hale 0.16.0; newer libraries state newer
-> requirements. In particular, [`units/`](./units/README.md) needs the
-> post-v0.22 unit dialect. [`CONTRACTS.md`](./CONTRACTS.md) records
+> **Compiler compatibility is per library.** The catalogue's recorded
+> baseline is hale 0.36.0 (2026-11-19); a library that needs more says
+> so in its own README. [`CONTRACTS.md`](./CONTRACTS.md) records
 > verification commits, and [`COMPILER-BUGS.md`](./COMPILER-BUGS.md)
 > carries reproduced compiler defects with their own baselines.
 

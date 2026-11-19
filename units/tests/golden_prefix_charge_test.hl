@@ -282,7 +282,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_24 == right_24, "prefix_charge/base_anchor_aC: forward");
     std::test::assert(right_24 == left_24, "prefix_charge/base_anchor_aC: reverse");
     std::test::assert_eq_int(left_24 / 1C, k * 1, "prefix_charge/base_anchor_aC: target count");
-    std::test::assert_eq_int(right_24 / 1aC, k * 1000000000000000000, "prefix_charge/base_anchor_aC: source count");
+    std::test::assert_eq_int(
+        right_24 / 1aC,
+        k * 1000000000000000000,
+        "prefix_charge/base_anchor_aC: source count",
+    );
 
     // 1000000000000000 fC = 1 C
     let source_25: Denomination14 = 1000000000000000fC;
@@ -292,7 +296,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_25 == right_25, "prefix_charge/base_anchor_fC: forward");
     std::test::assert(right_25 == left_25, "prefix_charge/base_anchor_fC: reverse");
     std::test::assert_eq_int(left_25 / 1C, k * 1, "prefix_charge/base_anchor_fC: target count");
-    std::test::assert_eq_int(right_25 / 1fC, k * 1000000000000000, "prefix_charge/base_anchor_fC: source count");
+    std::test::assert_eq_int(
+        right_25 / 1fC,
+        k * 1000000000000000,
+        "prefix_charge/base_anchor_fC: source count",
+    );
 
     // 1000000000000 pC = 1 C
     let source_26: Denomination19 = 1000000000000pC;
@@ -302,7 +310,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_26 == right_26, "prefix_charge/base_anchor_pC: forward");
     std::test::assert(right_26 == left_26, "prefix_charge/base_anchor_pC: reverse");
     std::test::assert_eq_int(left_26 / 1C, k * 1, "prefix_charge/base_anchor_pC: target count");
-    std::test::assert_eq_int(right_26 / 1pC, k * 1000000000000, "prefix_charge/base_anchor_pC: source count");
+    std::test::assert_eq_int(
+        right_26 / 1pC,
+        k * 1000000000000,
+        "prefix_charge/base_anchor_pC: source count",
+    );
 
     // 1000000000 nC = 1 C
     let source_27: Denomination18 = 1000000000nC;
@@ -312,7 +324,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_27 == right_27, "prefix_charge/base_anchor_nC: forward");
     std::test::assert(right_27 == left_27, "prefix_charge/base_anchor_nC: reverse");
     std::test::assert_eq_int(left_27 / 1C, k * 1, "prefix_charge/base_anchor_nC: target count");
-    std::test::assert_eq_int(right_27 / 1nC, k * 1000000000, "prefix_charge/base_anchor_nC: source count");
+    std::test::assert_eq_int(
+        right_27 / 1nC,
+        k * 1000000000,
+        "prefix_charge/base_anchor_nC: source count",
+    );
 
     // 1000000 uC = 1 C
     let source_28: Denomination22 = 1000000uC;
@@ -322,7 +338,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_28 == right_28, "prefix_charge/base_anchor_uC: forward");
     std::test::assert(right_28 == left_28, "prefix_charge/base_anchor_uC: reverse");
     std::test::assert_eq_int(left_28 / 1C, k * 1, "prefix_charge/base_anchor_uC: target count");
-    std::test::assert_eq_int(right_28 / 1uC, k * 1000000, "prefix_charge/base_anchor_uC: source count");
+    std::test::assert_eq_int(
+        right_28 / 1uC,
+        k * 1000000,
+        "prefix_charge/base_anchor_uC: source count",
+    );
 
     // 1000 mC = 1 C
     let source_29: Denomination17 = 1000mC;
@@ -332,7 +352,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_29 == right_29, "prefix_charge/base_anchor_mC: forward");
     std::test::assert(right_29 == left_29, "prefix_charge/base_anchor_mC: reverse");
     std::test::assert_eq_int(left_29 / 1C, k * 1, "prefix_charge/base_anchor_mC: target count");
-    std::test::assert_eq_int(right_29 / 1mC, k * 1000, "prefix_charge/base_anchor_mC: source count");
+    std::test::assert_eq_int(
+        right_29 / 1mC,
+        k * 1000,
+        "prefix_charge/base_anchor_mC: source count",
+    );
 
     // 100 cC = 1 C
     let source_30: Denomination11 = 100cC;
@@ -371,7 +395,11 @@ fn check_runtime(k: Int) {
     let right_33 = k * target_33;
     std::test::assert(left_33 == right_33, "prefix_charge/base_anchor_MC: forward");
     std::test::assert(right_33 == left_33, "prefix_charge/base_anchor_MC: reverse");
-    std::test::assert_eq_int(left_33 / 1C, k * 1000000, "prefix_charge/base_anchor_MC: target count");
+    std::test::assert_eq_int(
+        left_33 / 1C,
+        k * 1000000,
+        "prefix_charge/base_anchor_MC: target count",
+    );
     std::test::assert_eq_int(right_33 / 1MC, k * 1, "prefix_charge/base_anchor_MC: source count");
 
     // 1 GC = 1000000000 C
@@ -381,7 +409,11 @@ fn check_runtime(k: Int) {
     let right_34 = k * target_34;
     std::test::assert(left_34 == right_34, "prefix_charge/base_anchor_GC: forward");
     std::test::assert(right_34 == left_34, "prefix_charge/base_anchor_GC: reverse");
-    std::test::assert_eq_int(left_34 / 1C, k * 1000000000, "prefix_charge/base_anchor_GC: target count");
+    std::test::assert_eq_int(
+        left_34 / 1C,
+        k * 1000000000,
+        "prefix_charge/base_anchor_GC: target count",
+    );
     std::test::assert_eq_int(right_34 / 1GC, k * 1, "prefix_charge/base_anchor_GC: source count");
 
     // 1 TC = 1000000000000 C
@@ -391,7 +423,11 @@ fn check_runtime(k: Int) {
     let right_35 = k * target_35;
     std::test::assert(left_35 == right_35, "prefix_charge/base_anchor_TC: forward");
     std::test::assert(right_35 == left_35, "prefix_charge/base_anchor_TC: reverse");
-    std::test::assert_eq_int(left_35 / 1C, k * 1000000000000, "prefix_charge/base_anchor_TC: target count");
+    std::test::assert_eq_int(
+        left_35 / 1C,
+        k * 1000000000000,
+        "prefix_charge/base_anchor_TC: target count",
+    );
     std::test::assert_eq_int(right_35 / 1TC, k * 1, "prefix_charge/base_anchor_TC: source count");
 
     // 1 PC = 1000000000000000 C
@@ -401,7 +437,11 @@ fn check_runtime(k: Int) {
     let right_36 = k * target_36;
     std::test::assert(left_36 == right_36, "prefix_charge/base_anchor_PC: forward");
     std::test::assert(right_36 == left_36, "prefix_charge/base_anchor_PC: reverse");
-    std::test::assert_eq_int(left_36 / 1C, k * 1000000000000000, "prefix_charge/base_anchor_PC: target count");
+    std::test::assert_eq_int(
+        left_36 / 1C,
+        k * 1000000000000000,
+        "prefix_charge/base_anchor_PC: target count",
+    );
     std::test::assert_eq_int(right_36 / 1PC, k * 1, "prefix_charge/base_anchor_PC: source count");
 
     // 1 EC = 1000000000000000000 C
@@ -411,7 +451,11 @@ fn check_runtime(k: Int) {
     let right_37 = k * target_37;
     std::test::assert(left_37 == right_37, "prefix_charge/base_anchor_EC: forward");
     std::test::assert(right_37 == left_37, "prefix_charge/base_anchor_EC: reverse");
-    std::test::assert_eq_int(left_37 / 1C, k * 1000000000000000000, "prefix_charge/base_anchor_EC: target count");
+    std::test::assert_eq_int(
+        left_37 / 1C,
+        k * 1000000000000000000,
+        "prefix_charge/base_anchor_EC: target count",
+    );
     std::test::assert_eq_int(right_37 / 1EC, k * 1, "prefix_charge/base_anchor_EC: source count");
 
 }

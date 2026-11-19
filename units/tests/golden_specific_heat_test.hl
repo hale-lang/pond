@@ -20,8 +20,16 @@ fn check_runtime(k: Int) {
     let right_0 = k * target_0;
     std::test::assert(left_0 == right_0, "specific_heat/J_per_g_K_to_kJ_per_kg_K: forward");
     std::test::assert(right_0 == left_0, "specific_heat/J_per_g_K_to_kJ_per_kg_K: reverse");
-    std::test::assert_eq_int(left_0 / 1kJ_per_kg_K, k * 1, "specific_heat/J_per_g_K_to_kJ_per_kg_K: target count");
-    std::test::assert_eq_int(right_0 / 1J_per_g_K, k * 1, "specific_heat/J_per_g_K_to_kJ_per_kg_K: source count");
+    std::test::assert_eq_int(
+        left_0 / 1kJ_per_kg_K,
+        k * 1,
+        "specific_heat/J_per_g_K_to_kJ_per_kg_K: target count",
+    );
+    std::test::assert_eq_int(
+        right_0 / 1J_per_g_K,
+        k * 1,
+        "specific_heat/J_per_g_K_to_kJ_per_kg_K: source count",
+    );
 
     // 1 cal_th_per_g_K = 4184 J_per_kg_K
     let source_1: Denomination2 = 1cal_th_per_g_K;
@@ -30,8 +38,16 @@ fn check_runtime(k: Int) {
     let right_1 = k * target_1;
     std::test::assert(left_1 == right_1, "specific_heat/cal_th_per_g_K_to_J_per_kg_K: forward");
     std::test::assert(right_1 == left_1, "specific_heat/cal_th_per_g_K_to_J_per_kg_K: reverse");
-    std::test::assert_eq_int(left_1 / 1J_per_kg_K, k * 4184, "specific_heat/cal_th_per_g_K_to_J_per_kg_K: target count");
-    std::test::assert_eq_int(right_1 / 1cal_th_per_g_K, k * 1, "specific_heat/cal_th_per_g_K_to_J_per_kg_K: source count");
+    std::test::assert_eq_int(
+        left_1 / 1J_per_kg_K,
+        k * 4184,
+        "specific_heat/cal_th_per_g_K_to_J_per_kg_K: target count",
+    );
+    std::test::assert_eq_int(
+        right_1 / 1cal_th_per_g_K,
+        k * 1,
+        "specific_heat/cal_th_per_g_K_to_J_per_kg_K: source count",
+    );
 
     // 125 cal_th_per_g_K = 523 J_per_g_K
     let source_2: Denomination2 = 125cal_th_per_g_K;
@@ -40,8 +56,16 @@ fn check_runtime(k: Int) {
     let right_2 = k * target_2;
     std::test::assert(left_2 == right_2, "specific_heat/cal_th_per_g_K_to_J_per_g_K: forward");
     std::test::assert(right_2 == left_2, "specific_heat/cal_th_per_g_K_to_J_per_g_K: reverse");
-    std::test::assert_eq_int(left_2 / 1J_per_g_K, k * 523, "specific_heat/cal_th_per_g_K_to_J_per_g_K: target count");
-    std::test::assert_eq_int(right_2 / 1cal_th_per_g_K, k * 125, "specific_heat/cal_th_per_g_K_to_J_per_g_K: source count");
+    std::test::assert_eq_int(
+        left_2 / 1J_per_g_K,
+        k * 523,
+        "specific_heat/cal_th_per_g_K_to_J_per_g_K: target count",
+    );
+    std::test::assert_eq_int(
+        right_2 / 1cal_th_per_g_K,
+        k * 125,
+        "specific_heat/cal_th_per_g_K_to_J_per_g_K: source count",
+    );
 
 }
 

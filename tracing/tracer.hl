@@ -313,7 +313,10 @@ locus Tracer {
 // failure propagates implicitly since hale 400ac68), the same
 // payload-translation idiom pond/http/client's __raise_connect
 // uses.
-fn __raise_transport(e: std::http::HttpError, endpoint: String) -> std::http::ClientResponse fallible(TraceError) {
+fn __raise_transport(
+    e: std::http::HttpError,
+    endpoint: String
+) -> std::http::ClientResponse fallible(TraceError) {
     fail TraceError {
         kind: "io",
         detail: "OTLP POST to " + endpoint + " failed: "

@@ -679,7 +679,7 @@ locus NatsConn {
     }
 
     // The oldest unacknowledged message, if it is older than the window.
-    fn audit(now: Int) {
+    fn audit(now: Int) fallible(ClosureViolation) {
         if self.head >= self.pending.len() { return; }
         let queued = self.queued.get(self.head) or now;
         if now - queued < self.ack_window_ms * 1000000 { return; }
@@ -745,7 +745,8 @@ locus NatsConn {
             let now = std::time::monotonic_ns();
             if self.run_for_ms > 0 && now - started >= self.run_for_ms * 1000000 { break; }
             self.step(now);
-            self.audit(now);
+            // a violation has begun the drain; the loop reads `draining` next
+            self.audit(now) or discard;
             // yield: NatsOutbound handlers run here, on this thread
             if self.client.connected { std::time::sleep(0ms); } else { std::time::sleep(10ms); }
         }

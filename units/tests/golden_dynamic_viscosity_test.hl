@@ -41,7 +41,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_2 == right_2, "dynamic_viscosity/mPa_s_to_cP: forward");
     std::test::assert(right_2 == left_2, "dynamic_viscosity/mPa_s_to_cP: reverse");
     std::test::assert_eq_int(left_2 / 1cP, k * 1, "dynamic_viscosity/mPa_s_to_cP: target count");
-    std::test::assert_eq_int(right_2 / 1mPa_s, k * 1, "dynamic_viscosity/mPa_s_to_cP: source count");
+    std::test::assert_eq_int(
+        right_2 / 1mPa_s,
+        k * 1,
+        "dynamic_viscosity/mPa_s_to_cP: source count",
+    );
 
     // 1 Pa_s = 10 P
     let source_3: Denomination1 = 1Pa_s;

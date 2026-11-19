@@ -49,7 +49,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_2 == right_2, "customary_mass/grain_to_mg: forward");
     std::test::assert(right_2 == left_2, "customary_mass/grain_to_mg: reverse");
     std::test::assert_eq_int(left_2 / 1mg, k * 6479891, "customary_mass/grain_to_mg: target count");
-    std::test::assert_eq_int(right_2 / 1grain, k * 100000, "customary_mass/grain_to_mg: source count");
+    std::test::assert_eq_int(
+        right_2 / 1grain,
+        k * 100000,
+        "customary_mass/grain_to_mg: source count",
+    );
 
     // 625000 oz_troy = 19439673 g
     let source_3: Denomination8 = 625000oz_troy;
@@ -58,8 +62,16 @@ fn check_runtime(k: Int) {
     let right_3 = k * target_3;
     std::test::assert(left_3 == right_3, "customary_mass/oz_troy_to_g: forward");
     std::test::assert(right_3 == left_3, "customary_mass/oz_troy_to_g: reverse");
-    std::test::assert_eq_int(left_3 / 1g, k * 19439673, "customary_mass/oz_troy_to_g: target count");
-    std::test::assert_eq_int(right_3 / 1oz_troy, k * 625000, "customary_mass/oz_troy_to_g: source count");
+    std::test::assert_eq_int(
+        left_3 / 1g,
+        k * 19439673,
+        "customary_mass/oz_troy_to_g: target count",
+    );
+    std::test::assert_eq_int(
+        right_3 / 1oz_troy,
+        k * 625000,
+        "customary_mass/oz_troy_to_g: source count",
+    );
 
     // 50000000 ton_us = 45359237 tonne
     let source_4: Denomination10 = 50000000ton_us;
@@ -68,8 +80,16 @@ fn check_runtime(k: Int) {
     let right_4 = k * target_4;
     std::test::assert(left_4 == right_4, "customary_mass/ton_us_to_tonne: forward");
     std::test::assert(right_4 == left_4, "customary_mass/ton_us_to_tonne: reverse");
-    std::test::assert_eq_int(left_4 / 1tonne, k * 45359237, "customary_mass/ton_us_to_tonne: target count");
-    std::test::assert_eq_int(right_4 / 1ton_us, k * 50000000, "customary_mass/ton_us_to_tonne: source count");
+    std::test::assert_eq_int(
+        left_4 / 1tonne,
+        k * 45359237,
+        "customary_mass/ton_us_to_tonne: target count",
+    );
+    std::test::assert_eq_int(
+        right_4 / 1ton_us,
+        k * 50000000,
+        "customary_mass/ton_us_to_tonne: source count",
+    );
 
     // 312500000 ton_imp = 317514659 tonne
     let source_5: Denomination9 = 312500000ton_imp;
@@ -78,8 +98,16 @@ fn check_runtime(k: Int) {
     let right_5 = k * target_5;
     std::test::assert(left_5 == right_5, "customary_mass/ton_imp_to_tonne: forward");
     std::test::assert(right_5 == left_5, "customary_mass/ton_imp_to_tonne: reverse");
-    std::test::assert_eq_int(left_5 / 1tonne, k * 317514659, "customary_mass/ton_imp_to_tonne: target count");
-    std::test::assert_eq_int(right_5 / 1ton_imp, k * 312500000, "customary_mass/ton_imp_to_tonne: source count");
+    std::test::assert_eq_int(
+        left_5 / 1tonne,
+        k * 317514659,
+        "customary_mass/ton_imp_to_tonne: target count",
+    );
+    std::test::assert_eq_int(
+        right_5 / 1ton_imp,
+        k * 312500000,
+        "customary_mass/ton_imp_to_tonne: source count",
+    );
 
     // 1 lb = 16 oz
     let source_6: Denomination4 = 1lb;
@@ -108,8 +136,16 @@ fn check_runtime(k: Int) {
     let right_8 = k * target_8;
     std::test::assert(left_8 == right_8, "customary_mass/oz_troy_to_grain: forward");
     std::test::assert(right_8 == left_8, "customary_mass/oz_troy_to_grain: reverse");
-    std::test::assert_eq_int(left_8 / 1grain, k * 480, "customary_mass/oz_troy_to_grain: target count");
-    std::test::assert_eq_int(right_8 / 1oz_troy, k * 1, "customary_mass/oz_troy_to_grain: source count");
+    std::test::assert_eq_int(
+        left_8 / 1grain,
+        k * 480,
+        "customary_mass/oz_troy_to_grain: target count",
+    );
+    std::test::assert_eq_int(
+        right_8 / 1oz_troy,
+        k * 1,
+        "customary_mass/oz_troy_to_grain: source count",
+    );
 
     // 1 lb_troy = 12 oz_troy
     let source_9: Denomination5 = 1lb_troy;
@@ -118,8 +154,16 @@ fn check_runtime(k: Int) {
     let right_9 = k * target_9;
     std::test::assert(left_9 == right_9, "customary_mass/lb_troy_to_oz_troy: forward");
     std::test::assert(right_9 == left_9, "customary_mass/lb_troy_to_oz_troy: reverse");
-    std::test::assert_eq_int(left_9 / 1oz_troy, k * 12, "customary_mass/lb_troy_to_oz_troy: target count");
-    std::test::assert_eq_int(right_9 / 1lb_troy, k * 1, "customary_mass/lb_troy_to_oz_troy: source count");
+    std::test::assert_eq_int(
+        left_9 / 1oz_troy,
+        k * 12,
+        "customary_mass/lb_troy_to_oz_troy: target count",
+    );
+    std::test::assert_eq_int(
+        right_9 / 1lb_troy,
+        k * 1,
+        "customary_mass/lb_troy_to_oz_troy: source count",
+    );
 
     // 175 lb_troy = 144 lb
     let source_10: Denomination5 = 175lb_troy;
@@ -129,7 +173,11 @@ fn check_runtime(k: Int) {
     std::test::assert(left_10 == right_10, "customary_mass/lb_troy_to_lb: forward");
     std::test::assert(right_10 == left_10, "customary_mass/lb_troy_to_lb: reverse");
     std::test::assert_eq_int(left_10 / 1lb, k * 144, "customary_mass/lb_troy_to_lb: target count");
-    std::test::assert_eq_int(right_10 / 1lb_troy, k * 175, "customary_mass/lb_troy_to_lb: source count");
+    std::test::assert_eq_int(
+        right_10 / 1lb_troy,
+        k * 175,
+        "customary_mass/lb_troy_to_lb: source count",
+    );
 
     // 1 carat = 200 mg
     let source_11: Denomination0 = 1carat;
