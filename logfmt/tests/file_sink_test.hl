@@ -36,12 +36,12 @@ fn main() {
 
     // ----- log-event formatting: level names -----
     cleanup(path);
-    let e1 = std::log::LogEvent { level: 1, msg: "hello", path: "app" };
-    let e2 = std::log::LogEvent { level: 2, msg: "careful", path: "app.db" };
-    let e3 = std::log::LogEvent { level: 3, msg: "boom", path: "app" };
-    let e4 = std::log::LogEvent { level: 4, msg: "dbg", path: "app" };
-    let e5 = std::log::LogEvent { level: 5, msg: "trc", path: "app" };
-    let e9 = std::log::LogEvent { level: 9, msg: "odd", path: "app" };
+    let e1 = std::log::LogEvent { level: 1, msg: "hello", path: "app", fields: "", ts: 0 };
+    let e2 = std::log::LogEvent { level: 2, msg: "careful", path: "app.db", fields: "", ts: 0 };
+    let e3 = std::log::LogEvent { level: 3, msg: "boom", path: "app", fields: "", ts: 0 };
+    let e4 = std::log::LogEvent { level: 4, msg: "dbg", path: "app", fields: "", ts: 0 };
+    let e5 = std::log::LogEvent { level: 5, msg: "trc", path: "app", fields: "", ts: 0 };
+    let e9 = std::log::LogEvent { level: 9, msg: "odd", path: "app", fields: "", ts: 0 };
     sink.on_event(e1);
     sink.on_event(e2);
     sink.on_event(e3);

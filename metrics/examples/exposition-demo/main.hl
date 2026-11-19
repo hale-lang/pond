@@ -59,11 +59,11 @@ fn drive(reg: metrics::Registry) {
     let buckets = mat::from_rows(1, 4, "0.005, 0.05, 0.5, 1.0");
     let lbl_hist = metrics::labels_one("method", "GET");
     let req_dur = metrics::histogram(reg, "http_request_duration_seconds", buckets, lbl_hist);
-    req_dur.observe(0.001);
-    req_dur.observe(0.04);
-    req_dur.observe(0.4);
-    req_dur.observe(0.9);
-    req_dur.observe(2.5); // lands in the +Inf bucket only
+    req_dur.observe(0.001) or discard;
+    req_dur.observe(0.04) or discard;
+    req_dur.observe(0.4) or discard;
+    req_dur.observe(0.9) or discard;
+    req_dur.observe(2.5) or discard; // lands in the +Inf bucket only
 
     // Render and dump.
     let body = reg.render();

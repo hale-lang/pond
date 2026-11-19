@@ -54,7 +54,7 @@ fn __build_anthropic_body(req: LlmRequest, stream: Bool) -> String {
     // Temperature is plumbed through to_string for the Float
     // → text rendering; Anthropic accepts standard decimal
     // forms.
-    b.field("temperature", to_string(req.temperature));
+    b.raw_field("temperature", to_string(req.temperature));
 
     b.bool_field("stream", stream);
 
@@ -86,7 +86,7 @@ fn __build_openai_body(req: LlmRequest, stream: Bool) -> String {
     let b = std::json::Builder { };
     b.begin_object();
     b.string_field("model", req.model);
-    b.field("temperature", to_string(req.temperature));
+    b.raw_field("temperature", to_string(req.temperature));
     b.bool_field("stream", stream);
     if req.max_tokens > 0 {
         b.int_field("max_tokens", req.max_tokens);

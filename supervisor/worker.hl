@@ -85,9 +85,9 @@ locus Worker {
     // Use from inside `run()` or any locus method body:
     //
     //     if some_value_error_condition {
-    //         self.fail("upstream sent malformed frame");
+    //         self.fail("upstream sent malformed frame") or discard;
     //     }
-    fn fail(reason: String) {
+    fn fail(reason: String) fallible(ClosureViolation) {
         self.last_error = reason;
         violate failed;
     }

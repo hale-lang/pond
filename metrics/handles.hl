@@ -246,7 +246,7 @@ locus Histogram {
         epoch inline;
     }
 
-    fn observe(v: Float) {
+    fn observe(v: Float) fallible(ClosureViolation) {
         if self.hist_idx < 0 {
             return;
         }

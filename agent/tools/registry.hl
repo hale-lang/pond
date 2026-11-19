@@ -136,9 +136,9 @@ fn __build_spec_array(entries: ToolList) -> String {
         b.string_field("name", s.name);
         b.string_field("description", s.description);
         // input_schema is already a JSON value — emit it raw via
-        // b.field(name, raw_value) rather than string_field so it
+        // b.raw_field(name, raw_value) rather than string_field so it
         // isn't quoted into a JSON string literal.
-        b.field("input_schema", s.input_schema);
+        b.raw_field("input_schema", s.input_schema);
         b.end_object();
         i = i + 1;
     }

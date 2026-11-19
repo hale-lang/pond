@@ -80,13 +80,13 @@ locus NatsFake {
             self.oldest_unacked_id = self.sent;
             self.oldest_unacked_subject = o.subject;
         }
-        self.audit();
+        self.audit() or discard;
     }
 
     /// The same check NatsConn makes on every receive tick: a message
     /// unacknowledged past the window violates `delivery`. The fake
     /// runs it on each send; call it to check with no traffic.
-    fn audit() {
+    fn audit() fallible(ClosureViolation) {
         if self.oldest_unacked_ns == 0 { return; }
         if std::time::monotonic_ns() - self.oldest_unacked_ns < self.ack_window_ms * 1000000 {
             return;

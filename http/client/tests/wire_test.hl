@@ -4,8 +4,8 @@
 
 import ".." as http;
 
-// contains — index_of >= 0 wrapper for readable asserts.
-fn contains(haystack: String, needle: String) -> Bool {
+// has_text — index_of >= 0 wrapper for readable asserts.
+fn has_text(haystack: String, needle: String) -> Bool {
     return std::str::index_of(haystack, needle) >= 0;
 }
 
@@ -22,11 +22,11 @@ fn main() {
 
     std::test::assert_eq_int(std::str::index_of(hdrs, "GET /things?a=1 HTTP/1.1\r\n"), 0,
         "request line first, method + path + version");
-    std::test::assert(contains(hdrs, "Host: example.com:8080\r\n"), "Host header present");
-    std::test::assert(contains(hdrs, "User-Agent: pond-test/1.0\r\n"), "User-Agent present");
-    std::test::assert(contains(hdrs, "Content-Length: 0\r\n"), "Content-Length 0 for empty body");
-    std::test::assert(contains(hdrs, "Connection: close\r\n"), "Connection close when keep_alive=false");
-    std::test::assert(contains(hdrs, "X-Token: abc\r\n"), "user header present");
+    std::test::assert(has_text(hdrs, "Host: example.com:8080\r\n"), "Host header present");
+    std::test::assert(has_text(hdrs, "User-Agent: pond-test/1.0\r\n"), "User-Agent present");
+    std::test::assert(has_text(hdrs, "Content-Length: 0\r\n"), "Content-Length 0 for empty body");
+    std::test::assert(has_text(hdrs, "Connection: close\r\n"), "Connection close when keep_alive=false");
+    std::test::assert(has_text(hdrs, "X-Token: abc\r\n"), "user header present");
     let hn = len(hdrs);
     std::test::assert_eq_str(hdrs[(hn - 4)..hn], "\r\n\r\n", "header block CRLF-CRLF terminated");
 
@@ -41,9 +41,9 @@ fn main() {
     let phdrs = http::__build_request_headers(preq, "pond-test/1.0", true);
     std::test::assert_eq_int(std::str::index_of(phdrs, "POST /submit HTTP/1.1\r\n"), 0,
         "POST request line");
-    std::test::assert(contains(phdrs, "Content-Length: 2\r\n"), "Content-Length 2 for 2-byte body");
-    std::test::assert(contains(phdrs, "Connection: keep-alive\r\n"), "Connection keep-alive when keep_alive=true");
-    std::test::assert(!contains(phdrs, "Connection: close"), "no Connection close in keep-alive mode");
+    std::test::assert(has_text(phdrs, "Content-Length: 2\r\n"), "Content-Length 2 for 2-byte body");
+    std::test::assert(has_text(phdrs, "Connection: keep-alive\r\n"), "Connection keep-alive when keep_alive=true");
+    std::test::assert(!has_text(phdrs, "Connection: close"), "no Connection close in keep-alive mode");
 
     // ---- response parsing ------------------------------------
 
