@@ -536,6 +536,8 @@ described in `realtime/nats/README.md`).
 
 ## 10. Imported scalar point constructors check but do not lower — medium
 
+**Status (2026-11-19, hale v0.36.0):** FIXED upstream (re-run 2026-11-19 with this entry's two seeds: `hale check app` ok, `hale build app` ok, `./app/app` prints `25000`).
+
 **Status (2026-11-06, hale v0.32.7):** STILL REAL (re-run 2026-11-06): `hale check` passes and the build says ``unsupported in codegen v0: path call `u::Celsius` in expression position``. A qualified point constructor of any imported quantity (`temporal::Instant(0monotonic_ns)`) fails the same way.
 
 Reproduced 2026-10-07 against Hale `0.22.0` at
@@ -572,6 +574,8 @@ form; the exported point's origin is preserved.
 
 ## 11. Qualified imported scalar casts do not recognize rounding policies — medium
 
+**Status (2026-11-19, hale v0.36.0):** FIXED upstream (re-run 2026-11-19: `u::Metres(distance) or half_even` checks, builds and prints `2m`).
+
 **Status (2026-11-06, hale v0.32.7):** STILL REAL (re-run 2026-11-06): `u::Metres(distance) or half_even` is refused by `hale check` with ``unknown identifier `half_even` ``.
 
 Reproduced 2026-10-07 against the same `2027ab41` compiler.
@@ -606,6 +610,8 @@ Pond's optional quantity examples use that supported surface.
 
 ## 12. Unary minus loses an exact quantity literal's divisibility proof — medium
 
+**Status (2026-11-19, hale v0.36.0):** FIXED upstream (re-run 2026-11-19: `let n: A = -3b;` checks, builds and prints `-2a`).
+
 **Status (2026-11-06, hale v0.32.7):** STILL REAL (re-run 2026-11-06): `let n: A = -3b;` is refused with "`A` from `Q` divides by 3: say what happens to the remainder" while the positive `3b` converts exactly.
 
 Reproduced 2026-10-07 against the same `2027ab41` compiler. A single `main.hl`:
@@ -630,6 +636,8 @@ Its runtime signed conversion tests remain enabled; this gap is not encoded
 as an expected-failure language rule.
 
 ## 13. Duration and a nanosecond refinement have inconsistent backend classes — medium
+
+**Status (2026-11-19, hale v0.36.0):** FIXED upstream (re-run 2026-11-19: `a == b` across `Duration` and a `ns` refinement checks, builds and the assertion passes; a locus param typed as a Duration refinement with a Duration default (`d: Millis = 100ms`) and `min` / `max` on a declared quantity build and run too).
 
 **Status (2026-11-06, hale v0.32.7):** STILL REAL (re-run 2026-11-06): `hale check` passes and the build says ``unsupported in codegen v0: binary op operands of mixed types Duration and Int``. The same class bites a locus param whose type is a Duration refinement with a Duration default (`d: Millis = 100ms`: "declared Int, default Duration").
 

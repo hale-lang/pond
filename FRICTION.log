@@ -5789,7 +5789,7 @@ and never counted as passing native tests.
 
 ## Imported scalar constructors and policies — OPEN 2026-10-07
 
-**Status (2026-11-06, hale v0.32.7):** still open at hale v0.32.7; COMPILER-BUGS.md §§10–11 re-run 2026-11-06 with the same refusals.
+**Status (2026-11-06, hale v0.32.7):** still open at hale v0.32.7; COMPILER-BUGS.md §§10–11 re-run 2026-11-06 with the same refusals. **Status (2026-11-19, hale v0.36.0):** FIXED upstream; both re-run 2026-11-19, check, build and run (see COMPILER-BUGS.md §§10–11).
 
 A qualified q::Celsius(25degC) passes check but fails native codegen; a plain
 alias also fails. A local scalar refinement works and preserves the origin:
@@ -5802,7 +5802,7 @@ conversion shims. Standalone upstream reproductions: COMPILER-BUGS.md §§10–1
 
 ## Exact negative literals and Duration refinements — OPEN 2026-10-07
 
-**Status (2026-11-06, hale v0.32.7):** still open at hale v0.32.7; COMPILER-BUGS.md §§12–13 re-run 2026-11-06 with the same refusals.
+**Status (2026-11-06, hale v0.32.7):** still open at hale v0.32.7; COMPILER-BUGS.md §§12–13 re-run 2026-11-06 with the same refusals. **Status (2026-11-19, hale v0.36.0):** FIXED upstream; both re-run 2026-11-19, check, build and run (see COMPILER-BUGS.md §§12–13).
 
 A positive literal's exact divisibility proof is lost under unary minus for
 some rational narrowings. Literal-conversion golden cases negate an already
@@ -6180,16 +6180,27 @@ own; the rest are here.
 
 **Still open upstream**
 
-- COMPILER-BUGS.md §§10–13 (the units dialect: imported scalar point
-  constructors check but do not lower, rounding policies on qualified
-  imported casts, unary minus and divisibility, Duration against a ns
-  refinement) — all four re-run 2026-11-06 with the same refusals; a
-  locus param typed as a Duration refinement with a Duration default
-  fails the same way (`declared Int, default Duration`), and `min` /
-  `max` refuse a declared quantity.
 - `upstream: stdin-not-parkable` — no stdin park on `async_io` has
   shipped; the per-frame `poll(2)` stands.
 - `ffi-symbols-not-namespaced`, `sigwinch-not-surfaced` — conventions,
   no ask.
 - sandbox isolation primitives (namespaces / cgroups / seccomp) — a
   wishlist, no decision.
+
+**Re-read 2026-11-19 (hale v0.36.0)**
+
+- COMPILER-BUGS.md §§10–13 (the units dialect: imported scalar point
+  constructors, rounding policies on qualified imported casts, unary
+  minus and divisibility, Duration against a ns refinement) — all four
+  FIXED: each entry's repro checks, builds and runs on v0.36.0, and so do
+  the two shapes listed beside them on 2026-11-06 (a locus param typed as
+  a Duration refinement with a Duration default; `min` / `max` on a
+  declared quantity). Their status lines say so. The workarounds pond
+  took for them (the scalar-refinement form in the temperature examples,
+  the `ps` widening in three golden time cases, negating the converted
+  positive in the exact-literal cases) can now be retired; that is a
+  code change for its own PR.
+- `upstream: stdin-not-parkable` — still open: `std::io::stdin::read_byte`
+  carries the `block` effect class on v0.36.0, so it still blocks its pool.
+- `ffi-symbols-not-namespaced`, `sigwinch-not-surfaced`, the sandbox
+  isolation wishlist — unchanged.
