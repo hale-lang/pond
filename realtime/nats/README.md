@@ -278,11 +278,35 @@ arrives.
 
 Free fns over a client you own:
 
+```hale
+let spec = nats::StreamSpec {
+    name: "WORK", subjects: "work.>",
+    retention: "workqueue",           // gone once acked; consumers may not overlap
+    max_age_ms: 600000,               // no message older than 10 min
+    max_msgs_per_subject: 1024, discard: "new", discard_new_per_subject: true,   // a full subject refuses
+    duplicate_window_ms: 120000,      // a Nats-Msg-Id is remembered 2 min
+    allow_msg_ttl: true,              // a publish may set its own Nats-TTL (nats-server 2.11)
+};
+nats::js_stream_create_with(c, spec) or nats::js_stream_update(c, spec);   // create, or bring it up to date
+nats::js_consumer_create(c, "WORK", nats::ConsumerSpec { durable: "w_a", filter: "work.a", max_deliver: 5 }) or raise;
+```
+
+`StreamSpec` leaves out of the request what is at its default, for the
+server to fill in: `retention` "limits", `storage` "file", every limit
+0 (none), `discard` "old", `duplicate_window_ms` 0 (the server's 2
+minutes). A full subject with `discard: "new"` and
+`discard_new_per_subject` refuses the publish (kind `jetstream`, "maximum
+messages per subject exceeded"); without `discard_new_per_subject` the
+per-subject limit drops the subject's oldest instead.
+
 | Call | What it does |
 |---|---|
 | `js_stream_create(c, name, subjects)` | a file-backed stream over comma-separated subjects (again unchanged: not an error) |
 | `js_stream_delete(c, name)` | |
-| `js_consumer_create(c, stream, spec: ConsumerSpec)` | a durable pull consumer, explicit acks, `deliver` as above, optional `filter`, `ack_wait_ms` and `max_ack_pending` (again unchanged: re-attaches, keeping its place) |
+| `js_stream_create_with(c, spec: StreamSpec)` | a stream with the settings below (again unchanged: not an error; with other settings: refused, see `js_stream_update`) |
+| `js_stream_update(c, spec: StreamSpec)` | give an existing stream `spec`'s settings, all of them (one left at its default goes back to it); its messages stay |
+| `js_consumer_create(c, stream, spec: ConsumerSpec)` | a durable pull consumer, explicit acks, `deliver` as above, optional `filter`, `ack_wait_ms`, `max_ack_pending` and `max_deliver` (again unchanged: re-attaches, keeping its place) |
+| `js_consumer_delete(c, stream, consumer)` | delete a durable, and its place in the stream; the messages stay |
 | `js_publish(c, subject, data) -> PubAck` | publish and wait for the stream to store it (`kind: "jetstream"` if no stream takes the subject) |
 | `js_publish_id(c, subject, id, data) -> PubAck` | the same, with a `Nats-Msg-Id` header: inside the stream's duplicate window a second publish of `id` is not stored again (`duplicate: true`, the first one's `seq`) |
 | `js_next(c, stream, consumer, wait_ms) -> NatsMsg` | the next message, or `kind: "no_messages"` |
@@ -340,6 +364,7 @@ NATS_URL=nats://127.0.0.1:4222 hale test realtime/nats/
 | `fake_latest_test` | the fake never audits a latest-value binding, and still audits an at-least-once one |
 | `client_live_test` | pub/sub, a binary payload intact, unsub, request/reply, a reply under `inbox_prefix`, no-responders |
 | `jetstream_live_test` | streams, PubAcks, durable consumers under all five deliver policies, a filter, re-creating a durable without losing its place, redelivery of what was never acked, `max_ack_pending` holding back the next message |
+| `js_settings_live_test` | a work-queue stream: its settings as the server reports them, a full subject refusing a third message while another subject takes one, create refusing other settings and update taking them, an acked message freeing its place, an overlapping consumer refused, a deleted consumer, `max_deliver` 2 delivering an unacked message exactly twice, the duplicate window forgetting an id, a `Nats-TTL` message expiring, and a stream without `allow_msg_ttl` refusing one (nats-server 2.11) |
 | `untyped_live_test` | `untyped` over a core subscription and the durable consumer: messages on `NatsInbound` as they arrived, a pulled one acknowledged by its subscriber, and one left unacknowledged coming again |
 | `consumer_gone_live_test` | the durable deleted under a live connection: pulls refused and counted in `pull_refused`, the durable created again, the next message delivered, the count back to 0 |
 | `publisher_live_test` | `NatsPublisher`: each message stored once under its prefix, a publish no stream takes said on `std::log`; with no server, `url` "" publishes nothing |

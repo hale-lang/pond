@@ -14,6 +14,23 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-11-26 status note — `realtime/nats`: JetStream stream settings, consumer limits (hale 0.38.0)
+
+- **Additions, no older surface changed or default moved**, for a
+  work-queue stream owned by one program (hale-lang/voice's queue
+  routing):
+  - `type StreamSpec` (retention, storage, `max_age_ms`, `max_msgs`,
+    `max_bytes`, `max_msgs_per_subject`, `discard`,
+    `discard_new_per_subject`, `duplicate_window_ms`, `allow_msg_ttl`),
+    `js_stream_create_with(c, spec)` and `js_stream_update(c, spec)`.
+    `js_stream_create(c, name, subjects)` is now
+    `js_stream_create_with` over a spec holding only those two, and sends
+    the same request as before.
+  - `ConsumerSpec.max_deliver` (0: the server's default, unlimited) and
+    `js_consumer_delete(c, stream, consumer)`.
+- Verified against hale `0.38.0` and nats-server 2.11 (per-message TTLs
+  need 2.11).
+
 ## 2026-10-31 status note — `realtime/nats`: untyped inbound, a publish-only adapter, inbox prefixes (hale 0.31.0)
 
 - **Additions, no older surface changed or default moved** (pond#33),
@@ -1444,7 +1461,13 @@ type NatsFrame  { op: String; subject; sid; reply; headers; data; text; }   // o
 type PubAck     { stream: String; seq: Int; duplicate: Bool; }
 type ConsumerSpec { durable: String; filter = ""; deliver = "all";   // all|new|last|by_start_sequence|by_start_time
                     start_seq: Int = 0; start_time: String = ""; ack_wait_ms: Int = 0;
-                    max_ack_pending: Int = 0; }                      // 0: the server's default (2026-10-31)
+                    max_ack_pending: Int = 0;                        // 0: the server's default (2026-10-31)
+                    max_deliver: Int = 0; }                          // 0: the server's default, unlimited (2026-11-26)
+type StreamSpec { name: String; subjects: String;                    // comma-separated (2026-11-26)
+                  retention = "limits"; storage = "file";            // limits|workqueue|interest; file|memory
+                  max_age_ms = 0; max_msgs = 0; max_bytes = 0; max_msgs_per_subject = 0;   // 0: no limit
+                  discard = "old"; discard_new_per_subject = false;  // old|new
+                  duplicate_window_ms = 0; allow_msg_ttl = false; }  // 0: the server's 2 min; Nats-TTL (nats-server 2.11)
 type Delivery   = enum { AtLeastOnce, Latest };      // per binding (2026-10-31)
 type Outbound   { subject: String; data: Bytes; latest: Bool = false;
                   ack: Bool = false; }                // an untyped message's acknowledgement (2026-10-31)
@@ -1475,7 +1498,10 @@ locus NatsClient {
 
 fn js_stream_create(c: NatsClient, name: String, subjects: String) -> () fallible(NatsError);
 fn js_stream_delete(c: NatsClient, name: String) -> () fallible(NatsError);
+fn js_stream_create_with(c: NatsClient, spec: StreamSpec) -> () fallible(NatsError);   // again unchanged: ok (2026-11-26)
+fn js_stream_update(c: NatsClient, spec: StreamSpec) -> () fallible(NatsError);        // all of spec's settings (2026-11-26)
 fn js_consumer_create(c: NatsClient, stream: String, spec: ConsumerSpec) -> () fallible(NatsError);
+fn js_consumer_delete(c: NatsClient, stream: String, consumer: String) -> () fallible(NatsError);   // (2026-11-26)
 fn js_publish(c: NatsClient, subject: String, data: Bytes) -> PubAck fallible(NatsError);
 fn js_publish_id(c: NatsClient, subject: String, id: String, data: Bytes) -> PubAck fallible(NatsError);   // Nats-Msg-Id dedup (2026-09-24)
 fn js_next(c: NatsClient, stream: String, consumer: String, wait_ms: Int) -> NatsMsg fallible(NatsError);

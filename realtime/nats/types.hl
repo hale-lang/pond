@@ -42,6 +42,36 @@ type PubAck {
     duplicate: Bool = false;
 }
 
+/// A stream's settings, for `js_stream_create_with` and
+/// `js_stream_update`. `subjects` is comma-separated, wildcards
+/// allowed. `retention`: "limits" (kept until a limit removes it),
+/// "workqueue" (removed once a consumer acknowledges it; consumers may
+/// not overlap) or "interest" (removed once every consumer has).
+/// `storage`: "file" or "memory". The limits are off at 0:
+/// `max_age_ms` (how long a message is kept), `max_msgs`, `max_bytes`
+/// and `max_msgs_per_subject`. `discard`, what a full stream does: "old"
+/// removes its oldest message, "new" refuses the publish; with
+/// `discard_new_per_subject` (and `discard` "new") a subject at
+/// `max_msgs_per_subject` refuses its publish while the others take
+/// theirs. `duplicate_window_ms`: how long a `Nats-Msg-Id` is remembered
+/// (0: the server's default, 2 minutes). `allow_msg_ttl`: a publish may
+/// set its own message's age with a `Nats-TTL` header (nats-server
+/// 2.11; it cannot be turned off again).
+type StreamSpec {
+    name: String = "";
+    subjects: String = "";
+    retention: String = "limits";
+    storage: String = "file";
+    max_age_ms: Int = 0;
+    max_msgs: Int = 0;
+    max_bytes: Int = 0;
+    max_msgs_per_subject: Int = 0;
+    discard: String = "old";
+    discard_new_per_subject: Bool = false;
+    duplicate_window_ms: Int = 0;
+    allow_msg_ttl: Bool = false;
+}
+
 /// A durable pull consumer. `deliver` is where a new one starts:
 /// "all" (the stream's first message), "new" (only what arrives after
 /// it is created), "last" (the last message), "by_start_sequence"
@@ -51,6 +81,9 @@ type PubAck {
 /// after `ack_wait_ms` (0: the server's default, 30 s). With
 /// `max_ack_pending` > 0 the server hands out no more than that many
 /// unacknowledged messages at once (0: the server's default, 1000).
+/// With `max_deliver` > 0 a message is delivered at most that many
+/// times, and one never acknowledged by then is left alone (0: the
+/// server's default, no limit).
 type ConsumerSpec {
     durable: String = "";
     filter: String = "";
@@ -59,6 +92,7 @@ type ConsumerSpec {
     start_time: String = "";
     ack_wait_ms: Int = 0;
     max_ack_pending: Int = 0;
+    max_deliver: Int = 0;
 }
 
 /// How a binding's messages travel, chosen per binding on
