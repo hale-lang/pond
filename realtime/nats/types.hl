@@ -3,10 +3,15 @@
 /// A NATS failure, on the value channel. `kind` is stable:
 /// "url", "connect", "handshake", "closed", "io", "timeout",
 /// "server" (a `-ERR` from the server), "protocol" (bytes that
-/// do not frame), "jetstream" (an API error reply), "no_messages".
+/// do not frame), "jetstream" (an API error reply), "no_messages",
+/// "no_responders", "header" (a header `with_header` cannot write).
+/// `code`: for "jetstream", the API's `err_code` when the server gave
+/// one (10077: a subject at its `max_msgs_per_subject` refused the
+/// publish; 10059: no such stream; 10014: no such consumer), else 0.
 type NatsError {
     kind: String = "";
     detail: String = "";
+    code: Int = 0;
 }
 
 /// One protocol frame as the server sent it. `op` is one of

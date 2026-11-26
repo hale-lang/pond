@@ -285,6 +285,19 @@ Free fns over a client you own:
 | `js_consumer_create(c, stream, spec: ConsumerSpec)` | a durable pull consumer, explicit acks, `deliver` as above, optional `filter`, `ack_wait_ms` and `max_ack_pending` (again unchanged: re-attaches, keeping its place) |
 | `js_publish(c, subject, data) -> PubAck` | publish and wait for the stream to store it (`kind: "jetstream"` if no stream takes the subject) |
 | `js_publish_id(c, subject, id, data) -> PubAck` | the same, with a `Nats-Msg-Id` header: inside the stream's duplicate window a second publish of `id` is not stored again (`duplicate: true`, the first one's `seq`) |
+| `js_publish_headers(c, subject, headers, data) -> PubAck` | the same, with any header block (`with_header`): `Nats-Msg-Id`, `Nats-TTL` (the message's own age, `"30s"`, on a stream with `allow_msg_ttl`), `Nats-Expected-*`, your own |
+| `with_header(block, name, value) -> String` | `block` ("" to start one) with one more header; kind `header` for a name that is not a token or a value with a line break |
+| `js_stream_info(c, name) -> StreamInfo` | `messages`, `bytes`, `first_seq`, `last_seq`, `first_ns`, `last_ns` (stored at, ns since the epoch, 0 never), `subjects`, `deleted`, `consumers` |
+| `js_consumer_info(c, stream, consumer) -> ConsumerInfo` | `num_pending`, `num_ack_pending`, `num_waiting` (pulls open), `num_redelivered`, `delivered_consumer_seq`/`_stream_seq`, `ack_floor_consumer_seq`/`_stream_seq`, `last_active_ns` |
+| `js_stream_msg_get(c, stream, seq) -> StoredMsg` | a stored message, read without a consumer: `subject`, `seq`, `headers`, `data`, `time_ns` (kind `no_messages` if the stream does not hold it) |
+| `js_stream_msg_next(c, stream, subject, seq) -> StoredMsg` | the first on `subject` (wildcards allowed) at or after `seq`; `seq` 0 is the oldest |
+| `js_stream_msg_delete(c, stream, seq)` | remove one at once |
+
+A refusal from the JetStream API fails with kind `jetstream` and the
+API's `err_code` in `NatsError.code`: 10077 is a publish to a subject at
+its `max_msgs_per_subject` on a stream that discards new, 10059 no such
+stream, 10014 no such consumer, 10037 no such message (kind
+`no_messages`).
 | `js_next(c, stream, consumer, wait_ms) -> NatsMsg` | the next message, or `kind: "no_messages"` |
 | `js_ack(c, msg)` | acknowledge it; unacknowledged, it comes again after the ack wait |
 
@@ -343,6 +356,7 @@ NATS_URL=nats://127.0.0.1:4222 hale test realtime/nats/
 | `untyped_live_test` | `untyped` over a core subscription and the durable consumer: messages on `NatsInbound` as they arrived, a pulled one acknowledged by its subscriber, and one left unacknowledged coming again |
 | `consumer_gone_live_test` | the durable deleted under a live connection: pulls refused and counted in `pull_refused`, the durable created again, the next message delivered, the count back to 0 |
 | `publisher_live_test` | `NatsPublisher`: each message stored once under its prefix, a publish no stream takes said on `std::log`; with no server, `url` "" publishes nothing |
+| `js_state_live_test` | `with_header` and its refusals; through `js_publish_headers`, a `Nats-Msg-Id` kept once and a `Nats-TTL` message gone on its own; stream info empty and with three messages (counts, sequences, times); a stored message by sequence with its headers and time, the oldest on a subject, the first from a sequence on a wildcard, a missing one as `no_messages`; the err_codes 10077, 10059 and 10014; consumer info before and after pulls (pending, ack pending, waiting, delivered, ack floor, last active); a message deleted from the stream (nats-server 2.11) |
 | `adapter_live_test` | the bus both ways under a `subject_prefix`: 50 messages out through the adapter, back in through a relay, whole and in order |
 | `adapter_js_live_test` | JetStream mode: each message stored once and delivered back through the durable consumer |
 | `adapter_audit_live_test` | a publish no stream takes collapses the conn to its owner, naming the message and the reason |
