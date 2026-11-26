@@ -14,6 +14,21 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-11-26 status note — `realtime/nats`: JetStream pulls without blocking, nak/term, delivery metadata (hale 0.38.0)
+
+- **Additions, no older surface changed**, for a program that pulls from
+  several consumers on one connection (hale-lang/voice's node):
+  - `locus JsPuller` (`open`, `fetch`, `wants_pull`, `owns`, `take`,
+    `close`) and `type JsPulled`: a pull published with its reply on an
+    inbox the puller owns, returning at once; what arrives goes through
+    the owner's `read_msg` loop. 404, 408, 409 and 503 end the pull and
+    are told apart; 100 heartbeats do not.
+  - `js_nak(c, msg, delay_ms)`, `js_term(c, msg)`.
+  - `type JsMeta` and `js_meta(reply)`: the `$JS.ACK` subject parsed,
+    both its forms.
+  - `header_value(headers, name)`.
+- Verified against hale `0.38.0` and nats-server 2.11.
+
 ## 2026-10-31 status note — `realtime/nats`: untyped inbound, a publish-only adapter, inbox prefixes (hale 0.31.0)
 
 - **Additions, no older surface changed or default moved** (pond#33),
@@ -1454,6 +1469,12 @@ topic NatsInbound { payload: Inbound; subject: "pond.nats.inbound"; }      // co
 fn nats_ack(reply: String) -> Outbound;               // NatsOutbound <- nats_ack(m.reply)
 fn new_inbox() -> String;                             // _INBOX.<22 hex>
 fn new_inbox_under(prefix: String) -> String;         // <prefix>.<22 hex> (2026-10-31)
+type JsPulled   { kind: String; msg: NatsMsg; status: String; pending: Int = -1; }   // (2026-11-26)
+                // kind: msg|no_messages(404)|expired(408)|conflict(409)|gone(503)|heartbeat(100)|stale|status
+type JsMeta     { stream: String; consumer: String; domain: String; delivered: Int;     // (2026-11-26)
+                  stream_seq: Int; consumer_seq: Int; timestamp_ns: Int; pending: Int; }
+fn js_meta(reply: String) -> JsMeta fallible(NatsError);   // a $JS.ACK subject, either form (2026-11-26)
+fn header_value(headers: String, name: String) -> String; // any case, "" absent (2026-11-26)
 
 locus NatsClient {
     params { url = "nats://127.0.0.1:4222"; user = ""; pass = ""; token = ""; name = "";
@@ -1480,6 +1501,18 @@ fn js_publish(c: NatsClient, subject: String, data: Bytes) -> PubAck fallible(Na
 fn js_publish_id(c: NatsClient, subject: String, id: String, data: Bytes) -> PubAck fallible(NatsError);   // Nats-Msg-Id dedup (2026-09-24)
 fn js_next(c: NatsClient, stream: String, consumer: String, wait_ms: Int) -> NatsMsg fallible(NatsError);
 fn js_ack(c: NatsClient, m: NatsMsg) -> () fallible(NatsError);
+fn js_nak(c: NatsClient, m: NatsMsg, delay_ms: Int) -> () fallible(NatsError);   // again after delay_ms, 0 at once (2026-11-26)
+fn js_term(c: NatsClient, m: NatsMsg) -> () fallible(NatsError);                 // never again (2026-11-26)
+
+locus JsPuller {                                          // one consumer pulled without holding the connection (2026-11-26)
+    params { stream: String; consumer: String; }          // read: inbox, sid, pulling, left, received, refused
+    fn open(c: NatsClient) -> () fallible(NatsError);     // SUB <c.inbox_prefix>.<hex>.*; fetch does it if not done
+    fn fetch(c: NatsClient, batch: Int, expires_ms: Int, no_wait: Bool) -> () fallible(NatsError);   // publishes the pull, returns
+    fn wants_pull() -> Bool;                              // no pull open, or one 2 s past its expiry
+    fn owns(m: NatsMsg) -> Bool;                          // arrived on this puller's inbox
+    fn take(m: NatsMsg) -> JsPulled;                      // what it is; the pull's bookkeeping updated
+    fn close(c: NatsClient);
+}
 
 locus NatsAdapter {                                       // std::bus adapter: publishes NatsOutbound
     params { delivery: Delivery = Delivery::AtLeastOnce; }   // Latest: newest per subject, never audited

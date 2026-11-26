@@ -1,0 +1,190 @@
+// JsPuller against a real server: two consumers pulled on one
+// connection from one read loop, batch and no_wait, an expiry, a
+// request made while pulls are open, delivery metadata, a NAK with a
+// delay, TERM, and the statuses a pull ends with (404, 408, 409, 503).
+// Opt-in: set NATS_URL to a server started with `-js`; unset, it says
+// so on stderr and passes.
+import ".." as nats;
+
+fn body(m: nats::NatsMsg) -> String { return std::str::from_bytes(m.data); }
+
+// The next thing on `p`'s inbox within `wait_ms`, skipping heartbeats;
+// kind "none" when nothing came. Messages for anything else are
+// dropped (only `p` is pulling here).
+fn next_of(c: nats::NatsClient, p: nats::JsPuller, wait_ms: Int) -> nats::JsPulled {
+    let deadline = std::time::monotonic_ns() + wait_ms * 1000000;
+    while std::time::monotonic_ns() < deadline {
+        if !c.read_msg(50ms) { continue; }
+        if !p.owns(c.last) { continue; }
+        let got = p.take(c.last);
+        if got.kind != "heartbeat" { return got; }
+    }
+    return nats::JsPulled { kind: "none" };
+}
+
+fn main() {
+    let url = std::env::var("NATS_URL");
+    if len(url) == 0 { eprintln("js_pull_live_test: NATS_URL unset, skipped"); return; }
+
+    let c = nats::NatsClient { url: url, name: "pond-js-pull-test" };
+    std::test::assert(c.open(), "open: " + c.last_error);
+
+    let tag = std::str::replace(nats::new_inbox(), "_INBOX.", "");
+    let stream = "POND_PULL_" + tag;
+    let subj = "pond.pull." + tag;
+    nats::js_stream_create(c, stream, subj + ".>") or discard;
+    nats::js_consumer_create(
+        c,
+        stream,
+        nats::ConsumerSpec { durable: "pa", filter: subj + ".a", ack_wait_ms: 1000 },
+    ) or discard;
+    nats::js_consumer_create(
+        c,
+        stream,
+        nats::ConsumerSpec { durable: "pb", filter: subj + ".b", ack_wait_ms: 1000 },
+    ) or discard;
+    std::test::assert(len(c.last_error) == 0, "set up: " + c.last_error);
+
+    let pa = nats::JsPuller { stream: stream, consumer: "pa" };
+    let pb = nats::JsPuller { stream: stream, consumer: "pb" };
+    pa.open(c) or discard;
+    std::test::assert(pa.sid > 0 && std::str::starts_with(pa.inbox, "_INBOX."), "pa opened");
+    std::test::assert(pa.wants_pull(), "a new puller wants a pull");
+
+    // no_wait on an empty consumer: answered at once with 404
+    let t0 = std::time::monotonic_ns();
+    pa.fetch(c, 1, 0, true) or discard;
+    std::test::assert(!pa.wants_pull(), "a pull is open");
+    let empty = next_of(c, pa, 2000);
+    std::test::assert(
+        empty.kind == "no_messages",
+        "404 on empty: " + empty.kind + " " + empty.status,
+    );
+    std::test::assert(std::time::monotonic_ns() - t0 < 1000000000, "and at once");
+    std::test::assert(pa.wants_pull(), "the 404 ended the pull");
+
+    // three on a, one on b
+    let s1 = nats::js_publish(c, subj + ".a", b"a1") or nats::PubAck { };
+    let s2 = nats::js_publish(c, subj + ".a", b"a2") or nats::PubAck { };
+    let s3 = nats::js_publish(c, subj + ".a", b"a3") or nats::PubAck { };
+    let s4 = nats::js_publish(c, subj + ".b", b"b1") or nats::PubAck { };
+    std::test::assert(s4.seq == 4, "published: " + c.last_error);
+
+    // both pulls open at once on one connection: pa a batch of 2 that
+    // does not wait, pb a batch of 5 that waits 1 s
+    pa.fetch(c, 2, 0, true) or discard;
+    pb.fetch(c, 5, 1000, false) or discard;
+    // a request on the same client meanwhile: what arrives for the
+    // pullers is set aside, not lost
+    let api = c.request("$JS.API.INFO", b"", 2s) or nats::NatsMsg { };
+    std::test::assert(len(api.data) > 0, "a request while pulls are open: " + c.last_error);
+    let mut a_got = "";
+    let mut b_got = "";
+    let mut a_first = nats::NatsMsg { };
+    let mut b_end = "";
+    let deadline = std::time::monotonic_ns() + 3000000000;
+    while std::time::monotonic_ns() < deadline && (len(b_end) == 0 || !pa.wants_pull()) {
+        if !c.read_msg(50ms) { continue; }
+        if pa.owns(c.last) {
+            let g = pa.take(c.last);
+            if g.kind == "msg" {
+                if len(a_got) == 0 { a_first = g.msg; }
+                a_got = a_got + body(g.msg) + ",";
+                nats::js_ack(c, g.msg) or discard;
+            }
+        } else if pb.owns(c.last) {
+            let g = pb.take(c.last);
+            if g.kind == "msg" {
+                b_got = b_got + body(g.msg) + ",";
+                nats::js_ack(c, g.msg) or discard;
+            } else if g.kind != "heartbeat" {
+                b_end = g.kind;
+            }
+        }
+    }
+    std::test::assert(a_got == "a1,a2,", "pa's batch of two: " + a_got);
+    std::test::assert(pa.wants_pull(), "a full batch ends the pull");
+    std::test::assert(b_got == "b1,", "pb's one: " + b_got);
+    std::test::assert(b_end == "expired", "pb's pull expired (408): " + b_end);
+
+    // delivery metadata from the reply subject
+    let meta = nats::js_meta(a_first.reply) or nats::JsMeta { };
+    let now_ns = std::time::nanos(std::time::current());
+    std::test::assert(
+        meta.stream == stream && meta.consumer == "pa" && meta.delivered == 1
+            && meta.stream_seq == s1.seq && meta.consumer_seq == 1 && meta.pending == 2,
+        "metadata: " + a_first.reply,
+    );
+    std::test::assert(
+        meta.timestamp_ns > now_ns - 60000000000 && meta.timestamp_ns <= now_ns,
+        "stored within the minute: " + to_string(meta.timestamp_ns) + " now " + to_string(now_ns),
+    );
+
+    // no_wait with a batch larger than what is there: what is there,
+    // then the pull ends
+    pa.fetch(c, 5, 0, true) or discard;
+    let a3 = next_of(c, pa, 2000);
+    std::test::assert(a3.kind == "msg" && body(a3.msg) == "a3", "a3: " + a3.kind);
+    let after = next_of(c, pa, 2000);
+    std::test::assert(
+        after.kind == "no_messages" || after.kind == "expired",
+        "then the pull ends: " + after.kind + " " + after.status,
+    );
+    std::test::assert(pa.wants_pull(), "ended");
+
+    // NAK with a delay: not before it, then again, delivered twice
+    nats::js_nak(c, a3.msg, 1500) or discard;
+    pa.fetch(c, 1, 700, false) or discard;
+    let early = next_of(c, pa, 1500);
+    std::test::assert(early.kind == "expired", "not within the delay: " + early.kind);
+    pa.fetch(c, 1, 2000, false) or discard;
+    let again = next_of(c, pa, 3000);
+    std::test::assert(again.kind == "msg" && body(again.msg) == "a3", "after it: " + again.kind);
+    let m2 = nats::js_meta(again.msg.reply) or nats::JsMeta { };
+    std::test::assert(
+        m2.delivered == 2 && m2.stream_seq == s3.seq,
+        "delivered twice: " + again.msg.reply,
+    );
+
+    // NAK without a delay: at once
+    nats::js_nak(c, again.msg, 0) or discard;
+    pa.fetch(c, 1, 1000, false) or discard;
+    let now_again = next_of(c, pa, 1500);
+    std::test::assert(now_again.kind == "msg" && body(now_again.msg) == "a3", "a plain NAK");
+
+    // TERM: never delivered again, even past the ack wait
+    nats::js_term(c, now_again.msg) or discard;
+    pa.fetch(c, 1, 2000, false) or discard;
+    let termed = next_of(c, pa, 3000);
+    std::test::assert(termed.kind == "expired", "a TERMed message stays away: " + termed.kind);
+
+    // a pull open when its consumer is deleted: 409
+    pb.fetch(c, 1, 5000, false) or discard;
+    c.flush() or discard;
+    let del = c.request("$JS.API.CONSUMER.DELETE." + stream + ".pb", b"", 2s) or nats::NatsMsg { };
+    let deleted = next_of(c, pb, 3000);
+    std::test::assert(
+        deleted.kind == "conflict" && std::str::contains(deleted.status, "Consumer Deleted"),
+        "409 when the consumer goes: " + deleted.kind + " " + deleted.status,
+    );
+
+    // a pull on a consumer that does not exist: 503
+    pb.fetch(c, 1, 0, true) or discard;
+    let gone = next_of(c, pb, 2000);
+    std::test::assert(
+        gone.kind == "gone" && pb.refused == 1,
+        "503: " + gone.kind + " " + gone.status,
+    );
+
+    // a status for an earlier pull is stale; the current one is open
+    pa.fetch(c, 1, 300, false) or discard;
+    pa.fetch(c, 1, 5000, false) or discard;
+    let stale = next_of(c, pa, 1500);
+    std::test::assert(stale.kind == "stale", "the first pull's 408 is stale: " + stale.kind);
+    std::test::assert(!pa.wants_pull(), "and the second is still open");
+
+    pa.close(c);
+    pb.close(c);
+    nats::js_stream_delete(c, stream) or discard;
+    c.close();
+}

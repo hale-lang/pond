@@ -1,0 +1,328 @@
+// pond/realtime/nats — pulling from a JetStream consumer without
+// holding the connection, settling what was pulled (ack, nak, term),
+// and the delivery metadata its reply subject carries.
+//
+// `js_next` is a request: the client waits for the reply and nothing
+// else is read meanwhile, so a program pulling from several consumers
+// would need a connection for each. A `JsPuller` instead publishes the
+// pull (`$JS.API.CONSUMER.MSG.NEXT`) with its reply on an inbox it
+// subscribed once, and returns at once. What the server sends back
+// arrives like any other message, through the owner's own
+// `read_msg` loop: the owner hands each message whose sid the puller
+// owns to `take`, which says what it is. One connection, one loop, as
+// many pullers as consumers.
+
+/// What one message on a puller's inbox is. `kind`:
+/// - "msg": a message from the stream, in `msg`, to settle with
+///   `js_ack`, `js_nak` or `js_term` (its delivery metadata:
+///   `js_meta(msg.reply)`).
+/// - "no_messages" (404): the pull asked not to wait (`no_wait`) and
+///   the consumer had nothing.
+/// - "expired" (408): the pull's `expires` passed before its batch was
+///   full.
+/// - "conflict" (409): the server ended the pull; `status` says why
+///   ("409 Exceeded MaxWaiting", "409 Consumer Deleted", ...).
+/// - "gone" (503): nothing answered the pull: the consumer, or its
+///   stream, does not exist.
+/// - "heartbeat" (100): an idle heartbeat; the pull goes on.
+/// - "stale": a status for an earlier pull than the current one.
+/// - "status": any other status.
+/// Every kind but "msg" and "heartbeat" ends the current pull
+/// (`wants_pull` is then true). `pending`: the server's count of
+/// messages still waiting for the consumer, on a status that carries
+/// it (`Nats-Pending-Messages`), else -1.
+type JsPulled {
+    kind: String = "";
+    msg: NatsMsg = NatsMsg { };
+    status: String = "";
+    pending: Int = -1;
+}
+
+/// A message's JetStream delivery metadata, from its reply subject
+/// (`$JS.ACK.…`). `delivered`: how many times this message has been
+/// delivered, this time included. `stream_seq`, `consumer_seq`: its
+/// sequence in the stream and in the consumer's deliveries.
+/// `timestamp_ns`: when the stream stored it, nanoseconds since the
+/// Unix epoch. `pending`: how many more messages wait for the consumer
+/// after it. `domain`: the JetStream domain, "" for none.
+type JsMeta {
+    stream: String = "";
+    consumer: String = "";
+    domain: String = "";
+    delivered: Int = 0;
+    stream_seq: Int = 0;
+    consumer_seq: Int = 0;
+    timestamp_ns: Int = 0;
+    pending: Int = 0;
+}
+
+// The `k`th `.`-separated token of `s` (0-based), "" past the end.
+// @unbounded: walks one subject, at most MAX_CONTROL_LINE bytes.
+@unbounded
+fn dot_token(s: String, k: Int) -> String {
+    let mut rest = s;
+    let mut i = 0;
+    while true {
+        let dot = std::str::index_of(rest, ".");
+        if i == k { return if dot < 0 { rest } else { rest[0..dot] }; }
+        if dot < 0 { return ""; }
+        rest = rest[(dot + 1)..len(rest)];
+        i = i + 1;
+    }
+    return "";
+}
+
+// How many `.`-separated tokens `s` has.
+// @unbounded: walks one subject, at most MAX_CONTROL_LINE bytes.
+@unbounded
+fn dot_count(s: String) -> Int {
+    if len(s) == 0 { return 0; }
+    let mut n = 1;
+    let mut from = 0;
+    while true {
+        let dot = std::str::index_of_from(s, ".", from);
+        if dot < 0 { return n; }
+        n = n + 1;
+        from = dot + 1;
+    }
+    return n;
+}
+
+fn not_ack_subject(reply: String, why: String) -> NatsError {
+    return NatsError {
+        kind: "jetstream",
+        detail: "not a JetStream ack subject (" + why + "): " + reply,
+    };
+}
+
+/// The delivery metadata in `reply`, a JetStream message's reply
+/// subject: `$JS.ACK.<stream>.<consumer>.<delivered>.<stream seq>.<consumer seq>.<timestamp>.<pending>`,
+/// or the form with a domain and an account hash after `$JS.ACK`
+/// (domain `_` is none). Fails with kind "jetstream" on anything else.
+fn js_meta(reply: String) -> JsMeta fallible(NatsError) {
+    if !std::str::starts_with(reply, "$JS.ACK.") {
+        fail not_ack_subject(reply, "no $JS.ACK prefix");
+    }
+    let n = dot_count(reply);
+    // the numbers start after the stream and consumer
+    let mut at = 4;
+    let mut domain = "";
+    if n == 9 {
+        at = 4;
+    } else if n >= 11 {
+        domain = dot_token(reply, 2);
+        if domain == "_" { domain = ""; }
+        at = 6;
+    } else {
+        fail not_ack_subject(reply, to_string(n) + " tokens");
+    }
+    let delivered = std::str::parse_int(dot_token(reply, at)) or fail not_ack_subject(
+        reply,
+        "delivered count",
+    );
+    let sseq = std::str::parse_int(dot_token(reply, at + 1)) or fail not_ack_subject(
+        reply,
+        "stream sequence",
+    );
+    let cseq = std::str::parse_int(dot_token(reply, at + 2)) or fail not_ack_subject(
+        reply,
+        "consumer sequence",
+    );
+    let ts = std::str::parse_int(dot_token(reply, at + 3)) or fail not_ack_subject(
+        reply,
+        "timestamp",
+    );
+    let pending = std::str::parse_int(dot_token(reply, at + 4)) or fail not_ack_subject(
+        reply,
+        "pending count",
+    );
+    return JsMeta {
+        stream: dot_token(reply, at - 2),
+        consumer: dot_token(reply, at - 1),
+        domain: domain,
+        delivered: delivered,
+        stream_seq: sseq,
+        consumer_seq: cseq,
+        timestamp_ns: ts,
+        pending: pending,
+    };
+}
+
+/// The value of header `name` (any case) in a header block, "" when it
+/// has none: `header_value(m.headers, "Nats-Pending-Messages")`.
+// @unbounded: walks one header block, bounded by the server's max_payload.
+@unbounded
+fn header_value(headers: String, name: String) -> String {
+    let mut rest = headers;
+    // past the status line
+    let first = std::str::index_of(rest, "\r\n");
+    if first < 0 { return ""; }
+    rest = rest[(first + 2)..len(rest)];
+    while len(rest) > 0 {
+        let nl = std::str::index_of(rest, "\r\n");
+        let line = if nl < 0 { rest } else { rest[0..nl] };
+        rest = if nl < 0 { "" } else { rest[(nl + 2)..len(rest)] };
+        let colon = std::str::index_of(line, ":");
+        if colon > 0 && std::str::eq_ignore_case(std::str::trim(line[0..colon]), name) {
+            return std::str::trim(line[(colon + 1)..len(line)]);
+        }
+    }
+    return "";
+}
+
+fn settle(c: NatsClient, m: NatsMsg, word: String) fallible(NatsError) {
+    if len(m.reply) == 0 {
+        fail c.fail_with("jetstream", "not a JetStream message (no reply subject to settle on)");
+    }
+    c.pub_msg(m.reply, "", std::bytes::from_string(word)) or raise;
+}
+
+/// Hand a pulled message back unacknowledged: the consumer delivers it
+/// again after `delay_ms` (0: at once), to this puller or another.
+fn js_nak(c: NatsClient, m: NatsMsg, delay_ms: Int) fallible(NatsError) {
+    let word = if delay_ms > 0 {
+        "-NAK {\"delay\":" + to_string(delay_ms * 1000000) + "}"
+    } else {
+        "-NAK"
+    };
+    settle(c, m, word) or raise;
+}
+
+/// Give up on a pulled message: the consumer never delivers it again,
+/// and does not count it as acknowledged (in a work-queue stream it
+/// stays stored until its age or TTL removes it).
+fn js_term(c: NatsClient, m: NatsMsg) fallible(NatsError) {
+    settle(c, m, "+TERM") or raise;
+}
+
+/// Pulls from one durable consumer without holding the connection. The
+/// owner keeps the client and its read loop; the puller owns one inbox
+/// subscription on that client and the bookkeeping of its current pull.
+///
+/// ```hale
+/// let p = nats::JsPuller { stream: "WORK", consumer: "w_a" };
+/// p.open(c) or raise;
+/// while running {
+///     if p.wants_pull() { p.fetch(c, 4, 5000, false) or raise; }
+///     if c.read_msg(250ms) && p.owns(c.last) {
+///         let got = p.take(c.last);
+///         if got.kind == "msg" { ... nats::js_ack(c, got.msg) or raise; }
+///     }
+/// }
+/// ```
+///
+/// Messages on the client that `owns` refuses are the owner's: another
+/// puller's, or another subscription's. A `request` made on the same
+/// client meanwhile sets them aside, and `read_msg` hands them out after.
+locus JsPuller {
+    params {
+        stream: String = "";
+        consumer: String = "";
+        // `<client's inbox_prefix>.<22 hex>`, set by `open`; the n-th
+        // pull's replies come on `<inbox>.<n>`
+        inbox: String = "";
+        sid: Int = 0;
+        // the current pull: its number, whether it is still open, how
+        // many messages it may still bring, and when it is given up on
+        // without word from the server (its expiry and 2 s more)
+        pull_no: Int = 0;
+        pulling: Bool = false;
+        left: Int = 0;
+        deadline_ns: Int = 0;
+        // messages delivered to this puller, and pulls refused (503) in
+        // a row: back to 0 once one is answered
+        received: Int = 0;
+        refused: Int = 0;
+    }
+
+    /// Subscribe the puller's inbox on `c`. Once is enough; `fetch`
+    /// opens it if it is not.
+    fn open(c: NatsClient) fallible(NatsError) {
+        if self.sid > 0 { return; }
+        let inbox = new_inbox_under(c.inbox_prefix);
+        self.sid = c.sub_to(inbox + ".*", "") or raise;
+        self.inbox = inbox;
+    }
+
+    /// Ask the consumer for up to `batch` messages, and return at once.
+    /// `expires_ms` > 0: the server ends the pull after that long with
+    /// an "expired" status if the batch is not full. `no_wait`: the
+    /// server answers at once, "no_messages" when the consumer has
+    /// none. A new fetch replaces the current pull's bookkeeping; the
+    /// earlier pull's messages are still taken, its statuses are
+    /// "stale".
+    fn fetch(c: NatsClient, batch: Int, expires_ms: Int, no_wait: Bool) fallible(NatsError) {
+        self.open(c) or raise;
+        let n = if batch > 0 { batch } else { 1 };
+        let mut body = "{\"batch\":" + to_string(n);
+        if expires_ms > 0 { body = body + ",\"expires\":" + to_string(expires_ms * 1000000); }
+        if no_wait { body = body + ",\"no_wait\":true"; }
+        body = body + "}";
+        self.pull_no = self.pull_no + 1;
+        c.pub_msg(
+            "$JS.API.CONSUMER.MSG.NEXT." + self.stream + "." + self.consumer,
+            self.inbox + "." + to_string(self.pull_no),
+            std::bytes::from_string(body),
+        ) or raise;
+        self.pulling = true;
+        self.left = n;
+        let wait_ms = if expires_ms > 0 { expires_ms } else { 0 };
+        self.deadline_ns = std::time::monotonic_ns() + (wait_ms + 2000) * 1000000;
+    }
+
+    /// Whether to fetch again: no pull is open (its batch came, or the
+    /// server ended it), or the open one is past its expiry and 2 s more
+    /// with no word from the server.
+    fn wants_pull() -> Bool {
+        return !self.pulling || std::time::monotonic_ns() > self.deadline_ns;
+    }
+
+    /// Whether `m` arrived on this puller's inbox.
+    fn owns(m: NatsMsg) -> Bool { return self.sid > 0 && m.sid == self.sid; }
+
+    /// What `m`, a message this puller `owns`, is (see JsPulled), with
+    /// the current pull's bookkeeping brought up to date.
+    fn take(m: NatsMsg) -> JsPulled {
+        let status = header_status(m.headers);
+        if len(status) == 0 {
+            self.received = self.received + 1;
+            self.refused = 0;
+            self.left = self.left - 1;
+            if self.left <= 0 { self.pulling = false; }
+            return JsPulled { kind: "msg", msg: m };
+        }
+        let pending = std::str::parse_int(header_value(m.headers, "Nats-Pending-Messages")) or - 1;
+        let code = if len(status) >= 3 { status[0..3] } else { status };
+        if code == "100" {
+            return JsPulled { kind: "heartbeat", status: status, pending: pending };
+        }
+        // a status names its pull by its reply subject, `<inbox>.<n>`
+        if m.subject != self.inbox + "." + to_string(self.pull_no) {
+            return JsPulled { kind: "stale", status: status, pending: pending };
+        }
+        self.pulling = false;
+        if code == "503" {
+            self.refused = self.refused + 1;
+            return JsPulled { kind: "gone", status: status, pending: pending };
+        }
+        self.refused = 0;
+        let kind = if code == "404" {
+            "no_messages"
+        } else if code == "408" {
+            "expired"
+        } else if code == "409" {
+            "conflict"
+        } else {
+            "status"
+        };
+        return JsPulled { kind: kind, status: status, pending: pending };
+    }
+
+    /// Unsubscribe the inbox. An open pull's messages that still arrive
+    /// are not delivered, and come again after the consumer's ack wait.
+    fn close(c: NatsClient) {
+        if self.sid > 0 { c.unsub(self.sid) or discard; }
+        self.sid = 0;
+        self.pulling = false;
+    }
+}
