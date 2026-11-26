@@ -98,17 +98,18 @@ fn main() {
                 b_got = b_got + body(g.msg) + ",";
                 nats::js_ack(c, g.msg) or discard;
             } else if g.kind != "heartbeat" {
-                b_end = g.kind;
+                b_end = g.kind + " " + to_string(g.pending);
             }
         }
     }
     std::test::assert(a_got == "a1,a2,", "pa's batch of two: " + a_got);
     std::test::assert(pa.wants_pull(), "a full batch ends the pull");
     std::test::assert(b_got == "b1,", "pb's one: " + b_got);
-    std::test::assert(b_end == "expired", "pb's pull expired (408): " + b_end);
+    std::test::assert(b_end == "expired 4", "pb's pull expired (408), 4 unfilled: " + b_end);
 
     // delivery metadata from the reply subject
     let meta = nats::js_meta(a_first.reply) or nats::JsMeta { };
+    // the server's clock may run a little ahead of this one (5 s allowed)
     let now_ns = std::time::nanos(std::time::current());
     std::test::assert(
         meta.stream == stream && meta.consumer == "pa" && meta.delivered == 1
@@ -116,7 +117,7 @@ fn main() {
         "metadata: " + a_first.reply,
     );
     std::test::assert(
-        meta.timestamp_ns > now_ns - 60000000000 && meta.timestamp_ns <= now_ns,
+        meta.timestamp_ns > now_ns - 60000000000 && meta.timestamp_ns <= now_ns + 5000000000,
         "stored within the minute: " + to_string(meta.timestamp_ns) + " now " + to_string(now_ns),
     );
 
@@ -127,10 +128,22 @@ fn main() {
     std::test::assert(a3.kind == "msg" && body(a3.msg) == "a3", "a3: " + a3.kind);
     let after = next_of(c, pa, 2000);
     std::test::assert(
-        after.kind == "no_messages" || after.kind == "expired",
-        "then the pull ends: " + after.kind + " " + after.status,
+        after.kind == "no_messages" && after.status == "404 No Messages",
+        "then a 404: " + after.kind + " " + after.status,
     );
     std::test::assert(pa.wants_pull(), "ended");
+
+    // no_wait with an expiry, on a consumer with nothing: waited on
+    // until the expiry, then a 408 counting the batch it did not fill
+    let t1 = std::time::monotonic_ns();
+    pa.fetch(c, 3, 800, true) or discard;
+    let waited = next_of(c, pa, 3000);
+    let took_ms = (std::time::monotonic_ns() - t1) / 1000000;
+    std::test::assert(
+        waited.kind == "expired" && waited.pending == 3 && took_ms >= 700,
+        "no_wait with expires waits: " + waited.kind + " pending " + to_string(waited.pending)
+            + " after " + to_string(took_ms) + " ms",
+    );
 
     // NAK with a delay: not before it, then again, delivered twice
     nats::js_nak(c, a3.msg, 1500) or discard;

@@ -332,14 +332,19 @@ while running {
   or stream; counted in `refused`), `"status"` (anything else). It can
   also be `"heartbeat"` (100), which does not end the pull, or `"stale"`,
   a status for an earlier pull than the current one. `pending` is the
-  server's `Nats-Pending-Messages` where a status carries it, else -1.
+  status's `Nats-Pending-Messages` (on a 408 or 409): how many of the
+  pull's batch it did not fill, not the consumer's backlog
+  (`js_consumer_info`), else -1.
 - `wants_pull()` is true when no pull is open: its batch came, a status
   ended it, or it is 2 s past its expiry with no word from the server.
 - The inbox sits under the client's `inbox_prefix`. A `request` on the
   same client meanwhile sets the pullers' messages aside, and `read_msg`
   hands them out after.
-- A batch of n with `no_wait` brings what the consumer has, up to n, and
-  then a 404 when that is fewer than n.
+- `no_wait` (nats-server 2.11, observed): a batch of n brings what the
+  consumer has, up to n, then a 404 if that was fewer than n; nothing
+  there is a 404 at once. With `expires_ms` too, a consumer with
+  nothing is waited on for up to `expires_ms`, then a 408; one with
+  some still ends with a 404 once they are handed out.
 
 ## NatsFake — no broker
 

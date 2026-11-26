@@ -28,9 +28,10 @@
 /// - "stale": a status for an earlier pull than the current one.
 /// - "status": any other status.
 /// Every kind but "msg" and "heartbeat" ends the current pull
-/// (`wants_pull` is then true). `pending`: the server's count of
-/// messages still waiting for the consumer, on a status that carries
-/// it (`Nats-Pending-Messages`), else -1.
+/// (`wants_pull` is then true). `pending`: on a status that carries
+/// `Nats-Pending-Messages` (a 408 or 409), how many of the pull's batch
+/// it did not fill, else -1. It is not the consumer's backlog
+/// (`js_consumer_info` has that).
 type JsPulled {
     kind: String = "";
     msg: NatsMsg = NatsMsg { };
@@ -247,8 +248,10 @@ locus JsPuller {
     /// Ask the consumer for up to `batch` messages, and return at once.
     /// `expires_ms` > 0: the server ends the pull after that long with
     /// an "expired" status if the batch is not full. `no_wait`: the
-    /// server answers at once, "no_messages" when the consumer has
-    /// none. A new fetch replaces the current pull's bookkeeping; the
+    /// pull takes what the consumer has, up to `batch`, and ends with
+    /// "no_messages" as soon as it has no more; with `expires_ms` as
+    /// well, a consumer with nothing at all is waited on for up to
+    /// `expires_ms` (then "expired"). A new fetch replaces the current pull's bookkeeping; the
     /// earlier pull's messages are still taken, its statuses are
     /// "stale".
     fn fetch(c: NatsClient, batch: Int, expires_ms: Int, no_wait: Bool) fallible(NatsError) {

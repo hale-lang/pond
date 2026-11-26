@@ -1469,7 +1469,7 @@ topic NatsInbound { payload: Inbound; subject: "pond.nats.inbound"; }      // co
 fn nats_ack(reply: String) -> Outbound;               // NatsOutbound <- nats_ack(m.reply)
 fn new_inbox() -> String;                             // _INBOX.<22 hex>
 fn new_inbox_under(prefix: String) -> String;         // <prefix>.<22 hex> (2026-10-31)
-type JsPulled   { kind: String; msg: NatsMsg; status: String; pending: Int = -1; }   // (2026-11-26)
+type JsPulled   { kind: String; msg: NatsMsg; status: String; pending: Int = -1; }   // pending: batch left unfilled (408/409) (2026-11-26)
                 // kind: msg|no_messages(404)|expired(408)|conflict(409)|gone(503)|heartbeat(100)|stale|status
 type JsMeta     { stream: String; consumer: String; domain: String; delivered: Int;     // (2026-11-26)
                   stream_seq: Int; consumer_seq: Int; timestamp_ns: Int; pending: Int; }
