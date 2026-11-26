@@ -1,0 +1,67 @@
+// js_meta: the delivery metadata a JetStream reply subject carries, in
+// both of its forms, and the subjects that are not one; header_value on
+// a pull's status block. No server.
+import ".." as nats;
+
+fn main() {
+    // the form without a domain: stream, consumer, delivered, stream
+    // seq, consumer seq, timestamp, pending
+    let v1 = nats::js_meta("$JS.ACK.WORK.w_a.3.17.5.1764115200123456789.2") or nats::JsMeta { };
+    std::test::assert_eq_str(v1.stream, "WORK", "v1 stream");
+    std::test::assert_eq_str(v1.consumer, "w_a", "v1 consumer");
+    std::test::assert_eq_str(v1.domain, "", "v1 has no domain");
+    std::test::assert_eq_int(v1.delivered, 3, "v1 delivered");
+    std::test::assert_eq_int(v1.stream_seq, 17, "v1 stream seq");
+    std::test::assert_eq_int(v1.consumer_seq, 5, "v1 consumer seq");
+    std::test::assert_eq_int(v1.timestamp_ns, 1764115200123456789, "v1 timestamp");
+    std::test::assert_eq_int(v1.pending, 2, "v1 pending");
+
+    // the form with a domain and an account hash, and a random token
+    let v2 = nats::js_meta(
+        "$JS.ACK.hub.ACCHASH.WORK.w_b.1.42.40.1764115200000000001.0.Xy7Q",
+    ) or nats::JsMeta { };
+    std::test::assert_eq_str(v2.domain, "hub", "v2 domain");
+    std::test::assert_eq_str(v2.stream, "WORK", "v2 stream");
+    std::test::assert_eq_str(v2.consumer, "w_b", "v2 consumer");
+    std::test::assert_eq_int(v2.delivered, 1, "v2 delivered");
+    std::test::assert_eq_int(v2.stream_seq, 42, "v2 stream seq");
+    std::test::assert_eq_int(v2.consumer_seq, 40, "v2 consumer seq");
+    std::test::assert_eq_int(v2.timestamp_ns, 1764115200000000001, "v2 timestamp");
+    std::test::assert_eq_int(v2.pending, 0, "v2 pending");
+
+    // domain `_` is none; eleven tokens (no random token) also parse
+    let v3 = nats::js_meta("$JS.ACK._.ACCHASH.S.C.2.9.8.7.6") or nats::JsMeta { };
+    std::test::assert_eq_str(v3.domain, "", "domain _ is none");
+    std::test::assert_eq_int(v3.delivered, 2, "eleven tokens");
+    std::test::assert_eq_int(v3.pending, 6, "eleven tokens, pending");
+
+    // not an ack subject
+    let mut refused = 0;
+    let bad = [
+        "",
+        "_INBOX.abc",
+        "$JS.ACK.S.C.1.2.3",
+        "$JS.ACK.S.C.x.2.3.4.5",
+        "$JS.ACK.S.C.1.2.3.4.5.6",
+        "$JS.API.CONSUMER.INFO.S.C.1.2.3",
+    ];
+    let mut i = 0;
+    while i < len(bad) {
+        let m = nats::js_meta(bad[i]) or nats::JsMeta { stream: "refused" };
+        if m.stream == "refused" { refused = refused + 1; }
+        i = i + 1;
+    }
+    std::test::assert_eq_int(refused, len(bad), "each malformed subject is refused");
+    let why = nats::js_meta("_INBOX.abc") or nats::JsMeta { stream: err.kind + "|" + err.detail };
+    std::test::assert(
+        std::str::starts_with(why.stream, "jetstream|not a JetStream ack subject"),
+        "kind and detail: " + why.stream,
+    );
+
+    // header_value: any case, past the status line, "" when absent
+    let h = "NATS/1.0 408 Request Timeout\r\nNats-Pending-Messages: 7\r\nNats-Pending-Bytes: 210\r\n\r\n";
+    std::test::assert_eq_str(nats::header_value(h, "Nats-Pending-Messages"), "7", "pending");
+    std::test::assert_eq_str(nats::header_value(h, "nats-pending-bytes"), "210", "any case");
+    std::test::assert_eq_str(nats::header_value(h, "Nats-Msg-Id"), "", "absent");
+    std::test::assert_eq_str(nats::header_value("", "X"), "", "no block");
+}
