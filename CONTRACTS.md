@@ -1506,7 +1506,7 @@ fn js_stream_info(c: NatsClient, name: String) -> StreamInfo fallible(NatsError)
 fn js_consumer_info(c: NatsClient, stream: String, consumer: String) -> ConsumerInfo fallible(NatsError);   // (2026-11-26)
 fn js_stream_msg_get(c: NatsClient, stream: String, seq: Int) -> StoredMsg fallible(NatsError);         // no_messages if absent (2026-11-26)
 fn js_stream_msg_next(c: NatsClient, stream: String, subject: String, seq: Int) -> StoredMsg fallible(NatsError);   // next_by_subj (2026-11-26)
-fn js_stream_msg_delete(c: NatsClient, stream: String, seq: Int) -> () fallible(NatsError);             // (2026-11-26)
+fn js_stream_msg_delete(c: NatsClient, stream: String, seq: Int) -> () fallible(NatsError);             // 10043 gone, 10057 past the end (2026-11-26)
 fn js_next(c: NatsClient, stream: String, consumer: String, wait_ms: Int) -> NatsMsg fallible(NatsError);
 fn js_ack(c: NatsClient, m: NatsMsg) -> () fallible(NatsError);
 

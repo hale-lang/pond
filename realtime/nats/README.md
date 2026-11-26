@@ -291,13 +291,14 @@ Free fns over a client you own:
 | `js_consumer_info(c, stream, consumer) -> ConsumerInfo` | `num_pending`, `num_ack_pending`, `num_waiting` (pulls open), `num_redelivered`, `delivered_consumer_seq`/`_stream_seq`, `ack_floor_consumer_seq`/`_stream_seq`, `last_active_ns` |
 | `js_stream_msg_get(c, stream, seq) -> StoredMsg` | a stored message, read without a consumer: `subject`, `seq`, `headers`, `data`, `time_ns` (kind `no_messages` if the stream does not hold it) |
 | `js_stream_msg_next(c, stream, subject, seq) -> StoredMsg` | the first on `subject` (wildcards allowed) at or after `seq`; `seq` 0 is the oldest |
-| `js_stream_msg_delete(c, stream, seq)` | remove one at once |
+| `js_stream_msg_delete(c, stream, seq)` | remove one at once (kind `jetstream`, code 10043 if it is already gone, 10057 past the stream's end) |
 
 A refusal from the JetStream API fails with kind `jetstream` and the
 API's `err_code` in `NatsError.code`: 10077 is a publish to a subject at
 its `max_msgs_per_subject` on a stream that discards new, 10059 no such
-stream, 10014 no such consumer, 10037 no such message (kind
-`no_messages`).
+stream, 10014 no such consumer, 10037 no such message for
+`js_stream_msg_get`/`_next` (kind `no_messages`). These were observed
+on nats-server 2.11.17.
 | `js_next(c, stream, consumer, wait_ms) -> NatsMsg` | the next message, or `kind: "no_messages"` |
 | `js_ack(c, msg)` | acknowledge it; unacknowledged, it comes again after the ack wait |
 

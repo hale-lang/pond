@@ -28,7 +28,8 @@ type StreamInfo {
 /// acknowledged. `num_waiting`: pulls open on it now. `num_redelivered`:
 /// messages delivered more than once. `delivered_*`: the last delivery
 /// (its consumer and stream sequence); `ack_floor_*`: the point below
-/// which every delivery is acknowledged. `last_active_ns`: when it last
+/// which every delivery is acknowledged (its stream sequence steps past
+/// sequences the stream no longer holds). `last_active_ns`: when it last
 /// delivered (nanoseconds since the Unix epoch, 0 never).
 type ConsumerInfo {
     name: String = "";
@@ -192,7 +193,8 @@ fn js_stream_msg_next(
 
 /// Remove message `seq` from `stream` at once (marked deleted, its
 /// bytes not overwritten). A consumer that has not delivered it never
-/// will. Fails with kind "jetstream" when the stream does not hold it.
+/// will. Fails with kind "jetstream" when the stream does not hold it:
+/// code 10043 for a sequence already gone, 10057 for one past its end.
 fn js_stream_msg_delete(c: NatsClient, stream: String, seq: Int) fallible(NatsError) {
     let r = js_call(
         c,

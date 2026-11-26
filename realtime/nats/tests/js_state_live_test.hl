@@ -9,6 +9,13 @@ import ".." as nats;
 
 fn body(m: nats::NatsMsg) -> String { return std::str::from_bytes(m.data); }
 
+// The err_code deleting message `seq` is refused with, 0 if it is not.
+fn refused_code(c: nats::NatsClient, stream: String, seq: Int) -> Int {
+    let mut code = 0;
+    nats::js_stream_msg_delete(c, stream, seq) or { code = err.code; };
+    return code;
+}
+
 fn main() {
     // with_header needs no server
     let h1 = nats::with_header("", "Nats-Msg-Id", "t-1") or "";
@@ -86,6 +93,7 @@ fn main() {
     std::test::assert(pb.seq == 3, "custom headers: " + c.last_error);
 
     let s1 = nats::js_stream_info(c, stream) or nats::StreamInfo { };
+    // the server's clock may run a little ahead of this one (5 s allowed)
     let now_ns = std::time::nanos(std::time::current());
     std::test::assert(
         s1.messages == 3 && s1.bytes > 0 && s1.first_seq == 1 && s1.last_seq == 3
@@ -94,7 +102,9 @@ fn main() {
             + to_string(s1.last_seq),
     );
     std::test::assert(
-        s1.first_ns > now_ns - 60000000000 && s1.first_ns <= s1.last_ns && s1.last_ns <= now_ns,
+        s1.first_ns > now_ns - 60000000000
+            && s1.first_ns <= s1.last_ns
+            && s1.last_ns <= now_ns + 5000000000,
         "stored within the minute: " + to_string(s1.first_ns) + " " + to_string(s1.last_ns),
     );
 
@@ -164,12 +174,14 @@ fn main() {
     let c1 = nats::js_consumer_info(c, stream, "w") or nats::ConsumerInfo { };
     std::test::assert(
         c1.delivered_consumer_seq >= 2 && c1.ack_floor_consumer_seq == 1
-            && c1.ack_floor_stream_seq == 1 && c1.num_ack_pending >= 1 && c1.num_waiting == 1
+        // seq 2 (the TTL message) is gone, and the floor steps past it
+            && c1.ack_floor_stream_seq == 2 && c1.num_ack_pending >= 1 && c1.num_waiting == 1
             && c1.last_active_ns > 0,
         "after pulls: delivered " + to_string(c1.delivered_consumer_seq) + " floor "
             + to_string(c1.ack_floor_consumer_seq) + " ack_pending "
             + to_string(c1.num_ack_pending) + " waiting " + to_string(c1.num_waiting)
-            + " pending " + to_string(c1.num_pending),
+            + " pending " + to_string(c1.num_pending) + " floor_sseq "
+            + to_string(c1.ack_floor_stream_seq) + " last_active " + to_string(c1.last_active_ns),
     );
     let gone = nats::js_consumer_info(c, stream, "nobody") or nats::ConsumerInfo {
         num_pending: -(err.code)
@@ -186,12 +198,14 @@ fn main() {
         after.messages == before.messages - 1,
         "one fewer: " + to_string(before.messages) + " -> " + to_string(after.messages),
     );
-    c.last_error = "";
-    nats::js_stream_msg_delete(c, stream, q.seq) or discard;
+    let again = refused_code(c, stream, q.seq);
+    let again_why = c.last_error;
+    let past = refused_code(c, stream, 999);
     std::test::assert(
-        std::str::starts_with(c.last_error, "jetstream"),
-        "deleting it again is refused: " + c.last_error,
+        again == 10043 && std::str::contains(again_why, "not found"),
+        "deleting it again: " + to_string(again) + " " + again_why,
     );
+    std::test::assert(past == 10057, "past the end: " + to_string(past) + " " + c.last_error);
 
     let del = c.request("$JS.API.STREAM.DELETE." + stream, b"", 2s) or nats::NatsMsg { };
     c.close();
