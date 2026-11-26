@@ -4137,6 +4137,61 @@ warns "subscribed but never published": its messages arrive through
 `__local_dispatch`, which the checker cannot see. That is true by
 design.
 
+## NatsInbound warns in every program that holds a NatsConn — [OPEN, blocked on the compiler] (2026-11-26)
+
+`hale build` of any program holding a `NatsConn` (pond's own
+`examples/bridge`, hale-lang/voice's api, node and brain) warns:
+
+    warning: bus topic `nats::NatsInbound` is published but has no
+    subscriber — the cells go nowhere.
+
+`NatsConn` declares `publish NatsInbound` for its `untyped` delivery,
+and placement rule 9 (spec/semantics.md, "published with no
+subscriber") judges the whole program. Most programs never set
+`untyped`, so nothing is ever published there and the warning is noise.
+
+History: voice's vendored copy carried a no-op `subscribe NatsInbound
+as on_untyped` on the conn. pond#33 (2026-10-31), which upstreamed
+`untyped`, left it out as something "hale 0.31 does not need". That was
+checked with `hale check`, which does not report the warning;
+`hale build` has warned since that commit (re-run 2026-11-26 with hale
+0.32.0, 0.32.7 and 0.38.0). Voice dropped its patch when it re-vendored
+pond 843c5d3, and the warning surfaced there. The check/build split is
+a compiler defect (`COMPILER-BUGS.md` § 14).
+
+The compiler offers no way to mark the topic optional. Rule 9 is
+silenced only by a subscriber (any, a wildcard, or the publishing locus
+itself), a transport binding, a cross-seed reference from the entry, or
+an external ingress. There is no annotation and no publish form that
+skips it.
+
+Whether `untyped` is set is a runtime param, so no build-time rule can
+tell the one real mistake (setting `untyped` and subscribing nothing,
+which leaves pulled messages unacknowledged, coming again forever) from
+the usual case (no `untyped`, nothing ever published). Today's warning
+fires the same way for both, so it does not catch that mistake either;
+it says only that the program holds a `NatsConn`. The pond-side
+options:
+
+1. Put the conn's no-op subscriber back (voice's patch). The noise
+   goes, and no build-time signal is lost, for the reason above. Its
+   cost is a dead handler that makes the conn look as if it consumes
+   its own output, and that would also silence the rule if a later
+   change gave `NatsInbound` a real orphan.
+2. Move untyped delivery off the declared topic, onto a computed
+   `std::bus::__local_dispatch` (an open-world ingress the rule does
+   not judge). This needs a bus encoding of `Inbound` and hides the
+   publish from the bus graph altogether.
+3. Leave the warning, and document that without `untyped` it is
+   harmless (done in the README).
+
+Taken: 3, pending a decision between 1 and a compiler change. The
+compiler change: a topic declared and published only inside an imported
+library seed, which the entry program never names, is that library's
+optional output and not an orphan. That is the reasoning that already
+skips rule 9 for library seeds, whose consumers are downstream. An
+explicit optional-publish marker would do the same.
+
 # pond/router — friction log
 
 Format borrows from `notes/hale-friction.md` upstream: one

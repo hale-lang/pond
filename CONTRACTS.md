@@ -14,6 +14,17 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-11-26 status note — `realtime/nats`: a stream's creation time (hale 0.38.0)
+
+- **Addition, no older surface changed:** `StreamInfo.created_ns`, from
+  STREAM.INFO's `created` (RFC 3339, nanoseconds kept), upstreamed from
+  hale-lang/voice's vendored copy, where it tells a stream created again
+  under the same name from the one before it.
+- **Known warning, no surface change:** `hale build` of any program
+  holding a `NatsConn` warns that `NatsInbound` has no subscriber
+  (`FRICTION.log § pond/realtime/nats`; `COMPILER-BUGS.md` § 14 for
+  `hale check` not showing it).
+
 ## 2026-11-26 status note — `realtime/nats`: JetStream publishes with headers, stream and consumer state (hale 0.38.0)
 
 - **Additions, no older surface changed or default moved**:
@@ -1489,7 +1500,7 @@ type NatsError  { kind: String; detail: String;     // url|connect|handshake|clo
                   code: Int = 0; }                    // jetstream: the API's err_code (2026-11-26)
 type NatsMsg    { subject: String; sid: Int; reply: String; headers: String; data: Bytes; }
 type NatsFrame  { op: String; subject; sid; reply; headers; data; text; }   // op: INFO|MSG|HMSG|PING|PONG|OK|ERR
-type StreamInfo { name: String; messages: Int; bytes: Int; first_seq: Int; last_seq: Int;   // (2026-11-26)
+type StreamInfo { name: String; created_ns: Int; messages: Int; bytes: Int; first_seq: Int; last_seq: Int;   // (2026-11-26)
                   first_ns: Int; last_ns: Int; subjects: Int; deleted: Int; consumers: Int; }
 type ConsumerInfo { name: String; stream: String; num_pending: Int; num_ack_pending: Int;  // (2026-11-26)
                     num_waiting: Int; num_redelivered: Int; delivered_consumer_seq: Int;

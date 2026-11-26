@@ -57,6 +57,7 @@ work.
 | 11 | Qualified imported scalar casts do not recognize rounding policies | medium | checker (2027ab41) |
 | 12 | Unary minus loses an exact quantity literal's divisibility proof | medium | checker (2027ab41) |
 | 13 | Duration and a nanosecond refinement have inconsistent backend classes | medium | codegen (2027ab41) |
+| 14 | `hale check` and `hale verify` miss a rule-9 warning `hale build` reports (an imported seed's topic with no subscriber) | low | checker vs build (0.38.0) |
 
 ---
 
@@ -662,6 +663,56 @@ and runs: exact widening avoids the mixed representation. Three golden time
 cases use that form with counts verified to fit i64. The source fixture and
 generator comments keep the reason visible.
 
+
+## 14. `hale check` and `hale verify` miss a rule-9 warning `hale build` reports — low
+
+Reproduced 2026-11-26 against hale `0.38.0` at
+`096e84204267c226096fb309f54551a3dae396c7` (and already on `0.32.0`
+and `0.32.7`). No Pond dependency is needed.
+
+`lib/lib.hl`:
+
+```hale
+type Note { n: Int = 0; }
+
+topic Optional {
+    payload: Note;
+    subject: "lib.optional";
+}
+
+locus Source {
+    params { on: Bool = false; }
+    bus { publish Optional; }
+    fn poke() { if self.on { Optional <- Note { n: 1 }; } }
+}
+```
+
+`app/main.hl`:
+
+```hale
+import "../lib" as lib;
+
+main locus App {
+    params { s: lib::Source = lib::Source { }; }
+    run() { self.s.poke(); }
+}
+
+fn main() { App { }; }
+```
+
+Run `hale check app`, `hale verify app` and `hale build app` from their
+parent directory.
+Expected: the three agree. Either all report placement rule 9's
+`bus topic lib::Optional is published but has no subscriber`, or none
+does.
+Observed: `hale check` prints `ok: 1 file(s) typechecked`, `hale verify`
+prints `verified: 1 file(s), 0 findings`, and only `hale build` warns, at
+`lib/lib.hl:11:11`.
+
+The gate a library author runs (`check`, or `verify` as the CI shape)
+therefore passes a program whose build warns. `realtime/nats` lost a
+needed subscriber this way in pond#33 (`FRICTION.log § pond/realtime/nats`,
+"NatsInbound warns in every program that holds a NatsConn").
 
 ## Verified fixed by `3c05dad` — do not re-report
 
