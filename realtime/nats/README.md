@@ -195,6 +195,17 @@ bus's encoding.
 
 A program without `untyped` (the default "") behaves as before.
 
+**A build warning every NatsConn program gets.** `hale build` of a
+program holding a `NatsConn` warns `bus topic nats::NatsInbound is
+published but has no subscriber`, whether it sets `untyped` or not: the
+conn declares the publish, and hale has no way to say a library's topic
+is optional (`FRICTION.log § pond/realtime/nats`, "NatsInbound warns in
+every program that holds a NatsConn"). Without `untyped` it is harmless,
+since nothing is ever published there. With `untyped` it is the warning
+to heed: subscribe `nats::NatsInbound`, or pulled messages are never
+acknowledged and come again. `hale check` and `hale verify` do not show
+it (`COMPILER-BUGS.md` § 14).
+
 ## NatsPublisher — publish only
 
 ```hale
@@ -311,7 +322,7 @@ per-subject limit drops the subject's oldest instead.
 | `js_publish_id(c, subject, id, data) -> PubAck` | the same, with a `Nats-Msg-Id` header: inside the stream's duplicate window a second publish of `id` is not stored again (`duplicate: true`, the first one's `seq`) |
 | `js_publish_headers(c, subject, headers, data) -> PubAck` | the same, with any header block (`with_header`): `Nats-Msg-Id`, `Nats-TTL` (the message's own age, `"30s"`, on a stream with `allow_msg_ttl`), `Nats-Expected-*`, your own |
 | `with_header(block, name, value) -> String` | `block` ("" to start one) with one more header; kind `header` for a name that is not a token or a value with a line break |
-| `js_stream_info(c, name) -> StreamInfo` | `messages`, `bytes`, `first_seq`, `last_seq`, `first_ns`, `last_ns` (stored at, ns since the epoch, 0 never), `subjects`, `deleted`, `consumers` |
+| `js_stream_info(c, name) -> StreamInfo` | `created_ns` (when the stream was created, ns since the epoch: a stream deleted and created again under the same name has a later one), `messages`, `bytes`, `first_seq`, `last_seq`, `first_ns`, `last_ns` (stored at, ns since the epoch, 0 never), `subjects`, `deleted`, `consumers` |
 | `js_consumer_info(c, stream, consumer) -> ConsumerInfo` | `num_pending`, `num_ack_pending`, `num_waiting` (pulls open), `num_redelivered`, `delivered_consumer_seq`/`_stream_seq`, `ack_floor_consumer_seq`/`_stream_seq`, `last_active_ns` |
 | `js_stream_msg_get(c, stream, seq) -> StoredMsg` | a stored message, read without a consumer: `subject`, `seq`, `headers`, `data`, `time_ns` (kind `no_messages` if the stream does not hold it) |
 | `js_stream_msg_next(c, stream, subject, seq) -> StoredMsg` | the first on `subject` (wildcards allowed) at or after `seq`; `seq` 0 is the oldest |
@@ -442,7 +453,7 @@ NATS_URL=nats://127.0.0.1:4222 hale test realtime/nats/
 | `consumer_gone_live_test` | the durable deleted under a live connection: pulls refused and counted in `pull_refused`, the durable created again, the next message delivered, the count back to 0 |
 | `js_pull_live_test` | two `JsPuller`s on one connection and one read loop: a 404 at once for `no_wait` on an empty consumer, a batch of two filled, a waiting pull ending in a 408, a request made while both pulls are open, delivery metadata, a `no_wait` batch larger than what is there, a NAK with a delay not redelivered before it and redelivered after (`delivered` 2), a plain NAK, a TERM never redelivered, a 409 when the consumer is deleted under an open pull, a 503 for a consumer that does not exist, a stale status |
 | `publisher_live_test` | `NatsPublisher`: each message stored once under its prefix, a publish no stream takes said on `std::log`; with no server, `url` "" publishes nothing |
-| `js_state_live_test` | `with_header` and its refusals; through `js_publish_headers`, a `Nats-Msg-Id` kept once and a `Nats-TTL` message gone on its own; stream info empty and with three messages (counts, sequences, times); a stored message by sequence with its headers and time, the oldest on a subject, the first from a sequence on a wildcard, a missing one as `no_messages`; the err_codes 10077, 10059 and 10014; consumer info before and after pulls (pending, ack pending, waiting, delivered, ack floor, last active); a message deleted from the stream (nats-server 2.11) |
+| `js_state_live_test` | `created_ns` within the minute, to the nanosecond, the same while the stream lives and later once it is deleted and created again; `with_header` and its refusals; through `js_publish_headers`, a `Nats-Msg-Id` kept once and a `Nats-TTL` message gone on its own; stream info empty and with three messages (counts, sequences, times); a stored message by sequence with its headers and time, the oldest on a subject, the first from a sequence on a wildcard, a missing one as `no_messages`; the err_codes 10077, 10059 and 10014; consumer info before and after pulls (pending, ack pending, waiting, delivered, ack floor, last active); a message deleted from the stream (nats-server 2.11) |
 | `adapter_live_test` | the bus both ways under a `subject_prefix`: 50 messages out through the adapter, back in through a relay, whole and in order |
 | `adapter_js_live_test` | JetStream mode: each message stored once and delivered back through the durable consumer |
 | `adapter_audit_live_test` | a publish no stream takes collapses the conn to its owner, naming the message and the reason |

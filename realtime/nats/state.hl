@@ -9,9 +9,13 @@
 /// they were stored (nanoseconds since the Unix epoch; 0 when it never
 /// held one). `subjects`: how many subjects have a message;
 /// `deleted`: messages removed from inside the sequence range;
-/// `consumers`: how many consumers it has.
+/// `consumers`: how many consumers it has. `created_ns`: when the
+/// stream was created (nanoseconds since the Unix epoch, to the
+/// nanosecond the server gives), which tells a stream deleted and
+/// created again under the same name from the one before it.
 type StreamInfo {
     name: String = "";
+    created_ns: Int = 0;
     messages: Int = 0;
     bytes: Int = 0;
     first_seq: Int = 0;
@@ -99,6 +103,8 @@ fn js_stream_info(c: NatsClient, name: String) -> StreamInfo fallible(NatsError)
     let st = std::json::find_field_raw(text, "state");
     return StreamInfo {
         name: std::json::find_string_field(std::json::find_field_raw(text, "config"), "name"),
+        // `created` sits beside `config` and `state`
+        created_ns: rfc3339_ns(std::json::find_string_field(text, "created")),
         messages: std::json::find_int_field(st, "messages"),
         bytes: std::json::find_int_field(st, "bytes"),
         first_seq: std::json::find_int_field(st, "first_seq"),
