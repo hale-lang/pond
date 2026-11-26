@@ -35,11 +35,39 @@ fn js_call(c: NatsClient, api: String, body: String) -> String fallible(NatsErro
 /// allowed), kept on disk. Creating it again with the same subjects is
 /// not an error; with different ones it is.
 fn js_stream_create(c: NatsClient, name: String, subjects: String) fallible(NatsError) {
+    js_stream_create_with(c, StreamSpec { name: name, subjects: subjects }) or raise;
+}
+
+/// Delete stream `name` and everything in it.
+fn js_stream_delete(c: NatsClient, name: String) fallible(NatsError) {
+    let r = js_call(c, "$JS.API.STREAM.DELETE." + name, "") or raise;
+}
+
+/// Create stream `spec.name` with the settings in `spec` (see
+/// StreamSpec). Creating it again with the same settings is not an
+/// error; with different ones it is, and `js_stream_update` changes
+/// them: `js_stream_create_with(c, spec) or js_stream_update(c, spec);`.
+fn js_stream_create_with(c: NatsClient, spec: StreamSpec) fallible(NatsError) {
+    let r = js_call(c, "$JS.API.STREAM.CREATE." + spec.name, stream_config_body(spec)) or raise;
+}
+
+/// Give stream `spec.name` the settings in `spec`, all of them: a
+/// setting left at its default goes back to the default. Its messages
+/// stay. The server refuses some changes (`storage`, and `retention`
+/// to or from "workqueue"), and `allow_msg_ttl` once on stays on.
+fn js_stream_update(c: NatsClient, spec: StreamSpec) fallible(NatsError) {
+    let r = js_call(c, "$JS.API.STREAM.UPDATE." + spec.name, stream_config_body(spec)) or raise;
+}
+
+// The stream configuration `spec` describes, for
+// `$JS.API.STREAM.CREATE.<name>` and `$JS.API.STREAM.UPDATE.<name>`:
+// what is at its default is left out, for the server to fill in.
+fn stream_config_body(spec: StreamSpec) -> String {
     let b = std::json::Builder { };
     b.begin_object();
-    b.string_field("name", name);
+    b.string_field("name", spec.name);
     b.begin_array_field("subjects");
-    let mut rest = subjects;
+    let mut rest = spec.subjects;
     while len(rest) > 0 {
         let comma = std::str::index_of(rest, ",");
         let one = std::str::trim(if comma < 0 { rest } else { rest[0..comma] });
@@ -47,14 +75,30 @@ fn js_stream_create(c: NatsClient, name: String, subjects: String) fallible(Nats
         if len(one) > 0 { b.string_value(one); }
     }
     b.end_array();
-    b.string_field("storage", "file");
+    if len(spec.retention) > 0 && spec.retention != "limits" {
+        b.string_field("retention", spec.retention);
+    }
+    b.string_field("storage", if len(spec.storage) > 0 { spec.storage } else { "file" });
+    if spec.max_age_ms > 0 { b.int_field("max_age", spec.max_age_ms * 1000000); }
+    if spec.max_msgs > 0 { b.int_field("max_msgs", spec.max_msgs); }
+    if spec.max_bytes > 0 { b.int_field("max_bytes", spec.max_bytes); }
+    if spec.max_msgs_per_subject > 0 {
+        b.int_field("max_msgs_per_subject", spec.max_msgs_per_subject);
+    }
+    if len(spec.discard) > 0 && spec.discard != "old" { b.string_field("discard", spec.discard); }
+    if spec.discard_new_per_subject { b.bool_field("discard_new_per_subject", true); }
+    if spec.duplicate_window_ms > 0 {
+        b.int_field("duplicate_window", spec.duplicate_window_ms * 1000000);
+    }
+    if spec.allow_msg_ttl { b.bool_field("allow_msg_ttl", true); }
     b.end_object();
-    let r = js_call(c, "$JS.API.STREAM.CREATE." + name, b.result()) or raise;
+    return b.result();
 }
 
-/// Delete stream `name` and everything in it.
-fn js_stream_delete(c: NatsClient, name: String) fallible(NatsError) {
-    let r = js_call(c, "$JS.API.STREAM.DELETE." + name, "") or raise;
+/// Delete durable `consumer` from `stream`. Its place in the stream
+/// goes with it; the stream's messages stay.
+fn js_consumer_delete(c: NatsClient, stream: String, consumer: String) fallible(NatsError) {
+    let r = js_call(c, "$JS.API.CONSUMER.DELETE." + stream + "." + consumer, "") or raise;
 }
 
 /// Create durable pull consumer `spec.durable` on `stream`,
@@ -86,6 +130,7 @@ fn consumer_create_body(stream: String, spec: ConsumerSpec) -> String {
     if len(spec.filter) > 0 { b.string_field("filter_subject", spec.filter); }
     if spec.ack_wait_ms > 0 { b.int_field("ack_wait", spec.ack_wait_ms * 1000000); }
     if spec.max_ack_pending > 0 { b.int_field("max_ack_pending", spec.max_ack_pending); }
+    if spec.max_deliver > 0 { b.int_field("max_deliver", spec.max_deliver); }
     b.end_object();
     b.end_object();
     return b.result();

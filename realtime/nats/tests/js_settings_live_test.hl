@@ -1,0 +1,225 @@
+// JetStream stream settings and consumer limits against a real server:
+// a work-queue stream with a per-subject cap that refuses the newcomer,
+// a duplicate window, per-message TTLs, a settings update, max_deliver,
+// and deleting a consumer. Opt-in: set NATS_URL to a server started
+// with `-js` (nats-server 2.11 or newer, for per-message TTLs); unset,
+// it says so on stderr and passes.
+import ".." as nats;
+
+// The stream's configuration as the server reports it.
+fn config_of(c: nats::NatsClient, stream: String) -> String {
+    let m = c.request("$JS.API.STREAM.INFO." + stream, b"", 2s) or nats::NatsMsg { };
+    return std::json::find_field_raw(std::str::from_bytes(m.data), "config");
+}
+
+fn body(m: nats::NatsMsg) -> String { return std::str::from_bytes(m.data); }
+
+// Create the stream, or bring it up to the spec's settings.
+fn ensure(c: nats::NatsClient, spec: nats::StreamSpec) fallible(nats::NatsError) {
+    nats::js_stream_create_with(c, spec) or nats::js_stream_update(c, spec);
+}
+
+fn main() {
+    let url = std::env::var("NATS_URL");
+    if len(url) == 0 { eprintln("js_settings_live_test: NATS_URL unset, skipped"); return; }
+
+    let c = nats::NatsClient { url: url, name: "pond-js-settings-test" };
+    std::test::assert(c.open(), "open: " + c.last_error);
+    std::test::assert(c.jetstream, "the server runs JetStream (start it with -js)");
+
+    let tag = std::str::replace(nats::new_inbox(), "_INBOX.", "");
+    let stream = "POND_WQ_" + tag;
+    let subj = "pond.wq." + tag;
+
+    // a work queue: a subject holds at most two, and a third is refused
+    let spec = nats::StreamSpec {
+        name: stream,
+        subjects: subj + ".>",
+        retention: "workqueue",
+        max_age_ms: 60000,
+        max_msgs_per_subject: 2,
+        discard: "new",
+        discard_new_per_subject: true,
+        duplicate_window_ms: 1000,
+        allow_msg_ttl: true,
+    };
+    nats::js_stream_create_with(c, spec) or discard;
+    std::test::assert(len(c.last_error) == 0, "created: " + c.last_error);
+    nats::js_stream_create_with(c, spec) or discard;
+    std::test::assert(len(c.last_error) == 0, "created again unchanged: " + c.last_error);
+    let cfg = config_of(c, stream);
+    std::test::assert(
+        std::json::find_string_field(cfg, "retention") == "workqueue"
+            && std::json::find_string_field(cfg, "discard") == "new"
+            && std::json::find_bool_field(cfg, "discard_new_per_subject")
+            && std::json::find_int_field(cfg, "max_msgs_per_subject") == 2
+            && std::json::find_int_field(cfg, "max_age") == 60000000000
+            && std::json::find_int_field(cfg, "duplicate_window") == 1000000000
+            && std::json::find_bool_field(cfg, "allow_msg_ttl")
+            && std::json::find_string_field(cfg, "storage") == "file",
+        "the server has the settings: " + cfg,
+    );
+
+    let a1 = nats::js_publish(c, subj + ".a", b"a1") or nats::PubAck { };
+    let a2 = nats::js_publish(c, subj + ".a", b"a2") or nats::PubAck { };
+    std::test::assert(a1.seq == 1 && a2.seq == 2, "two on a: " + c.last_error);
+    let a3 = nats::js_publish(c, subj + ".a", b"a3") or nats::PubAck { seq: -1 };
+    std::test::assert(
+        a3.seq == -1 && std::str::contains(c.last_error, "maximum messages per subject"),
+        "a third on a is refused: " + c.last_error,
+    );
+    let b1 = nats::js_publish(c, subj + ".b", b"b1") or nats::PubAck { seq: -1 };
+    std::test::assert(b1.seq == 3, "b still takes one: " + c.last_error);
+
+    // different settings are refused by create, and taken by update
+    let wider = nats::StreamSpec {
+        name: stream,
+        subjects: subj + ".>",
+        retention: "workqueue",
+        max_age_ms: 60000,
+        max_msgs_per_subject: 3,
+        discard: "new",
+        discard_new_per_subject: true,
+        duplicate_window_ms: 1000,
+        allow_msg_ttl: true,
+    };
+    c.last_error = "";
+    nats::js_stream_create_with(c, wider) or discard;
+    std::test::assert(
+        std::str::starts_with(c.last_error, "jetstream"),
+        "create with other settings is refused",
+    );
+    c.last_error = "";
+    nats::js_stream_update(c, wider) or discard;
+    std::test::assert(len(c.last_error) == 0, "updated: " + c.last_error);
+    std::test::assert(
+        std::json::find_int_field(config_of(c, stream), "max_msgs_per_subject") == 3,
+        "the update took",
+    );
+    // the idiom: create, or update when the settings differ
+    let mut tighter = wider;
+    tighter.max_msgs_per_subject = 4;
+    c.last_error = "";
+    ensure(c, tighter) or discard;
+    std::test::assert(
+        std::json::find_int_field(config_of(c, stream), "max_msgs_per_subject") == 4,
+        "create-or-update took: " + c.last_error,
+    );
+    ensure(c, wider) or discard;
+    let a3b = nats::js_publish(c, subj + ".a", b"a3") or nats::PubAck { seq: -1 };
+    std::test::assert(a3b.seq == 4, "a takes a third now: " + c.last_error);
+
+    // a work queue: an acknowledged message is gone, which frees its place
+    c.last_error = "";
+    nats::js_consumer_create(
+        c,
+        stream,
+        nats::ConsumerSpec { durable: "wa", filter: subj + ".a" },
+    ) or discard;
+    std::test::assert(len(c.last_error) == 0, "consumer on a: " + c.last_error);
+    c.last_error = "";
+    nats::js_consumer_create(
+        c,
+        stream,
+        nats::ConsumerSpec { durable: "all", filter: subj + ".>" },
+    ) or discard;
+    std::test::assert(
+        std::str::starts_with(c.last_error, "jetstream"),
+        "a work queue refuses an overlapping consumer: " + c.last_error,
+    );
+    let m1 = nats::js_next(c, stream, "wa", 2000) or nats::NatsMsg { };
+    std::test::assert(body(m1) == "a1", "the oldest first: " + body(m1) + " " + c.last_error);
+    nats::js_ack(c, m1) or discard;
+    c.flush() or discard;
+    let a4 = nats::js_publish(c, subj + ".a", b"a4") or nats::PubAck { seq: -1 };
+    std::test::assert(a4.seq == 5, "acked, its place is free: " + c.last_error);
+
+    // deleting the consumer: pulls on it are not answered, and a new
+    // one may overlap where it was
+    c.last_error = "";
+    nats::js_consumer_delete(c, stream, "wa") or discard;
+    std::test::assert(len(c.last_error) == 0, "deleted: " + c.last_error);
+    let gone = nats::js_next(c, stream, "wa", 300) or nats::NatsMsg { subject: "none" };
+    std::test::assert(gone.subject == "none", "a deleted consumer delivers nothing");
+    c.last_error = "";
+    nats::js_consumer_delete(c, stream, "wa") or discard;
+    std::test::assert(
+        std::str::starts_with(c.last_error, "jetstream"),
+        "deleting it again is refused: " + c.last_error,
+    );
+
+    // max_deliver: a message never acknowledged is delivered twice, then
+    // left alone
+    c.last_error = "";
+    nats::js_consumer_create(
+        c,
+        stream,
+        nats::ConsumerSpec {
+            durable: "twice",
+            filter: subj + ".>",
+            ack_wait_ms: 300,
+            max_deliver: 2,
+        },
+    ) or discard;
+    std::test::assert(len(c.last_error) == 0, "max_deliver consumer: " + c.last_error);
+    std::test::assert(
+        std::str::contains(
+            body(
+                c.request(
+                    "$JS.API.CONSUMER.INFO." + stream + ".twice",
+                    b"",
+                    2s,
+                ) or nats::NatsMsg { },
+            ),
+            "\"max_deliver\":2",
+        ),
+        "created with max_deliver 2",
+    );
+    let mut seen_a2 = 0;
+    let mut pulls = 0;
+    while pulls < 12 {
+        let m = nats::js_next(c, stream, "twice", 700) or nats::NatsMsg { subject: "none" };
+        pulls = pulls + 1;
+        if m.subject == "none" { break; }
+        if body(m) == "a2" { seen_a2 = seen_a2 + 1; } else { nats::js_ack(c, m) or discard; }
+    }
+    std::test::assert(seen_a2 == 2, "a2 delivered exactly twice: " + to_string(seen_a2));
+    nats::js_consumer_delete(c, stream, "twice") or discard;
+
+    // the duplicate window: an id is remembered for 1 s, then forgotten
+    let d1 = nats::js_publish_id(c, subj + ".d", "t-1", b"d") or nats::PubAck { };
+    let d2 = nats::js_publish_id(c, subj + ".d", "t-1", b"d") or nats::PubAck { };
+    std::test::assert(!d1.duplicate && d2.duplicate && d2.seq == d1.seq, "a duplicate within it");
+    std::time::sleep(1500ms);
+    let d3 = nats::js_publish_id(c, subj + ".d", "t-1", b"d") or nats::PubAck { };
+    std::test::assert(!d3.duplicate && d3.seq > d1.seq, "stored again after it");
+
+    // allow_msg_ttl: a message published with Nats-TTL leaves on its own
+    let ttl = "NATS/1.0\r\nNats-TTL: 1s\r\n\r\n";
+    let t = c.request_with(subj + ".ttl", ttl, b"brief", 2s) or nats::NatsMsg { };
+    std::test::assert(
+        std::json::find_int_field(body(t), "seq") > 0,
+        "a TTL publish is stored: " + body(t),
+    );
+    nats::js_consumer_create(
+        c,
+        stream,
+        nats::ConsumerSpec { durable: "ttl", filter: subj + ".ttl" },
+    ) or discard;
+    std::time::sleep(2500ms);
+    let expired = nats::js_next(c, stream, "ttl", 300) or nats::NatsMsg { subject: "none" };
+    std::test::assert(expired.subject == "none", "and is gone after it: " + body(expired));
+
+    // without allow_msg_ttl the stream refuses a TTL
+    let plain = "POND_NOTTL_" + tag;
+    nats::js_stream_create(c, plain, "pond.nottl." + tag) or discard;
+    let refused = c.request_with("pond.nottl." + tag, ttl, b"x", 2s) or nats::NatsMsg { };
+    std::test::assert(
+        len(std::json::find_field_raw(body(refused), "error")) > 0,
+        "a stream without allow_msg_ttl refuses one: " + body(refused),
+    );
+    nats::js_stream_delete(c, plain) or discard;
+
+    nats::js_stream_delete(c, stream) or discard;
+    c.close();
+}
