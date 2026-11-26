@@ -151,10 +151,13 @@ fn main() {
     let m1 = nats::js_next(c, stream, "w", 2000) or nats::NatsMsg { };
     let m2 = nats::js_next(c, stream, "w", 2000) or nats::NatsMsg { };
     nats::js_ack(c, m1) or discard;
-    // a pull left open on an inbox nobody reads: counted as waiting
+    // a pull left open on an inbox this client subscribes and does not
+    // read: counted as waiting
+    let open_inbox = nats::new_inbox();
+    let open_sid = c.sub_to(open_inbox, "") or 0;
     c.pub_msg(
         "$JS.API.CONSUMER.MSG.NEXT." + stream + ".w",
-        nats::new_inbox(),
+        open_inbox,
         b"{\"batch\":5,\"expires\":5000000000}",
     ) or discard;
     c.flush() or discard;
