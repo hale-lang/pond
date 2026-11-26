@@ -110,6 +110,7 @@ fn main() {
     std::test::assert(a3b.seq == 4, "a takes a third now: " + c.last_error);
 
     // a work queue: an acknowledged message is gone, which frees its place
+    c.last_error = "";
     nats::js_consumer_create(
         c,
         stream,
@@ -135,6 +136,7 @@ fn main() {
 
     // deleting the consumer: pulls on it are not answered, and a new
     // one may overlap where it was
+    c.last_error = "";
     nats::js_consumer_delete(c, stream, "wa") or discard;
     std::test::assert(len(c.last_error) == 0, "deleted: " + c.last_error);
     let gone = nats::js_next(c, stream, "wa", 300) or nats::NatsMsg { subject: "none" };
