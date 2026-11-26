@@ -278,11 +278,35 @@ arrives.
 
 Free fns over a client you own:
 
+```hale
+let spec = nats::StreamSpec {
+    name: "WORK", subjects: "work.>",
+    retention: "workqueue",           // gone once acked; consumers may not overlap
+    max_age_ms: 600000,               // no message older than 10 min
+    max_msgs_per_subject: 1024, discard: "new", discard_new_per_subject: true,   // a full subject refuses
+    duplicate_window_ms: 120000,      // a Nats-Msg-Id is remembered 2 min
+    allow_msg_ttl: true,              // a publish may set its own Nats-TTL (nats-server 2.11)
+};
+nats::js_stream_create_with(c, spec) or nats::js_stream_update(c, spec);   // create, or bring it up to date
+nats::js_consumer_create(c, "WORK", nats::ConsumerSpec { durable: "w_a", filter: "work.a", max_deliver: 5 }) or raise;
+```
+
+`StreamSpec` leaves out of the request what is at its default, for the
+server to fill in: `retention` "limits", `storage` "file", every limit
+0 (none), `discard` "old", `duplicate_window_ms` 0 (the server's 2
+minutes). A full subject with `discard: "new"` and
+`discard_new_per_subject` refuses the publish (kind `jetstream`, "maximum
+messages per subject exceeded"); without `discard_new_per_subject` the
+per-subject limit drops the subject's oldest instead.
+
 | Call | What it does |
 |---|---|
 | `js_stream_create(c, name, subjects)` | a file-backed stream over comma-separated subjects (again unchanged: not an error) |
 | `js_stream_delete(c, name)` | |
-| `js_consumer_create(c, stream, spec: ConsumerSpec)` | a durable pull consumer, explicit acks, `deliver` as above, optional `filter`, `ack_wait_ms` and `max_ack_pending` (again unchanged: re-attaches, keeping its place) |
+| `js_stream_create_with(c, spec: StreamSpec)` | a stream with the settings below (again unchanged: not an error; with other settings: refused, see `js_stream_update`) |
+| `js_stream_update(c, spec: StreamSpec)` | give an existing stream `spec`'s settings, all of them (one left at its default goes back to it); its messages stay |
+| `js_consumer_create(c, stream, spec: ConsumerSpec)` | a durable pull consumer, explicit acks, `deliver` as above, optional `filter`, `ack_wait_ms`, `max_ack_pending` and `max_deliver` (again unchanged: re-attaches, keeping its place) |
+| `js_consumer_delete(c, stream, consumer)` | delete a durable, and its place in the stream; the messages stay |
 | `js_publish(c, subject, data) -> PubAck` | publish and wait for the stream to store it (`kind: "jetstream"` if no stream takes the subject) |
 | `js_publish_id(c, subject, id, data) -> PubAck` | the same, with a `Nats-Msg-Id` header: inside the stream's duplicate window a second publish of `id` is not stored again (`duplicate: true`, the first one's `seq`) |
 | `js_publish_headers(c, subject, headers, data) -> PubAck` | the same, with any header block (`with_header`): `Nats-Msg-Id`, `Nats-TTL` (the message's own age, `"30s"`, on a stream with `allow_msg_ttl`), `Nats-Expected-*`, your own |
@@ -301,6 +325,64 @@ stream, 10014 no such consumer, 10037 no such message for
 on nats-server 2.11.17.
 | `js_next(c, stream, consumer, wait_ms) -> NatsMsg` | the next message, or `kind: "no_messages"` |
 | `js_ack(c, msg)` | acknowledge it; unacknowledged, it comes again after the ack wait |
+| `js_nak(c, msg, delay_ms)` | hand it back: delivered again after `delay_ms` (0: at once) |
+| `js_term(c, msg)` | give up on it: never delivered again |
+| `js_meta(msg.reply) -> JsMeta` | the delivery metadata in its reply subject: stream, consumer, `delivered` count, stream and consumer sequence, `timestamp_ns`, `pending`, `domain` (kind `jetstream` if it is not a `$JS.ACK` subject) |
+| `header_value(headers, name)` | one header's value from a header block, any case ("" when absent) |
+
+### Pulling without blocking
+
+`js_next` is a request: the client reads nothing else while it waits,
+so a program pulling from several consumers would need a connection
+(and a thread) for each. A `JsPuller` owns one inbox subscription on a
+client you keep, publishes each pull with its reply on that inbox, and
+returns at once. What the server sends back arrives through your own
+`read_msg` loop, like any other message: hand each one the puller
+`owns` to `take`, which says what it is. Several pullers share one
+connection and one loop.
+
+```hale
+let pa = nats::JsPuller { stream: "WORK", consumer: "w_a" };
+let pb = nats::JsPuller { stream: "WORK", consumer: "w_b" };
+while running {
+    if pa.wants_pull() { pa.fetch(c, 4, 5000, false) or raise; }   // batch 4, expires 5 s
+    if pb.wants_pull() { pb.fetch(c, 1, 0, true) or raise; }       // batch 1, no_wait
+    if !c.read_msg(250ms) { continue; }
+    if pa.owns(c.last) {
+        let got = pa.take(c.last);
+        if got.kind == "msg" {
+            let meta = nats::js_meta(got.msg.reply) or raise;       // delivered, sequences, timestamp
+            ... nats::js_ack(c, got.msg) or raise;                  // or js_nak(c, got.msg, 2000) / js_term
+        }
+    } else if pb.owns(c.last) { ... }
+}
+```
+
+- `fetch(c, batch, expires_ms, no_wait)` subscribes the inbox the first
+  time (or call `open(c)` first), publishes
+  `$JS.API.CONSUMER.MSG.NEXT.<stream>.<consumer>` with its reply on
+  `<inbox>.<n>`, the n-th pull's own subject, and returns.
+- `take(m)` gives a `JsPulled`. Its `kind` is `"msg"` (in `msg`), or the
+  status that ended the pull: `"no_messages"` (404, a `no_wait` pull on
+  an empty consumer), `"expired"` (408, `expires` passed), `"conflict"`
+  (409, the server ended it: `status` says why, e.g. "409 Consumer
+  Deleted", "409 Exceeded MaxWaiting"), `"gone"` (503, no such consumer
+  or stream; counted in `refused`), `"status"` (anything else). It can
+  also be `"heartbeat"` (100), which does not end the pull, or `"stale"`,
+  a status for an earlier pull than the current one. `pending` is the
+  status's `Nats-Pending-Messages` (on a 408 or 409): how many of the
+  pull's batch it did not fill, not the consumer's backlog
+  (`js_consumer_info`), else -1.
+- `wants_pull()` is true when no pull is open: its batch came, a status
+  ended it, or it is 2 s past its expiry with no word from the server.
+- The inbox sits under the client's `inbox_prefix`. A `request` on the
+  same client meanwhile sets the pullers' messages aside, and `read_msg`
+  hands them out after.
+- `no_wait` (nats-server 2.11, observed): a batch of n brings what the
+  consumer has, up to n, then a 404 if that was fewer than n; nothing
+  there is a 404 at once. With `expires_ms` too, a consumer with
+  nothing is waited on for up to `expires_ms`, then a 408; one with
+  some still ends with a 404 once they are handed out.
 
 ## NatsFake — no broker
 
@@ -351,11 +433,14 @@ NATS_URL=nats://127.0.0.1:4222 hale test realtime/nats/
 | `dial_test` | the dial gives up within the client's `timeout` on an address that never answers (127.0.0.2: dropped on macOS, refused at once on Linux) |
 | `fake_untyped_test` | an injected subject under the fake's `untyped` reaches `NatsInbound` as it arrived, with its reply; the subscriber's `nats_ack` counts as an ack and is never audited |
 | `inbox_test` | `new_inbox` and `new_inbox_under`: the prefix, the length, fresh each time |
+| `ack_meta_test` | `js_meta` on both forms of `$JS.ACK` subject (with and without a domain, the domain `_`), each malformed subject refused; `header_value` |
 | `fake_latest_test` | the fake never audits a latest-value binding, and still audits an at-least-once one |
 | `client_live_test` | pub/sub, a binary payload intact, unsub, request/reply, a reply under `inbox_prefix`, no-responders |
 | `jetstream_live_test` | streams, PubAcks, durable consumers under all five deliver policies, a filter, re-creating a durable without losing its place, redelivery of what was never acked, `max_ack_pending` holding back the next message |
+| `js_settings_live_test` | a work-queue stream: its settings as the server reports them, a full subject refusing a third message while another subject takes one, create refusing other settings and update taking them, an acked message freeing its place, an overlapping consumer refused, a deleted consumer, `max_deliver` 2 delivering an unacked message exactly twice, the duplicate window forgetting an id, a `Nats-TTL` message expiring, and a stream without `allow_msg_ttl` refusing one (nats-server 2.11) |
 | `untyped_live_test` | `untyped` over a core subscription and the durable consumer: messages on `NatsInbound` as they arrived, a pulled one acknowledged by its subscriber, and one left unacknowledged coming again |
 | `consumer_gone_live_test` | the durable deleted under a live connection: pulls refused and counted in `pull_refused`, the durable created again, the next message delivered, the count back to 0 |
+| `js_pull_live_test` | two `JsPuller`s on one connection and one read loop: a 404 at once for `no_wait` on an empty consumer, a batch of two filled, a waiting pull ending in a 408, a request made while both pulls are open, delivery metadata, a `no_wait` batch larger than what is there, a NAK with a delay not redelivered before it and redelivered after (`delivered` 2), a plain NAK, a TERM never redelivered, a 409 when the consumer is deleted under an open pull, a 503 for a consumer that does not exist, a stale status |
 | `publisher_live_test` | `NatsPublisher`: each message stored once under its prefix, a publish no stream takes said on `std::log`; with no server, `url` "" publishes nothing |
 | `js_state_live_test` | `with_header` and its refusals; through `js_publish_headers`, a `Nats-Msg-Id` kept once and a `Nats-TTL` message gone on its own; stream info empty and with three messages (counts, sequences, times); a stored message by sequence with its headers and time, the oldest on a subject, the first from a sequence on a wildcard, a missing one as `no_messages`; the err_codes 10077, 10059 and 10014; consumer info before and after pulls (pending, ack pending, waiting, delivered, ack floor, last active); a message deleted from the stream (nats-server 2.11) |
 | `adapter_live_test` | the bus both ways under a `subject_prefix`: 50 messages out through the adapter, back in through a relay, whole and in order |

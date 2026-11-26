@@ -28,6 +28,39 @@ choose their own aliases per F.25.
     `js_stream_msg_next`, and `js_stream_msg_delete`.
 - Verified against hale `0.38.0` and nats-server 2.11.
 
+
+## 2026-11-26 status note — `realtime/nats`: JetStream pulls without blocking, nak/term, delivery metadata (hale 0.38.0)
+
+- **Additions, no older surface changed**, for a program that pulls from
+  several consumers on one connection (hale-lang/voice's node):
+  - `locus JsPuller` (`open`, `fetch`, `wants_pull`, `owns`, `take`,
+    `close`) and `type JsPulled`: a pull published with its reply on an
+    inbox the puller owns, returning at once; what arrives goes through
+    the owner's `read_msg` loop. 404, 408, 409 and 503 end the pull and
+    are told apart; 100 heartbeats do not.
+  - `js_nak(c, msg, delay_ms)`, `js_term(c, msg)`.
+  - `type JsMeta` and `js_meta(reply)`: the `$JS.ACK` subject parsed,
+    both its forms.
+  - `header_value(headers, name)`.
+- Verified against hale `0.38.0` and nats-server 2.11.
+
+## 2026-11-26 status note — `realtime/nats`: JetStream stream settings, consumer limits (hale 0.38.0)
+
+- **Additions, no older surface changed or default moved**, for a
+  work-queue stream owned by one program (hale-lang/voice's queue
+  routing):
+  - `type StreamSpec` (retention, storage, `max_age_ms`, `max_msgs`,
+    `max_bytes`, `max_msgs_per_subject`, `discard`,
+    `discard_new_per_subject`, `duplicate_window_ms`, `allow_msg_ttl`),
+    `js_stream_create_with(c, spec)` and `js_stream_update(c, spec)`.
+    `js_stream_create(c, name, subjects)` is now
+    `js_stream_create_with` over a spec holding only those two, and sends
+    the same request as before.
+  - `ConsumerSpec.max_deliver` (0: the server's default, unlimited) and
+    `js_consumer_delete(c, stream, consumer)`.
+- Verified against hale `0.38.0` and nats-server 2.11 (per-message TTLs
+  need 2.11).
+
 ## 2026-10-31 status note — `realtime/nats`: untyped inbound, a publish-only adapter, inbox prefixes (hale 0.31.0)
 
 - **Additions, no older surface changed or default moved** (pond#33),
@@ -1467,7 +1500,13 @@ fn with_header(block: String, name: String, value: String) -> String fallible(Na
 type PubAck     { stream: String; seq: Int; duplicate: Bool; }
 type ConsumerSpec { durable: String; filter = ""; deliver = "all";   // all|new|last|by_start_sequence|by_start_time
                     start_seq: Int = 0; start_time: String = ""; ack_wait_ms: Int = 0;
-                    max_ack_pending: Int = 0; }                      // 0: the server's default (2026-10-31)
+                    max_ack_pending: Int = 0;                        // 0: the server's default (2026-10-31)
+                    max_deliver: Int = 0; }                          // 0: the server's default, unlimited (2026-11-26)
+type StreamSpec { name: String; subjects: String;                    // comma-separated (2026-11-26)
+                  retention = "limits"; storage = "file";            // limits|workqueue|interest; file|memory
+                  max_age_ms = 0; max_msgs = 0; max_bytes = 0; max_msgs_per_subject = 0;   // 0: no limit
+                  discard = "old"; discard_new_per_subject = false;  // old|new
+                  duplicate_window_ms = 0; allow_msg_ttl = false; }  // 0: the server's 2 min; Nats-TTL (nats-server 2.11)
 type Delivery   = enum { AtLeastOnce, Latest };      // per binding (2026-10-31)
 type Outbound   { subject: String; data: Bytes; latest: Bool = false;
                   ack: Bool = false; }                // an untyped message's acknowledgement (2026-10-31)
@@ -1477,6 +1516,12 @@ topic NatsInbound { payload: Inbound; subject: "pond.nats.inbound"; }      // co
 fn nats_ack(reply: String) -> Outbound;               // NatsOutbound <- nats_ack(m.reply)
 fn new_inbox() -> String;                             // _INBOX.<22 hex>
 fn new_inbox_under(prefix: String) -> String;         // <prefix>.<22 hex> (2026-10-31)
+type JsPulled   { kind: String; msg: NatsMsg; status: String; pending: Int = -1; }   // pending: batch left unfilled (408/409) (2026-11-26)
+                // kind: msg|no_messages(404)|expired(408)|conflict(409)|gone(503)|heartbeat(100)|stale|status
+type JsMeta     { stream: String; consumer: String; domain: String; delivered: Int;     // (2026-11-26)
+                  stream_seq: Int; consumer_seq: Int; timestamp_ns: Int; pending: Int; }
+fn js_meta(reply: String) -> JsMeta fallible(NatsError);   // a $JS.ACK subject, either form (2026-11-26)
+fn header_value(headers: String, name: String) -> String; // any case, "" absent (2026-11-26)
 
 locus NatsClient {
     params { url = "nats://127.0.0.1:4222"; user = ""; pass = ""; token = ""; name = "";
@@ -1498,7 +1543,10 @@ locus NatsClient {
 
 fn js_stream_create(c: NatsClient, name: String, subjects: String) -> () fallible(NatsError);
 fn js_stream_delete(c: NatsClient, name: String) -> () fallible(NatsError);
+fn js_stream_create_with(c: NatsClient, spec: StreamSpec) -> () fallible(NatsError);   // again unchanged: ok (2026-11-26)
+fn js_stream_update(c: NatsClient, spec: StreamSpec) -> () fallible(NatsError);        // all of spec's settings (2026-11-26)
 fn js_consumer_create(c: NatsClient, stream: String, spec: ConsumerSpec) -> () fallible(NatsError);
+fn js_consumer_delete(c: NatsClient, stream: String, consumer: String) -> () fallible(NatsError);   // (2026-11-26)
 fn js_publish(c: NatsClient, subject: String, data: Bytes) -> PubAck fallible(NatsError);
 fn js_publish_id(c: NatsClient, subject: String, id: String, data: Bytes) -> PubAck fallible(NatsError);   // Nats-Msg-Id dedup (2026-09-24)
 fn js_publish_headers(c: NatsClient, subject: String, headers: String, data: Bytes) -> PubAck fallible(NatsError);   // (2026-11-26)
@@ -1509,6 +1557,18 @@ fn js_stream_msg_next(c: NatsClient, stream: String, subject: String, seq: Int) 
 fn js_stream_msg_delete(c: NatsClient, stream: String, seq: Int) -> () fallible(NatsError);             // 10043 gone, 10057 past the end (2026-11-26)
 fn js_next(c: NatsClient, stream: String, consumer: String, wait_ms: Int) -> NatsMsg fallible(NatsError);
 fn js_ack(c: NatsClient, m: NatsMsg) -> () fallible(NatsError);
+fn js_nak(c: NatsClient, m: NatsMsg, delay_ms: Int) -> () fallible(NatsError);   // again after delay_ms, 0 at once (2026-11-26)
+fn js_term(c: NatsClient, m: NatsMsg) -> () fallible(NatsError);                 // never again (2026-11-26)
+
+locus JsPuller {                                          // one consumer pulled without holding the connection (2026-11-26)
+    params { stream: String; consumer: String; }          // read: inbox, sid, pulling, left, received, refused
+    fn open(c: NatsClient) -> () fallible(NatsError);     // SUB <c.inbox_prefix>.<hex>.*; fetch does it if not done
+    fn fetch(c: NatsClient, batch: Int, expires_ms: Int, no_wait: Bool) -> () fallible(NatsError);   // publishes the pull, returns
+    fn wants_pull() -> Bool;                              // no pull open, or one 2 s past its expiry
+    fn owns(m: NatsMsg) -> Bool;                          // arrived on this puller's inbox
+    fn take(m: NatsMsg) -> JsPulled;                      // what it is; the pull's bookkeeping updated
+    fn close(c: NatsClient);
+}
 
 locus NatsAdapter {                                       // std::bus adapter: publishes NatsOutbound
     params { delivery: Delivery = Delivery::AtLeastOnce; }   // Latest: newest per subject, never audited

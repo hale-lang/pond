@@ -48,19 +48,20 @@ fn main() {
     let stream = "POND_STATE_" + tag;
     let subj = "pond.state." + tag;
     // a work queue allowing per-message TTLs, two per subject, refusing a
-    // third (made by hand here: StreamSpec is a separate change)
-    let cfg = "{\"name\":\"" + stream + "\",\"subjects\":[\"" + subj
-        + ".>\"],\"retention\":\"workqueue\",\"storage\":\"file\",\"max_msgs_per_subject\":2,"
-        + "\"discard\":\"new\",\"discard_new_per_subject\":true,\"allow_msg_ttl\":true}";
-    let made = c.request(
-        "$JS.API.STREAM.CREATE." + stream,
-        std::bytes::from_string(cfg),
-        2s,
-    ) or nats::NatsMsg { };
-    std::test::assert(
-        len(std::json::find_field_raw(body(made), "error")) == 0,
-        "stream: " + body(made),
-    );
+    // third
+    nats::js_stream_create_with(
+        c,
+        nats::StreamSpec {
+            name: stream,
+            subjects: subj + ".>",
+            retention: "workqueue",
+            max_msgs_per_subject: 2,
+            discard: "new",
+            discard_new_per_subject: true,
+            allow_msg_ttl: true,
+        },
+    ) or discard;
+    std::test::assert(len(c.last_error) == 0, "stream: " + c.last_error);
 
     // an empty stream
     let s0 = nats::js_stream_info(c, stream) or nats::StreamInfo { messages: -1 };
@@ -207,6 +208,6 @@ fn main() {
     );
     std::test::assert(past == 10057, "past the end: " + to_string(past) + " " + c.last_error);
 
-    let del = c.request("$JS.API.STREAM.DELETE." + stream, b"", 2s) or nats::NatsMsg { };
+    nats::js_stream_delete(c, stream) or discard;
     c.close();
 }
