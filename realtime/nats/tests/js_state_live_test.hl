@@ -1,0 +1,213 @@
+// JetStream publishes with headers and the state calls against a real
+// server: Nats-Msg-Id dedup and Nats-TTL expiry through
+// js_publish_headers, a refusal's err_code, stream and consumer info
+// numbers, reading stored messages by sequence and by subject, and
+// deleting one. Opt-in: set NATS_URL to a server started with `-js`
+// (nats-server 2.11 or newer, for per-message TTLs); unset, it says so
+// on stderr and passes.
+import ".." as nats;
+
+fn body(m: nats::NatsMsg) -> String { return std::str::from_bytes(m.data); }
+
+// The err_code deleting message `seq` is refused with, 0 if it is not.
+fn refused_code(c: nats::NatsClient, stream: String, seq: Int) -> Int {
+    let mut code = 0;
+    nats::js_stream_msg_delete(c, stream, seq) or { code = err.code; };
+    return code;
+}
+
+fn main() {
+    // with_header needs no server
+    let h1 = nats::with_header("", "Nats-Msg-Id", "t-1") or "";
+    std::test::assert_eq_str(h1, "NATS/1.0\r\nNats-Msg-Id: t-1\r\n\r\n", "one header");
+    let h2 = nats::with_header(h1, "Nats-TTL", "2s") or "";
+    std::test::assert_eq_str(
+        h2,
+        "NATS/1.0\r\nNats-Msg-Id: t-1\r\nNats-TTL: 2s\r\n\r\n",
+        "two headers",
+    );
+    std::test::assert_eq_str(
+        nats::with_header(nats::msg_id_headers("x"), "A", "b") or "",
+        "NATS/1.0\r\nNats-Msg-Id: x\r\nA: b\r\n\r\n",
+        "onto msg_id_headers",
+    );
+    let bad_name = nats::with_header("", "Bad Name", "v") or err.kind;
+    std::test::assert_eq_str(bad_name, "header", "a name with a space");
+    let bad_value = nats::with_header("", "X", "a\r\nInjected: y") or err.kind;
+    std::test::assert_eq_str(bad_value, "header", "a value with a line break");
+    let bad_block = nats::with_header("X: y", "A", "b") or err.kind;
+    std::test::assert_eq_str(bad_block, "header", "not a block");
+
+    let url = std::env::var("NATS_URL");
+    if len(url) == 0 { eprintln("js_state_live_test: NATS_URL unset, skipped"); return; }
+
+    let c = nats::NatsClient { url: url, name: "pond-js-state-test" };
+    std::test::assert(c.open(), "open: " + c.last_error);
+
+    let tag = std::str::replace(nats::new_inbox(), "_INBOX.", "");
+    let stream = "POND_STATE_" + tag;
+    let subj = "pond.state." + tag;
+    // a work queue allowing per-message TTLs, two per subject, refusing a
+    // third
+    nats::js_stream_create_with(
+        c,
+        nats::StreamSpec {
+            name: stream,
+            subjects: subj + ".>",
+            retention: "workqueue",
+            max_msgs_per_subject: 2,
+            discard: "new",
+            discard_new_per_subject: true,
+            allow_msg_ttl: true,
+        },
+    ) or discard;
+    std::test::assert(len(c.last_error) == 0, "stream: " + c.last_error);
+
+    // an empty stream
+    let s0 = nats::js_stream_info(c, stream) or nats::StreamInfo { messages: -1 };
+    std::test::assert(
+        s0.name == stream && s0.messages == 0 && s0.bytes == 0 && s0.first_ns == 0
+            && s0.consumers == 0,
+        "empty: " + c.last_error,
+    );
+
+    // a message id, kept once
+    let id = nats::with_header("", "Nats-Msg-Id", "once-" + tag) or "";
+    let p1 = nats::js_publish_headers(c, subj + ".a", id, b"first") or nats::PubAck { };
+    let p2 = nats::js_publish_headers(c, subj + ".a", id, b"first") or nats::PubAck { };
+    std::test::assert(p1.seq == 1 && !p1.duplicate, "stored: " + c.last_error);
+    std::test::assert(p2.seq == 1 && p2.duplicate, "a duplicate: " + to_string(p2.seq));
+    // js_publish_id goes the same way
+    let p3 = nats::js_publish_id(c, subj + ".a", "once-" + tag, b"first") or nats::PubAck { };
+    std::test::assert(p3.duplicate, "js_publish_id agrees");
+
+    // a TTL: gone on its own
+    let ttl = nats::with_header("", "Nats-TTL", "1s") or "";
+    let pt = nats::js_publish_headers(c, subj + ".t", ttl, b"brief") or nats::PubAck { };
+    std::test::assert(pt.seq == 2, "a TTL message: " + c.last_error);
+    let custom = nats::with_header(
+        nats::with_header("", "Nats-Msg-Id", "b-" + tag) or "",
+        "X-Owner",
+        "pond",
+    ) or "";
+    let pb = nats::js_publish_headers(c, subj + ".b", custom, b"bee") or nats::PubAck { };
+    std::test::assert(pb.seq == 3, "custom headers: " + c.last_error);
+
+    let s1 = nats::js_stream_info(c, stream) or nats::StreamInfo { };
+    // the server's clock may run a little ahead of this one (5 s allowed)
+    let now_ns = std::time::nanos(std::time::current());
+    std::test::assert(
+        s1.messages == 3 && s1.bytes > 0 && s1.first_seq == 1 && s1.last_seq == 3
+            && s1.subjects == 3,
+        "three held: " + to_string(s1.messages) + " " + to_string(s1.first_seq) + ".."
+            + to_string(s1.last_seq),
+    );
+    std::test::assert(
+        s1.first_ns > now_ns - 60000000000
+            && s1.first_ns <= s1.last_ns
+            && s1.last_ns <= now_ns + 5000000000,
+        "stored within the minute: " + to_string(s1.first_ns) + " " + to_string(s1.last_ns),
+    );
+
+    // a stored message by sequence, its headers and time with it
+    let g = nats::js_stream_msg_get(c, stream, 3) or nats::StoredMsg { };
+    std::test::assert(
+        g.subject == subj + ".b" && g.seq == 3 && std::str::from_bytes(g.data) == "bee",
+        "msg 3: " + g.subject + " " + c.last_error,
+    );
+    std::test::assert(
+        std::str::starts_with(g.headers, "NATS/1.0\r\n")
+            && std::str::contains(g.headers, "X-Owner: pond\r\n"),
+        "its headers: " + g.headers,
+    );
+    std::test::assert(g.time_ns == s1.last_ns, "its time is the stream's last");
+    // the oldest on a subject, and on a wildcard from a sequence
+    let oldest = nats::js_stream_msg_next(c, stream, subj + ".a", 0) or nats::StoredMsg { };
+    std::test::assert(oldest.seq == 1 && oldest.time_ns == s1.first_ns, "oldest on a");
+    let from2 = nats::js_stream_msg_next(c, stream, subj + ".>", 2) or nats::StoredMsg { };
+    std::test::assert(from2.seq == 2, "from 2 on the wildcard: " + to_string(from2.seq));
+    let none = nats::js_stream_msg_get(c, stream, 99) or nats::StoredMsg { seq: -1 };
+    std::test::assert(
+        none.seq == -1 && std::str::starts_with(c.last_error, "no_messages"),
+        "no message 99: " + c.last_error,
+    );
+
+    // the TTL passes: the stream holds two
+    std::time::sleep(2500ms);
+    let s2 = nats::js_stream_info(c, stream) or nats::StreamInfo { };
+    std::test::assert(s2.messages == 2, "the TTL message left: " + to_string(s2.messages));
+
+    // a refusal carries its err_code: a third on a subject holding two
+    let q = nats::js_publish(c, subj + ".b", b"b2") or nats::PubAck { };
+    let full = nats::js_publish(c, subj + ".b", b"b3") or nats::PubAck { seq: -(err.code) };
+    std::test::assert(full.seq == -10077, "10077 when the subject is full: " + to_string(full.seq));
+    let missing = nats::js_stream_info(c, "POND_NO_SUCH_" + tag) or nats::StreamInfo {
+        messages: -(err.code)
+    };
+    std::test::assert(missing.messages == -10059, "10059: " + to_string(missing.messages));
+
+    // consumer numbers: three for it (a, b, b2), one pulled and not acked,
+    // one pull open
+    nats::js_consumer_create(
+        c,
+        stream,
+        nats::ConsumerSpec { durable: "w", ack_wait_ms: 30000 },
+    ) or discard;
+    let c0 = nats::js_consumer_info(c, stream, "w") or nats::ConsumerInfo { };
+    std::test::assert(
+        c0.name == "w" && c0.stream == stream && c0.num_pending == 3 && c0.num_ack_pending == 0
+            && c0.delivered_consumer_seq == 0 && c0.last_active_ns == 0,
+        "a fresh consumer: " + to_string(c0.num_pending) + " " + c.last_error,
+    );
+    let m1 = nats::js_next(c, stream, "w", 2000) or nats::NatsMsg { };
+    let m2 = nats::js_next(c, stream, "w", 2000) or nats::NatsMsg { };
+    nats::js_ack(c, m1) or discard;
+    // a pull left open on an inbox this client subscribes and does not
+    // read: counted as waiting
+    let open_inbox = nats::new_inbox();
+    let open_sid = c.sub_to(open_inbox, "") or 0;
+    c.pub_msg(
+        "$JS.API.CONSUMER.MSG.NEXT." + stream + ".w",
+        open_inbox,
+        b"{\"batch\":5,\"expires\":5000000000}",
+    ) or discard;
+    c.flush() or discard;
+    let c1 = nats::js_consumer_info(c, stream, "w") or nats::ConsumerInfo { };
+    std::test::assert(
+        c1.delivered_consumer_seq >= 2 && c1.ack_floor_consumer_seq == 1
+        // seq 2 (the TTL message) is gone, and the floor steps past it
+            && c1.ack_floor_stream_seq == 2 && c1.num_ack_pending >= 1 && c1.num_waiting == 1
+            && c1.last_active_ns > 0,
+        "after pulls: delivered " + to_string(c1.delivered_consumer_seq) + " floor "
+            + to_string(c1.ack_floor_consumer_seq) + " ack_pending "
+            + to_string(c1.num_ack_pending) + " waiting " + to_string(c1.num_waiting)
+            + " pending " + to_string(c1.num_pending) + " floor_sseq "
+            + to_string(c1.ack_floor_stream_seq) + " last_active " + to_string(c1.last_active_ns),
+    );
+    let gone = nats::js_consumer_info(c, stream, "nobody") or nats::ConsumerInfo {
+        num_pending: -(err.code)
+    };
+    std::test::assert(gone.num_pending == -10014, "10014: " + to_string(gone.num_pending));
+
+    // delete one at once: the stream holds one fewer
+    let before = nats::js_stream_info(c, stream) or nats::StreamInfo { };
+    c.last_error = "";
+    nats::js_stream_msg_delete(c, stream, q.seq) or discard;
+    std::test::assert(len(c.last_error) == 0, "deleted: " + c.last_error);
+    let after = nats::js_stream_info(c, stream) or nats::StreamInfo { };
+    std::test::assert(
+        after.messages == before.messages - 1,
+        "one fewer: " + to_string(before.messages) + " -> " + to_string(after.messages),
+    );
+    let again = refused_code(c, stream, q.seq);
+    let again_why = c.last_error;
+    let past = refused_code(c, stream, 999);
+    std::test::assert(
+        again == 10043 && std::str::contains(again_why, "not found"),
+        "deleting it again: " + to_string(again) + " " + again_why,
+    );
+    std::test::assert(past == 10057, "past the end: " + to_string(past) + " " + c.last_error);
+
+    nats::js_stream_delete(c, stream) or discard;
+    c.close();
+}

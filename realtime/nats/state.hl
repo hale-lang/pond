@@ -1,0 +1,204 @@
+// pond/realtime/nats — what a stream and a consumer hold, read through
+// the JetStream API (STREAM.INFO, CONSUMER.INFO, STREAM.MSG.GET,
+// STREAM.MSG.DELETE), and header blocks for a publish
+// (`with_header`, for `js_publish_headers`).
+
+/// A stream's state. `messages` and `bytes` it holds now; `first_seq`
+/// and `last_seq` the sequences of its oldest and newest (`first_seq`
+/// is `last_seq + 1` when it is empty), and `first_ns`, `last_ns` when
+/// they were stored (nanoseconds since the Unix epoch; 0 when it never
+/// held one). `subjects`: how many subjects have a message;
+/// `deleted`: messages removed from inside the sequence range;
+/// `consumers`: how many consumers it has.
+type StreamInfo {
+    name: String = "";
+    messages: Int = 0;
+    bytes: Int = 0;
+    first_seq: Int = 0;
+    last_seq: Int = 0;
+    first_ns: Int = 0;
+    last_ns: Int = 0;
+    subjects: Int = 0;
+    deleted: Int = 0;
+    consumers: Int = 0;
+}
+
+/// A consumer's state. `num_pending`: messages in its stream it has not
+/// delivered yet. `num_ack_pending`: delivered and not yet
+/// acknowledged. `num_waiting`: pulls open on it now. `num_redelivered`:
+/// messages delivered more than once. `delivered_*`: the last delivery
+/// (its consumer and stream sequence); `ack_floor_*`: the point below
+/// which every delivery is acknowledged (its stream sequence steps past
+/// sequences the stream no longer holds). `last_active_ns`: when it last
+/// delivered (nanoseconds since the Unix epoch, 0 never).
+type ConsumerInfo {
+    name: String = "";
+    stream: String = "";
+    num_pending: Int = 0;
+    num_ack_pending: Int = 0;
+    num_waiting: Int = 0;
+    num_redelivered: Int = 0;
+    delivered_consumer_seq: Int = 0;
+    delivered_stream_seq: Int = 0;
+    ack_floor_consumer_seq: Int = 0;
+    ack_floor_stream_seq: Int = 0;
+    last_active_ns: Int = 0;
+}
+
+/// One message as its stream stores it: its subject and sequence, its
+/// header block ("" when none; `header_value`-style text, `NATS/1.0`
+/// line first), its payload, and when it was stored (nanoseconds since
+/// the Unix epoch).
+type StoredMsg {
+    subject: String = "";
+    seq: Int = 0;
+    headers: String = "";
+    data: Bytes = b"";
+    time_ns: Int = 0;
+}
+
+// An RFC 3339 time in nanoseconds since the Unix epoch, 0 for "" or the
+// zero time the server writes for "never".
+fn rfc3339_ns(s: String) -> Int {
+    if len(s) == 0 || std::str::starts_with(s, "0001-") { return 0; }
+    let t = std::time::parse_rfc3339(s) or std::time::from_nanos(0);
+    return std::time::nanos(t);
+}
+
+/// `block` with one more header, `name: value`: "" starts a block. A
+/// name must be a token (no space, `:`, CR or LF) and a value must not
+/// hold CR or LF, or the call fails with kind "header":
+///
+/// ```hale
+/// let h = nats::with_header("", "Nats-Msg-Id", id) or raise;
+/// let h2 = nats::with_header(h, "Nats-TTL", "30s") or raise;
+/// nats::js_publish_headers(c, subject, h2, data) or raise;
+/// ```
+fn with_header(block: String, name: String, value: String) -> String fallible(NatsError) {
+    if len(name) == 0 || std::str::contains(name, ":") || std::str::contains(name, " ")
+        || std::str::contains(name, "\r") || std::str::contains(name, "\n")
+    {
+        fail NatsError { kind: "header", detail: "not a header name: " + name };
+    }
+    if std::str::contains(value, "\r") || std::str::contains(value, "\n") {
+        fail NatsError { kind: "header", detail: "a header value with a line break: " + name };
+    }
+    if len(block) > 0
+        && (!std::str::starts_with(block, "NATS/1.0") || !std::str::ends_with(block, "\r\n\r\n"))
+    {
+        fail NatsError { kind: "header", detail: "not a header block (NATS/1.0 ... blank line)" };
+    }
+    let head = if len(block) == 0 { "NATS/1.0\r\n" } else { block[0..(len(block) - 2)] };
+    return head + name + ": " + value + "\r\n\r\n";
+}
+
+/// Stream `name`'s state. Fails with kind "jetstream" (code 10059) when
+/// there is no such stream.
+fn js_stream_info(c: NatsClient, name: String) -> StreamInfo fallible(NatsError) {
+    let text = js_call(c, "$JS.API.STREAM.INFO." + name, "") or raise;
+    let st = std::json::find_field_raw(text, "state");
+    return StreamInfo {
+        name: std::json::find_string_field(std::json::find_field_raw(text, "config"), "name"),
+        messages: std::json::find_int_field(st, "messages"),
+        bytes: std::json::find_int_field(st, "bytes"),
+        first_seq: std::json::find_int_field(st, "first_seq"),
+        last_seq: std::json::find_int_field(st, "last_seq"),
+        first_ns: rfc3339_ns(std::json::find_string_field(st, "first_ts")),
+        last_ns: rfc3339_ns(std::json::find_string_field(st, "last_ts")),
+        subjects: std::json::find_int_field(st, "num_subjects"),
+        deleted: std::json::find_int_field(st, "num_deleted"),
+        consumers: std::json::find_int_field(st, "consumer_count"),
+    };
+}
+
+/// Consumer `consumer`'s state on `stream`. Fails with kind
+/// "jetstream" (code 10014) when there is no such consumer.
+fn js_consumer_info(
+    c: NatsClient,
+    stream: String,
+    consumer: String
+) -> ConsumerInfo fallible(NatsError) {
+    let text = js_call(c, "$JS.API.CONSUMER.INFO." + stream + "." + consumer, "") or raise;
+    let delivered = std::json::find_field_raw(text, "delivered");
+    let floor = std::json::find_field_raw(text, "ack_floor");
+    return ConsumerInfo {
+        name: std::json::find_string_field(text, "name"),
+        stream: std::json::find_string_field(text, "stream_name"),
+        num_pending: std::json::find_int_field(text, "num_pending"),
+        num_ack_pending: std::json::find_int_field(text, "num_ack_pending"),
+        num_waiting: std::json::find_int_field(text, "num_waiting"),
+        num_redelivered: std::json::find_int_field(text, "num_redelivered"),
+        delivered_consumer_seq: std::json::find_int_field(delivered, "consumer_seq"),
+        delivered_stream_seq: std::json::find_int_field(delivered, "stream_seq"),
+        ack_floor_consumer_seq: std::json::find_int_field(floor, "consumer_seq"),
+        ack_floor_stream_seq: std::json::find_int_field(floor, "stream_seq"),
+        last_active_ns: rfc3339_ns(std::json::find_string_field(delivered, "last_active")),
+    };
+}
+
+// STREAM.MSG.GET with `body`, its answer a StoredMsg; "no message
+// found" (code 10037) is kind "no_messages".
+fn msg_get(c: NatsClient, stream: String, body: String) -> StoredMsg fallible(NatsError) {
+    let reply = c.request(
+        "$JS.API.STREAM.MSG.GET." + stream,
+        std::bytes::from_string(body),
+        c.timeout,
+    ) or fail no_responder_is(c, err, "JetStream is not enabled on the server");
+    let text = std::str::from_bytes(reply.data);
+    let refused = js_error_of(text);
+    if len(refused) > 0 {
+        if js_err_code(text) == 10037 {
+            let e = c.fail_with("no_messages", refused);
+            fail NatsError { kind: e.kind, detail: e.detail, code: 10037 };
+        }
+        fail js_refused(c, refused, text);
+    }
+    let m = std::json::find_field_raw(text, "message");
+    let hdrs = std::json::find_string_field(m, "hdrs");
+    return StoredMsg {
+        subject: std::json::find_string_field(m, "subject"),
+        seq: std::json::find_int_field(m, "seq"),
+        headers: if len(hdrs) > 0 {
+            std::str::from_bytes(std::text::base64::decode(hdrs))
+        } else {
+            ""
+        },
+        data: std::text::base64::decode(std::json::find_string_field(m, "data")),
+        time_ns: rfc3339_ns(std::json::find_string_field(m, "time")),
+    };
+}
+
+/// Message `seq` of `stream`, read without a consumer. Fails with kind
+/// "no_messages" when the stream does not hold it.
+fn js_stream_msg_get(c: NatsClient, stream: String, seq: Int) -> StoredMsg fallible(NatsError) {
+    return msg_get(c, stream, "{\"seq\":" + to_string(seq) + "}") or raise;
+}
+
+/// The first message of `stream` on `subject` (wildcards allowed) at
+/// or after sequence `seq`: with `seq` 0, the oldest one it holds on
+/// that subject. Fails with kind "no_messages" when there is none.
+fn js_stream_msg_next(
+    c: NatsClient,
+    stream: String,
+    subject: String,
+    seq: Int
+) -> StoredMsg fallible(NatsError) {
+    let b = std::json::Builder { };
+    b.begin_object();
+    b.int_field("seq", seq);
+    b.string_field("next_by_subj", subject);
+    b.end_object();
+    return msg_get(c, stream, b.result()) or raise;
+}
+
+/// Remove message `seq` from `stream` at once (marked deleted, its
+/// bytes not overwritten). A consumer that has not delivered it never
+/// will. Fails with kind "jetstream" when the stream does not hold it:
+/// code 10043 for a sequence already gone, 10057 for one past its end.
+fn js_stream_msg_delete(c: NatsClient, stream: String, seq: Int) fallible(NatsError) {
+    let r = js_call(
+        c,
+        "$JS.API.STREAM.MSG.DELETE." + stream,
+        "{\"seq\":" + to_string(seq) + ",\"no_erase\":true}",
+    ) or raise;
+}

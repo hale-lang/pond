@@ -14,6 +14,21 @@ choose their own aliases per F.25.
 
 ---
 
+## 2026-11-26 status note — `realtime/nats`: JetStream publishes with headers, stream and consumer state (hale 0.38.0)
+
+- **Additions, no older surface changed or default moved**:
+  - `js_publish_headers(c, subject, headers, data)` and
+    `with_header(block, name, value)`: any header on an acknowledged
+    publish (`Nats-TTL`, `Nats-Msg-Id`, ...). `js_publish_id` is now
+    `js_publish_headers` with `msg_id_headers`.
+  - `NatsError.code` (default 0): the JetStream API's `err_code` on a
+    refusal. New kind `header`.
+  - `type StreamInfo` / `js_stream_info`, `type ConsumerInfo` /
+    `js_consumer_info`, `type StoredMsg` / `js_stream_msg_get` /
+    `js_stream_msg_next`, and `js_stream_msg_delete`.
+- Verified against hale `0.38.0` and nats-server 2.11.
+
+
 ## 2026-11-26 status note — `realtime/nats`: JetStream pulls without blocking, nak/term, delivery metadata (hale 0.38.0)
 
 - **Additions, no older surface changed**, for a program that pulls from
@@ -1470,9 +1485,18 @@ writes are `fallible(NatsError)`. The adapter delivers at least once
 and audits acknowledgement with an inline closure.
 
 ```hale
-type NatsError  { kind: String; detail: String; }   // url|connect|handshake|closed|io|timeout|server|protocol|jetstream|no_messages|no_responders
+type NatsError  { kind: String; detail: String;     // url|connect|handshake|closed|io|timeout|server|protocol|jetstream|no_messages|no_responders|header
+                  code: Int = 0; }                    // jetstream: the API's err_code (2026-11-26)
 type NatsMsg    { subject: String; sid: Int; reply: String; headers: String; data: Bytes; }
 type NatsFrame  { op: String; subject; sid; reply; headers; data; text; }   // op: INFO|MSG|HMSG|PING|PONG|OK|ERR
+type StreamInfo { name: String; messages: Int; bytes: Int; first_seq: Int; last_seq: Int;   // (2026-11-26)
+                  first_ns: Int; last_ns: Int; subjects: Int; deleted: Int; consumers: Int; }
+type ConsumerInfo { name: String; stream: String; num_pending: Int; num_ack_pending: Int;  // (2026-11-26)
+                    num_waiting: Int; num_redelivered: Int; delivered_consumer_seq: Int;
+                    delivered_stream_seq: Int; ack_floor_consumer_seq: Int;
+                    ack_floor_stream_seq: Int; last_active_ns: Int; }
+type StoredMsg  { subject: String; seq: Int; headers: String; data: Bytes; time_ns: Int; }   // (2026-11-26)
+fn with_header(block: String, name: String, value: String) -> String fallible(NatsError);   // kind header (2026-11-26)
 type PubAck     { stream: String; seq: Int; duplicate: Bool; }
 type ConsumerSpec { durable: String; filter = ""; deliver = "all";   // all|new|last|by_start_sequence|by_start_time
                     start_seq: Int = 0; start_time: String = ""; ack_wait_ms: Int = 0;
@@ -1525,6 +1549,12 @@ fn js_consumer_create(c: NatsClient, stream: String, spec: ConsumerSpec) -> () f
 fn js_consumer_delete(c: NatsClient, stream: String, consumer: String) -> () fallible(NatsError);   // (2026-11-26)
 fn js_publish(c: NatsClient, subject: String, data: Bytes) -> PubAck fallible(NatsError);
 fn js_publish_id(c: NatsClient, subject: String, id: String, data: Bytes) -> PubAck fallible(NatsError);   // Nats-Msg-Id dedup (2026-09-24)
+fn js_publish_headers(c: NatsClient, subject: String, headers: String, data: Bytes) -> PubAck fallible(NatsError);   // (2026-11-26)
+fn js_stream_info(c: NatsClient, name: String) -> StreamInfo fallible(NatsError);                       // (2026-11-26)
+fn js_consumer_info(c: NatsClient, stream: String, consumer: String) -> ConsumerInfo fallible(NatsError);   // (2026-11-26)
+fn js_stream_msg_get(c: NatsClient, stream: String, seq: Int) -> StoredMsg fallible(NatsError);         // no_messages if absent (2026-11-26)
+fn js_stream_msg_next(c: NatsClient, stream: String, subject: String, seq: Int) -> StoredMsg fallible(NatsError);   // next_by_subj (2026-11-26)
+fn js_stream_msg_delete(c: NatsClient, stream: String, seq: Int) -> () fallible(NatsError);             // 10043 gone, 10057 past the end (2026-11-26)
 fn js_next(c: NatsClient, stream: String, consumer: String, wait_ms: Int) -> NatsMsg fallible(NatsError);
 fn js_ack(c: NatsClient, m: NatsMsg) -> () fallible(NatsError);
 fn js_nak(c: NatsClient, m: NatsMsg, delay_ms: Int) -> () fallible(NatsError);   // again after delay_ms, 0 at once (2026-11-26)

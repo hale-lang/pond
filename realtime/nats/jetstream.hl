@@ -12,6 +12,20 @@ fn js_error_of(reply: String) -> String {
     return std::json::find_string_field(e, "description") + " (err_code " + to_string(code) + ")";
 }
 
+// The API's `err_code` in `reply`, 0 when it carries no error.
+fn js_err_code(reply: String) -> Int {
+    let e = std::json::find_field_raw(reply, "error");
+    if len(e) == 0 || e == "null" { return 0; }
+    return std::json::find_int_field(e, "err_code");
+}
+
+// The API's refusal in `reply` (`detail` from js_error_of), with its
+// err_code, said in the client's `last_error` too.
+fn js_refused(c: NatsClient, detail: String, reply: String) -> NatsError {
+    let e = c.fail_with("jetstream", detail);
+    return NatsError { kind: e.kind, detail: e.detail, code: js_err_code(reply) };
+}
+
 // A request nobody answered, said in JetStream's terms (and in the
 // client's `last_error`, like every failure here).
 fn no_responder_is(c: NatsClient, e: NatsError, what: String) -> NatsError {
@@ -27,7 +41,7 @@ fn js_call(c: NatsClient, api: String, body: String) -> String fallible(NatsErro
     );
     let text = std::str::from_bytes(reply.data);
     let refused = js_error_of(text);
-    if len(refused) > 0 { fail c.fail_with("jetstream", refused); }
+    if len(refused) > 0 { fail js_refused(c, refused, text); }
     return text;
 }
 
@@ -153,6 +167,22 @@ fn js_publish_id(
     data: Bytes
 ) -> PubAck fallible(NatsError) {
     let headers = if len(id) > 0 { msg_id_headers(id) } else { "" };
+    return js_publish_headers(c, subject, headers, data) or raise;
+}
+
+/// `js_publish` with a header block, as `with_header` builds it ("" for
+/// none): `Nats-Msg-Id` (see js_publish_id), `Nats-TTL` (this message's
+/// age, "30s" or a number of seconds, on a stream that allows it), the
+/// `Nats-Expected-*` preconditions, or any header of the caller's own.
+/// A refusal fails with kind "jetstream" and the API's `code` (10077:
+/// the subject is at its `max_msgs_per_subject` and the stream discards
+/// new).
+fn js_publish_headers(
+    c: NatsClient,
+    subject: String,
+    headers: String,
+    data: Bytes
+) -> PubAck fallible(NatsError) {
     let reply = c.request_with(subject, headers, data, c.timeout) or fail no_responder_is(
         c,
         err,
@@ -160,7 +190,7 @@ fn js_publish_id(
     );
     let text = std::str::from_bytes(reply.data);
     let refused = js_error_of(text);
-    if len(refused) > 0 { fail c.fail_with("jetstream", refused); }
+    if len(refused) > 0 { fail js_refused(c, refused, text); }
     return PubAck {
         stream: std::json::find_string_field(text, "stream"),
         seq: std::json::find_int_field(text, "seq"),
